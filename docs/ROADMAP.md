@@ -153,7 +153,33 @@ size-limit budgets, sherif/knip, Nx, docs site — none of them hurt yet at
 - Docs site from in-repo markdown; publish pipeline (Changesets, size-limit
   budgets, sherif/knip)
 
-## Phase 3 — Databases
+## Phase 3 — Databases — **done 2026-08-06** (except the SQLite index)
+
+Delivered in three slices after Phase 2:
+1. **Foundation** — the four record kinds (`database` view block in the core
+   schema; `CollectionSchema` + `ViewConfig` as host records; rows as ordinary
+   pages carrying `props.{collectionId,properties}`), the pure filter/sort
+   engine, the interactive table view, the `DatabaseHost` contract.
+2. **Views** — table / board / list layouts, grouping (declared options become
+   board columns, no-value group last, multi-select rows fan out), cards
+   draggable between board columns (the drop writes the group property),
+   multi-filter and multi-sort panels, property visibility.
+3. **Computation (AQ#8)** — a total pure formula language (tokenizer, Pratt
+   parser, evaluator; no clock, no randomness, never throws), relations,
+   rollups (count/sum/average/min/max/show) across collections, all resolved
+   before filtering/sorting/grouping so views work on derived values.
+   Plus the L1 projection: RFC-4180 CSV export/import (materialized computed
+   columns are marked and never re-imported as data), one readable `.md` per
+   row with YAML frontmatter, and an Obsidian-Bases-shaped `.base` view file.
+
+**Deliberately deferred: the L2 SQLite index.** It is pure cache by design
+(ARCHITECTURE §10: "holds zero unique information, rebuildable by full L0
+scan"), and adopting it means taking on a WASM bundle, OPFS and a
+single-writer worker — a dependency decision that deserves its own slice
+alongside Phase 4's file-tree storage, where search and cross-page queries
+actually create the need. Nothing shipped in Phase 3 blocks it.
+
+### Original scope
 
 - The four record kinds (view block / view / schema / rows-as-pages) wired
   into the editor

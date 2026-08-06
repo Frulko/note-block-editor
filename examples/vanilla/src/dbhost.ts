@@ -137,6 +137,17 @@ export function createDatabaseHost(ws: Workspace, opts: { openPage: (id: string)
       return (ws.collections ?? []).map((c) => ({ id: c.schema.id, name: c.schema.name }));
     },
 
+    importRows(collectionId, imported) {
+      const rec = record(collectionId);
+      if (!rec) return;
+      for (const row of imported) {
+        const page = createPage(ws, row.title);
+        page.props = { ...page.props, collectionId: rec.schema.id, properties: row.properties };
+        rec.rowIds.push(page.id);
+      }
+      notify();
+    },
+
     openRow(pageId) {
       opts.openPage(pageId);
     },

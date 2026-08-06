@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./collections": {
+      "types": "./src/collections.ts",
+      "default": "./src/collections.ts"
     }
   },
   "dependencies": {

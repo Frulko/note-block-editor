@@ -20,6 +20,7 @@ import {
   visibleProperties,
 } from '@nbe/core';
 import type { EditorView } from './view';
+import { collectionToCsv, csvToRows, safeName, viewToBase } from '@nbe/markdown/collections';
 import { createMenu, draggable, type MenuEntry } from './ui';
 import { renderBlock } from './render';
 
@@ -43,6 +44,8 @@ export interface DatabaseHost {
   updateSchemaName?(collectionId: string, name: string): void;
   /** All collections in the workspace — the relation picker needs targets. */
   listCollections?(): Array<{ id: string; name: string }>;
+  /** Bulk-create rows (CSV import): creating pages is the host's job. */
+  importRows?(collectionId: string, rows: RowData[]): void;
   openRow(pageId: string): void;
   onChange(cb: () => void): () => void;
 }
@@ -174,7 +177,9 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     () => openGroupMenu(groupBtn),
   );
   const propsBtn = btn('nbe-db-tool', 'Propriétés', () => openPropsMenu(propsBtn));
-  toolbar.append(title, layoutSwitch, el('span', 'nbe-db-spacer'), propsBtn, groupBtn, filterBtn, sortBtn);
+  const exportBtn = btn('nbe-db-tool', '⋯', () => openExportMenu(exportBtn));
+  exportBtn.title = 'Exporter / importer';
+  toolbar.append(title, layoutSwitch, el('span', 'nbe-db-spacer'), propsBtn, groupBtn, filterBtn, sortBtn, exportBtn);
   root.append(toolbar);
 
   // ------------------------------------------------------------------ menus
@@ -287,6 +292,58 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       })),
       { label: '＋ Nouvelle propriété', onSelect: () => host.addProperty(collectionId) },
     ];
+    menu.update(entries);
+    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
+  };
+
+  /**
+   * "Readable without the tool" applied to databases (ARCHITECTURE §10):
+   * the collection projects to CSV and to an Obsidian-Bases-shaped view.
+   */
+  const openExportMenu = (anchor: HTMLElement) => {
+    const menu = createMenu({ className: 'nbe-db-menu' });
+    const download = (name: string, content: string, mime: string) => {
+      const url = URL.createObjectURL(new Blob([content], { type: mime }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    const entries: MenuEntry[] = [
+      {
+        label: 'Copier en CSV',
+        onSelect: () => void navigator.clipboard?.writeText(collectionToCsv(rows, schema)),
+      },
+      {
+        label: 'Télécharger le CSV',
+        onSelect: () => download(`${safeName(schema.name)}.csv`, collectionToCsv(rows, schema), 'text/csv'),
+      },
+      {
+        label: 'Télécharger la vue (.base)',
+        onSelect: () => download(`${safeName(schema.name)}.base`, viewToBase(schema, cfg), 'text/yaml'),
+      },
+    ];
+    if (host.importRows) {
+      entries.push({
+        label: 'Importer un CSV…',
+        onSelect: () => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.csv,text/csv';
+          input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const { rows: imported, unknownColumns } = csvToRows(await file.text(), schema);
+            if (imported.length) host.importRows!(collectionId, imported);
+            if (unknownColumns.length) {
+              view.announce(`Colonnes ignorées : ${unknownColumns.join(', ')}`);
+            }
+          });
+          input.click();
+        },
+      });
+    }
     menu.update(entries);
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
   };
