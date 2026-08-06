@@ -186,6 +186,22 @@ function collectRuns(node: Node, marks: Mark[], out: Run[]): void {
   for (const child of el.childNodes) collectRuns(child, next, out);
 }
 
+/**
+ * Read Word's fake list markers. `mso-list: l0 level1 lfo1` says "list 0,
+ * depth 1"; the glyph in the ignored span says whether it is a bullet or a
+ * number. Nesting is dropped for now — Word expresses it through the level,
+ * but a paste that lands flat is still a list, which is the part that matters.
+ */
+function readMsoList(el: Element): { type: string } | null {
+  const style = el.getAttribute('style') ?? '';
+  if (!/mso-list\s*:/i.test(style) && !/MsoListParagraph/i.test(el.className)) return null;
+  if (!/mso-list\s*:\s*l\d+\s+level\d+/i.test(style)) return null;
+  const glyph = el.querySelector('[style*="mso-list"]')?.textContent?.trim() ?? '';
+  // a numbered marker starts with a digit or a single letter/roman followed by . or )
+  const numbered = /^(\d+|[a-z]+|[ivxlcdm]+)[.)]/i.test(glyph);
+  return { type: numbered ? 'numbered_list_item' : 'bulleted_list_item' };
+}
+
 function elementToBlocks(el: Element): BlockJSON[] {
   const tag = el.tagName.toLowerCase();
   const block = (type: string, props?: Record<string, unknown>, text?: Run[], children?: BlockJSON[]): BlockJSON => ({
@@ -201,6 +217,22 @@ function elementToBlocks(el: Element): BlockJSON[] {
     collectRuns(el, [], runs);
     return runs;
   };
+
+  // Word doesn't emit <ul>/<ol>: its lists are paragraphs carrying an mso-list
+  // style, with the bullet glyph inlined in a span the renderer is told to
+  // ignore. Detecting them here is what keeps a pasted Word list a real list.
+  const msoList = tag === 'p' ? readMsoList(el) : null;
+  if (msoList) {
+    const runs: Run[] = [];
+    for (const child of el.childNodes) {
+      // the glyph span is presentation: keeping it would put "·" in the text
+      if (child instanceof Element && /mso-list:\s*ignore/i.test(child.getAttribute('style') ?? '')) continue;
+      collectRuns(child, [], runs);
+    }
+    while (runs.length && !runs[0]!.text.trim()) runs.shift();
+    if (runs.length) runs[0] = { ...runs[0]!, text: runs[0]!.text.replace(/^\s+/, '') };
+    return [block(msoList.type, undefined, runs)];
+  }
 
   switch (tag) {
     case 'h1':

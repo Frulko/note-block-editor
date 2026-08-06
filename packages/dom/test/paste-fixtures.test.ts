@@ -48,16 +48,34 @@ describe('paste: Microsoft Word', () => {
   <p class=MsoListParagraph style='text-indent:-18.0pt;mso-list:l0 level1 lfo1'><span style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp; </span></span>Puce Word</p>
   </body></html>`;
 
-  it('parses paragraphs, marks and headings; mso-list stays a paragraph (documented limit)', () => {
+  it('parses paragraphs, marks and headings', () => {
     const blocks = htmlToBlocks(html);
-    expect(types(blocks)).toEqual(['paragraph', 'paragraph', 'heading', 'paragraph']);
+    expect(types(blocks)).toEqual(['paragraph', 'paragraph', 'heading', 'bulleted_list_item']);
     expect(texts(blocks)[0]).toBe('Premier paragraphe Word.');
     const p2 = blocks[1]!;
     expect(p2.text!.find((r) => r.text === 'Gras Word')!.marks?.map((m) => m.type)).toEqual(['bold']);
     expect(blocks[2]!.props?.['level']).toBe(1);
-    // ponytail: Word fake-lists (MsoListParagraph) are not detected as list items yet;
-    // the bullet glyph run is kept so no content is lost
-    expect(texts(blocks)[3]).toContain('Puce Word');
+  });
+
+  it('turns mso-list paragraphs into list items without the glyph', () => {
+    const blocks = htmlToBlocks(html);
+    const item = blocks[3]!;
+    expect(item.type).toBe('bulleted_list_item');
+    // the "·" and its spacer span belong to Word's rendering, not to the text
+    expect(plainText(item.text)).toBe('Puce Word');
+  });
+
+  it('reads a numbered marker as a numbered item', () => {
+    const [item] = htmlToBlocks(
+      `<p class=MsoListParagraph style='mso-list:l0 level1 lfo1'><span style='mso-list:Ignore'>1.<span>&nbsp; </span></span>Premier point</p>`,
+    );
+    expect(item!.type).toBe('numbered_list_item');
+    expect(plainText(item!.text)).toBe('Premier point');
+  });
+
+  it('leaves an ordinary Word paragraph alone', () => {
+    const [p] = htmlToBlocks(`<p class=MsoNormal style='margin-top:0'>Pas une liste</p>`);
+    expect(p!.type).toBe('paragraph');
   });
 });
 

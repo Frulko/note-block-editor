@@ -39,6 +39,16 @@
 > collections — all shipped by 2026-08-06 except the SQLite index, which is
 > deliberately deferred (see Phase 3 below).
 
+> **Theming (2026-08-06).** Every colour in the stylesheet now resolves from
+> the token block: six base channels (`--nbe-ink`, `--nbe-ink-warm`,
+> `--nbe-accent-rgb`, `--nbe-danger-rgb`, `--nbe-shadow-rgb`, `--nbe-surface`)
+> plus the named block palette. Dark mode remaps those and nothing else — not
+> one rule is duplicated. It follows the OS preference by default; a host with
+> its own theme switch sets `data-nbe-theme="dark"` or `"light"` on the editor
+> or on `<html>`, which is what reaches the menus and tooltips portaled out to
+> the document body. The editor also paints its own page background now, so a
+> dark theme cannot end up as white text on the host's white page.
+
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier
 one — that's what the "cheap now, priceless later" invariants below are for.

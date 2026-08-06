@@ -10,9 +10,10 @@ export interface ColorDef {
 
 /**
  * The palette is a closed, named set: documents persist `name`, never a raw
- * CSS value. That keeps colours themeable (a dark mode can remap them), keeps
- * the markdown/static projections meaningful, and stops arbitrary CSS from
- * entering the model through a colour picker.
+ * CSS value. The `text`/`background` fields here are the light-theme values,
+ * used to paint the picker's swatches; what the editor actually applies is the
+ * matching custom property, so dark mode remaps the palette in CSS without any
+ * document rewriting. Arbitrary CSS can never enter the model this way.
  */
 export const COLORS: ColorDef[] = [
   { name: 'default', label: 'Défaut', text: 'inherit', background: 'transparent' },
@@ -34,11 +35,11 @@ export function colorByName(name: unknown): ColorDef | undefined {
 /** CSS text colour for a persisted name, or undefined for the default. */
 export function textColor(name: unknown): string | undefined {
   const color = colorByName(name);
-  return color && color.name !== 'default' ? color.text : undefined;
+  return color && color.name !== 'default' ? `var(--nbe-color-${color.name}-text)` : undefined;
 }
 
 /** CSS background for a persisted name, or undefined for none. */
 export function backgroundColor(name: unknown): string | undefined {
   const color = colorByName(name);
-  return color && color.name !== 'default' ? color.background : undefined;
+  return color && color.name !== 'default' ? `var(--nbe-color-${color.name}-bg)` : undefined;
 }

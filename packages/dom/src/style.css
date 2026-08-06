@@ -13,30 +13,40 @@
 .nbe-iconpicker,
 .nbe-dropzone,
 .nbe-db {
+  /* base channels — dark mode remaps these six and the rest follows */
+  --nbe-ink: 55 53 47;
+  --nbe-ink-warm: 135 131 120;
+  --nbe-accent-rgb: 35 131 226;
+  --nbe-danger-rgb: 212 76 71;
+  --nbe-shadow-rgb: 15 15 15;
+  --nbe-surface: #fff;
+
   /* ink */
-  --nbe-text: rgb(55, 53, 47);
-  --nbe-text-muted: rgba(55, 53, 47, 0.65);
-  --nbe-text-light: rgba(55, 53, 47, 0.5);
-  --nbe-text-faint: rgba(55, 53, 47, 0.35);
-  --nbe-placeholder: rgba(55, 53, 47, 0.35);
+  --nbe-text: rgb(var(--nbe-ink));
+  --nbe-text-muted: rgb(var(--nbe-ink) / 0.65);
+  --nbe-text-light: rgb(var(--nbe-ink) / 0.5);
+  --nbe-text-faint: rgb(var(--nbe-ink) / 0.35);
+  --nbe-placeholder: rgb(var(--nbe-ink) / 0.35);
 
   /* surfaces */
-  --nbe-surface: #fff;
   --nbe-surface-sunken: rgb(247, 246, 243);
-  --nbe-hover: rgba(55, 53, 47, 0.06);
-  --nbe-hover-strong: rgba(55, 53, 47, 0.09);
-  --nbe-code-bg: rgba(135, 131, 120, 0.15);
+  --nbe-hover: rgb(var(--nbe-ink) / 0.06);
+  --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
+  --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.15);
+  --nbe-code-text: rgb(235, 87, 87);
 
   /* lines */
-  --nbe-border: rgba(55, 53, 47, 0.09);
-  --nbe-border-strong: rgba(55, 53, 47, 0.16);
+  --nbe-border: rgb(var(--nbe-ink) / 0.09);
+  --nbe-border-strong: rgb(var(--nbe-ink) / 0.16);
 
   /* accents */
-  --nbe-accent: rgb(35, 131, 226);
-  --nbe-accent-soft: rgba(35, 131, 226, 0.13);
-  --nbe-accent-line: rgba(35, 131, 226, 0.45);
-  --nbe-danger: rgb(212, 76, 71);
+  --nbe-accent: rgb(var(--nbe-accent-rgb));
+  --nbe-accent-soft: rgb(var(--nbe-accent-rgb) / 0.13);
+  --nbe-accent-line: rgb(var(--nbe-accent-rgb) / 0.45);
+  --nbe-danger: rgb(var(--nbe-danger-rgb));
   --nbe-success: rgb(68, 131, 97);
+  /* what sits on top of a filled accent (checkbox tick) — white in both themes */
+  --nbe-on-accent: #fff;
 
   /* inverted surface (selection toolbar) */
   --nbe-inverse-surface: rgb(37, 37, 37);
@@ -50,9 +60,29 @@
   --nbe-radius-lg: 8px;
 
   /* elevation */
-  --nbe-shadow-sm: rgba(15, 15, 15, 0.04) 0 0 0 1px, rgba(15, 15, 15, 0.03) 0 2px 4px;
-  --nbe-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px,
-    rgba(15, 15, 15, 0.2) 0 9px 24px;
+  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.04) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
+  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.05) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.1) 0 3px 6px,
+    rgb(var(--nbe-shadow-rgb) / 0.2) 0 9px 24px;
+
+  /* block palette — persisted by name, resolved here so dark mode remaps it */
+  --nbe-color-gray-text: rgb(120,119,116);
+  --nbe-color-gray-bg: rgb(241,241,239);
+  --nbe-color-brown-text: rgb(159,107,83);
+  --nbe-color-brown-bg: rgb(244,238,238);
+  --nbe-color-orange-text: rgb(217,115,13);
+  --nbe-color-orange-bg: rgb(251,236,221);
+  --nbe-color-yellow-text: rgb(203,145,47);
+  --nbe-color-yellow-bg: rgb(251,243,219);
+  --nbe-color-green-text: rgb(68,131,97);
+  --nbe-color-green-bg: rgb(237,243,236);
+  --nbe-color-blue-text: rgb(51,126,169);
+  --nbe-color-blue-bg: rgb(231,243,248);
+  --nbe-color-purple-text: rgb(144,101,176);
+  --nbe-color-purple-bg: rgb(244,240,247);
+  --nbe-color-pink-text: rgb(193,76,138);
+  --nbe-color-pink-bg: rgb(249,238,243);
+  --nbe-color-red-text: rgb(212,76,71);
+  --nbe-color-red-bg: rgb(253,235,236);
 
   /* motion — one duration language, all ease-out */
   --nbe-fast: 90ms;
@@ -83,13 +113,16 @@
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   color: var(--nbe-text);
+  /* the editor paints its own page: without it a dark theme would put white
+     text on whatever the host happens to have behind it */
+  background: var(--nbe-surface);
   font-size: 16px;
   line-height: 1.5;
   cursor: text;
 }
 
 .nbe-editor ::selection {
-  background: rgba(35, 131, 226, 0.28);
+  background: rgb(var(--nbe-accent-rgb) / 0.28);
 }
 /* non-text chrome must not highlight when a cross-block range crosses it
    (Notion does the same for its contenteditable=false voids) */
@@ -203,7 +236,7 @@
   top: 1px;
   width: 4px;
   height: 8px;
-  border: solid #fff;
+  border: solid var(--nbe-on-accent);
   border-width: 0 1.6px 1.6px 0;
   transform: rotate(45deg);
 }
@@ -339,7 +372,9 @@
 /* --- callout --- */
 
 .nbe-t-callout {
-  background: rgba(241, 241, 239, 1);
+  /* the default tint is the palette's gray, so it follows the theme like any
+     tint the user picks instead of staying light on a dark page */
+  background: var(--nbe-color-gray-bg);
   border-radius: 6px;
   padding: 12px 14px;
   margin: 4px 0;
@@ -405,7 +440,7 @@
   background: var(--nbe-surface);
   border-radius: var(--nbe-radius);
   padding: 3px;
-  box-shadow: var(--nbe-shadow-sm), rgba(15, 15, 15, 0.08) 0 3px 8px;
+  box-shadow: var(--nbe-shadow-sm), rgb(var(--nbe-shadow-rgb) / 0.08) 0 3px 8px;
   animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
 }
 .nbe-blocktoolbar-btn {
@@ -444,7 +479,7 @@
   background: var(--nbe-surface);
   border-radius: var(--nbe-radius);
   padding: 4px 5px;
-  box-shadow: var(--nbe-shadow-sm), rgba(15, 15, 15, 0.08) 0 3px 8px;
+  box-shadow: var(--nbe-shadow-sm), rgb(var(--nbe-shadow-rgb) / 0.08) 0 3px 8px;
   font-size: 13px;
   max-width: 380px;
   animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
@@ -489,21 +524,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(135, 131, 120, 0.08);
-  border: 1px dashed rgba(55, 53, 47, 0.18);
+  background: rgb(var(--nbe-ink-warm) / 0.08);
+  border: 1px dashed rgb(var(--nbe-ink) / 0.18);
   border-radius: 5px;
   padding: 8px 10px;
   transition: background 120ms ease-out, border-color 120ms ease-out;
 }
 .nbe-dropzone-active {
-  background: rgba(35, 131, 226, 0.08);
-  border-color: rgba(35, 131, 226, 0.5);
+  background: rgb(var(--nbe-accent-rgb) / 0.08);
+  border-color: rgb(var(--nbe-accent-rgb) / 0.5);
 }
 .nbe-dropzone-btn {
   font: inherit;
   font-size: 13px;
   border: 1px solid var(--nbe-border-strong);
-  background: #fff;
+  background: var(--nbe-surface);
   border-radius: 4px;
   padding: 4px 10px;
   cursor: pointer;
@@ -511,7 +546,7 @@
   transition: background 100ms ease-in;
 }
 .nbe-dropzone-btn:hover {
-  background: rgba(55, 53, 47, 0.05);
+  background: rgb(var(--nbe-ink) / 0.05);
 }
 .nbe-dropzone-url {
   font: inherit;
@@ -543,14 +578,14 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: rgba(55, 53, 47, 0.6);
+  color: rgb(var(--nbe-ink) / 0.6);
   padding: 4px 9px;
   border-radius: 4px 4px 0 0;
   cursor: pointer;
 }
 .nbe-iconpicker-tab.nbe-active {
-  background: rgba(55, 53, 47, 0.07);
-  color: rgb(55, 53, 47);
+  background: rgb(var(--nbe-ink) / 0.07);
+  color: rgb(var(--nbe-ink));
   font-weight: 500;
 }
 .nbe-iconpicker-body {
@@ -576,7 +611,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: rgba(55, 53, 47, 0.45);
+  color: rgb(var(--nbe-ink) / 0.45);
   padding: 6px 2px 3px;
 }
 .nbe-iconpicker-grid {
@@ -598,12 +633,12 @@
   background: var(--nbe-border);
 }
 .nbe-iconpicker-emoji.nbe-active {
-  background: rgba(35, 131, 226, 0.16);
+  background: rgb(var(--nbe-accent-rgb) / 0.16);
 }
 .nbe-iconpicker-empty,
 .nbe-iconpicker-hint {
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.45);
+  color: rgb(var(--nbe-ink) / 0.45);
   padding: 8px 2px 2px;
   line-height: 1.4;
 }
@@ -615,13 +650,13 @@
   border: none;
   border-top: 1px solid var(--nbe-border);
   background: transparent;
-  color: rgba(55, 53, 47, 0.6);
+  color: rgb(var(--nbe-ink) / 0.6);
   padding: 7px;
   cursor: pointer;
   text-align: left;
 }
 .nbe-iconpicker-remove:hover {
-  background: rgba(212, 76, 71, 0.07);
+  background: rgb(var(--nbe-danger-rgb) / 0.07);
   color: var(--nbe-danger);
 }
 
@@ -637,7 +672,7 @@
 }
 .nbe-page-link-title {
   text-decoration: underline;
-  text-decoration-color: rgba(55, 53, 47, 0.25);
+  text-decoration-color: rgb(var(--nbe-ink) / 0.25);
   font-weight: 500;
   margin-left: 4px;
 }
@@ -663,14 +698,14 @@
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.85em;
   background: var(--nbe-code-bg);
-  color: #eb5757;
+  color: var(--nbe-code-text);
   border-radius: 3px;
   padding: 0.1em 0.3em;
 }
 a.nbe-m-link {
   color: inherit;
   text-decoration: underline;
-  text-decoration-color: rgba(55, 53, 47, 0.4);
+  text-decoration-color: rgb(var(--nbe-ink) / 0.4);
   transition: text-decoration-color 100ms ease-in;
   cursor: pointer;
 }
@@ -738,7 +773,7 @@ a.nbe-m-link:hover {
   max-width: 280px;
   max-height: 320px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--nbe-surface);
   border-radius: 8px;
   box-shadow: var(--nbe-shadow);
   padding: 6px 4px;
@@ -767,7 +802,7 @@ a.nbe-m-link:hover {
   background: transparent;
   text-align: left;
   font: inherit;
-  color: var(--nbe-text, rgb(55, 53, 47));
+  color: var(--nbe-text, rgb(var(--nbe-ink)));
   border-radius: 4px;
   padding: 5px 8px;
   cursor: pointer;
@@ -780,12 +815,12 @@ a.nbe-m-link:hover {
   width: 22px;
   text-align: center;
   font-size: 13px;
-  color: rgba(55, 53, 47, 0.6);
+  color: rgb(var(--nbe-ink) / 0.6);
   flex-shrink: 0;
 }
 .nbe-menu-hint {
   margin-left: auto;
-  color: rgba(55, 53, 47, 0.4);
+  color: rgb(var(--nbe-ink) / 0.4);
   font-size: 12px;
 }
 .nbe-menu-section {
@@ -794,7 +829,7 @@ a.nbe-m-link:hover {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgb(var(--nbe-ink) / 0.5);
   user-select: none;
 }
 .nbe-menu-swatches {
@@ -807,13 +842,13 @@ a.nbe-m-link:hover {
   height: 26px;
   border: 1px solid var(--nbe-border-strong);
   border-radius: 4px;
-  background: #fff;
+  background: var(--nbe-surface);
   font-size: 13px;
   cursor: pointer;
   transition: background 100ms ease-in;
 }
 .nbe-swatch:hover {
-  border-color: rgba(55, 53, 47, 0.4);
+  border-color: rgb(var(--nbe-ink) / 0.4);
 }
 .nbe-swatch.nbe-active {
   outline: 2px solid var(--nbe-accent, var(--nbe-accent));
@@ -830,11 +865,11 @@ a.nbe-m-link:hover {
   pointer-events: none;
   max-width: 480px;
   opacity: 0.85;
-  filter: drop-shadow(rgba(15, 15, 15, 0.16) 0 6px 14px);
+  filter: drop-shadow(rgb(var(--nbe-shadow-rgb) / 0.16) 0 6px 14px);
   will-change: transform;
 }
 .nbe-ghost-layer {
-  background: #fff;
+  background: var(--nbe-surface);
   border-radius: 4px;
   padding: 2px 6px;
   overflow: hidden;
@@ -854,12 +889,12 @@ a.nbe-m-link:hover {
   top: -7px;
   right: -7px;
   background: var(--nbe-accent, var(--nbe-accent));
-  color: #fff;
+  color: var(--nbe-surface);
   font-size: 11px;
   font-weight: 600;
   border-radius: 999px;
   padding: 1px 7px;
-  box-shadow: 0 0 0 2px #fff;
+  box-shadow: 0 0 0 2px var(--nbe-surface);
 }
 .nbe-drag-source {
   opacity: 0.4;
@@ -868,15 +903,15 @@ a.nbe-m-link:hover {
   position: absolute;
   z-index: 150;
   display: none;
-  background: var(--nbe-accent, rgb(35, 131, 226));
+  background: var(--nbe-accent, rgb(var(--nbe-accent-rgb)));
   border-radius: 2px;
   pointer-events: none;
   transition: top 60ms linear, left 60ms linear, width 60ms linear, height 60ms linear;
 }
 /* a side drop creates columns — show the band it would occupy, not a hairline */
 .nbe-drop-guide.nbe-guide-side {
-  background: rgba(35, 131, 226, 0.16);
-  border: 2px solid var(--nbe-accent, rgb(35, 131, 226));
+  background: rgb(var(--nbe-accent-rgb) / 0.16);
+  border: 2px solid var(--nbe-accent, rgb(var(--nbe-accent-rgb)));
   border-radius: var(--nbe-radius);
 }
 
@@ -891,7 +926,7 @@ a.nbe-m-link:hover {
   background: var(--nbe-inverse-surface);
   border-radius: var(--nbe-radius-lg);
   padding: 3px;
-  box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.2) 0 3px 8px;
+  box-shadow: rgb(var(--nbe-shadow-rgb) / 0.1) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.2) 0 3px 8px;
   animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
   user-select: none;
 }
@@ -939,7 +974,7 @@ a.nbe-m-link:hover {
 }
 .nbe-seltoolbar-sep {
   width: 1px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--nbe-inverse-hover);
   margin: 3px 2px;
 }
 .nbe-seltoolbar-linkform {
@@ -970,7 +1005,7 @@ a.nbe-m-link:hover {
   position: absolute;
   z-index: 300;
   background: var(--nbe-inverse-surface);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--nbe-inverse-text);
   font-size: 12px;
   line-height: 1.4;
   white-space: pre-line;
@@ -986,8 +1021,8 @@ a.nbe-m-link:hover {
 .nbe-rubberband {
   position: fixed;
   z-index: 40;
-  background: rgba(35, 131, 226, 0.08);
-  border: 1px solid rgba(35, 131, 226, 0.35);
+  background: rgb(var(--nbe-accent-rgb) / 0.08);
+  border: 1px solid rgb(var(--nbe-accent-rgb) / 0.35);
   border-radius: 2px;
   pointer-events: none;
 }
@@ -1000,7 +1035,7 @@ a.nbe-m-link:hover {
 }
 .nbe-db-missing {
   color: var(--nbe-text-light);
-  background: rgba(135, 131, 120, 0.1);
+  background: rgb(var(--nbe-ink-warm) / 0.1);
   border-radius: 4px;
   padding: 10px 12px;
 }
@@ -1032,7 +1067,7 @@ a.nbe-m-link:hover {
   background: var(--nbe-hover-strong);
 }
 .nbe-db-table {
-  border-top: 1px solid rgba(55, 53, 47, 0.12);
+  border-top: 1px solid rgb(var(--nbe-ink) / 0.12);
   overflow-x: auto;
 }
 .nbe-db-row {
@@ -1066,20 +1101,20 @@ a.nbe-m-link:hover {
   transition: background 100ms ease-in;
 }
 .nbe-db-headcell:hover {
-  background: rgba(55, 53, 47, 0.05);
+  background: rgb(var(--nbe-ink) / 0.05);
 }
 .nbe-db-titlecell {
   cursor: pointer;
   font-weight: 500;
 }
 .nbe-db-titlecell:hover {
-  background: rgba(55, 53, 47, 0.05);
+  background: rgb(var(--nbe-ink) / 0.05);
 }
 .nbe-db-editable {
   cursor: text;
 }
 .nbe-db-editable:hover {
-  background: rgba(55, 53, 47, 0.04);
+  background: rgb(var(--nbe-ink) / 0.04);
 }
 .nbe-db-addprop,
 .nbe-db-rowmenu {
@@ -1109,12 +1144,12 @@ a.nbe-m-link:hover {
   cursor: pointer;
 }
 .nbe-db-newrow:hover {
-  background: rgba(55, 53, 47, 0.04);
+  background: rgb(var(--nbe-ink) / 0.04);
 }
 .nbe-db-input {
   font: inherit;
   font-size: 13px;
-  border: 1px solid rgba(35, 131, 226, 0.4);
+  border: 1px solid rgb(var(--nbe-accent-rgb) / 0.4);
   border-radius: 3px;
   padding: 2px 5px;
   outline: none;
@@ -1133,7 +1168,7 @@ a.nbe-m-link:hover {
   font: inherit;
   font-size: 13px;
   border: none;
-  background: rgba(135, 131, 120, 0.15);
+  background: rgb(var(--nbe-ink-warm) / 0.15);
   border-radius: 3px;
   padding: 1px 8px;
   cursor: pointer;
@@ -1216,7 +1251,7 @@ a.nbe-m-link:hover {
 .nbe-db-groupcount {
   font-size: 12px;
   color: var(--nbe-text-light);
-  background: rgba(135, 131, 120, 0.15);
+  background: rgb(var(--nbe-ink-warm) / 0.15);
   border-radius: 999px;
   padding: 0 7px;
 }
@@ -1231,14 +1266,14 @@ a.nbe-m-link:hover {
 }
 .nbe-db-col {
   flex: 0 0 240px;
-  background: rgba(247, 246, 243, 0.9);
+  background: var(--nbe-surface-sunken);
   border-radius: 6px;
   padding: 6px;
   transition: background 120ms ease-out;
 }
 .nbe-db-coltarget {
-  background: rgba(35, 131, 226, 0.1);
-  outline: 2px solid rgba(35, 131, 226, 0.35);
+  background: rgb(var(--nbe-accent-rgb) / 0.1);
+  outline: 2px solid rgb(var(--nbe-accent-rgb) / 0.35);
 }
 .nbe-db-colhead {
   display: flex;
@@ -1253,19 +1288,19 @@ a.nbe-m-link:hover {
   min-height: 12px;
 }
 .nbe-db-card {
-  background: #fff;
+  background: var(--nbe-surface);
   border-radius: 5px;
   box-shadow:
-    rgba(15, 15, 15, 0.04) 0 0 0 1px,
-    rgba(15, 15, 15, 0.03) 0 2px 4px;
+    rgb(var(--nbe-shadow-rgb) / 0.04) 0 0 0 1px,
+    rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
   padding: 8px 10px;
   cursor: grab;
   transition: box-shadow 120ms ease-out, opacity 120ms ease-out;
 }
 .nbe-db-card:hover {
   box-shadow:
-    rgba(15, 15, 15, 0.08) 0 0 0 1px,
-    rgba(15, 15, 15, 0.06) 0 3px 6px;
+    rgb(var(--nbe-shadow-rgb) / 0.08) 0 0 0 1px,
+    rgb(var(--nbe-shadow-rgb) / 0.06) 0 3px 6px;
 }
 .nbe-db-dragging {
   opacity: 0.45;
@@ -1320,7 +1355,7 @@ a.nbe-m-link:hover {
 
 /* list */
 .nbe-db-list {
-  border-top: 1px solid rgba(55, 53, 47, 0.12);
+  border-top: 1px solid rgb(var(--nbe-ink) / 0.12);
 }
 .nbe-db-listitem {
   display: flex;
@@ -1339,7 +1374,7 @@ a.nbe-m-link:hover {
 .nbe-db-listprop {
   font-size: 12px;
   color: var(--nbe-text-light);
-  background: rgba(135, 131, 120, 0.12);
+  background: rgb(var(--nbe-ink-warm) / 0.12);
   border-radius: 3px;
   padding: 1px 6px;
 }
@@ -1347,7 +1382,7 @@ a.nbe-m-link:hover {
 .nbe-db-computed {
   color: var(--nbe-text-light);
   font-variant-numeric: tabular-nums;
-  background: rgba(135, 131, 120, 0.05);
+  background: rgb(var(--nbe-ink-warm) / 0.05);
 }
 .nbe-db-formula {
   padding: 6px 8px;
@@ -1367,7 +1402,7 @@ a.nbe-m-link:hover {
 }
 .nbe-db-formulastatus {
   font-size: 11px;
-  color: rgb(68, 131, 97);
+  color: var(--nbe-success);
   padding: 3px 1px 0;
   min-height: 14px;
 }
@@ -1377,7 +1412,7 @@ a.nbe-m-link:hover {
 .nbe-db-formulahelp {
   font-size: 10px;
   line-height: 1.4;
-  color: rgba(55, 53, 47, 0.4);
+  color: rgb(var(--nbe-ink) / 0.4);
   padding-top: 3px;
 }
 
@@ -1403,4 +1438,191 @@ a.nbe-m-link:hover {
 /* pagination sentinel: zero-height, only there to be observed */
 .nbe-db-sentinel {
   height: 1px;
+}
+
+/* ==========================================================================
+   Dark mode. The values below appear twice on purpose: once behind the OS
+   preference, once behind data-nbe-theme="dark" so a host can force it. CSS
+   cannot OR a media query with a selector, so if you change a value here,
+   change it in both blocks.
+
+   Only the base channels and a handful of derived tokens change:
+   not one rule below is duplicated, which is the whole point of the token
+   layer. The OS preference applies on its own; a host running its own theme
+   switch sets data-nbe-theme on the editor — or on <html>, which is what
+   reaches the menus and tooltips portaled out to the document body.
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  .nbe-editor,
+  .nbe-menu,
+  .nbe-seltoolbar,
+  .nbe-controls,
+  .nbe-tooltip,
+  .nbe-iconpicker,
+  .nbe-dropzone,
+  .nbe-db {
+    --nbe-ink: 255 255 255;
+    --nbe-ink-warm: 200 195 185;
+    --nbe-accent-rgb: 94 150 255;
+    --nbe-danger-rgb: 223 84 82;
+    --nbe-shadow-rgb: 0 0 0;
+    --nbe-surface: rgb(25, 25, 25);
+    --nbe-surface-sunken: rgb(32, 32, 32);
+    /* ink is light-on-dark now, so the light theme's alphas read far too strong */
+    --nbe-hover: rgb(var(--nbe-ink) / 0.055);
+    --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
+    --nbe-border: rgb(var(--nbe-ink) / 0.11);
+    --nbe-border-strong: rgb(var(--nbe-ink) / 0.18);
+    --nbe-text-muted: rgb(var(--nbe-ink) / 0.6);
+    --nbe-text-light: rgb(var(--nbe-ink) / 0.45);
+    --nbe-text-faint: rgb(var(--nbe-ink) / 0.3);
+    --nbe-placeholder: rgb(var(--nbe-ink) / 0.28);
+    --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.11);
+  --nbe-code-text: rgb(255, 122, 122);
+    --nbe-code-text: rgb(255, 122, 122);
+    /* the toolbar inverts against the page: on a dark page it goes light */
+    --nbe-inverse-surface: rgb(58, 58, 58);
+    --nbe-success: rgb(82, 158, 114);
+    --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.3) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.3) 0 2px 4px;
+    --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.35) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.4) 0 3px 6px,
+      rgb(var(--nbe-shadow-rgb) / 0.5) 0 9px 24px;
+    --nbe-color-gray-text: rgb(155,155,155);
+    --nbe-color-gray-bg: rgb(47,47,47);
+    --nbe-color-brown-text: rgb(186,133,111);
+    --nbe-color-brown-bg: rgb(74,50,40);
+    --nbe-color-orange-text: rgb(199,125,72);
+    --nbe-color-orange-bg: rgb(92,59,35);
+    --nbe-color-yellow-text: rgb(202,152,73);
+    --nbe-color-yellow-bg: rgb(86,67,40);
+    --nbe-color-green-text: rgb(82,158,114);
+    --nbe-color-green-bg: rgb(36,61,48);
+    --nbe-color-blue-text: rgb(94,150,255);
+    --nbe-color-blue-bg: rgb(20,58,78);
+    --nbe-color-purple-text: rgb(157,114,199);
+    --nbe-color-purple-bg: rgb(60,45,73);
+    --nbe-color-pink-text: rgb(212,93,146);
+    --nbe-color-pink-bg: rgb(78,44,60);
+    --nbe-color-red-text: rgb(223,84,82);
+    --nbe-color-red-bg: rgb(82,46,42);
+  }
+}
+
+.nbe-editor[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-editor,
+.nbe-menu[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-menu,
+.nbe-seltoolbar[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-seltoolbar,
+.nbe-controls[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-controls,
+.nbe-tooltip[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-tooltip,
+.nbe-iconpicker[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-iconpicker,
+.nbe-dropzone[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-dropzone,
+.nbe-db[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-db {
+  --nbe-ink: 255 255 255;
+  --nbe-ink-warm: 200 195 185;
+  --nbe-accent-rgb: 94 150 255;
+  --nbe-danger-rgb: 223 84 82;
+  --nbe-shadow-rgb: 0 0 0;
+  --nbe-surface: rgb(25, 25, 25);
+  --nbe-surface-sunken: rgb(32, 32, 32);
+  /* ink is light-on-dark now, so the light theme's alphas read far too strong */
+  --nbe-hover: rgb(var(--nbe-ink) / 0.055);
+  --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
+  --nbe-border: rgb(var(--nbe-ink) / 0.11);
+  --nbe-border-strong: rgb(var(--nbe-ink) / 0.18);
+  --nbe-text-muted: rgb(var(--nbe-ink) / 0.6);
+  --nbe-text-light: rgb(var(--nbe-ink) / 0.45);
+  --nbe-text-faint: rgb(var(--nbe-ink) / 0.3);
+  --nbe-placeholder: rgb(var(--nbe-ink) / 0.28);
+  --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.11);
+  --nbe-code-text: rgb(255, 122, 122);
+  /* the toolbar inverts against the page: on a dark page it goes light */
+  --nbe-inverse-surface: rgb(58, 58, 58);
+  --nbe-success: rgb(82, 158, 114);
+  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.3) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.3) 0 2px 4px;
+  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.35) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.4) 0 3px 6px,
+    rgb(var(--nbe-shadow-rgb) / 0.5) 0 9px 24px;
+  --nbe-color-gray-text: rgb(155,155,155);
+  --nbe-color-gray-bg: rgb(47,47,47);
+  --nbe-color-brown-text: rgb(186,133,111);
+  --nbe-color-brown-bg: rgb(74,50,40);
+  --nbe-color-orange-text: rgb(199,125,72);
+  --nbe-color-orange-bg: rgb(92,59,35);
+  --nbe-color-yellow-text: rgb(202,152,73);
+  --nbe-color-yellow-bg: rgb(86,67,40);
+  --nbe-color-green-text: rgb(82,158,114);
+  --nbe-color-green-bg: rgb(36,61,48);
+  --nbe-color-blue-text: rgb(94,150,255);
+  --nbe-color-blue-bg: rgb(20,58,78);
+  --nbe-color-purple-text: rgb(157,114,199);
+  --nbe-color-purple-bg: rgb(60,45,73);
+  --nbe-color-pink-text: rgb(212,93,146);
+  --nbe-color-pink-bg: rgb(78,44,60);
+  --nbe-color-red-text: rgb(223,84,82);
+  --nbe-color-red-bg: rgb(82,46,42);
+}
+
+/* forcing light has to out-specify the media query above, hence the explicit rule */
+.nbe-editor[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-editor,
+.nbe-menu[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-menu,
+.nbe-seltoolbar[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-seltoolbar,
+.nbe-controls[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-controls,
+.nbe-tooltip[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-tooltip,
+.nbe-iconpicker[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-iconpicker,
+.nbe-dropzone[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-dropzone,
+.nbe-db[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-db {
+  --nbe-ink: 55 53 47;
+  --nbe-ink-warm: 135 131 120;
+  --nbe-accent-rgb: 35 131 226;
+  --nbe-danger-rgb: 212 76 71;
+  --nbe-shadow-rgb: 15 15 15;
+  --nbe-surface: #fff;
+  --nbe-surface-sunken: rgb(247, 246, 243);
+  --nbe-hover: rgb(var(--nbe-ink) / 0.06);
+  --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
+  --nbe-border: rgb(var(--nbe-ink) / 0.09);
+  --nbe-border-strong: rgb(var(--nbe-ink) / 0.16);
+  --nbe-text-muted: rgb(var(--nbe-ink) / 0.65);
+  --nbe-text-light: rgb(var(--nbe-ink) / 0.5);
+  --nbe-text-faint: rgb(var(--nbe-ink) / 0.35);
+  --nbe-placeholder: rgb(var(--nbe-ink) / 0.35);
+  --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.15);
+  --nbe-code-text: rgb(235, 87, 87);
+  --nbe-inverse-surface: rgb(37, 37, 37);
+  --nbe-success: rgb(68, 131, 97);
+  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.04) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
+  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.05) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.1) 0 3px 6px,
+    rgb(var(--nbe-shadow-rgb) / 0.2) 0 9px 24px;
+  --nbe-color-gray-text: rgb(120,119,116);
+  --nbe-color-gray-bg: rgb(241,241,239);
+  --nbe-color-brown-text: rgb(159,107,83);
+  --nbe-color-brown-bg: rgb(244,238,238);
+  --nbe-color-orange-text: rgb(217,115,13);
+  --nbe-color-orange-bg: rgb(251,236,221);
+  --nbe-color-yellow-text: rgb(203,145,47);
+  --nbe-color-yellow-bg: rgb(251,243,219);
+  --nbe-color-green-text: rgb(68,131,97);
+  --nbe-color-green-bg: rgb(237,243,236);
+  --nbe-color-blue-text: rgb(51,126,169);
+  --nbe-color-blue-bg: rgb(231,243,248);
+  --nbe-color-purple-text: rgb(144,101,176);
+  --nbe-color-purple-bg: rgb(244,240,247);
+  --nbe-color-pink-text: rgb(193,76,138);
+  --nbe-color-pink-bg: rgb(249,238,243);
+  --nbe-color-red-text: rgb(212,76,71);
+  --nbe-color-red-bg: rgb(253,235,236);
 }

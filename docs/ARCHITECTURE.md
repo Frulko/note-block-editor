@@ -76,7 +76,9 @@ interface Mark { type: 'bold'|'italic'|'underline'|'strike'|'code'|'link'|'color
 - **Colours are palette names, never raw CSS.** Both marks (`color`,
   `background`) and block props (`color`, `backgroundColor`) persist a name
   from the closed palette in `dom/src/colors.ts`. That keeps documents
-  themeable (dark mode remaps the palette), keeps projections meaningful
+  themeable — the DOM package resolves a name to `var(--nbe-color-<name>-…)`,
+  so dark mode remaps the palette in CSS and no document is ever rewritten —
+  keeps projections meaningful
   (the static renderer emits classes, not frozen values), and stops arbitrary
   CSS from entering the model through a colour picker.
 - Each mark type declares Peritext expansion semantics (bold expands at
