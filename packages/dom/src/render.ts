@@ -2,6 +2,7 @@ import type { Block, Run } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { renderDatabase } from './database';
+import { createDropZone, fileToDataUrl } from './ui';
 
 const PLAINTEXT_ONLY_SUPPORTED = (() => {
   if (typeof document === 'undefined') return false;
@@ -89,13 +90,21 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       }
       root.append(img);
     } else {
-      const box = el('div', 'nbe-image-empty');
-      const input = document.createElement('input');
-      input.className = 'nbe-image-input';
-      input.placeholder = "URL de l'image, puis Entrée";
-      input.dataset['blockId'] = block.id;
-      box.append('🖼️ ', input);
-      root.append(box);
+      const setSrc = (src: string) =>
+        view.editor.dispatch((tx) => tx.op({ type: 'update_block', id: block.id, patch: { props: { src } } }), {
+          origin: 'ui',
+        });
+      root.append(
+        createDropZone({
+          label: 'Choisir une image',
+          icon: '🖼️',
+          onFile: async (file) => {
+            const store = view.options.onStoreAsset;
+            setSrc(store ? await store(file) : await fileToDataUrl(file));
+          },
+          onUrl: setSrc,
+        }),
+      );
     }
     return root;
   }
@@ -153,8 +162,20 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       break;
     }
     case 'callout': {
-      const icon = el('div', 'nbe-callout-icon');
-      icon.textContent = String(block.props['icon'] ?? '💡');
+      const icon = el('button', 'nbe-callout-icon') as HTMLButtonElement;
+      icon.type = 'button';
+      icon.setAttribute('aria-label', "Changer l'icône");
+      const value = String(block.props['icon'] ?? '💡');
+      if (/^(data:|https?:|asset:)/.test(value)) {
+        const img = document.createElement('img');
+        img.className = 'nbe-callout-image';
+        const resolved = view.options.resolveAssetUrl?.(value) ?? value;
+        if (typeof resolved === 'string') img.src = resolved;
+        else void resolved.then((url) => (img.src = url));
+        icon.append(img);
+      } else {
+        icon.textContent = value;
+      }
       row.append(icon);
       break;
     }

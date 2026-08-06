@@ -84,7 +84,7 @@ export function offsetAtX(view: EditorView, blockId: BlockId, x: number, edge: '
 }
 
 const INTERACTIVE_CHROME =
-  '.nbe-checkbox, .nbe-toggle-arrow, .nbe-image-input, .nbe-t-link_to_page, .nbe-t-image, [data-nbe-ui], a, button, input';
+  '.nbe-checkbox, .nbe-toggle-arrow, .nbe-callout-icon, .nbe-t-link_to_page, .nbe-t-image, [data-nbe-ui], a, button, input, textarea, select';
 
 /**
  * Notion-style block click routing: pressing anywhere on a block's row —

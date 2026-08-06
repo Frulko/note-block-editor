@@ -14,7 +14,16 @@ import {
   uuidv7,
 } from '@nbe/core';
 import type { EditorView } from './view';
-import { attachTooltip, createHoverZone, createMenu, draggable, findScrollParent, type MenuEntry } from './ui';
+import {
+  attachTooltip,
+  createDragGhost,
+  createHoverZone,
+  createMenu,
+  draggable,
+  findScrollParent,
+  type DragGhost,
+  type MenuEntry,
+} from './ui';
 
 type Edge = 'before' | 'after' | 'left' | 'right';
 
@@ -252,8 +261,7 @@ export function attachControls(view: EditorView): () => void {
   let dragIds: BlockId[] = [];
   let drop: { targetId: BlockId; edge: Edge } | null = null;
 
-  const ghost = document.createElement('div');
-  ghost.className = 'nbe-ghost';
+  let ghost: DragGhost | null = null;
   const guide = document.createElement('div');
   guide.className = 'nbe-drop-guide';
 
@@ -271,8 +279,7 @@ export function attachControls(view: EditorView): () => void {
   };
 
   const updateDrop = (e: PointerEvent) => {
-    ghost.style.top = `${e.clientY + 8}px`;
-    ghost.style.left = `${e.clientX + 10}px`;
+    ghost?.move(e.clientX, e.clientY);
 
     let candidate: HTMLElement | null = null;
     for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
@@ -319,7 +326,8 @@ export function attachControls(view: EditorView): () => void {
     document.body.classList.remove('nbe-drag-active');
     controls.classList.remove('nbe-ctrl-hidden');
     for (const n of view.content.querySelectorAll('.nbe-drag-source')) n.classList.remove('nbe-drag-source');
-    ghost.remove();
+    ghost?.destroy();
+    ghost = null;
     guide.remove();
     guide.style.display = 'none';
     hover.freeze(false);
@@ -351,7 +359,7 @@ export function attachControls(view: EditorView): () => void {
   const unDrag = draggable(handleBtn, {
     onTap: () => toggleMenu(),
     scrollContainer: () => findScrollParent(view.content),
-    onStart: () => {
+    onStart: (e) => {
       menu.close();
       const sel = editor.selection;
       dragIds =
@@ -363,23 +371,11 @@ export function attachControls(view: EditorView): () => void {
       if (!dragIds.length) return false;
       hover.freeze(true);
       document.body.classList.add('nbe-drag-active');
-      ghost.replaceChildren();
-      for (const id of dragIds.slice(0, 3)) {
-        const el = view.blockEl(id);
-        if (el) {
-          const clone = el.cloneNode(true) as HTMLElement;
-          clone.style.width = `${el.getBoundingClientRect().width}px`;
-          ghost.append(clone);
-          el.classList.add('nbe-drag-source');
-        }
-      }
-      if (dragIds.length > 1) {
-        const badge = document.createElement('div');
-        badge.className = 'nbe-ghost-badge';
-        badge.textContent = String(dragIds.length);
-        ghost.append(badge);
-      }
-      document.body.append(ghost, guide);
+      const sources = dragIds.map((id) => view.blockEl(id)).filter((el): el is HTMLElement => el !== null);
+      for (const el of sources) el.classList.add('nbe-drag-source');
+      ghost = createDragGhost(sources, { count: dragIds.length });
+      ghost.move(e.clientX, e.clientY);
+      document.body.append(guide);
       // hide, never remove: the handle keeps its pointer capture alive
       controls.classList.add('nbe-ctrl-hidden');
       return true;
@@ -405,7 +401,7 @@ export function attachControls(view: EditorView): () => void {
     unDrag();
     for (const un of unTooltips) un();
     controls.remove();
-    ghost.remove();
+    ghost?.destroy();
     guide.remove();
   };
 }

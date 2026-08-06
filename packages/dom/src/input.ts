@@ -21,6 +21,7 @@ import {
 import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
 import { syncCaretFromDom } from './caret';
+import { openIconPicker } from './ui';
 
 function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: number } | null {
   const sel = view.editor.selection;
@@ -200,6 +201,22 @@ export function attachInput(view: EditorView): () => void {
       if (pageId) view.options.onOpenPage?.(pageId);
       return;
     }
+    const calloutIcon = target.closest('.nbe-callout-icon') as HTMLElement | null;
+    if (calloutIcon) {
+      const id = (calloutIcon.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
+      const current = String(getBlock(editor.doc, id).props['icon'] ?? '');
+      openIconPicker(() => calloutIcon.getBoundingClientRect(), {
+        current,
+        storeImage: view.options.onStoreAsset,
+        onPick: (icon) =>
+          editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { icon } } }), { origin: 'ui' }),
+        onRemove: () =>
+          editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { icon: undefined } } }), {
+            origin: 'ui',
+          }),
+      });
+      return;
+    }
     const arrow = target.closest('.nbe-toggle-arrow');
     if (arrow) {
       const id = (arrow.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
@@ -234,15 +251,9 @@ export function attachInput(view: EditorView): () => void {
     }
   };
 
-  // image URL input: Enter commits the src
+  // keys typed into block chrome (drop zones, pickers) belong to that control
   const onUiKeydown = (e: KeyboardEvent) => {
-    const input = e.target as HTMLElement;
-    if (e.key === 'Enter' && input.classList?.contains('nbe-image-input')) {
-      e.preventDefault();
-      const id = input.dataset['blockId']!;
-      const src = (input as HTMLInputElement).value.trim();
-      if (src) editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { src } } }), { origin: 'ui' });
-    }
+    if ((e.target as HTMLElement).closest?.('[data-nbe-ui]')) e.stopPropagation();
   };
 
   content.addEventListener('beforeinput', onBeforeInput);

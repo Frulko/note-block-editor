@@ -4,12 +4,27 @@
   --nbe-placeholder: rgba(55, 53, 47, 0.35);
   --nbe-code-bg: rgba(135, 131, 120, 0.15);
   --nbe-accent: rgb(35, 131, 226);
+
+  /* page geometry owned by the editor (EditorViewOptions.padding/maxWidth).
+     The element fills its container and centers the text column with padding
+     rather than max-width, so the margins are still editor surface: rubber
+     band, click-to-place and drop targets work out there. */
+  --nbe-pad-top: 48px;
+  --nbe-pad-bottom: 30vh;
+  --nbe-pad-x: 24px;
+  --nbe-max-width: 708px;
+
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  padding: var(--nbe-pad-top) max(var(--nbe-pad-x), calc((100% - var(--nbe-max-width)) / 2))
+    var(--nbe-pad-bottom);
+
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   color: var(--nbe-text);
   font-size: 16px;
   line-height: 1.5;
-  padding-bottom: 30vh; /* click-below-to-append area */
   cursor: text;
 }
 
@@ -209,10 +224,30 @@
   margin: 4px 0;
 }
 .nbe-callout-icon {
-  width: 24px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   user-select: none;
-  line-height: 1.5;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-callout-icon:hover {
+  background: rgba(55, 53, 47, 0.08);
+}
+.nbe-callout-image {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+  margin: 0 auto;
 }
 
 /* --- image --- */
@@ -222,23 +257,146 @@
   border-radius: 4px;
   display: block;
 }
-.nbe-image-empty {
+/* --- drop zone (shared by image blocks and the icon picker) --- */
+
+.nbe-dropzone {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(135, 131, 120, 0.1);
-  border-radius: 4px;
-  padding: 10px 12px;
-  color: var(--nbe-text-light);
+  background: rgba(135, 131, 120, 0.08);
+  border: 1px dashed rgba(55, 53, 47, 0.18);
+  border-radius: 5px;
+  padding: 8px 10px;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
 }
-.nbe-image-input {
+.nbe-dropzone-active {
+  background: rgba(35, 131, 226, 0.08);
+  border-color: rgba(35, 131, 226, 0.5);
+}
+.nbe-dropzone-btn {
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  background: #fff;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 100ms ease-in;
+}
+.nbe-dropzone-btn:hover {
+  background: rgba(55, 53, 47, 0.05);
+}
+.nbe-dropzone-url {
+  font: inherit;
+  font-size: 13px;
   flex: 1;
+  min-width: 80px;
   border: none;
   background: transparent;
   outline: none;
   color: var(--nbe-text);
+}
+
+/* --- icon picker --- */
+
+.nbe-iconpicker {
+  width: 300px;
+  max-width: 300px;
+  padding: 0;
+  overflow: hidden;
+}
+.nbe-iconpicker-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+}
+.nbe-iconpicker-tab {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: rgba(55, 53, 47, 0.6);
+  padding: 4px 9px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+.nbe-iconpicker-tab.nbe-active {
+  background: rgba(55, 53, 47, 0.07);
+  color: rgb(55, 53, 47);
+  font-weight: 500;
+}
+.nbe-iconpicker-body {
+  padding: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.nbe-iconpicker-search {
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  border-radius: 4px;
+  padding: 5px 8px;
+  outline: none;
+  margin-bottom: 6px;
+}
+.nbe-iconpicker-search:focus {
+  border-color: var(--nbe-accent, rgb(35, 131, 226));
+}
+.nbe-iconpicker-grouplabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(55, 53, 47, 0.45);
+  padding: 6px 2px 3px;
+}
+.nbe-iconpicker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+.nbe-iconpicker-emoji {
+  font-size: 18px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: background 80ms ease-in;
+}
+.nbe-iconpicker-emoji:hover {
+  background: rgba(55, 53, 47, 0.09);
+}
+.nbe-iconpicker-emoji.nbe-active {
+  background: rgba(35, 131, 226, 0.16);
+}
+.nbe-iconpicker-empty,
+.nbe-iconpicker-hint {
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.45);
+  padding: 8px 2px 2px;
+  line-height: 1.4;
+}
+.nbe-iconpicker-remove {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  border-top: 1px solid rgba(55, 53, 47, 0.09);
+  background: transparent;
+  color: rgba(55, 53, 47, 0.6);
+  padding: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+.nbe-iconpicker-remove:hover {
+  background: rgba(212, 76, 71, 0.07);
+  color: rgb(212, 76, 71);
 }
 
 /* --- page link --- */
@@ -436,22 +594,42 @@ a.nbe-m-link:hover {
 
 .nbe-ghost {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 200;
   pointer-events: none;
-  opacity: 0.6;
   max-width: 480px;
+  opacity: 0.85;
+  filter: drop-shadow(rgba(15, 15, 15, 0.16) 0 6px 14px);
+  will-change: transform;
+}
+.nbe-ghost-layer {
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px 6px;
   overflow: hidden;
+  max-height: 90px;
+}
+.nbe-ghost-layer + .nbe-ghost-layer {
+  margin-top: -60%;
+  opacity: 0.5;
+  transform: rotate(-1.5deg);
+}
+.nbe-ghost-layer + .nbe-ghost-layer + .nbe-ghost-layer {
+  opacity: 0.3;
+  transform: rotate(2deg);
 }
 .nbe-ghost-badge {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -7px;
+  right: -7px;
   background: var(--nbe-accent, rgb(35, 131, 226));
   color: #fff;
   font-size: 11px;
   font-weight: 600;
   border-radius: 999px;
-  padding: 1px 6px;
+  padding: 1px 7px;
+  box-shadow: 0 0 0 2px #fff;
 }
 .nbe-drag-source {
   opacity: 0.4;

@@ -25,6 +25,16 @@ export interface EditorViewOptions {
   resolveAssetUrl?: (src: string) => string | Promise<string>;
   /** Collections/views/row-pages live in the host workspace (phase 3, §2.5). */
   database?: import('./database').DatabaseHost;
+  /**
+   * Page geometry owned by the editor, not by the host app. The editor fills
+   * its container and centers the text column inside `maxWidth`; everything
+   * outside the column but inside the padding is still editor surface, so
+   * rubber-band selection and click-to-place work there (Word-like margins).
+   * Set any value to 0 / '0px' for a flush-to-the-edge look.
+   */
+  padding?: { top?: string; bottom?: string; x?: string };
+  /** Text column width; '100%' disables centering. Default 708px (Notion). */
+  maxWidth?: string;
 }
 
 export class EditorView {
@@ -40,6 +50,11 @@ export class EditorView {
     this.options = options;
     this.content = document.createElement('div');
     this.content.className = 'nbe-editor';
+    if (options.padding?.top !== undefined) this.content.style.setProperty('--nbe-pad-top', options.padding.top);
+    if (options.padding?.bottom !== undefined)
+      this.content.style.setProperty('--nbe-pad-bottom', options.padding.bottom);
+    if (options.padding?.x !== undefined) this.content.style.setProperty('--nbe-pad-x', options.padding.x);
+    if (options.maxWidth !== undefined) this.content.style.setProperty('--nbe-max-width', options.maxWidth);
     this.content.tabIndex = 0; // the document's single tab stop (ARCHITECTURE §8)
     this.content.setAttribute('role', 'textbox');
     this.content.setAttribute('aria-multiline', 'true');

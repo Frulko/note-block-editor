@@ -21,7 +21,7 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { collectionToCsv, csvToRows, safeName, viewToBase } from '@nbe/markdown/collections';
-import { createMenu, draggable, type MenuEntry } from './ui';
+import { createDragGhost, createMenu, draggable, type DragGhost, type MenuEntry } from './ui';
 import { renderBlock } from './render';
 
 export interface DatabaseData {
@@ -753,12 +753,23 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     const prop = schema.properties.find((p) => p.id === cfg.groupBy);
     if (!prop) return;
     let targetKey: string | null = null;
+    let ghost: DragGhost | null = null;
+    const cleanup = () => {
+      card.classList.remove('nbe-db-dragging');
+      document.body.classList.remove('nbe-drag-active');
+      ghost?.destroy();
+      ghost = null;
+      for (const c of root.querySelectorAll('.nbe-db-col')) c.classList.remove('nbe-db-coltarget');
+    };
     draggable(card, {
-      onStart: () => {
+      onStart: (e) => {
         card.classList.add('nbe-db-dragging');
         document.body.classList.add('nbe-drag-active');
+        ghost = createDragGhost([card], { count: 1 });
+        ghost.move(e.clientX, e.clientY);
       },
       onMove: (e) => {
+        ghost?.move(e.clientX, e.clientY);
         const col = (document.elementsFromPoint(e.clientX, e.clientY).find((n) =>
           (n as HTMLElement).classList?.contains('nbe-db-col'),
         ) ?? null) as HTMLElement | null;
@@ -767,9 +778,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         if (col && targetKey !== null) col.classList.add('nbe-db-coltarget');
       },
       onDrop: () => {
-        card.classList.remove('nbe-db-dragging');
-        document.body.classList.remove('nbe-drag-active');
-        for (const c of root.querySelectorAll('.nbe-db-col')) c.classList.remove('nbe-db-coltarget');
+        cleanup();
         if (targetKey === null) return;
         const value =
           prop.type === 'multi_select'
@@ -781,11 +790,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
               : targetKey;
         host.updateCell(collectionId, row.pageId, prop.id, value);
       },
-      onCancel: () => {
-        card.classList.remove('nbe-db-dragging');
-        document.body.classList.remove('nbe-drag-active');
-        for (const c of root.querySelectorAll('.nbe-db-col')) c.classList.remove('nbe-db-coltarget');
-      },
+      onCancel: cleanup,
     });
   };
 

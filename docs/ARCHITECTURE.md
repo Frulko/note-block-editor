@@ -242,9 +242,21 @@ overlays. Framework adapters never re-implement it.
   framework (the query-devtools pattern). Every component replaceable.
 - **UI primitives (`dom/src/ui/`),** shared by all chrome and exported for
   block authors: `position` (pure flip/clamp engine + `autoUpdate` live
-  anchoring), `menu` (keyboard nav, outside-click/Escape dismissal), `tooltip`,
+  anchoring), `menu` (keyboard nav, outside-click/Escape dismissal, and it
+  never steals keys from form controls inside custom entries), `tooltip`,
   `hover` (geometry-resolved hover zone with grace delay — floating chrome
-  never kills the hover), `drag` (pointer drag session, D8).
+  never kills the hover), `drag` (pointer drag session, D8), `ghost` (stacked
+  drag preview with count badge, shared by block and board-card drag),
+  `upload` (`pickFile`, `fileToDataUrl`, `createDropZone` — click, drop or
+  paste a URL), `icon-picker` (emoji grid with diacritic-insensitive search
+  plus a custom-image tab). Any new block reuses these rather than growing
+  its own chrome.
+- **Page geometry belongs to the editor, not the host app**
+  (`EditorViewOptions.padding` / `maxWidth`). The view fills its container and
+  centers the text column with padding rather than `max-width`, so the margins
+  remain editor surface: rubber-band selection, click-to-place and drop
+  targets all work out there (Word-like margins). Set them to `0` for a
+  flush-to-the-edge embed.
 - **All affordances are hover/focus-only** (handles, +, placeholders, sync
   halos). Always-visible chrome is why clones read as toys. Caret-only
   "Type / for commands" placeholder.
