@@ -220,7 +220,7 @@ function elementToBlocks(el: Element): BlockJSON[] {
       );
       if (hasBlockChild) return [...el.children].flatMap((c) => elementToBlocks(c));
       const runs = inline();
-      if (!runs.length) return [];
+      if (!runs.length || runs.every((r) => !r.text.trim())) return []; // whitespace-only wrappers
       return [block('paragraph', undefined, runs)];
     }
   }
