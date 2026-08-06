@@ -8,7 +8,19 @@
  * storage in the host. Formulas/relations/rollups are AQ#8 (later slice).
  */
 
-export type PropertyType = 'text' | 'number' | 'select' | 'multi_select' | 'date' | 'checkbox' | 'url';
+export type PropertyType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'multi_select'
+  | 'date'
+  | 'checkbox'
+  | 'url'
+  | 'formula'
+  | 'relation'
+  | 'rollup';
+
+export type RollupFn = 'count' | 'sum' | 'average' | 'min' | 'max' | 'show';
 
 export interface PropertyDef {
   id: string;
@@ -16,13 +28,24 @@ export interface PropertyDef {
   type: PropertyType;
   /** select / multi_select choices */
   options?: string[];
+  /** formula: source text, evaluated against the row (see formula.ts) */
+  formula?: string;
+  /** relation: which collection this property points into */
+  relation?: { collectionId: string };
+  /** rollup: aggregate a target property across a relation's rows */
+  rollup?: { relationPropertyId: string; targetPropertyId: string; fn: RollupFn };
 }
+
+/** Property types whose value is derived, never authored. */
+export const COMPUTED_TYPES: ReadonlySet<PropertyType> = new Set<PropertyType>(['formula', 'rollup']);
 
 export interface CollectionSchema {
   id: string;
   name: string;
   properties: PropertyDef[];
 }
+
+import { evaluateFormula, type FormulaValue } from './formula';
 
 export type FilterOp = 'eq' | 'neq' | 'contains' | 'empty' | 'not_empty' | 'gt' | 'lt';
 
@@ -65,6 +88,18 @@ export const PROPERTY_TYPES: Array<{ type: PropertyType; label: string }> = [
   { type: 'date', label: 'Date' },
   { type: 'checkbox', label: 'Case à cocher' },
   { type: 'url', label: 'URL' },
+  { type: 'formula', label: 'Formule' },
+  { type: 'relation', label: 'Relation' },
+  { type: 'rollup', label: 'Rollup' },
+];
+
+export const ROLLUP_FNS: Array<{ fn: RollupFn; label: string }> = [
+  { fn: 'count', label: 'Nombre' },
+  { fn: 'sum', label: 'Somme' },
+  { fn: 'average', label: 'Moyenne' },
+  { fn: 'min', label: 'Minimum' },
+  { fn: 'max', label: 'Maximum' },
+  { fn: 'show', label: 'Afficher les valeurs' },
 ];
 
 function rawValue(row: RowData, propertyId: string): unknown {
@@ -154,6 +189,113 @@ export function applyView(rows: RowData[], view: ViewConfig, schema: CollectionS
   return out;
 }
 
+// ------------------------------------------------- computed values (AQ#8)
+
+export interface ComputeContext {
+  /** Rows of a related collection (for relations and rollups). */
+  relatedRows?: (collectionId: string) => RowData[];
+  /** Schema of a related collection, to resolve rollup targets. */
+  relatedSchema?: (collectionId: string) => CollectionSchema | null;
+}
+
+const CYCLE = Symbol('formula-cycle');
+
+/**
+ * Resolve a row's derived properties (formula, rollup). Authored values pass
+ * through untouched. Formulas may reference other formulas; a cycle resolves
+ * to null instead of hanging — one bad formula must never take a table down.
+ */
+export function computeRow(
+  row: RowData,
+  schema: CollectionSchema,
+  ctx: ComputeContext = {},
+): Record<string, unknown> {
+  const byName = new Map(schema.properties.map((p) => [p.name, p]));
+  const cache = new Map<string, unknown>();
+  const visiting = new Set<string>();
+
+  const valueOfProp = (prop: PropertyDef): unknown => {
+    if (cache.has(prop.id)) {
+      const cached = cache.get(prop.id);
+      return cached === CYCLE ? null : cached;
+    }
+    if (visiting.has(prop.id)) return null; // cycle
+    visiting.add(prop.id);
+    let value: unknown;
+    if (prop.type === 'formula') {
+      value = prop.formula
+        ? evaluateFormula(prop.formula, {
+            prop: (name) => {
+              if (name === 'Titre' || name === 'Title') return row.title;
+              const target = byName.get(name);
+              return target ? (valueOfProp(target) as FormulaValue) : null;
+            },
+          })
+        : null;
+    } else if (prop.type === 'rollup') {
+      value = computeRollup(row, prop, schema, ctx);
+    } else {
+      value = row.properties[prop.id];
+    }
+    visiting.delete(prop.id);
+    cache.set(prop.id, value);
+    return value;
+  };
+
+  const out: Record<string, unknown> = { ...row.properties };
+  for (const prop of schema.properties) {
+    if (COMPUTED_TYPES.has(prop.type)) out[prop.id] = valueOfProp(prop);
+  }
+  return out;
+}
+
+function computeRollup(
+  row: RowData,
+  prop: PropertyDef,
+  schema: CollectionSchema,
+  ctx: ComputeContext,
+): unknown {
+  const config = prop.rollup;
+  if (!config) return null;
+  const ids = relationIds(row, config.relationPropertyId);
+  if (config.fn === 'count') return ids.length; // count works without resolving rows
+  if (!ids.length || !ctx.relatedRows || !ctx.relatedSchema) return null;
+
+  // the relation property (same schema) declares the collection we point into
+  const relationProp = schema.properties.find((p) => p.id === config.relationPropertyId);
+  const collectionId = relationProp?.relation?.collectionId;
+  if (!collectionId) return null;
+
+  const targetSchema = ctx.relatedSchema(collectionId);
+  const target = targetSchema?.properties.find((p) => p.id === config.targetPropertyId);
+  const values = ctx
+    .relatedRows(collectionId)
+    .filter((r) => ids.includes(r.pageId))
+    .map((r) => (config.targetPropertyId === 'title' ? r.title : r.properties[config.targetPropertyId]));
+
+  if (config.fn === 'show') {
+    return values.filter((v) => !isEmptyValue(v)).map((v) => formatValue(v, target?.type ?? 'text'));
+  }
+  const nums = values.map((v) => Number(v)).filter((n) => Number.isFinite(n));
+  if (!nums.length) return null;
+  switch (config.fn) {
+    case 'sum':
+      return nums.reduce((a, b) => a + b, 0);
+    case 'average':
+      return nums.reduce((a, b) => a + b, 0) / nums.length;
+    case 'min':
+      return Math.min(...nums);
+    default:
+      return Math.max(...nums);
+  }
+}
+
+/** Relation values are stored as an array of related page ids. */
+export function relationIds(row: RowData, relationPropertyId: string): string[] {
+  const raw = row.properties[relationPropertyId];
+  return Array.isArray(raw) ? raw.map(String) : [];
+}
+
 export interface RowGroup {
   /** Stable group key ('' for the no-value group). */
   key: string;
@@ -225,13 +367,22 @@ export function groupRows(rows: RowData[], groupBy: string, schema: CollectionSc
   return entries.map(([key, list]) => ({ key, label: label(key), rows: list }));
 }
 
-/** Filters + sorts + optional grouping in one call (what views actually need). */
+/**
+ * Filters + sorts + optional grouping in one call (what views actually need).
+ * Derived properties are resolved FIRST so formulas and rollups can be
+ * filtered, sorted and grouped on like any other column.
+ */
 export function evaluateView(
   rows: RowData[],
   view: ViewConfig,
   schema: CollectionSchema,
+  ctx: ComputeContext = {},
 ): { rows: RowData[]; groups: RowGroup[] | null } {
-  const visible = applyView(rows, view, schema);
+  const hasComputed = schema.properties.some((p) => COMPUTED_TYPES.has(p.type));
+  const resolved = hasComputed
+    ? rows.map((row) => ({ ...row, properties: computeRow(row, schema, ctx) }))
+    : rows;
+  const visible = applyView(resolved, view, schema);
   return {
     rows: visible,
     groups: view.groupBy ? groupRows(visible, view.groupBy, schema) : null,
@@ -246,8 +397,10 @@ export function visibleProperties(schema: CollectionSchema, view: ViewConfig): P
 
 /** Human formatting of a cell value for read-only display. */
 export function formatValue(v: unknown, type: PropertyType): string {
-  if (isEmptyValue(v)) return '';
+  if (isEmptyValue(v)) return type === 'rollup' && typeof v === 'number' ? String(v) : '';
   if (type === 'checkbox') return v ? '✓' : '';
+  if (typeof v === 'boolean') return v ? 'Vrai' : 'Faux';
+  if (typeof v === 'number' && !Number.isInteger(v)) return String(Math.round(v * 100) / 100);
   if (Array.isArray(v)) return v.join(', ');
   return String(v);
 }

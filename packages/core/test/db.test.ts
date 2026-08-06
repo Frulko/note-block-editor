@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyView,
   compareRows,
+  computeRow,
   evaluateView,
   formatValue,
   groupRows,
@@ -140,6 +141,126 @@ describe('grouping', () => {
       'OK',
       'Échéance',
     ]);
+  });
+});
+
+describe('computed properties (formula, relation, rollup)', () => {
+  const lines: CollectionSchema = {
+    id: 'lines',
+    name: 'Lignes',
+    properties: [
+      { id: 'l_price', name: 'Prix', type: 'number' },
+      { id: 'l_qty', name: 'Quantité', type: 'number' },
+      { id: 'l_total', name: 'Total', type: 'formula', formula: 'prop("Prix") * prop("Quantité")' },
+      { id: 'l_label', name: 'Étiquette', type: 'formula', formula: 'concat(prop("Titre"), " → ", prop("Total"))' },
+    ],
+  };
+  const lineRows: RowData[] = [
+    { pageId: 'L1', title: 'Vis', properties: { l_price: 2.5, l_qty: 4 } },
+    { pageId: 'L2', title: 'Écrou', properties: { l_price: 1, l_qty: 10 } },
+    { pageId: 'L3', title: 'Sans prix', properties: {} },
+  ];
+
+  const orders: CollectionSchema = {
+    id: 'orders',
+    name: 'Commandes',
+    properties: [
+      { id: 'o_lines', name: 'Lignes', type: 'relation', relation: { collectionId: 'lines' } },
+      {
+        id: 'o_count',
+        name: 'Nb lignes',
+        type: 'rollup',
+        rollup: { relationPropertyId: 'o_lines', targetPropertyId: 'l_total', fn: 'count' },
+      },
+      {
+        id: 'o_total',
+        name: 'Total',
+        type: 'rollup',
+        rollup: { relationPropertyId: 'o_lines', targetPropertyId: 'l_price', fn: 'sum' },
+      },
+      {
+        id: 'o_names',
+        name: 'Articles',
+        type: 'rollup',
+        rollup: { relationPropertyId: 'o_lines', targetPropertyId: 'title', fn: 'show' },
+      },
+    ],
+  };
+  const ctx = {
+    relatedRows: (id: string) => (id === 'lines' ? lineRows : []),
+    relatedSchema: (id: string) => (id === 'lines' ? lines : null),
+  };
+
+  it('evaluates formulas, including one referencing another and the title', () => {
+    const computed = computeRow(lineRows[0]!, lines);
+    expect(computed['l_total']).toBe(10);
+    expect(computed['l_label']).toBe('Vis → 10');
+  });
+
+  it('a formula over missing values yields null instead of breaking the row', () => {
+    const computed = computeRow(lineRows[2]!, lines);
+    expect(computed['l_total']).toBeNull();
+    expect(computed['l_label']).toBe('Sans prix → ');
+  });
+
+  it('mutually recursive formulas resolve to null instead of hanging', () => {
+    const cyclic: CollectionSchema = {
+      id: 'c',
+      name: 'c',
+      properties: [
+        { id: 'a', name: 'A', type: 'formula', formula: 'prop("B") + 1' },
+        { id: 'b', name: 'B', type: 'formula', formula: 'prop("A") + 1' },
+      ],
+    };
+    const computed = computeRow({ pageId: 'x', title: '', properties: {} }, cyclic);
+    expect(computed['a']).toBeNull();
+    expect(computed['b']).toBeNull();
+  });
+
+  it('rollups aggregate across a relation', () => {
+    const order: RowData = { pageId: 'O1', title: 'Commande 1', properties: { o_lines: ['L1', 'L2'] } };
+    const computed = computeRow(order, orders, ctx);
+    expect(computed['o_count']).toBe(2);
+    expect(computed['o_total']).toBe(3.5);
+    expect(computed['o_names']).toEqual(['Vis', 'Écrou']);
+  });
+
+  it('an empty relation counts zero and aggregates to null', () => {
+    const order: RowData = { pageId: 'O2', title: 'Vide', properties: {} };
+    const computed = computeRow(order, orders, ctx);
+    expect(computed['o_count']).toBe(0);
+    expect(computed['o_total']).toBeNull();
+  });
+
+  it('views filter and sort on computed values', () => {
+    // the row with no price computes to null and is dropped by the filter
+    const out = evaluateView(
+      lineRows,
+      view({ filters: [{ propertyId: 'l_total', op: 'not_empty' }], sorts: [{ propertyId: 'l_total', dir: 'desc' }] }),
+      lines,
+    );
+    expect(out.rows.map((r) => r.pageId)).toEqual(['L1', 'L2']); // equal totals → stable order
+    expect(out.rows.map((r) => r.properties['l_total'])).toEqual([10, 10]);
+
+    // a genuine ordering once the totals differ
+    const varied = [...lineRows.slice(0, 2), { pageId: 'L4', title: 'Boulon', properties: { l_price: 5, l_qty: 6 } }];
+    const desc = evaluateView(varied, view({ sorts: [{ propertyId: 'l_total', dir: 'desc' }] }), lines);
+    expect(desc.rows.map((r) => r.pageId)).toEqual(['L4', 'L1', 'L2']);
+  });
+
+  it('groups on a computed value', () => {
+    const flagged: CollectionSchema = {
+      ...lines,
+      properties: [
+        ...lines.properties,
+        { id: 'l_big', name: 'Gros', type: 'formula', formula: 'if(prop("Total") > 5, "gros", "petit")' },
+      ],
+    };
+    const out = evaluateView([...lineRows], view({ groupBy: 'l_big' }), flagged);
+    const labels = out.groups!.map((g) => `${g.label}:${g.rows.length}`);
+    // if() always returns a branch, so the price-less row (null total, not > 5)
+    // lands in "petit" rather than in a no-value group
+    expect(labels.sort()).toEqual(['gros:2', 'petit:1']);
   });
 });
 

@@ -810,6 +810,44 @@ a.nbe-m-link:hover {
   border-radius: 3px;
   padding: 1px 6px;
 }
+/* computed + formula editing */
+.nbe-db-computed {
+  color: var(--nbe-text-light);
+  font-variant-numeric: tabular-nums;
+  background: rgba(135, 131, 120, 0.05);
+}
+.nbe-db-formula {
+  padding: 6px 8px;
+}
+.nbe-db-formulainput {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  border-radius: 4px;
+  padding: 5px 6px;
+  outline: none;
+  resize: vertical;
+}
+.nbe-db-formulainput:focus {
+  border-color: var(--nbe-accent);
+}
+.nbe-db-formulastatus {
+  font-size: 11px;
+  color: rgb(68, 131, 97);
+  padding: 3px 1px 0;
+  min-height: 14px;
+}
+.nbe-db-formulaerror {
+  color: rgb(212, 76, 71);
+}
+.nbe-db-formulahelp {
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(55, 53, 47, 0.4);
+  padding-top: 3px;
+}
+
 .nbe-db-url {
   color: var(--nbe-accent);
   text-decoration: none;

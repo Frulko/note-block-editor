@@ -111,6 +111,11 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (!openFlag || !NAV_KEYS.has(e.key)) return;
+    // custom entries may host form controls (formula editors, filter values):
+    // their keys belong to them, not to menu navigation — this capture-phase
+    // listener would otherwise steal Enter and fire the highlighted item
+    const target = e.target as HTMLElement | null;
+    if (e.key !== 'Escape' && target && el.contains(target) && target.closest('input, textarea, select')) return;
     e.preventDefault();
     e.stopPropagation();
     const items = selectable();

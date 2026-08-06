@@ -9,7 +9,16 @@ import type {
   ViewConfig,
   ViewLayout,
 } from '@nbe/core';
-import { evaluateView, formatValue, PROPERTY_TYPES, visibleProperties } from '@nbe/core';
+import {
+  evaluateView,
+  formatValue,
+  FORMULA_FUNCTION_NAMES,
+  parseFormula,
+  PROPERTY_TYPES,
+  relationIds,
+  ROLLUP_FNS,
+  visibleProperties,
+} from '@nbe/core';
 import type { EditorView } from './view';
 import { createMenu, draggable, type MenuEntry } from './ui';
 import { renderBlock } from './render';
@@ -32,6 +41,8 @@ export interface DatabaseHost {
   deleteProperty(collectionId: string, propertyId: string): void;
   updateView(collectionId: string, view: ViewConfig): void;
   updateSchemaName?(collectionId: string, name: string): void;
+  /** All collections in the workspace — the relation picker needs targets. */
+  listCollections?(): Array<{ id: string; name: string }>;
   openRow(pageId: string): void;
   onChange(cb: () => void): () => void;
 }
@@ -121,7 +132,12 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   }
   const { schema, view: cfg } = data;
   const columns = visibleProperties(schema, cfg);
-  const { rows, groups } = evaluateView(data.rows, cfg, schema);
+  // computed properties resolve against other collections through the host
+  const computeCtx = {
+    relatedRows: (id: string) => host.get(id)?.rows ?? [],
+    relatedSchema: (id: string) => host.get(id)?.schema ?? null,
+  };
+  const { rows, groups } = evaluateView(data.rows, cfg, schema, computeCtx);
   const allColumns = (): Array<{ id: string; name: string }> => [{ id: 'title', name: 'Titre' }, ...schema.properties];
   const patchView = (patch: Partial<ViewConfig>) => host.updateView(collectionId, { ...cfg, ...patch });
 
@@ -290,12 +306,31 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       }
     });
     nameWrap.append(nameInput);
-    menu.update([
+    const entries: MenuEntry[] = [
       { kind: 'custom', el: nameWrap },
       { label: 'Trier ↑', onSelect: () => patchView({ sorts: [{ propertyId: prop.id, dir: 'asc' }] }) },
       { label: 'Trier ↓', onSelect: () => patchView({ sorts: [{ propertyId: prop.id, dir: 'desc' }] }) },
       { label: 'Grouper par', onSelect: () => patchView({ groupBy: prop.id }) },
       { label: 'Masquer', onSelect: () => patchView({ hidden: [...(cfg.hidden ?? []), prop.id] }) },
+    ];
+
+    if (prop.type === 'formula') {
+      entries.push({ kind: 'section', label: 'Formule' }, { kind: 'custom', el: formulaEditor(prop, menu) });
+    }
+    if (prop.type === 'relation') {
+      entries.push({ kind: 'section', label: 'Collection cible' });
+      for (const c of host.listCollections?.() ?? []) {
+        if (c.id === collectionId) continue; // self-relations need a UI of their own
+        entries.push({
+          label: c.name,
+          hint: prop.relation?.collectionId === c.id ? '✓' : undefined,
+          onSelect: () => host.updateProperty(collectionId, { ...prop, relation: { collectionId: c.id } }),
+        });
+      }
+    }
+    if (prop.type === 'rollup') entries.push(...rollupConfigEntries(prop));
+
+    entries.push(
       { kind: 'section', label: 'Type' },
       ...PROPERTY_TYPES.map((t) => ({
         label: t.label,
@@ -304,8 +339,94 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       })),
       { kind: 'section', label: ' ' },
       { label: 'Supprimer la propriété', onSelect: () => host.deleteProperty(collectionId, prop.id) },
-    ]);
+    );
+    menu.update(entries);
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
+  };
+
+  /** Formula source editor with live parse feedback. */
+  const formulaEditor = (prop: PropertyDef, menu: { close: () => void }): HTMLElement => {
+    const wrap = el('div', 'nbe-db-formula');
+    const input = document.createElement('textarea');
+    input.className = 'nbe-db-formulainput';
+    input.rows = 2;
+    input.value = prop.formula ?? '';
+    input.placeholder = 'ex: prop("Prix") * prop("Quantité")';
+    const status = el('div', 'nbe-db-formulastatus');
+    const validate = (): boolean => {
+      if (!input.value.trim()) {
+        status.textContent = '';
+        status.classList.remove('nbe-db-formulaerror');
+        return true;
+      }
+      try {
+        parseFormula(input.value);
+        status.textContent = '✓ formule valide';
+        status.classList.remove('nbe-db-formulaerror');
+        return true;
+      } catch (err) {
+        status.textContent = err instanceof Error ? err.message : 'Formule invalide';
+        status.classList.add('nbe-db-formulaerror');
+        return false;
+      }
+    };
+    input.addEventListener('input', validate);
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!validate()) return;
+        menu.close();
+        host.updateProperty(collectionId, { ...prop, formula: input.value });
+      }
+    });
+    validate();
+    const help = el('div', 'nbe-db-formulahelp', `Entrée pour valider · ${FORMULA_FUNCTION_NAMES.join(', ')}`);
+    wrap.append(input, status, help);
+    return wrap;
+  };
+
+  const rollupConfigEntries = (prop: PropertyDef): MenuEntry[] => {
+    const relations = schema.properties.filter((p) => p.type === 'relation');
+    const config = prop.rollup;
+    const targetCollection = relations.find((r) => r.id === config?.relationPropertyId)?.relation?.collectionId;
+    const targetSchema = targetCollection ? host.get(targetCollection)?.schema : null;
+    const out: MenuEntry[] = [{ kind: 'section', label: 'Relation source' }];
+    if (!relations.length) {
+      out.push({ label: 'Crée d’abord une propriété Relation', onSelect: () => {} });
+      return out;
+    }
+    for (const rel of relations) {
+      out.push({
+        label: rel.name,
+        hint: config?.relationPropertyId === rel.id ? '✓' : undefined,
+        onSelect: () =>
+          host.updateProperty(collectionId, {
+            ...prop,
+            rollup: { relationPropertyId: rel.id, targetPropertyId: 'title', fn: config?.fn ?? 'count' },
+          }),
+      });
+    }
+    if (config?.relationPropertyId) {
+      out.push({ kind: 'section', label: 'Propriété agrégée' });
+      for (const target of [{ id: 'title', name: 'Titre' }, ...(targetSchema?.properties ?? [])]) {
+        out.push({
+          label: target.name,
+          hint: config.targetPropertyId === target.id ? '✓' : undefined,
+          onSelect: () =>
+            host.updateProperty(collectionId, { ...prop, rollup: { ...config, targetPropertyId: target.id } }),
+        });
+      }
+      out.push({ kind: 'section', label: 'Calcul' });
+      for (const r of ROLLUP_FNS) {
+        out.push({
+          label: r.label,
+          hint: config.fn === r.fn ? '✓' : undefined,
+          onSelect: () => host.updateProperty(collectionId, { ...prop, rollup: { ...config, fn: r.fn } }),
+        });
+      }
+    }
+    return out;
   };
 
   const openSelectMenu = (anchor: HTMLElement, prop: PropertyDef, row: RowData, multi: boolean) => {
@@ -348,6 +469,33 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
   };
 
+  const openRelationMenu = (anchor: HTMLElement, prop: PropertyDef, row: RowData) => {
+    const menu = createMenu({ className: 'nbe-db-menu' });
+    const targetId = prop.relation?.collectionId;
+    if (!targetId) {
+      menu.update([{ label: 'Choisis une collection cible dans le menu de la propriété', onSelect: () => {} }]);
+      menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
+      return;
+    }
+    const selected = new Set(relationIds(row, prop.id));
+    const targetRows = host.get(targetId)?.rows ?? [];
+    menu.update(
+      targetRows.length
+        ? targetRows.map((target) => ({
+            label: target.title || 'Sans titre',
+            hint: selected.has(target.pageId) ? '✓' : undefined,
+            onSelect: () => {
+              const next = new Set(selected);
+              if (next.has(target.pageId)) next.delete(target.pageId);
+              else next.add(target.pageId);
+              host.updateCell(collectionId, row.pageId, prop.id, [...next]);
+            },
+          }))
+        : [{ label: 'La collection cible est vide', onSelect: () => {} }],
+    );
+    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
+  };
+
   // ------------------------------------------------------------------ cells
   const renderCell = (row: RowData, prop: PropertyDef): HTMLElement => {
     const cell = el('div', 'nbe-db-cell');
@@ -374,6 +522,26 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       case 'multi_select': {
         const label = formatValue(value, prop.type) || '—';
         const b = btn('nbe-db-selectbtn', label, () => openSelectMenu(b, prop, row, prop.type === 'multi_select'));
+        cell.append(b);
+        break;
+      }
+      case 'formula':
+      case 'rollup': {
+        // derived: read-only by construction
+        cell.classList.add('nbe-db-computed');
+        cell.textContent = formatValue(value, prop.type);
+        cell.title = prop.type === 'formula' ? (prop.formula ?? '') : 'Rollup';
+        break;
+      }
+      case 'relation': {
+        const targetId = prop.relation?.collectionId;
+        const ids = relationIds(row, prop.id);
+        const targetRows = targetId ? (host.get(targetId)?.rows ?? []) : [];
+        const label =
+          ids
+            .map((id) => targetRows.find((r) => r.pageId === id)?.title || 'Sans titre')
+            .join(', ') || '—';
+        const b = btn('nbe-db-selectbtn', label, () => openRelationMenu(b, prop, row));
         cell.append(b);
         break;
       }

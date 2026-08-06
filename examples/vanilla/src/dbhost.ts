@@ -133,6 +133,10 @@ export function createDatabaseHost(ws: Workspace, opts: { openPage: (id: string)
       notify();
     },
 
+    listCollections() {
+      return (ws.collections ?? []).map((c) => ({ id: c.schema.id, name: c.schema.name }));
+    },
+
     openRow(pageId) {
       opts.openPage(pageId);
     },

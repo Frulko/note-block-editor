@@ -7,3 +7,4 @@ export * from './ops';
 export * from './editor';
 export * from './commands';
 export * from './db';
+export * from './formula';
