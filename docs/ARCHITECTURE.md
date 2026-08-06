@@ -240,6 +240,11 @@ overlays. Framework adapters never re-implement it.
 - **Chrome** (slash menu, drag handle, toolbar, turn-into) = headless
   controller stores in core + vanilla DOM renderers in dom, wrapped per
   framework (the query-devtools pattern). Every component replaceable.
+- **UI primitives (`dom/src/ui/`),** shared by all chrome and exported for
+  block authors: `position` (pure flip/clamp engine + `autoUpdate` live
+  anchoring), `menu` (keyboard nav, outside-click/Escape dismissal), `tooltip`,
+  `hover` (geometry-resolved hover zone with grace delay — floating chrome
+  never kills the hover), `drag` (pointer drag session, D8).
 - **All affordances are hover/focus-only** (handles, +, placeholders, sync
   halos). Always-visible chrome is why clones read as toys. Caret-only
   "Type / for commands" placeholder.
@@ -377,6 +382,7 @@ Where the research notes conflicted, resolved here:
 | D5 | Flat map vs nested tree | **Both: flat `Map` at runtime, nested JSON per page at rest** | Not a real conflict — same model, two serializations; each optimal for its medium |
 | D6 | Block ID format | **UUIDv7** | Time-ordered (SQLite index locality) yet still non-semantic/non-positional; creation time is not position |
 | D7 | Markdown: one-way export vs re-importable | **Two-way with documented loss boundary**; L0 stays canonical | "Readable without the tool" + Obsidian interop are project goals; SiYuan/Notion prove markdown-as-database fails, so import goes through the parser into L0, IDs preserved |
+| D8 | Drag & drop: external lib (Atlassian Pragmatic) vs in-house | **In-house pointer-events drag primitive** (`ui/drag.ts`); native DnD listeners only for OS file drops | Pragmatic builds on native HTML5 DnD, whose limits are exactly why we avoided it (no touch initiation, unstylable previews, no dragover data, broken auto-scroll — research: hard-interactions). Revisit only if OS-level drag interop becomes a requirement |
 
 ## 12. Open questions (tracked, not yet designed)
 

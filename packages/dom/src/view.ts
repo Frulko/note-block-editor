@@ -7,6 +7,7 @@ import { attachKeymap } from './keymap';
 import { attachSlashMenu } from './slash';
 import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
+import { attachRubberBand } from './rubberband';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -19,7 +20,6 @@ export class EditorView {
   readonly content: HTMLElement;
   readonly options: EditorViewOptions;
   composing = false;
-  suppressSelectionEvents = 0;
 
   private unbinders: Array<() => void> = [];
 
@@ -35,7 +35,7 @@ export class EditorView {
 
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
-    this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this));
+    this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this), attachRubberBand(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
   }
@@ -93,7 +93,6 @@ export class EditorView {
     }
     // keyboard-driven block selection owns focus; a live mouse drag keeps its native selection
     if (origin !== 'dom' && origin !== 'render') {
-      this.suppressSelectionEvents++;
       document.getSelection()?.removeAllRanges();
       this.content.focus({ preventScroll: true });
       this.blockEl(sel.head)?.scrollIntoView({ block: 'nearest' });
@@ -108,7 +107,6 @@ export class EditorView {
     const head = modelPointToDom(this, sel.head);
     if (!anchor || !head) return;
     const leaf = this.leafEl(sel.head.blockId);
-    this.suppressSelectionEvents++;
     leaf?.focus({ preventScroll: true });
     document.getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
     leaf?.scrollIntoView({ block: 'nearest' });

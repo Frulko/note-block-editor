@@ -36,13 +36,13 @@ export function modelPointToDom(view: EditorView, point: Point): { node: Node; o
   return { node: leaf, offset: leaf.childNodes.length };
 }
 
-/** Keep the model selection in sync with the browser selection. */
+/**
+ * Keep the model selection in sync with the browser selection. Echo events
+ * (from our own programmatic selection writes) resolve to the current model
+ * selection and are dropped by equality — no fragile suppression counters.
+ */
 export function attachSelectionSync(view: EditorView): () => void {
   const handler = () => {
-    if (view.suppressSelectionEvents > 0) {
-      view.suppressSelectionEvents--;
-      return;
-    }
     if (view.composing) return;
     const sel = document.getSelection();
     if (!sel || sel.rangeCount === 0) return;
@@ -50,9 +50,20 @@ export function attachSelectionSync(view: EditorView): () => void {
     const anchor = domToModelPoint(sel.anchorNode!, sel.anchorOffset);
     const head = domToModelPoint(sel.focusNode!, sel.focusOffset);
     if (!anchor || !head) return;
+    const prev = view.editor.selection;
     if (anchor.blockId !== head.blockId) {
       // a range crossing leaf boundaries escalates to block selection (D3 / Notion)
+      if (prev?.kind === 'block' && prev.anchor === anchor.blockId && prev.head === head.blockId) return;
       view.editor.setSelection({ kind: 'block', anchor: anchor.blockId, head: head.blockId }, 'dom');
+      return;
+    }
+    if (
+      prev?.kind === 'text' &&
+      prev.anchor.blockId === anchor.blockId &&
+      prev.anchor.offset === anchor.offset &&
+      prev.head.blockId === head.blockId &&
+      prev.head.offset === head.offset
+    ) {
       return;
     }
     view.editor.setSelection({ kind: 'text', anchor, head }, 'dom');

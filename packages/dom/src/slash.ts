@@ -1,6 +1,7 @@
 import type { Block, BlockId } from '@nbe/core';
-import { childIndex, getBlock, plainText, textCaret, textLength, uuidv7 } from '@nbe/core';
+import { childIndex, getBlock, plainText, textLength, uuidv7 } from '@nbe/core';
 import type { EditorView } from './view';
+import { createMenu, type MenuEntry } from './ui';
 
 interface SlashItem {
   label: string;
@@ -42,71 +43,30 @@ export function filterItems(query: string, hasPages: boolean): SlashItem[] {
 
 export function attachSlashMenu(view: EditorView): () => void {
   const editor = view.editor;
-  const menu = document.createElement('div');
-  menu.className = 'nbe-menu nbe-slash-menu';
-  menu.dataset['nbeUi'] = '';
-  menu.setAttribute('role', 'listbox');
-
   let open = false;
   let blockId: BlockId = '';
   let triggerOffset = 0; // offset of the '/' character
-  let items: SlashItem[] = [];
-  let index = 0;
-  let anchor: DOMRect | null = null;
 
-  const position = () => {
-    if (!anchor) return;
-    const menuH = menu.offsetHeight;
-    const below = anchor.bottom + 6 + menuH < window.innerHeight;
-    menu.style.top = `${(below ? anchor.bottom + 6 : Math.max(8, anchor.top - menuH - 6)) + window.scrollY}px`;
-    menu.style.left = `${Math.min(anchor.left, window.innerWidth - 280) + window.scrollX}px`;
-  };
+  const menu = createMenu({
+    className: 'nbe-slash-menu',
+    onClose: () => {
+      open = false;
+    },
+  });
 
-  const close = () => {
-    if (!open) return;
-    open = false;
-    menu.remove();
-  };
-
-  const renderMenu = () => {
-    menu.replaceChildren(
-      ...items.map((item, i) => {
-        const row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'nbe-menu-item' + (i === index ? ' nbe-active' : '');
-        row.setAttribute('role', 'option');
-        const icon = document.createElement('span');
-        icon.className = 'nbe-menu-icon';
-        icon.textContent = item.icon;
-        row.append(icon, item.label);
-        row.addEventListener('mousedown', (e) => e.preventDefault()); // keep editor focus
-        row.addEventListener('click', () => select(item));
-        row.addEventListener('mousemove', () => {
-          if (index !== i) {
-            index = i;
-            renderMenu();
-          }
-        });
-        return row;
-      }),
-    );
-    if (!items.length) close();
-    else position();
-  };
+  const toEntries = (items: SlashItem[]): MenuEntry[] =>
+    items.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => select(item) }));
 
   const openAt = (id: BlockId, offset: number) => {
-    // anchored to the trigger block's leaf: deterministic even while the DOM
-    // selection is mid-flight during the input pipeline
-    const rect = view.leafEl(id)?.getBoundingClientRect() ?? null;
-    if (!rect) return;
+    if (!view.leafEl(id)) return;
     blockId = id;
     triggerOffset = offset;
-    items = filterItems('', !!view.options.onCreatePage);
-    index = 0;
     open = true;
-    anchor = rect;
-    document.body.append(menu);
-    renderMenu();
+    menu.update(toEntries(filterItems('', !!view.options.onCreatePage)));
+    // live anchor: re-resolved on scroll/re-render, so it survives leaf replacement
+    menu.open(() => view.leafEl(blockId)?.getBoundingClientRect() ?? null, {
+      placement: 'bottom-start',
+    });
   };
 
   const select = (item: SlashItem) => {
@@ -114,7 +74,6 @@ export function attachSlashMenu(view: EditorView): () => void {
     const caret = editor.selection?.kind === 'text' ? editor.selection.head.offset : triggerOffset + 1;
     const queryEnd = caret;
     const willBeEmpty = textLength(block.text) - (queryEnd - triggerOffset) === 0;
-    close();
 
     const newBlock = (type: string, props: Record<string, unknown> = {}): Block => ({
       id: uuidv7(),
@@ -144,15 +103,13 @@ export function attachSlashMenu(view: EditorView): () => void {
         if (willBeEmpty && block.type === 'paragraph') {
           tx.op({ type: 'update_block', id: blockId, patch: { type: target.type, props } });
           if (target.extraParagraph) {
-            const p = newBlock('paragraph');
-            tx.op({ type: 'insert_block', block: p, index: childIndex(editor.doc, blockId) + 1 });
+            tx.op({ type: 'insert_block', block: newBlock('paragraph'), index: childIndex(editor.doc, blockId) + 1 });
           }
         } else {
           const b = newBlock(target.type, props);
           tx.op({ type: 'insert_block', block: b, index: childIndex(editor.doc, blockId) + 1 });
           if (target.extraParagraph && target.type !== 'divider') {
-            const p = newBlock('paragraph');
-            tx.op({ type: 'insert_block', block: p, index: childIndex(editor.doc, b.id) + 1 });
+            tx.op({ type: 'insert_block', block: newBlock('paragraph'), index: childIndex(editor.doc, b.id) + 1 });
           }
         }
       },
@@ -176,25 +133,21 @@ export function attachSlashMenu(view: EditorView): () => void {
   };
 
   const update = () => {
-    if (!open) return;
     const sel = editor.selection;
-    if (sel?.kind !== 'text' || sel.head.blockId !== blockId) return close();
+    if (sel?.kind !== 'text' || sel.head.blockId !== blockId) return menu.close();
     const caret = sel.head.offset;
-    if (caret <= triggerOffset) return close();
+    if (caret <= triggerOffset) return menu.close();
     const block = editor.doc.blocks.get(blockId);
-    if (!block) return close();
+    if (!block) return menu.close();
     const text = plainText(block.text);
-    if (text[triggerOffset] !== '/') return close();
+    if (text[triggerOffset] !== '/') return menu.close();
     const query = text.slice(triggerOffset + 1, caret);
-    if (query.length > 12) return close();
-    items = filterItems(query, !!view.options.onCreatePage);
-    index = Math.min(index, Math.max(0, items.length - 1));
-    renderMenu();
+    if (query.length > 12) return menu.close();
+    menu.update(toEntries(filterItems(query, !!view.options.onCreatePage)));
   };
 
   const unsubChange = editor.on((change) => {
     if (!open) {
-      // opening: a lone '/' typed by the user
       const op = change.ops[change.ops.length - 1];
       if (
         change.origin === 'input' &&
@@ -209,44 +162,8 @@ export function attachSlashMenu(view: EditorView): () => void {
     update();
   });
 
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (!open) return;
-    switch (e.key) {
-      case 'ArrowDown':
-      case 'ArrowUp': {
-        e.preventDefault();
-        e.stopPropagation();
-        index = (index + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % Math.max(1, items.length);
-        renderMenu();
-        return;
-      }
-      case 'Enter':
-      case 'Tab': {
-        e.preventDefault();
-        e.stopPropagation();
-        const item = items[index];
-        if (item) select(item);
-        return;
-      }
-      case 'Escape': {
-        e.preventDefault();
-        e.stopPropagation();
-        close();
-        return;
-      }
-    }
-  };
-
-  const onMouseDown = (e: MouseEvent) => {
-    if (open && !menu.contains(e.target as Node)) close();
-  };
-
-  view.content.addEventListener('keydown', onKeyDown, { capture: true });
-  document.addEventListener('mousedown', onMouseDown);
   return () => {
     unsubChange();
-    view.content.removeEventListener('keydown', onKeyDown, { capture: true });
-    document.removeEventListener('mousedown', onMouseDown);
-    close();
+    menu.close();
   };
 }

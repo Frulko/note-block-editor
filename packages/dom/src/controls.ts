@@ -14,6 +14,7 @@ import {
   uuidv7,
 } from '@nbe/core';
 import type { EditorView } from './view';
+import { attachTooltip, createHoverZone, createMenu, draggable, findScrollParent, type MenuEntry } from './ui';
 
 type Edge = 'before' | 'after' | 'left' | 'right';
 
@@ -60,36 +61,53 @@ export function attachControls(view: EditorView): () => void {
   handleBtn.setAttribute('aria-label', 'Menu du bloc (glisser pour déplacer)');
   handleBtn.setAttribute('aria-haspopup', 'menu');
   controls.append(plusBtn, handleBtn);
+  const unTooltips = [
+    attachTooltip(plusBtn, 'Cliquer pour ajouter en dessous'),
+    attachTooltip(handleBtn, 'Glisser pour déplacer\nCliquer pour ouvrir le menu'),
+  ];
 
   let hoveredId: BlockId | null = null;
+
+  const showControlsFor = (blockEl: HTMLElement) => {
+    hoveredId = blockEl.dataset['blockId']!;
+    const rect = blockEl.getBoundingClientRect();
+    document.body.append(controls);
+    controls.style.top = `${rect.top + window.scrollY + 2}px`;
+    controls.style.left = `${rect.left + window.scrollX - 50}px`;
+  };
 
   const hideControls = () => {
     hoveredId = null;
     controls.remove();
   };
 
-  const onMouseMove = (e: MouseEvent) => {
-    if (dragging) return;
-    const target = e.target as HTMLElement;
-    if (target.closest?.('.nbe-controls, .nbe-menu')) return;
-    const blockEl = target.closest?.('.nbe-block') as HTMLElement | null;
+  /**
+   * Geometry-based resolution: the hovered block is found from the pointer's
+   * Y position with X clamped into the content box, so the left margin (where
+   * the controls live) still resolves to the adjacent block instead of losing
+   * the hover — the classic Notion behavior.
+   */
+  const resolveBlock = (e: MouseEvent): HTMLElement | null => {
+    const c = view.content.getBoundingClientRect();
+    if (e.clientY < c.top - 4 || e.clientY > c.bottom + 4) return null;
+    if (e.clientX < c.left - 64 || e.clientX > c.right + 24) return null;
+    const x = e.clientX < c.left ? c.left + 4 : e.clientX > c.right ? c.right - 4 : e.clientX;
+    const under = document.elementFromPoint(x, e.clientY);
+    const blockEl = (under as HTMLElement | null)?.closest?.('.nbe-block') as HTMLElement | null;
     const id = blockEl?.dataset['blockId'];
-    if (!id || !editor.doc.blocks.has(id) || getBlock(editor.doc, id).type === 'column_list') {
-      if (!menuOpen) hideControls();
-      return;
-    }
-    if (id === hoveredId) return;
-    if (menuOpen) return; // freeze while the menu is open
-    hoveredId = id;
-    const rect = blockEl!.getBoundingClientRect();
-    document.body.append(controls);
-    controls.style.top = `${rect.top + window.scrollY + 2}px`;
-    controls.style.left = `${rect.left + window.scrollX - 50}px`;
+    if (!id || !editor.doc.blocks.has(id)) return null;
+    const type = getBlock(editor.doc, id).type;
+    if (type === 'column_list' || type === 'column') return null;
+    return blockEl!;
   };
 
-  const onMouseLeave = () => {
-    if (!menuOpen && !dragging) hideControls();
-  };
+  const hover = createHoverZone({
+    resolve: resolveBlock,
+    isChrome: (t) =>
+      t instanceof Node && (controls.contains(t) || menu.el.contains(t) || (t as HTMLElement).closest?.('.nbe-tooltip') != null),
+    onTarget: showControlsFor,
+    onClear: hideControls,
+  });
 
   // --- plus button: new paragraph below + slash menu ---
   plusBtn.addEventListener('mousedown', (e) => e.preventDefault());
@@ -113,17 +131,12 @@ export function attachControls(view: EditorView): () => void {
     insertText(editor, '/'); // opens the slash menu
   });
 
-  // --- block menu ---
-  const menu = document.createElement('div');
-  menu.className = 'nbe-menu nbe-block-menu';
-  menu.dataset['nbeUi'] = '';
-  menu.setAttribute('role', 'menu');
-  let menuOpen = false;
-
-  const closeMenu = () => {
-    menuOpen = false;
-    menu.remove();
-  };
+  // --- block menu (generic menu primitive) ---
+  const menu = createMenu({
+    className: 'nbe-block-menu',
+    isOutsideExempt: (t) => controls.contains(t),
+    onClose: () => hover.freeze(false),
+  });
 
   const menuTargets = (): BlockId[] => {
     const sel = editor.selection;
@@ -134,78 +147,68 @@ export function attachControls(view: EditorView): () => void {
     return hoveredId ? [hoveredId] : [];
   };
 
-  const item = (label: string, hint: string, action: () => void): HTMLButtonElement => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'nbe-menu-item';
-    btn.setAttribute('role', 'menuitem');
-    btn.append(label);
-    if (hint) {
-      const kbd = document.createElement('span');
-      kbd.className = 'nbe-menu-hint';
-      kbd.textContent = hint;
-      btn.append(kbd);
-    }
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', () => {
-      closeMenu();
-      action();
-    });
-    return btn;
-  };
-
-  const section = (label: string): HTMLElement => {
-    const el = document.createElement('div');
-    el.className = 'nbe-menu-section';
-    el.textContent = label;
-    return el;
-  };
-
-  const openMenu = () => {
-    const ids = menuTargets();
-    if (!ids.length) return;
+  const buildMenuEntries = (ids: BlockId[]): MenuEntry[] => {
     const first = ids[0]!;
-    menuOpen = true;
-    menu.replaceChildren();
-
-    menu.append(
-      item('Dupliquer', '⌘D', () => {
-        duplicateBlocks(editor, ids);
-        view.announce('Bloc dupliqué');
-      }),
-      item('Supprimer', '⌫', () => {
-        deleteBlocks(editor, ids);
-        view.announce('Bloc supprimé');
-      }),
-      item('Copier le lien du bloc', '', () => {
-        const url = `${location.origin}${location.pathname}#${first}`;
-        void navigator.clipboard?.writeText(url);
-        view.announce('Lien copié');
-      }),
-      item('Déplacer vers le haut', '⌘⇧↑', () => {
-        moveBlocksVertical(editor, ids, 'up');
-        view.announce('Bloc déplacé vers le haut');
-      }),
-      item('Déplacer vers le bas', '⌘⇧↓', () => {
-        moveBlocksVertical(editor, ids, 'down');
-        view.announce('Bloc déplacé vers le bas');
-      }),
-    );
+    const entries: MenuEntry[] = [
+      {
+        label: 'Dupliquer',
+        hint: '⌘D',
+        onSelect: () => {
+          duplicateBlocks(editor, ids);
+          view.announce('Bloc dupliqué');
+        },
+      },
+      {
+        label: 'Supprimer',
+        hint: '⌫',
+        onSelect: () => {
+          deleteBlocks(editor, ids);
+          view.announce('Bloc supprimé');
+        },
+      },
+      {
+        label: 'Copier le lien du bloc',
+        onSelect: () => {
+          void navigator.clipboard?.writeText(`${location.origin}${location.pathname}#${first}`);
+          view.announce('Lien copié');
+        },
+      },
+      {
+        label: 'Déplacer vers le haut',
+        hint: '⌘⇧↑',
+        onSelect: () => {
+          moveBlocksVertical(editor, ids, 'up');
+          view.announce('Bloc déplacé vers le haut');
+        },
+      },
+      {
+        label: 'Déplacer vers le bas',
+        hint: '⌘⇧↓',
+        onSelect: () => {
+          moveBlocksVertical(editor, ids, 'down');
+          view.announce('Bloc déplacé vers le bas');
+        },
+      },
+    ];
 
     const block = getBlock(editor.doc, first);
     if (editor.schema.get(block.type).inline) {
-      menu.append(section('Transformer en'));
+      entries.push({ kind: 'section', label: 'Transformer en' });
       for (const t of TURN_INTO) {
-        const active = block.type === t.type && (t.type !== 'heading' || block.props['level'] === t.props?.['level']);
-        const btn = item(t.label, active ? '✓' : '', () => {
-          for (const id of ids) turnInto(editor, id, t.type, t.props);
-          view.announce(`Transformé en ${t.label}`);
+        const active =
+          block.type === t.type && (t.type !== 'heading' || block.props['level'] === t.props?.['level']);
+        entries.push({
+          label: t.label,
+          hint: active ? '✓' : undefined,
+          onSelect: () => {
+            for (const id of ids) turnInto(editor, id, t.type, t.props);
+            view.announce(`Transformé en ${t.label}`);
+          },
         });
-        menu.append(btn);
       }
     }
 
-    menu.append(section('Couleur'));
+    entries.push({ kind: 'section', label: 'Couleur' });
     const swatches = document.createElement('div');
     swatches.className = 'nbe-menu-swatches';
     for (const c of COLORS) {
@@ -217,7 +220,7 @@ export function attachControls(view: EditorView): () => void {
       if (c.value) sw.style.color = c.value;
       sw.addEventListener('mousedown', (e) => e.preventDefault());
       sw.addEventListener('click', () => {
-        closeMenu();
+        menu.close();
         editor.dispatch(
           (tx) => {
             for (const id of ids)
@@ -229,80 +232,30 @@ export function attachControls(view: EditorView): () => void {
       });
       swatches.append(sw);
     }
-    menu.append(swatches);
-
-    document.body.append(menu);
-    const hRect = handleBtn.getBoundingClientRect();
-    const menuH = Math.min(420, menu.scrollHeight);
-    const below = hRect.bottom + menuH + 8 < window.innerHeight;
-    menu.style.top = `${(below ? hRect.bottom + 4 : Math.max(8, hRect.top - menuH - 4)) + window.scrollY}px`;
-    menu.style.left = `${hRect.left + window.scrollX}px`;
+    entries.push({ kind: 'custom', el: swatches });
+    return entries;
   };
 
-  // --- drag & drop (pointer events, ARCHITECTURE §7) ---
-  let dragging = false;
+  const toggleMenu = () => {
+    if (menu.isOpen) {
+      menu.close();
+      return;
+    }
+    const ids = menuTargets();
+    if (!ids.length) return;
+    hover.freeze(true);
+    menu.update(buildMenuEntries(ids));
+    menu.open(() => handleBtn.getBoundingClientRect(), { placement: 'bottom-start', offset: 4 });
+  };
+
+  // --- drag & drop (drag session primitive, ARCHITECTURE §7 / D8) ---
   let dragIds: BlockId[] = [];
-  let pointerStart: { x: number; y: number } | null = null;
   let drop: { targetId: BlockId; edge: Edge } | null = null;
-  let scrollEl: Element | null = null;
-  let rafId = 0;
-  let lastClientY = 0;
 
   const ghost = document.createElement('div');
   ghost.className = 'nbe-ghost';
   const guide = document.createElement('div');
   guide.className = 'nbe-drop-guide';
-
-  const findScrollParent = (): Element => {
-    for (let n: Element | null = view.content; n; n = n.parentElement) {
-      const s = getComputedStyle(n);
-      if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && n.scrollHeight > n.clientHeight) return n;
-    }
-    return document.scrollingElement ?? document.documentElement;
-  };
-
-  const startDrag = () => {
-    dragging = true;
-    const sel = editor.selection;
-    dragIds =
-      sel?.kind === 'block' && hoveredId && selectedBlocks(editor.doc, sel).includes(hoveredId)
-        ? selectedBlocks(editor.doc, sel)
-        : hoveredId
-          ? [hoveredId]
-          : [];
-    if (!dragIds.length) {
-      dragging = false;
-      return;
-    }
-    scrollEl = findScrollParent();
-    document.body.classList.add('nbe-drag-active');
-    ghost.replaceChildren();
-    for (const id of dragIds.slice(0, 3)) {
-      const el = view.blockEl(id);
-      if (el) {
-        const clone = el.cloneNode(true) as HTMLElement;
-        clone.style.width = `${el.getBoundingClientRect().width}px`;
-        ghost.append(clone);
-      }
-      view.blockEl(id)?.classList.add('nbe-drag-source');
-    }
-    if (dragIds.length > 1) {
-      const badge = document.createElement('div');
-      badge.className = 'nbe-ghost-badge';
-      badge.textContent = String(dragIds.length);
-      ghost.append(badge);
-    }
-    document.body.append(ghost, guide);
-    hideControls();
-    const scrollLoop = () => {
-      if (!dragging || !scrollEl) return;
-      const vh = window.innerHeight;
-      if (lastClientY < 90) scrollEl.scrollTop -= (90 - lastClientY) / 6;
-      else if (lastClientY > vh - 90) scrollEl.scrollTop += (lastClientY - (vh - 90)) / 6;
-      rafId = requestAnimationFrame(scrollLoop);
-    };
-    rafId = requestAnimationFrame(scrollLoop);
-  };
 
   const isDraggedOrInside = (id: BlockId): boolean => {
     for (let p: BlockId | null = id; p !== null; p = getBlock(editor.doc, p).parentId) {
@@ -312,7 +265,6 @@ export function attachControls(view: EditorView): () => void {
   };
 
   const updateDrop = (e: PointerEvent) => {
-    lastClientY = e.clientY;
     ghost.style.top = `${e.clientY + 8}px`;
     ghost.style.left = `${e.clientX + 10}px`;
 
@@ -357,96 +309,90 @@ export function attachControls(view: EditorView): () => void {
     }
   };
 
-  const endDrag = (commit: boolean) => {
-    cancelAnimationFrame(rafId);
+  const cleanupDrag = () => {
     document.body.classList.remove('nbe-drag-active');
     for (const n of view.content.querySelectorAll('.nbe-drag-source')) n.classList.remove('nbe-drag-source');
     ghost.remove();
     guide.remove();
     guide.style.display = 'none';
-    if (commit && drop && dragIds.length) {
-      const { targetId, edge } = drop;
-      if (edge === 'left' || edge === 'right') {
-        moveIntoColumns(editor, dragIds, targetId, edge);
-        view.announce('Colonnes créées');
-      } else {
-        const target = getBlock(editor.doc, targetId);
-        const parent = getBlock(editor.doc, target.parentId!);
-        const idx = parent.children.indexOf(targetId);
-        let after = edge === 'before' ? (idx > 0 ? parent.children[idx - 1]! : null) : targetId;
-        // the anchor must not itself be dragged: walk back to a stable sibling
-        while (after !== null && dragIds.includes(after)) {
-          const i = parent.children.indexOf(after);
-          after = i > 0 ? parent.children[i - 1]! : null;
-        }
-        moveBlocks(editor, dragIds, parent.id, after);
-        view.announce('Bloc déplacé');
-      }
-    }
-    dragging = false;
+    hover.freeze(false);
     dragIds = [];
     drop = null;
-    pointerStart = null;
   };
 
-  handleBtn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    pointerStart = { x: e.clientX, y: e.clientY };
-    try {
-      handleBtn.setPointerCapture(e.pointerId);
-    } catch {
-      /* synthetic pointers have no capture */
-    }
-  });
-  handleBtn.addEventListener('pointermove', (e) => {
-    if (!pointerStart) return;
-    if (!dragging) {
-      const dist = Math.hypot(e.clientX - pointerStart.x, e.clientY - pointerStart.y);
-      if (dist > 4) {
-        closeMenu();
-        startDrag();
+  const commitDrop = () => {
+    if (!drop || !dragIds.length) return;
+    const { targetId, edge } = drop;
+    if (edge === 'left' || edge === 'right') {
+      moveIntoColumns(editor, dragIds, targetId, edge);
+      view.announce('Colonnes créées');
+    } else {
+      const target = getBlock(editor.doc, targetId);
+      const parent = getBlock(editor.doc, target.parentId!);
+      const idx = parent.children.indexOf(targetId);
+      let after = edge === 'before' ? (idx > 0 ? parent.children[idx - 1]! : null) : targetId;
+      while (after !== null && dragIds.includes(after)) {
+        const i = parent.children.indexOf(after);
+        after = i > 0 ? parent.children[i - 1]! : null;
       }
-      if (!dragging) return;
+      moveBlocks(editor, dragIds, parent.id, after);
+      view.announce('Bloc déplacé');
     }
-    updateDrop(e);
-  });
-  handleBtn.addEventListener('pointerup', () => {
-    if (dragging) {
-      endDrag(true);
-    } else if (pointerStart) {
-      pointerStart = null;
-      if (menuOpen) closeMenu();
-      else openMenu();
-    }
-  });
-  handleBtn.addEventListener('pointercancel', () => endDrag(false));
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      if (dragging) endDrag(false);
-      if (menuOpen) closeMenu();
-    }
-  };
-  const onDocMouseDown = (e: MouseEvent) => {
-    if (menuOpen && !menu.contains(e.target as Node) && !controls.contains(e.target as Node)) closeMenu();
-  };
-  const onScroll = () => {
-    if (!menuOpen && !dragging) hideControls();
   };
 
-  view.content.addEventListener('mousemove', onMouseMove);
-  view.content.addEventListener('mouseleave', onMouseLeave);
-  document.addEventListener('keydown', onKeyDown);
-  document.addEventListener('mousedown', onDocMouseDown);
-  document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+  const unDrag = draggable(handleBtn, {
+    onTap: () => toggleMenu(),
+    scrollContainer: () => findScrollParent(view.content),
+    onStart: () => {
+      menu.close();
+      const sel = editor.selection;
+      dragIds =
+        sel?.kind === 'block' && hoveredId && selectedBlocks(editor.doc, sel).includes(hoveredId)
+          ? selectedBlocks(editor.doc, sel)
+          : hoveredId
+            ? [hoveredId]
+            : [];
+      if (!dragIds.length) return false;
+      hover.freeze(true);
+      document.body.classList.add('nbe-drag-active');
+      ghost.replaceChildren();
+      for (const id of dragIds.slice(0, 3)) {
+        const el = view.blockEl(id);
+        if (el) {
+          const clone = el.cloneNode(true) as HTMLElement;
+          clone.style.width = `${el.getBoundingClientRect().width}px`;
+          ghost.append(clone);
+          el.classList.add('nbe-drag-source');
+        }
+      }
+      if (dragIds.length > 1) {
+        const badge = document.createElement('div');
+        badge.className = 'nbe-ghost-badge';
+        badge.textContent = String(dragIds.length);
+        ghost.append(badge);
+      }
+      document.body.append(ghost, guide);
+      controls.remove(); // hide the chrome, keep hoveredId for the session
+      return true;
+    },
+    onMove: updateDrop,
+    onDrop: () => {
+      commitDrop();
+      cleanupDrag();
+      hover.hide();
+    },
+    onCancel: () => {
+      cleanupDrag();
+      hover.hide();
+    },
+  });
+
   return () => {
-    view.content.removeEventListener('mousemove', onMouseMove);
-    view.content.removeEventListener('mouseleave', onMouseLeave);
-    document.removeEventListener('keydown', onKeyDown);
-    document.removeEventListener('mousedown', onDocMouseDown);
-    document.removeEventListener('scroll', onScroll, { capture: true });
+    hover.destroy();
+    menu.close();
+    unDrag();
+    for (const un of unTooltips) un();
     controls.remove();
-    menu.remove();
     ghost.remove();
     guide.remove();
   };

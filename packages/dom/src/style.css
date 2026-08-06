@@ -462,6 +462,34 @@ a.nbe-m-link:hover {
   pointer-events: none;
 }
 
+/* --- tooltip --- */
+
+.nbe-tooltip {
+  position: absolute;
+  z-index: 300;
+  background: rgb(15, 15, 15);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-line;
+  border-radius: 6px;
+  padding: 5px 8px;
+  pointer-events: none;
+  max-width: 220px;
+  animation: nbe-fade-in 120ms ease-out;
+}
+
+/* --- rubber-band selection --- */
+
+.nbe-rubberband {
+  position: fixed;
+  z-index: 40;
+  background: rgba(35, 131, 226, 0.08);
+  border: 1px solid rgba(35, 131, 226, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 /* --- a11y --- */
 
 .nbe-announcer {
