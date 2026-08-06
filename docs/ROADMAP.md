@@ -21,6 +21,21 @@
 > `docs/design/table-block.md`, scheduled after Phase 2 (AQ#3); native-feel
 > cross-block text selection (block-escalation shipped per D3); Word
 > mso-list paragraphs not yet detected as list items (documented in fixtures).
+>
+> **Phase 3 slice 1 (2026-08-06) — databases, started BEFORE Phase 2 by
+> decision.** Shipped: the four record kinds (database view block in the core
+> schema; CollectionSchema + ViewConfig as host records; rows as pages with
+> `props.{collectionId,properties}`), pure filter+sort engine in core
+> (`db.ts`, 7 property types, type-aware compare, missing-last, 10 tests),
+> interactive table view in dom (`database.ts` on the ui primitives: per-type
+> cell editors with native date input, select/multi-select option menus with
+> creation, property add/rename/retype/delete, one-filter/one-sort UI,
+> row open/delete), `DatabaseHost` contract, demo host over the localStorage
+> workspace (rows hidden from the sidebar, save flushed on pagehide).
+> **Phase 3 remaining:** board/list/gallery layouts, multi-filter/multi-sort
+> UI (engine already supports lists), groups, formula language (AQ#8),
+> relations/rollups, view virtualization, L2 SQLite (FTS5 search, backlinks
+> table, materialized views), markdown/CSV projection of collections.
 
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier

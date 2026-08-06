@@ -10,6 +10,7 @@ import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
 import { attachRubberBand } from './rubberband';
 import { attachBlockClickRouting, domTextSelection } from './caret';
+import { attachDatabaseBlocks } from './database';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -22,6 +23,8 @@ export interface EditorViewOptions {
   onStoreAsset?: (blob: Blob) => Promise<string>;
   /** Resolve a persisted src (asset:… or URL) to something an <img> can load. */
   resolveAssetUrl?: (src: string) => string | Promise<string>;
+  /** Collections/views/row-pages live in the host workspace (phase 3, §2.5). */
+  database?: import('./database').DatabaseHost;
 }
 
 export class EditorView {
@@ -45,7 +48,7 @@ export class EditorView {
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
     this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this), attachRubberBand(this));
-    this.unbinders.push(attachBlockClickRouting(this));
+    this.unbinders.push(attachBlockClickRouting(this), attachDatabaseBlocks(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 

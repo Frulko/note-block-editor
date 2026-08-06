@@ -1,8 +1,11 @@
 import { uuidv7, type BlockJSON } from '@nbe/core';
+import type { CollectionRecord } from './dbhost';
 
 export interface Workspace {
   pages: BlockJSON[]; // each root is a 'page' block; page id = root id
   openId: string;
+  /** phase 3: collection schemas + view configs; rows are pages above */
+  collections?: CollectionRecord[];
 }
 
 const KEY = 'nbe-workspace-v1';
@@ -24,12 +27,27 @@ export function loadWorkspace(seed: () => BlockJSON): Workspace {
 }
 
 let saveTimer = 0;
-export function saveWorkspace(ws: Workspace): void {
+let pending: Workspace | null = null;
+
+function flush(): void {
+  if (!pending) return;
   clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    localStorage.setItem(KEY, JSON.stringify(ws));
-  }, 300);
+  localStorage.setItem(KEY, JSON.stringify(pending));
+  pending = null;
 }
+
+export function saveWorkspace(ws: Workspace): void {
+  pending = ws;
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(flush, 300);
+}
+
+// background tabs throttle timers (a debounced save may never fire before the
+// tab dies) — flush on hide/close, the local-first way
+window.addEventListener('pagehide', flush);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flush();
+});
 
 export function resetWorkspace(): void {
   localStorage.removeItem(KEY);

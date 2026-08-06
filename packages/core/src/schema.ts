@@ -51,5 +51,7 @@ export function baseSchema(): Schema {
   s.register({ type: 'link_to_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
   s.register({ type: 'column_list', version: 1, inline: false });
   s.register({ type: 'column', version: 1, inline: false, defaultProps: {} });
+  // the database VIEW BLOCK: placement of a collection view in a page (§2.5)
+  s.register({ type: 'database', version: 1, inline: false, defaultProps: { collectionId: '', viewId: '' } });
   return s;
 }

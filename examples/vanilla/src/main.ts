@@ -4,6 +4,7 @@ import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
 import { resolveAsset, storeAsset } from './assets';
+import { createDatabaseHost } from './dbhost';
 import {
   backlinkCounts,
   createPage,
@@ -66,6 +67,10 @@ const ws: Workspace = loadWorkspace(seedPage);
 let editor: Editor;
 let view: EditorView | null = null;
 let detachInspector: (() => void) | null = null;
+const dbHost = createDatabaseHost(ws, {
+  openPage: (id) => openPage(id),
+  onMutate: () => renderSidebar(),
+});
 
 const editorEl = document.getElementById('editor')!;
 const pagesEl = document.getElementById('pages')!;
@@ -79,8 +84,10 @@ function persistCurrentPage(): void {
 
 function renderSidebar(): void {
   const backlinks = backlinkCounts(ws);
+  // database row pages live inside their collection's table, not the sidebar
+  const listed = ws.pages.filter((p) => !p.props?.['collectionId']);
   pagesEl.replaceChildren(
-    ...ws.pages.map((page) => {
+    ...listed.map((page) => {
       const btn = document.createElement('button');
       btn.className = 'page-item' + (page.id === ws.openId ? ' active' : '');
       const label = document.createElement('span');
@@ -120,6 +127,7 @@ function openPage(pageId: string): void {
     },
     onStoreAsset: storeAsset,
     resolveAssetUrl: resolveAsset,
+    database: dbHost,
   });
   detachInspector = attachInspector(editor);
   editor.on(() => {

@@ -6,3 +6,4 @@ export * from './doc';
 export * from './ops';
 export * from './editor';
 export * from './commands';
+export * from './db';

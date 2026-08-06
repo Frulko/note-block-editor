@@ -10,7 +10,8 @@ interface SlashItem {
   action:
     | { kind: 'block'; type: string; props?: Record<string, unknown> }
     | { kind: 'divider' }
-    | { kind: 'page' };
+    | { kind: 'page' }
+    | { kind: 'database' };
 }
 
 const ITEMS: SlashItem[] = [
@@ -28,12 +29,14 @@ const ITEMS: SlashItem[] = [
   { label: 'Image', keywords: ['image', 'img', 'photo'], icon: '🖼', action: { kind: 'block', type: 'image' } },
   { label: 'Séparateur', keywords: ['divider', 'hr', 'ligne'], icon: '—', action: { kind: 'divider' } },
   { label: 'Page', keywords: ['page', 'sous-page', 'subpage'], icon: '📄', action: { kind: 'page' } },
+  { label: 'Base de données', keywords: ['database', 'table', 'bdd', 'db'], icon: '🗃', action: { kind: 'database' } },
 ];
 
-export function filterItems(query: string, hasPages: boolean): SlashItem[] {
+export function filterItems(query: string, hasPages: boolean, hasDb = hasPages): SlashItem[] {
   const q = query.toLowerCase().trim();
   return ITEMS.filter((item) => {
     if (item.action.kind === 'page' && !hasPages) return false;
+    if (item.action.kind === 'database' && !hasDb) return false;
     if (!q) return true;
     return (
       item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.toLowerCase().includes(q))
@@ -62,7 +65,7 @@ export function attachSlashMenu(view: EditorView): () => void {
     blockId = id;
     triggerOffset = offset;
     open = true;
-    menu.update(toEntries(filterItems('', !!view.options.onCreatePage)));
+    menu.update(toEntries(filterItems('', !!view.options.onCreatePage, !!view.options.database)));
     // live anchor: re-resolved on scroll/re-render, so it survives leaf replacement
     menu.open(() => view.leafEl(blockId)?.getBoundingClientRect() ?? null, {
       placement: 'bottom-start',
@@ -88,6 +91,11 @@ export function attachSlashMenu(view: EditorView): () => void {
     const resolve = (): { type: string; props?: Record<string, unknown>; extraParagraph?: boolean } | null => {
       if (item.action.kind === 'block') return { type: item.action.type, props: item.action.props };
       if (item.action.kind === 'divider') return { type: 'divider', extraParagraph: true };
+      if (item.action.kind === 'database') {
+        const created = view.options.database?.create();
+        if (!created) return null;
+        return { type: 'database', props: { collectionId: created.collectionId }, extraParagraph: true };
+      }
       const page = view.options.onCreatePage?.();
       if (!page) return null;
       return { type: 'link_to_page', props: { pageId: page.pageId, title: page.title }, extraParagraph: true };
@@ -143,7 +151,7 @@ export function attachSlashMenu(view: EditorView): () => void {
     if (text[triggerOffset] !== '/') return menu.close();
     const query = text.slice(triggerOffset + 1, caret);
     if (query.length > 12) return menu.close();
-    menu.update(toEntries(filterItems(query, !!view.options.onCreatePage)));
+    menu.update(toEntries(filterItems(query, !!view.options.onCreatePage, !!view.options.database)));
   };
 
   const unsubChange = editor.on((change) => {

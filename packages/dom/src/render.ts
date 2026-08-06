@@ -1,6 +1,7 @@
 import type { Block, Run } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
+import { renderDatabase } from './database';
 
 const PLAINTEXT_ONLY_SUPPORTED = (() => {
   if (typeof document === 'undefined') return false;
@@ -96,6 +97,11 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       box.append('🖼️ ', input);
       root.append(box);
     }
+    return root;
+  }
+
+  if (block.type === 'database') {
+    root.append(renderDatabase(view, block));
     return root;
   }
 

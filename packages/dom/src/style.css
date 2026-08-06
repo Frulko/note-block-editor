@@ -493,6 +493,166 @@ a.nbe-m-link:hover {
   pointer-events: none;
 }
 
+/* --- database (table view) --- */
+
+.nbe-db {
+  margin: 6px 0;
+  font-size: 14px;
+}
+.nbe-db-missing {
+  color: var(--nbe-text-light);
+  background: rgba(135, 131, 120, 0.1);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.nbe-db-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 6px;
+}
+.nbe-db-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.nbe-db-spacer {
+  flex: 1;
+}
+.nbe-db-tool {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: var(--nbe-text-light);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-db-tool:hover {
+  background: rgba(55, 53, 47, 0.08);
+}
+.nbe-db-table {
+  border-top: 1px solid rgba(55, 53, 47, 0.12);
+  overflow-x: auto;
+}
+.nbe-db-row {
+  display: flex;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+  min-height: 33px;
+}
+.nbe-db-cell {
+  flex: 1;
+  min-width: 110px;
+  padding: 6px 8px;
+  border-right: 1px solid rgba(55, 53, 47, 0.06);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nbe-db-titlecol {
+  flex: 1.6;
+  min-width: 160px;
+}
+.nbe-db-head .nbe-db-cell {
+  color: var(--nbe-text-light);
+  font-size: 13px;
+  user-select: none;
+}
+.nbe-db-headcell {
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-db-headcell:hover {
+  background: rgba(55, 53, 47, 0.05);
+}
+.nbe-db-titlecell {
+  cursor: pointer;
+  font-weight: 500;
+}
+.nbe-db-titlecell:hover {
+  background: rgba(55, 53, 47, 0.05);
+}
+.nbe-db-editable {
+  cursor: text;
+}
+.nbe-db-editable:hover {
+  background: rgba(55, 53, 47, 0.04);
+}
+.nbe-db-addprop,
+.nbe-db-rowmenu {
+  flex: 0 0 32px;
+  min-width: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--nbe-text-light);
+  font: inherit;
+  justify-content: center;
+}
+.nbe-db-addprop:hover,
+.nbe-db-rowmenu:hover {
+  background: rgba(55, 53, 47, 0.06);
+}
+.nbe-db-newrow {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--nbe-text-light);
+  padding: 7px 8px;
+  cursor: pointer;
+}
+.nbe-db-newrow:hover {
+  background: rgba(55, 53, 47, 0.04);
+}
+.nbe-db-input {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid rgba(35, 131, 226, 0.4);
+  border-radius: 3px;
+  padding: 2px 5px;
+  outline: none;
+  width: 100%;
+  min-width: 60px;
+}
+.nbe-db-date {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.nbe-db-selectbtn {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: rgba(135, 131, 120, 0.15);
+  border-radius: 3px;
+  padding: 1px 8px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nbe-db-filter {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+}
+.nbe-db-filter select {
+  font: inherit;
+  font-size: 13px;
+  max-width: 110px;
+}
+
 /* --- a11y --- */
 
 .nbe-announcer {
