@@ -14,6 +14,7 @@ import type { EditorView } from "./view";
 import {
   attachTooltip,
   createMenu,
+  dismissedBy,
   positionFloating,
   type AnchorRect,
   type MenuEntry,
@@ -101,6 +102,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     b.addEventListener("mousedown", (e) => e.preventDefault());
     b.addEventListener("click", (e) => {
       e.preventDefault();
+      if (dismissedBy(b)) return; // pressing an open popover's trigger closes it
       onClick();
     });
     return b;
@@ -193,52 +195,59 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     return { kind: "custom", el: wrap };
   };
 
-  const render = () => {
-    const r = range();
-    if (!r) return;
-    const block = getBlock(editor.doc, r.startBlockId);
-    bar.replaceChildren();
+  /*
+   * The toolbar is built ONCE and then only has its state refreshed.
+   * Rebuilding the buttons on every update replaced the element the pointer
+   * was travelling toward, so `mouseenter` never landed and tooltips simply
+   * never appeared — and each rebuild orphaned the previous listeners.
+   */
+  let built = false;
+  let turnBtn: HTMLButtonElement | null = null;
+  let turnSep: HTMLElement | null = null;
+  const formatBtns = new Map<string, HTMLButtonElement>();
+  let linkBtn: HTMLButtonElement | null = null;
 
-    // turn-into (only for blocks that carry inline text)
-    if (r.single) {
-      const turnBtn = button(
-        `${TURN_INTO.find((t) => isActiveTarget(t, block))?.label ?? "Texte"} ▾`,
-        "Transformer en",
-        () =>
-          openSubMenu(
-            turnBtn,
-            TURN_INTO.map((t) => ({
-              label: t.label,
-              icon: t.icon,
-              hint: isActiveTarget(t, block) ? "✓" : undefined,
-              onSelect: () => turnInto(editor, block.id, t.type, t.props),
-            })),
-          ),
-        "nbe-seltoolbar-turn",
-      );
-      bar.append(turnBtn, divider());
-    }
+  const build = () => {
+    if (built) return;
+    built = true;
+
+    turnBtn = button(
+      "Texte ▾",
+      "Transformer en",
+      () => {
+        const r = range();
+        if (!r) return;
+        const block = getBlock(editor.doc, r.startBlockId);
+        openSubMenu(
+          turnBtn!,
+          TURN_INTO.map((t) => ({
+            label: t.label,
+            icon: t.icon,
+            hint: isActiveTarget(t, block) ? "✓" : undefined,
+            onSelect: () => turnInto(editor, block.id, t.type, t.props),
+          })),
+        );
+      },
+      "nbe-seltoolbar-turn",
+    );
+    turnSep = divider();
+    bar.append(turnBtn, turnSep);
 
     for (const fmt of FORMATS) {
-      const active = rangeHasMark(editor, fmt.mark);
-      const b = button(
-        fmt.label,
-        fmt.title,
-        () => applyMark(fmt.mark),
-        fmt.className,
-      );
-      if (active) b.classList.add("nbe-active");
+      const b = button(fmt.label, fmt.title, () => applyMark(fmt.mark), fmt.className);
+      formatBtns.set(fmt.mark, b);
       bar.append(b);
     }
 
-    const linkActive = rangeHasMark(editor, "link");
-    const linkBtn = button(
+    linkBtn = button(
       "🔗",
       "Lien · ⌘K",
-      () => openSubMenu(linkBtn, [linkEntry(r)]),
+      () => {
+        const r = range();
+        if (r) openSubMenu(linkBtn!, [linkEntry(r)]);
+      },
       "nbe-seltoolbar-link",
     );
-    if (linkActive) linkBtn.classList.add("nbe-active");
     bar.append(linkBtn, divider());
 
     const colorBtn = button(
@@ -248,6 +257,27 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       "nbe-seltoolbar-color",
     );
     bar.append(colorBtn);
+  };
+
+  /** Refresh labels and active states in place — never replace nodes. */
+  const render = () => {
+    const r = range();
+    if (!r) return;
+    build();
+    const block = getBlock(editor.doc, r.startBlockId);
+
+    // turn-into is single-block by nature
+    const showTurn = r.single;
+    turnBtn!.style.display = showTurn ? "" : "none";
+    turnSep!.style.display = showTurn ? "" : "none";
+    if (showTurn) {
+      turnBtn!.textContent = `${TURN_INTO.find((t) => isActiveTarget(t, block))?.label ?? "Texte"} ▾`;
+    }
+
+    for (const fmt of FORMATS) {
+      formatBtns.get(fmt.mark)?.classList.toggle("nbe-active", rangeHasMark(editor, fmt.mark));
+    }
+    linkBtn!.classList.toggle("nbe-active", rangeHasMark(editor, "link"));
   };
 
   const divider = (): HTMLElement => {

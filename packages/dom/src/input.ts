@@ -23,7 +23,7 @@ import {
 import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
 import { syncCaretFromDom } from './caret';
-import { openIconPicker } from './ui';
+import { dismissedBy, openIconPicker } from './ui';
 import { justRubberBanded } from './rubberband';
 
 function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: number } | null {
@@ -219,6 +219,7 @@ export function attachInput(view: EditorView): () => void {
     }
     const calloutIcon = target.closest('.nbe-callout-icon') as HTMLElement | null;
     if (calloutIcon) {
+      if (dismissedBy(calloutIcon)) return; // toggle, not close-and-reopen
       const id = (calloutIcon.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
       const current = String(getBlock(editor.doc, id).props['icon'] ?? '');
       openIconPicker(() => calloutIcon.getBoundingClientRect(), {

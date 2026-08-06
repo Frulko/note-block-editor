@@ -129,6 +129,21 @@ export function autoUpdate(
  * pointer presses, Escape, and (optionally) focus leaving — in one place so
  * no overlay can forget one of the three.
  */
+let lastDismiss: { target: Node; time: number } | null = null;
+
+/**
+ * True when the press that just closed an overlay happened inside `trigger`.
+ *
+ * A trigger button opening an overlay must TOGGLE it: without this, pressing
+ * it again dismisses the overlay (outside press) and the click that follows
+ * immediately reopens it, which reads as a broken button. Trigger handlers
+ * call this and bail.
+ */
+export function dismissedBy(trigger: Node): boolean {
+  if (!lastDismiss || Date.now() - lastDismiss.time > 400) return false;
+  return trigger === lastDismiss.target || trigger.contains(lastDismiss.target);
+}
+
 export function dismissable(
   el: HTMLElement,
   close: () => void,
@@ -139,6 +154,7 @@ export function dismissable(
     const target = e.target as Node | null;
     if (!target) return;
     if (el.contains(target) || exempt?.(target)) return;
+    lastDismiss = { target, time: Date.now() };
     close();
   };
   const onKeyDown = (e: KeyboardEvent) => {

@@ -10,6 +10,7 @@ import {
   selectedBlocks,
   sliceRuns,
   textCaret,
+  toggleMarkRange,
   textLength,
   uuidv7,
 } from '@nbe/core';
@@ -347,6 +348,69 @@ async function insertImageFiles(view: EditorView, files: File[]): Promise<void> 
   insertBlocksAt(view, blocks, false);
 }
 
+const URL_RE = /^(https?:\/\/|www\.)[^\s<>"']+$/i;
+const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif|svg)(\?[^\s]*)?$/i;
+
+/**
+ * A pasted URL, handled as what it means rather than as text:
+ * - over a text selection → the selection becomes a link
+ * - at a caret, image URL → an image block
+ * - at a caret, other URL → a link whose text is the URL
+ * Returns true when it took over the paste.
+ */
+function handlePastedUrl(view: EditorView, text: string): boolean {
+  if (!text || /\s/.test(text) || !URL_RE.test(text)) return false;
+  const editor = view.editor;
+  const href = text.startsWith('www.') ? `https://${text}` : text;
+  const range = resolveTextRange(editor);
+
+  // over a selection: link it, keeping the visible text
+  if (range && !(range.single && range.startOffset === range.endOffset)) {
+    toggleMarkRange(editor, 'link', { href });
+    view.syncDomSelection();
+    return true;
+  }
+  if (!range) return false;
+
+  if (IMAGE_RE.test(href)) {
+    const anchorId = range.startBlockId;
+    const anchor = getBlock(editor.doc, anchorId);
+    const empty = anchor.type === 'paragraph' && textLength(anchor.text) === 0 && !anchor.children.length;
+    const image: Block = {
+      id: uuidv7(),
+      type: 'image',
+      version: 1,
+      props: { src: href },
+      text: [],
+      children: [],
+      parentId: anchor.parentId,
+    };
+    editor.dispatch(
+      (tx) => {
+        tx.op({ type: 'insert_block', block: image, index: childIndex(editor.doc, anchorId) + 1 });
+        if (empty) tx.op({ type: 'delete_block', id: anchorId });
+      },
+      { origin: 'input' },
+    );
+    return true;
+  }
+
+  // plain URL at a caret: insert it as a link on its own text
+  const { startBlockId, startOffset } = range;
+  editor.dispatch(
+    (tx) =>
+      tx.op({
+        type: 'insert_text',
+        id: startBlockId,
+        offset: startOffset,
+        runs: [{ text, marks: [{ type: 'link', attrs: { href } }] }],
+      }),
+    { origin: 'input', selection: textCaret(startBlockId, startOffset + text.length) },
+  );
+  view.syncDomSelection();
+  return true;
+}
+
 // --- wiring ---
 
 export function attachClipboard(view: EditorView): () => void {
@@ -401,6 +465,10 @@ export function attachClipboard(view: EditorView): () => void {
 
     const plainRequested = Date.now() - plainPasteAt < 600;
     const plain = data.getData('text/plain');
+
+    // a bare URL is an intent, not a string: link the selection, or drop an
+    // image block when the URL points at one (Notion / Medium behaviour)
+    if (!plainRequested && handlePastedUrl(view, plain.trim())) return;
     if (plainRequested) {
       if (!plain) return;
       const blocks: BlockJSON[] = plain

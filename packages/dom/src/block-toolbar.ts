@@ -1,7 +1,15 @@
 import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
-import { attachTooltip, createMenu, icon, positionFloating, type IconName, type MenuEntry } from './ui';
+import {
+  attachTooltip,
+  createMenu,
+  dismissedBy,
+  icon,
+  positionFloating,
+  type IconName,
+  type MenuEntry,
+} from './ui';
 
 /**
  * Per-block floating toolbar, anchored to the block's top-right on hover.
@@ -170,6 +178,9 @@ export function attachBlockToolbar(view: EditorView): () => void {
       button.addEventListener('mousedown', (e) => e.preventDefault());
       button.addEventListener('click', (e) => {
         e.preventDefault();
+        // the press already closed the popover this button owns: a click that
+        // reopened it would read as a broken toggle
+        if (dismissedBy(button)) return;
         spec.onClick({ view, block, anchor: button, setProps }, button);
       });
       bar.append(button);
