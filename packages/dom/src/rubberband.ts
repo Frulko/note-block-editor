@@ -24,8 +24,12 @@ export function attachRubberBand(view: EditorView): () => void {
     origin = null;
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onAbort);
+    window.removeEventListener('blur', onAbort);
     document.removeEventListener('keydown', onKey, { capture: true });
   };
+
+  const onAbort = () => stop(false);
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && active) {
@@ -76,8 +80,15 @@ export function attachRubberBand(view: EditorView): () => void {
     if (e.target !== view.content) return;
     e.preventDefault();
     origin = { x: e.clientX, y: e.clientY };
+    try {
+      view.content.setPointerCapture(e.pointerId); // survives off-window release
+    } catch {
+      /* synthetic pointers */
+    }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onAbort);
+    window.addEventListener('blur', onAbort);
   };
 
   view.content.addEventListener('pointerdown', onDown);

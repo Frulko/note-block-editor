@@ -1,6 +1,6 @@
 import type { Block, BlockId, BlockSelection, Run, Selection } from './types';
 import { isCollapsed, textCaret } from './types';
-import { childIndex, getBlock, previousInlineBlock, visibleBlocks, type Doc } from './doc';
+import { ancestors, childIndex, getBlock, previousInlineBlock, visibleBlocks, type Doc } from './doc';
 import { sliceRuns, textLength } from './richtext';
 import { hasMark } from './richtext';
 import { uuidv7 } from './id';
@@ -212,12 +212,7 @@ export function selectedBlocks(doc: Doc, sel: BlockSelection): BlockId[] {
   if (ai < 0 || hi < 0) return [];
   const [from, to] = ai <= hi ? [ai, hi] : [hi, ai];
   const range = new Set(order.slice(from, to + 1));
-  return order.slice(from, to + 1).filter((id) => {
-    for (let p = getBlock(doc, id).parentId; p !== null; p = getBlock(doc, p).parentId) {
-      if (range.has(p)) return false;
-    }
-    return true;
-  });
+  return order.slice(from, to + 1).filter((id) => !ancestors(doc, id).some((p) => range.has(p)));
 }
 
 function deleteSubtree(tx: Tx, doc: Doc, id: BlockId): void {
@@ -253,10 +248,7 @@ export function deleteBlocks(editor: Editor, ids: BlockId[]): void {
 }
 
 function isDescendant(doc: Doc, id: BlockId, ancestor: BlockId): boolean {
-  for (let p = getBlock(doc, id).parentId; p !== null; p = getBlock(doc, p).parentId) {
-    if (p === ancestor) return true;
-  }
-  return false;
+  return ancestors(doc, id).includes(ancestor);
 }
 
 function cloneSubtree(doc: Doc, id: BlockId): { root: Block; all: Block[] } {

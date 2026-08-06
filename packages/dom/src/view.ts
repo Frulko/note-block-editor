@@ -1,5 +1,5 @@
 import type { Change, Editor, Selection } from '@nbe/core';
-import { getBlock, selectedBlocks, textCaret } from '@nbe/core';
+import { ancestors, getBlock, selectedBlocks, textCaret } from '@nbe/core';
 import { renderBlock } from './render';
 import { attachSelectionSync, leafOf, modelPointToDom } from './selection';
 import { attachInput, reconcileLeaf } from './input';
@@ -135,12 +135,7 @@ export class EditorView {
     const alive = [...change.dirty].filter((id) => doc.blocks.has(id));
     const set = new Set(alive);
     // skip ids whose ancestor is also dirty — the ancestor re-render covers them
-    const roots = alive.filter((id) => {
-      for (let p = getBlock(doc, id).parentId; p !== null; p = getBlock(doc, p).parentId) {
-        if (set.has(p)) return false;
-      }
-      return true;
-    });
+    const roots = alive.filter((id) => !ancestors(doc, id).some((p) => set.has(p)));
     for (const id of roots) {
       if (id === doc.rootId) {
         this.renderAll();

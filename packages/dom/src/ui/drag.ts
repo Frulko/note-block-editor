@@ -15,103 +15,151 @@ export interface DraggableOptions {
 }
 
 /**
- * Pointer-based drag session (in-house by decision D8: native HTML5 DnD can't
- * start from touch, has unstylable previews and broken auto-scroll — see
- * docs/research/hard-interactions.md). Threshold press-vs-drag, Escape
- * cancellation, rAF edge auto-scroll. Ghosts/guides belong to the caller.
+ * Pointer-based drag session (in-house by decision D8 — see
+ * docs/research/hard-interactions.md).
+ *
+ * Robustness rules learned the hard way:
+ * - move/up/cancel listen on `window`, not the handle: if the handle is
+ *   hidden, re-rendered or detached mid-drag, the session still ends.
+ * - pointer capture is attempted as an extra (it keeps events flowing when
+ *   the pointer leaves the window) but is never relied upon.
+ * - the session also ends on Escape, pointercancel, window blur, and a
+ *   second pointer going down — a drag can never be left dangling.
+ * - callbacks are exception-safe: a throw in onMove/onDrop still runs the
+ *   caller's cancel path instead of freezing the page in drag state.
  */
 export function draggable(handle: HTMLElement, opts: DraggableOptions): () => void {
   const threshold = opts.thresholdPx ?? 4;
   const edge = opts.autoScrollEdge ?? 90;
-  let start: { x: number; y: number } | null = null;
+  let start: { x: number; y: number; pointerId: number } | null = null;
   let active = false;
-  let lastY = 0;
+  let lastEvent: PointerEvent | null = null;
   let raf = 0;
   let scrollEl: Element | null = null;
 
   const scrollLoop = () => {
     if (!active) return;
-    if (scrollEl) {
+    if (scrollEl && lastEvent) {
       const vh = window.innerHeight;
-      if (lastY < edge) scrollEl.scrollTop -= (edge - lastY) / 6;
-      else if (lastY > vh - edge) scrollEl.scrollTop += (lastY - (vh - edge)) / 6;
+      const y = lastEvent.clientY;
+      let scrolled = false;
+      if (y < edge) {
+        scrollEl.scrollTop -= (edge - y) / 6;
+        scrolled = true;
+      } else if (y > vh - edge) {
+        scrollEl.scrollTop += (y - (vh - edge)) / 6;
+        scrolled = true;
+      }
+      // keep drop target and guide glued to the content while it scrolls under
+      // a stationary pointer
+      if (scrolled) safe(() => opts.onMove(lastEvent!));
     }
     raf = requestAnimationFrame(scrollLoop);
   };
 
-  const stop = () => {
+  const safe = (fn: () => void) => {
+    try {
+      fn();
+    } catch (err) {
+      teardown();
+      try {
+        opts.onCancel();
+      } catch {
+        /* cancel must never throw the page into a stuck state */
+      }
+      throw err;
+    }
+  };
+
+  const teardown = () => {
     cancelAnimationFrame(raf);
     active = false;
     start = null;
+    lastEvent = null;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onPointerCancel);
+    window.removeEventListener('pointerdown', onSecondPointer, { capture: true });
+    window.removeEventListener('blur', onBlur);
     document.removeEventListener('keydown', onKey, { capture: true });
   };
 
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && active) {
-      e.preventDefault();
-      e.stopPropagation();
-      stop();
-      opts.onCancel();
-    }
+  const cancel = () => {
+    const wasActive = active;
+    teardown();
+    if (wasActive) opts.onCancel();
   };
 
-  const onDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    start = { x: e.clientX, y: e.clientY };
-    try {
-      handle.setPointerCapture(e.pointerId);
-    } catch {
-      /* synthetic pointers have no capture */
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      cancel();
     }
+  };
+  const onBlur = () => cancel();
+  const onPointerCancel = () => cancel();
+  const onSecondPointer = (e: PointerEvent) => {
+    if (start && e.pointerId !== start.pointerId) cancel();
   };
 
   const onMove = (e: PointerEvent) => {
-    if (!start) return;
+    if (!start || e.pointerId !== start.pointerId) return;
     if (!active) {
       if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= threshold) return;
-      if (opts.onStart(e) === false) {
-        start = null;
+      let ok: boolean | void = false;
+      safe(() => {
+        ok = opts.onStart(e);
+      });
+      if (ok === false) {
+        teardown();
         return;
       }
       active = true;
       scrollEl = opts.scrollContainer?.() ?? null;
-      document.addEventListener('keydown', onKey, { capture: true });
       raf = requestAnimationFrame(scrollLoop);
     }
-    lastY = e.clientY;
-    opts.onMove(e);
+    lastEvent = e;
+    safe(() => opts.onMove(e));
   };
 
   const onUp = (e: PointerEvent) => {
-    if (active) {
-      stop();
-      opts.onDrop(e);
-    } else if (start) {
-      start = null;
+    if (!start || e.pointerId !== start.pointerId) return;
+    const wasActive = active;
+    teardown();
+    if (wasActive) {
+      try {
+        opts.onDrop(e);
+      } catch (err) {
+        opts.onCancel();
+        throw err;
+      }
+    } else {
       opts.onTap?.(e);
     }
   };
 
-  const onCancelEvt = () => {
-    if (active) {
-      stop();
-      opts.onCancel();
-    } else {
-      start = null;
+  const onDown = (e: PointerEvent) => {
+    if (e.button !== 0 || start) return;
+    e.preventDefault();
+    start = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+    try {
+      handle.setPointerCapture(e.pointerId); // best-effort: survives off-window release
+    } catch {
+      /* synthetic pointers have no capture */
     }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onPointerCancel);
+    window.addEventListener('pointerdown', onSecondPointer, { capture: true });
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('keydown', onKey, { capture: true });
   };
 
   handle.addEventListener('pointerdown', onDown);
-  handle.addEventListener('pointermove', onMove);
-  handle.addEventListener('pointerup', onUp);
-  handle.addEventListener('pointercancel', onCancelEvt);
   return () => {
-    stop();
+    cancel();
     handle.removeEventListener('pointerdown', onDown);
-    handle.removeEventListener('pointermove', onMove);
-    handle.removeEventListener('pointerup', onUp);
-    handle.removeEventListener('pointercancel', onCancelEvt);
   };
 }
 

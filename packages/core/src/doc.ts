@@ -37,12 +37,29 @@ function isExpanded(b: Block): boolean {
 /** Depth-first order of visible blocks (collapsed toggles hide their children). */
 export function visibleBlocks(doc: Doc): Block[] {
   const out: Block[] = [];
+  // seen-set: a corrupted children cycle degrades to a truncated list,
+  // never an infinite walk (defense-in-depth; move_block forbids cycles)
+  const seen = new Set<BlockId>();
   const walk = (id: BlockId) => {
-    const b = getBlock(doc, id);
+    if (seen.has(id)) return;
+    seen.add(id);
+    const b = doc.blocks.get(id);
+    if (!b) return;
     if (id !== doc.rootId) out.push(b);
     if (id === doc.rootId || isExpanded(b)) for (const c of b.children) walk(c);
   };
   walk(doc.rootId);
+  return out;
+}
+
+/** Bounded parentId walk; returns the ancestor chain (nearest first). */
+export function ancestors(doc: Doc, id: BlockId): BlockId[] {
+  const out: BlockId[] = [];
+  let p = doc.blocks.get(id)?.parentId ?? null;
+  for (let depth = 0; p !== null && depth < 500; depth++) {
+    out.push(p);
+    p = doc.blocks.get(p)?.parentId ?? null;
+  }
   return out;
 }
 
@@ -69,12 +86,14 @@ export interface BlockJSON {
   children?: BlockJSON[];
 }
 
-export function blockToJSON(doc: Doc, id: BlockId): BlockJSON {
+export function blockToJSON(doc: Doc, id: BlockId, seen: Set<BlockId> = new Set()): BlockJSON {
   const b = getBlock(doc, id);
+  seen.add(id);
   const json: BlockJSON = { id: b.id, type: b.type, version: b.version };
   if (Object.keys(b.props).length) json.props = b.props;
   if (b.text?.length) json.text = b.text;
-  if (b.children.length) json.children = b.children.map((c) => blockToJSON(doc, c));
+  const kids = b.children.filter((c) => doc.blocks.has(c) && !seen.has(c));
+  if (kids.length) json.children = kids.map((c) => blockToJSON(doc, c, seen));
   return json;
 }
 

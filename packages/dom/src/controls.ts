@@ -258,10 +258,16 @@ export function attachControls(view: EditorView): () => void {
   guide.className = 'nbe-drop-guide';
 
   const isDraggedOrInside = (id: BlockId): boolean => {
-    for (let p: BlockId | null = id; p !== null; p = getBlock(editor.doc, p).parentId) {
+    // defensive walk: missing blocks or (impossible-by-invariant) cycles must
+    // degrade to "not droppable here", never freeze the page mid-drag
+    let p: BlockId | null = id;
+    for (let depth = 0; p !== null && depth < 200; depth++) {
       if (dragIds.includes(p)) return true;
+      const block = editor.doc.blocks.get(p);
+      if (!block) return true;
+      p = block.parentId;
     }
-    return false;
+    return p !== null; // depth cap hit — treat as unsafe target
   };
 
   const updateDrop = (e: PointerEvent) => {
@@ -311,6 +317,7 @@ export function attachControls(view: EditorView): () => void {
 
   const cleanupDrag = () => {
     document.body.classList.remove('nbe-drag-active');
+    controls.classList.remove('nbe-ctrl-hidden');
     for (const n of view.content.querySelectorAll('.nbe-drag-source')) n.classList.remove('nbe-drag-source');
     ghost.remove();
     guide.remove();
@@ -323,6 +330,7 @@ export function attachControls(view: EditorView): () => void {
   const commitDrop = () => {
     if (!drop || !dragIds.length) return;
     const { targetId, edge } = drop;
+    if (!editor.doc.blocks.has(targetId) || !dragIds.every((id) => editor.doc.blocks.has(id))) return;
     if (edge === 'left' || edge === 'right') {
       moveIntoColumns(editor, dragIds, targetId, edge);
       view.announce('Colonnes créées');
@@ -372,14 +380,18 @@ export function attachControls(view: EditorView): () => void {
         ghost.append(badge);
       }
       document.body.append(ghost, guide);
-      controls.remove(); // hide the chrome, keep hoveredId for the session
+      // hide, never remove: the handle keeps its pointer capture alive
+      controls.classList.add('nbe-ctrl-hidden');
       return true;
     },
     onMove: updateDrop,
     onDrop: () => {
-      commitDrop();
-      cleanupDrag();
-      hover.hide();
+      try {
+        commitDrop();
+      } finally {
+        cleanupDrag();
+        hover.hide();
+      }
     },
     onCancel: () => {
       cleanupDrag();

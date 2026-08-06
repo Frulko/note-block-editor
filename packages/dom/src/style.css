@@ -338,6 +338,9 @@ a.nbe-m-link:hover {
   cursor: grabbing !important;
   user-select: none !important;
 }
+.nbe-controls.nbe-ctrl-hidden {
+  visibility: hidden;
+}
 
 /* --- menus (slash + block) --- */
 

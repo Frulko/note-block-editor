@@ -50,9 +50,13 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       const block = getBlock(doc, op.id);
       if (block.parentId === null) throw new Error('move_block: cannot move the root');
       // reject cycles: the target parent must not be the block or its descendant
-      for (let p: BlockId | null = op.parentId; p !== null; p = getBlock(doc, p).parentId) {
-        if (p === op.id) throw new Error('move_block: target is inside the moved block');
+      // (bounded walk: even on corrupted state this must terminate)
+      let probe: BlockId | null = op.parentId;
+      for (let depth = 0; probe !== null && depth < 500; depth++) {
+        if (probe === op.id) throw new Error('move_block: target is inside the moved block');
+        probe = doc.blocks.get(probe)?.parentId ?? null;
       }
+      if (probe !== null) throw new Error('move_block: ancestor chain too deep or cyclic');
       const oldParent = getBlock(doc, block.parentId);
       const oldIndex = oldParent.children.indexOf(op.id);
       const oldAfter = oldIndex > 0 ? oldParent.children[oldIndex - 1]! : null;
