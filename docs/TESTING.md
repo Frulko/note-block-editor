@@ -73,6 +73,28 @@ duplicated or dropped characters, marks intact around the composition.**
 6. Slash menu: filtering announces the active option (listbox/option roles).
 7. Type, bold a word with Cmd+B, undo — all without sighted assistance.
 
+## Cross-block selection (D3) — the highest-risk surface
+
+Our implementation drives the drag with pointer events rather than toggling a
+container `contenteditable` (see `docs/research/cross-block-selection.md`).
+That is expected to be the weak spot on touch.
+
+1. **Desktop, all three engines**: drag from the middle of one paragraph into
+   the middle of a paragraph three blocks below. The highlight must be
+   continuous and partial at both ends. **Safari paints partial selections
+   with a different model — check visually, not just by assertion.**
+2. **Firefox**: confirm the selection is partial, not all-or-nothing (old
+   Gecko behaviour); confirm a single range is reported.
+3. Type over the range, then Backspace over it: both must replace it in one
+   undoable step, with the last block's children preserved.
+4. Copy a partial cross-block range and paste into a plain text editor — the
+   partial ends must be there.
+5. **iOS Safari, touch**: try the same drag. If the selection cannot be made,
+   record it here — the remedy is a touch-only container toggle, deliberately
+   not implemented until measured.
+6. IME: start a composition with a cross-block range live.
+7. Triple-click a paragraph: the selection must not spill into the next block.
+
 ## Regression checklist per run
 
 - [ ] All IME scenarios on devices 4–10

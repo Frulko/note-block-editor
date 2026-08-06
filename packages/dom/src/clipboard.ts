@@ -16,6 +16,7 @@ import {
 import { blocksToMarkdown, markdownToBlocks, runsToMarkdown } from '@nbe/markdown';
 import type { EditorView } from './view';
 import { leafOf } from './selection';
+import { syncCaretFromDom } from './caret';
 
 // --- copy: three formats at once (ARCHITECTURE §7) ---
 
@@ -353,6 +354,9 @@ export function attachClipboard(view: EditorView): () => void {
   let plainPasteAt = 0;
 
   const writeSlice = (e: ClipboardEvent): Slice | null => {
+    // selectionchange is async: a copy fired right after a drag can land
+    // before the model has caught up, so re-read the DOM truth first
+    syncCaretFromDom(view);
     const slice = buildSlice(view);
     if (!slice || !e.clipboardData) return null;
     e.preventDefault();

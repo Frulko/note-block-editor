@@ -8,7 +8,28 @@ import { domToModelPoint, leafOf } from './selection';
  * elsewhere" bug): the DOM selection is the source of truth for READING the
  * caret. The model selection is a mirror kept in sync at the entry of every
  * input path — never trusted over the DOM when both exist.
+ *
+ * With one exception, below: a BLOCK selection has no DOM counterpart, so a
+ * caret the browser drops on its own must not be mistaken for user intent.
  */
+
+let lastTextIntent = 0;
+
+/** Record that the user pressed inside editable text (so a caret is intended). */
+export function markTextIntent(): void {
+  lastTextIntent = Date.now();
+}
+
+/**
+ * True when a collapsed DOM caret can be trusted to replace a block selection.
+ * Pressing the mouse anywhere makes the browser place a caret; without this
+ * guard that stray caret silently destroys a block selection the user just
+ * made with the rubber band — which is what made selected blocks
+ * un-draggable.
+ */
+export function textIntentActive(): boolean {
+  return Date.now() - lastTextIntent < 500;
+}
 
 /** Map the live DOM selection to a model text selection (null when unusable). */
 export function domTextSelection(view: EditorView): TextSelection | null {
@@ -96,8 +117,15 @@ export function attachBlockClickRouting(view: EditorView): () => void {
   const onMouseDown = (e: MouseEvent) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (leafOf(target)) return; // inside an editable leaf: native caret is right
     if (target.closest?.(INTERACTIVE_CHROME)) return;
+
+    // pressing on editable text is always an intent to place a caret, which
+    // is what cancels a block selection (Notion behaviour)
+    if (leafOf(target)) {
+      markTextIntent();
+      return; // the native caret is already correct inside a leaf
+    }
+
     const blockEl = target.closest?.('.nbe-block') as HTMLElement | null;
     const id = blockEl?.dataset['blockId'];
     if (!id || !view.editor.doc.blocks.has(id)) return;
@@ -105,11 +133,25 @@ export function attachBlockClickRouting(view: EditorView): () => void {
     const leaf = blockEl!.querySelector(':scope > .nbe-row > .nbe-leaf') as HTMLElement | null;
     if (!leaf) return;
     e.preventDefault();
+    markTextIntent();
     view.focusBlock(id, offsetAtPoint(view, id, e.clientX, e.clientY));
   };
 
+  /** A press anywhere outside the editor drops a block selection. */
+  const onDocumentPointerDown = (e: PointerEvent) => {
+    if (view.editor.selection?.kind !== 'block') return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (view.content.contains(target) || target.closest?.('[data-nbe-ui]')) return;
+    view.editor.setSelection(null, 'keyboard');
+  };
+
   view.content.addEventListener('mousedown', onMouseDown);
-  return () => view.content.removeEventListener('mousedown', onMouseDown);
+  document.addEventListener('pointerdown', onDocumentPointerDown);
+  return () => {
+    view.content.removeEventListener('mousedown', onMouseDown);
+    document.removeEventListener('pointerdown', onDocumentPointerDown);
+  };
 }
 
 /** Collapsed-caret client X for goal-X seeding (DOM truth, robust fallbacks). */

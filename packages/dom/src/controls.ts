@@ -16,6 +16,7 @@ import {
 import type { EditorView } from './view';
 import {
   attachTooltip,
+  icon,
   createDragGhost,
   createHoverZone,
   createMenu,
@@ -41,12 +42,12 @@ export function attachControls(view: EditorView): () => void {
   const plusBtn = document.createElement('button');
   plusBtn.type = 'button';
   plusBtn.className = 'nbe-ctrl-btn nbe-plus';
-  plusBtn.textContent = '+';
+  plusBtn.append(icon('plus', { size: 18 }));
   plusBtn.setAttribute('aria-label', 'Ajouter un bloc en dessous');
   const handleBtn = document.createElement('button');
   handleBtn.type = 'button';
   handleBtn.className = 'nbe-ctrl-btn nbe-handle';
-  handleBtn.textContent = '⋮⋮';
+  handleBtn.append(icon('grip-vertical', { size: 18 }));
   handleBtn.setAttribute('aria-label', 'Menu du bloc (glisser pour déplacer)');
   handleBtn.setAttribute('aria-haspopup', 'menu');
   controls.append(plusBtn, handleBtn);
@@ -61,8 +62,13 @@ export function attachControls(view: EditorView): () => void {
     hoveredId = blockEl.dataset['blockId']!;
     const rect = blockEl.getBoundingClientRect();
     document.body.append(controls);
-    controls.style.top = `${rect.top + window.scrollY + 2}px`;
-    controls.style.left = `${rect.left + window.scrollX - 50}px`;
+    // align to the block's first line rather than its box, so the gutter sits
+    // next to the text on tall blocks (callouts, code, images)
+    const line = parseFloat(getComputedStyle(blockEl).lineHeight) || 24;
+    const padTop = parseFloat(getComputedStyle(blockEl).paddingTop) || 0;
+    const top = rect.top + padTop + Math.max(0, (line - controls.offsetHeight || 0) / 2);
+    controls.style.top = `${top + window.scrollY}px`;
+    controls.style.left = `${rect.left + window.scrollX - controls.offsetWidth - 6}px`;
   };
 
   const hideControls = () => {
@@ -71,23 +77,48 @@ export function attachControls(view: EditorView): () => void {
   };
 
   /**
-   * Geometry-based resolution: the hovered block is found from the pointer's
-   * Y position with X clamped into the content box, so the left margin (where
-   * the controls live) still resolves to the adjacent block instead of losing
-   * the hover — the classic Notion behavior.
+   * Proximity-based resolution (Notion): the gutter appears when the pointer
+   * is *near* a block, not strictly over it. The catch area extends well into
+   * the left margin — where the gutter itself lives — and a little past the
+   * right edge, which is where comment/actions will hang. Vertically we pick
+   * the nearest block within a small tolerance, so the gutter never blinks in
+   * the gaps between blocks.
    */
+  const HOVER_LEFT = 120; // generous: the gutter sits out here
+  const HOVER_RIGHT = 80; // reserved for right-side actions (comments…)
+  const HOVER_Y = 8;
+
   const resolveBlock = (e: MouseEvent): HTMLElement | null => {
     const c = view.content.getBoundingClientRect();
-    if (e.clientY < c.top - 4 || e.clientY > c.bottom + 4) return null;
-    if (e.clientX < c.left - 64 || e.clientX > c.right + 24) return null;
-    const x = e.clientX < c.left ? c.left + 4 : e.clientX > c.right ? c.right - 4 : e.clientX;
-    const under = document.elementFromPoint(x, e.clientY);
-    const blockEl = (under as HTMLElement | null)?.closest?.('.nbe-block') as HTMLElement | null;
-    const id = blockEl?.dataset['blockId'];
-    if (!id || !editor.doc.blocks.has(id)) return null;
-    const type = getBlock(editor.doc, id).type;
-    if (type === 'column_list' || type === 'column') return null;
-    return blockEl!;
+    if (e.clientX < c.left - HOVER_LEFT || e.clientX > c.right + HOVER_RIGHT) return null;
+    if (e.clientY < c.top - HOVER_Y || e.clientY > c.bottom + HOVER_Y) return null;
+
+    const eligible = (el: HTMLElement): boolean => {
+      const id = el.dataset['blockId'];
+      if (!id || !editor.doc.blocks.has(id)) return false;
+      const type = getBlock(editor.doc, id).type;
+      return type !== 'column_list' && type !== 'column';
+    };
+
+    // exact hit first (cheap, and correct for nested blocks)
+    const x = Math.min(Math.max(e.clientX, c.left + 4), c.right - 4);
+    const under = document.elementFromPoint(x, e.clientY) as HTMLElement | null;
+    const direct = under?.closest?.('.nbe-block') as HTMLElement | null;
+    if (direct && eligible(direct)) return direct;
+
+    // otherwise the vertically nearest block within tolerance
+    let best: { el: HTMLElement; distance: number } | null = null;
+    for (const el of view.content.querySelectorAll<HTMLElement>('.nbe-block')) {
+      if (!eligible(el)) continue;
+      const r = el.getBoundingClientRect();
+      const distance = e.clientY < r.top ? r.top - e.clientY : e.clientY > r.bottom ? e.clientY - r.bottom : 0;
+      if (distance > HOVER_Y) continue;
+      // deepest match wins ties so nested blocks keep their own gutter
+      if (!best || distance < best.distance || (distance === best.distance && best.el.contains(el))) {
+        best = { el, distance };
+      }
+    }
+    return best?.el ?? null;
   };
 
   const hover = createHoverZone({

@@ -209,8 +209,14 @@ export class EditorView {
     const head = modelPointToDom(this, sel.head);
     if (!anchor || !head) return;
     const leaf = this.leafEl(sel.head.blockId);
-    leaf?.focus({ preventScroll: true });
-    document.getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
+    // focusing a leaf makes it the editing host, which re-clamps the range to
+    // it — fatal for a cross-block range, so only focus within a single block
+    if (sel.anchor.blockId === sel.head.blockId) leaf?.focus({ preventScroll: true });
+    try {
+      document.getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
+    } catch {
+      /* nodes replaced by a concurrent render; the next commit re-syncs */
+    }
     leaf?.scrollIntoView({ block: 'nearest' });
   }
 

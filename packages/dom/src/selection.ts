@@ -1,5 +1,6 @@
 import type { Point } from '@nbe/core';
 import type { EditorView } from './view';
+import { textIntentActive } from './caret';
 
 export function leafOf(node: Node | null): HTMLElement | null {
   if (!node) return null;
@@ -45,12 +46,18 @@ export function attachSelectionSync(view: EditorView): () => void {
   const handler = () => {
     if (view.composing) return;
     const sel = document.getSelection();
+    // Firefox still ships multi-range selections (bug 753718): only the
+    // anchor/focus pair is meaningful, and the spec now caps others at one
     if (!sel || sel.rangeCount === 0) return;
     if (!view.content.contains(sel.anchorNode)) return;
     const anchor = domToModelPoint(sel.anchorNode!, sel.anchorOffset);
     const head = domToModelPoint(sel.focusNode!, sel.focusOffset);
     if (!anchor || !head) return;
     const prev = view.editor.selection;
+    const collapsed = anchor.blockId === head.blockId && anchor.offset === head.offset;
+    // a block selection has no DOM counterpart: a collapsed caret the browser
+    // dropped by itself must not silently cancel it (see caret.ts)
+    if (prev?.kind === 'block' && collapsed && !textIntentActive()) return;
     // a range crossing leaf boundaries is a real cross-block TEXT selection
     // (D3): the browser paints it, and the model represents it natively
     if (

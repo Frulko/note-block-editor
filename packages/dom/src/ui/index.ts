@@ -11,5 +11,7 @@ export { createDragGhost } from './ghost';
 export type { DragGhost, GhostOptions } from './ghost';
 export { createDropZone, fileToDataUrl, pickFile } from './upload';
 export type { DropZoneOptions } from './upload';
+export { icon, ICON_NAMES } from './icons';
+export type { IconName, IconOptions } from './icons';
 export { openIconPicker } from './icon-picker';
 export type { IconPickerOptions, IconPickerController } from './icon-picker';

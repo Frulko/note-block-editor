@@ -1,5 +1,6 @@
 import type { EditorView } from './view';
 import { leafOf } from './selection';
+import { markTextIntent } from './caret';
 
 /**
  * Native-feeling text selection across blocks (D3, upgraded).
@@ -104,6 +105,12 @@ export function attachCrossBlockSelection(view: EditorView): () => void {
     if (e.button !== 0) return;
     const leaf = leafOf(e.target as Node);
     if (!leaf) return; // margin presses belong to the rubber band (block selection)
+    // triple-click: the browser extends forward into the next block at offset
+    // 0, which reads as a cross-block range the user never asked for
+    if (e.detail >= 3) {
+      markTextIntent();
+      return;
+    }
 
     // Shift+click extends the existing selection, across blocks if needed
     if (e.shiftKey) {
@@ -120,6 +127,7 @@ export function attachCrossBlockSelection(view: EditorView): () => void {
       return;
     }
 
+    markTextIntent(); // a press in text means the user wants a caret there
     anchor = pointFromClient(view, e.clientX, e.clientY);
     if (!anchor) return;
     dragging = true;

@@ -1,9 +1,67 @@
-.nbe-editor {
+/* ==========================================================================
+   Design tokens — one place for the whole UI language.
+   Everything below (menus, gutter, toolbar, database chrome) reads these, so
+   a host can re-skin the editor, or a future dark mode can remap them, by
+   overriding a dozen custom properties instead of patching rules.
+   ========================================================================== */
+
+.nbe-editor,
+.nbe-menu,
+.nbe-seltoolbar,
+.nbe-controls,
+.nbe-tooltip,
+.nbe-iconpicker,
+.nbe-dropzone,
+.nbe-db {
+  /* ink */
   --nbe-text: rgb(55, 53, 47);
+  --nbe-text-muted: rgba(55, 53, 47, 0.65);
   --nbe-text-light: rgba(55, 53, 47, 0.5);
+  --nbe-text-faint: rgba(55, 53, 47, 0.35);
   --nbe-placeholder: rgba(55, 53, 47, 0.35);
+
+  /* surfaces */
+  --nbe-surface: #fff;
+  --nbe-surface-sunken: rgb(247, 246, 243);
+  --nbe-hover: rgba(55, 53, 47, 0.06);
+  --nbe-hover-strong: rgba(55, 53, 47, 0.09);
   --nbe-code-bg: rgba(135, 131, 120, 0.15);
+
+  /* lines */
+  --nbe-border: rgba(55, 53, 47, 0.09);
+  --nbe-border-strong: rgba(55, 53, 47, 0.16);
+
+  /* accents */
   --nbe-accent: rgb(35, 131, 226);
+  --nbe-accent-soft: rgba(35, 131, 226, 0.13);
+  --nbe-accent-line: rgba(35, 131, 226, 0.45);
+  --nbe-danger: rgb(212, 76, 71);
+  --nbe-success: rgb(68, 131, 97);
+
+  /* inverted surface (selection toolbar) */
+  --nbe-inverse-surface: rgb(37, 37, 37);
+  --nbe-inverse-text: rgba(255, 255, 255, 0.85);
+  --nbe-inverse-hover: rgba(255, 255, 255, 0.12);
+  --nbe-inverse-accent: rgb(96, 176, 255);
+
+  /* shape */
+  --nbe-radius-sm: 3px;
+  --nbe-radius: 5px;
+  --nbe-radius-lg: 8px;
+
+  /* elevation */
+  --nbe-shadow-sm: rgba(15, 15, 15, 0.04) 0 0 0 1px, rgba(15, 15, 15, 0.03) 0 2px 4px;
+  --nbe-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px,
+    rgba(15, 15, 15, 0.2) 0 9px 24px;
+
+  /* motion — one duration language, all ease-out */
+  --nbe-fast: 90ms;
+  --nbe-normal: 140ms;
+  --nbe-slow: 220ms;
+  --nbe-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.nbe-editor {
 
   /* page geometry owned by the editor (EditorViewOptions.padding/maxWidth).
      The element fills its container and centers the text column with padding
@@ -13,6 +71,8 @@
   --nbe-pad-bottom: 30vh;
   --nbe-pad-x: 24px;
   --nbe-max-width: 708px;
+  /* the gutter lives out here; the hover catch area is wider still (controls.ts) */
+  --nbe-gutter-width: 58px;
 
   box-sizing: border-box;
   width: 100%;
@@ -30,6 +90,20 @@
 
 .nbe-editor ::selection {
   background: rgba(35, 131, 226, 0.28);
+}
+/* non-text chrome must not highlight when a cross-block range crosses it
+   (Notion does the same for its contenteditable=false voids) */
+.nbe-gutter::selection,
+.nbe-gutter ::selection,
+.nbe-checkbox::selection,
+.nbe-toggle-arrow::selection,
+.nbe-toggle-arrow ::selection,
+.nbe-callout-icon::selection,
+.nbe-callout-icon ::selection,
+.nbe-controls ::selection,
+.nbe-ghost ::selection,
+.nbe-db ::selection {
+  background: transparent;
 }
 
 .nbe-block {
@@ -153,7 +227,7 @@
   padding: 0;
 }
 .nbe-toggle-arrow:hover {
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--nbe-hover-strong);
 }
 .nbe-toggle-arrow.nbe-open {
   transform: rotate(90deg);
@@ -183,7 +257,7 @@
 }
 .nbe-divider-line {
   width: 100%;
-  border-top: 1px solid rgba(55, 53, 47, 0.16);
+  border-top: 1px solid var(--nbe-border-strong);
 }
 
 .nbe-children {
@@ -206,7 +280,7 @@
 /* --- block selection --- */
 
 .nbe-selected {
-  background: rgba(35, 131, 226, 0.13);
+  background: var(--nbe-accent-soft);
 }
 .nbe-blocksel ::selection {
   background: transparent;
@@ -239,7 +313,7 @@
   transition: background 100ms ease-in;
 }
 .nbe-callout-icon:hover {
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--nbe-hover-strong);
 }
 .nbe-callout-image {
   width: 20px;
@@ -276,7 +350,7 @@
 .nbe-dropzone-btn {
   font: inherit;
   font-size: 13px;
-  border: 1px solid rgba(55, 53, 47, 0.16);
+  border: 1px solid var(--nbe-border-strong);
   background: #fff;
   border-radius: 4px;
   padding: 4px 10px;
@@ -310,7 +384,7 @@
   display: flex;
   gap: 2px;
   padding: 6px 8px 0;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+  border-bottom: 1px solid var(--nbe-border);
 }
 .nbe-iconpicker-tab {
   font: inherit;
@@ -336,14 +410,14 @@
   font: inherit;
   font-size: 13px;
   width: 100%;
-  border: 1px solid rgba(55, 53, 47, 0.16);
+  border: 1px solid var(--nbe-border-strong);
   border-radius: 4px;
   padding: 5px 8px;
   outline: none;
   margin-bottom: 6px;
 }
 .nbe-iconpicker-search:focus {
-  border-color: var(--nbe-accent, rgb(35, 131, 226));
+  border-color: var(--nbe-accent, var(--nbe-accent));
 }
 .nbe-iconpicker-grouplabel {
   font-size: 10px;
@@ -369,7 +443,7 @@
   transition: background 80ms ease-in;
 }
 .nbe-iconpicker-emoji:hover {
-  background: rgba(55, 53, 47, 0.09);
+  background: var(--nbe-border);
 }
 .nbe-iconpicker-emoji.nbe-active {
   background: rgba(35, 131, 226, 0.16);
@@ -387,7 +461,7 @@
   font: inherit;
   font-size: 12px;
   border: none;
-  border-top: 1px solid rgba(55, 53, 47, 0.09);
+  border-top: 1px solid var(--nbe-border);
   background: transparent;
   color: rgba(55, 53, 47, 0.6);
   padding: 7px;
@@ -396,7 +470,7 @@
 }
 .nbe-iconpicker-remove:hover {
   background: rgba(212, 76, 71, 0.07);
-  color: rgb(212, 76, 71);
+  color: var(--nbe-danger);
 }
 
 /* --- page link --- */
@@ -407,7 +481,7 @@
   transition: background 100ms ease-in;
 }
 .nbe-t-link_to_page:hover {
-  background: rgba(55, 53, 47, 0.06);
+  background: var(--nbe-hover);
 }
 .nbe-page-link-title {
   text-decoration: underline;
@@ -470,26 +544,29 @@ a.nbe-m-link:hover {
   }
 }
 .nbe-ctrl-btn {
-  width: 22px;
-  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border: none;
   background: transparent;
-  border-radius: 4px;
-  color: rgba(55, 53, 47, 0.4);
-  font-size: 16px;
-  line-height: 1;
+  border-radius: var(--nbe-radius);
+  color: var(--nbe-text-faint);
   cursor: pointer;
   padding: 0;
-  transition: background 100ms ease-in, color 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-ctrl-btn:hover {
-  background: rgba(55, 53, 47, 0.08);
-  color: rgba(55, 53, 47, 0.7);
+  background: var(--nbe-hover-strong);
+  color: var(--nbe-text-muted);
 }
 .nbe-handle {
   cursor: grab;
-  font-size: 10px;
-  letter-spacing: -1px;
+}
+.nbe-icon {
+  display: block;
+  flex-shrink: 0;
 }
 .nbe-drag-active,
 .nbe-drag-active * {
@@ -511,13 +588,10 @@ a.nbe-m-link:hover {
   overflow-y: auto;
   background: #fff;
   border-radius: 8px;
-  box-shadow:
-    rgba(15, 15, 15, 0.05) 0 0 0 1px,
-    rgba(15, 15, 15, 0.1) 0 3px 6px,
-    rgba(15, 15, 15, 0.2) 0 9px 24px;
+  box-shadow: var(--nbe-shadow);
   padding: 6px 4px;
   font-size: 14px;
-  animation: nbe-menu-in 150ms cubic-bezier(0.2, 0, 0, 1);
+  animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
 }
 @keyframes nbe-menu-in {
   from {
@@ -548,7 +622,7 @@ a.nbe-m-link:hover {
 }
 .nbe-menu-item:hover,
 .nbe-menu-item.nbe-active {
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--nbe-hover-strong);
 }
 .nbe-menu-icon {
   width: 22px;
@@ -579,7 +653,7 @@ a.nbe-m-link:hover {
 .nbe-swatch {
   width: 26px;
   height: 26px;
-  border: 1px solid rgba(55, 53, 47, 0.16);
+  border: 1px solid var(--nbe-border-strong);
   border-radius: 4px;
   background: #fff;
   font-size: 13px;
@@ -590,7 +664,7 @@ a.nbe-m-link:hover {
   border-color: rgba(55, 53, 47, 0.4);
 }
 .nbe-swatch.nbe-active {
-  outline: 2px solid var(--nbe-accent, rgb(35, 131, 226));
+  outline: 2px solid var(--nbe-accent, var(--nbe-accent));
   outline-offset: 1px;
 }
 
@@ -627,7 +701,7 @@ a.nbe-m-link:hover {
   position: absolute;
   top: -7px;
   right: -7px;
-  background: var(--nbe-accent, rgb(35, 131, 226));
+  background: var(--nbe-accent, var(--nbe-accent));
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -655,13 +729,11 @@ a.nbe-m-link:hover {
   display: flex;
   align-items: stretch;
   gap: 1px;
-  background: rgb(37, 37, 37);
-  border-radius: 6px;
+  background: var(--nbe-inverse-surface);
+  border-radius: var(--nbe-radius-lg);
   padding: 3px;
-  box-shadow:
-    rgba(15, 15, 15, 0.1) 0 0 0 1px,
-    rgba(15, 15, 15, 0.2) 0 3px 8px;
-  animation: nbe-menu-in 120ms cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.2) 0 3px 8px;
+  animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
   user-select: none;
 }
 .nbe-seltoolbar-btn {
@@ -670,7 +742,7 @@ a.nbe-m-link:hover {
   min-width: 26px;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--nbe-inverse-text);
   border-radius: 4px;
   padding: 4px 6px;
   cursor: pointer;
@@ -678,10 +750,10 @@ a.nbe-m-link:hover {
   transition: background 90ms ease-in, color 90ms ease-in;
 }
 .nbe-seltoolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--nbe-inverse-hover);
 }
 .nbe-seltoolbar-btn.nbe-active {
-  color: rgb(96, 176, 255);
+  color: var(--nbe-inverse-accent);
 }
 .nbe-seltoolbar-turn {
   font-size: 13px;
@@ -738,7 +810,7 @@ a.nbe-m-link:hover {
 .nbe-tooltip {
   position: absolute;
   z-index: 300;
-  background: rgb(15, 15, 15);
+  background: var(--nbe-inverse-surface);
   color: rgba(255, 255, 255, 0.9);
   font-size: 12px;
   line-height: 1.4;
@@ -798,7 +870,7 @@ a.nbe-m-link:hover {
   transition: background 100ms ease-in;
 }
 .nbe-db-tool:hover {
-  background: rgba(55, 53, 47, 0.08);
+  background: var(--nbe-hover-strong);
 }
 .nbe-db-table {
   border-top: 1px solid rgba(55, 53, 47, 0.12);
@@ -806,14 +878,14 @@ a.nbe-m-link:hover {
 }
 .nbe-db-row {
   display: flex;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+  border-bottom: 1px solid var(--nbe-border);
   min-height: 33px;
 }
 .nbe-db-cell {
   flex: 1;
   min-width: 110px;
   padding: 6px 8px;
-  border-right: 1px solid rgba(55, 53, 47, 0.06);
+  border-right: 1px solid var(--nbe-hover);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -863,7 +935,7 @@ a.nbe-m-link:hover {
 }
 .nbe-db-addprop:hover,
 .nbe-db-rowmenu:hover {
-  background: rgba(55, 53, 47, 0.06);
+  background: var(--nbe-hover);
 }
 .nbe-db-newrow {
   display: block;
@@ -933,7 +1005,7 @@ a.nbe-m-link:hover {
   padding: 0 4px;
 }
 .nbe-db-x:hover {
-  color: rgb(212, 76, 71);
+  color: var(--nbe-danger);
 }
 
 /* layout switcher */
@@ -954,10 +1026,10 @@ a.nbe-m-link:hover {
   transition: background 100ms ease-in, color 100ms ease-in;
 }
 .nbe-db-layout:hover {
-  background: rgba(55, 53, 47, 0.06);
+  background: var(--nbe-hover);
 }
 .nbe-db-layout.nbe-active {
-  background: rgba(55, 53, 47, 0.09);
+  background: var(--nbe-border);
   color: var(--nbe-text);
   font-weight: 500;
 }
@@ -976,7 +1048,7 @@ a.nbe-m-link:hover {
   align-items: center;
   gap: 8px;
   padding: 10px 8px 6px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+  border-bottom: 1px solid var(--nbe-border);
 }
 .nbe-db-grouplabel {
   font-weight: 600;
@@ -1062,7 +1134,7 @@ a.nbe-m-link:hover {
   align-items: center;
   gap: 10px;
   padding: 7px 8px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+  border-bottom: 1px solid var(--nbe-hover);
 }
 .nbe-db-listtitle {
   font-weight: 500;
@@ -1091,7 +1163,7 @@ a.nbe-m-link:hover {
   width: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  border: 1px solid rgba(55, 53, 47, 0.16);
+  border: 1px solid var(--nbe-border-strong);
   border-radius: 4px;
   padding: 5px 6px;
   outline: none;
@@ -1107,7 +1179,7 @@ a.nbe-m-link:hover {
   min-height: 14px;
 }
 .nbe-db-formulaerror {
-  color: rgb(212, 76, 71);
+  color: var(--nbe-danger);
 }
 .nbe-db-formulahelp {
   font-size: 10px;
