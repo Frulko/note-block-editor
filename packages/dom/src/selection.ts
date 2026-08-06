@@ -45,6 +45,7 @@ export function modelPointToDom(view: EditorView, point: Point): { node: Node; o
 export function attachSelectionSync(view: EditorView): () => void {
   const handler = () => {
     if (view.composing) return;
+    if (view.blockGesture) return; // a rubber band owns the selection
     const sel = document.getSelection();
     // Firefox still ships multi-range selections (bug 753718): only the
     // anchor/focus pair is meaningful, and the spec now caps others at one
@@ -54,10 +55,17 @@ export function attachSelectionSync(view: EditorView): () => void {
     const head = domToModelPoint(sel.focusNode!, sel.focusOffset);
     if (!anchor || !head) return;
     const prev = view.editor.selection;
-    const collapsed = anchor.blockId === head.blockId && anchor.offset === head.offset;
-    // a block selection has no DOM counterpart: a collapsed caret the browser
-    // dropped by itself must not silently cancel it (see caret.ts)
-    if (prev?.kind === 'block' && collapsed && !textIntentActive()) return;
+    /*
+     * A block selection has no DOM counterpart, and the browser keeps making
+     * its own text selection underneath — a caret dropped on mousedown, or a
+     * whole range drag-selected over non-editable content. Neither is user
+     * intent to leave block mode, and mapping either one back is what made a
+     * rubber-band selection vanish the moment the button was released.
+     *
+     * So while a block selection is live, DOM selections are ignored unless
+     * the user actually pressed inside editable text (markTextIntent).
+     */
+    if (prev?.kind === 'block' && !textIntentActive()) return;
     // a range crossing leaf boundaries is a real cross-block TEXT selection
     // (D3): the browser paints it, and the model represents it natively
     if (

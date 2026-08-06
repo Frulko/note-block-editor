@@ -252,11 +252,16 @@ overlays. Framework adapters never re-implement it.
   above. Every control cancels `mousedown`, so the toolbar never takes the
   selection it is acting on. Turn-into, the five inline formats, link, text
   colour and highlight.
-- **Per-block-type menu actions** live in a registry
-  (`dom/src/block-actions.ts`): a callout contributes "change icon", a code
-  block its language list, an image its replace drop zone. The generic block
-  menu never grows type-specific branches and custom blocks register their own
-  without touching `controls.ts`.
+- **Two ways to configure a block, on purpose.** Rare or destructive actions
+  live in the ⋮⋮ gutter menu via a registry (`dom/src/block-actions.ts`:
+  callout icon, code language, image replace). Frequent, visual actions live
+  in a **floating toolbar at the block's top-right on hover**
+  (`dom/src/block-toolbar.ts`: an image's caption, alignment, size, download)
+  — under the pointer, not two clicks deep. Both are registries, so a custom
+  block opts into either without touching the generic chrome.
+- **Link hover card** (`dom/src/link-hover.ts`): hovering a link offers open /
+  copy / edit / remove without selecting the text first; editing selects the
+  link's exact range so the range commands apply to it.
 - **UI primitives (`dom/src/ui/`),** shared by all chrome and exported for
   block authors: `position` (pure flip/clamp engine + `autoUpdate` live
   anchoring), `menu` (keyboard nav, outside-click/Escape dismissal, and it

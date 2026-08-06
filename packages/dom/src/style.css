@@ -326,10 +326,115 @@
 
 /* --- image --- */
 
+.nbe-figure {
+  margin: 0;
+  max-width: 100%;
+}
+.nbe-align-center .nbe-figure {
+  margin-inline: auto;
+}
+.nbe-align-right .nbe-figure {
+  margin-inline-start: auto;
+}
 .nbe-image {
   max-width: 100%;
-  border-radius: 4px;
+  width: 100%;
+  border-radius: var(--nbe-radius);
   display: block;
+}
+.nbe-figcaption {
+  font-size: 13px;
+  color: var(--nbe-text-light);
+  padding: 5px 2px 0;
+}
+
+/* --- per-block floating toolbar --- */
+
+.nbe-blocktoolbar {
+  position: absolute;
+  z-index: 110;
+  display: flex;
+  gap: 1px;
+  background: var(--nbe-surface);
+  border-radius: var(--nbe-radius);
+  padding: 3px;
+  box-shadow: var(--nbe-shadow-sm), rgba(15, 15, 15, 0.08) 0 3px 8px;
+  animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
+}
+.nbe-blocktoolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--nbe-radius-sm);
+  color: var(--nbe-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-blocktoolbar-btn:hover {
+  background: var(--nbe-hover);
+  color: var(--nbe-text);
+}
+.nbe-blocktoolbar-btn.nbe-active {
+  color: var(--nbe-accent);
+}
+.nbe-blocktoolbar-menu {
+  min-width: 200px;
+}
+
+/* --- link hover card --- */
+
+.nbe-linkcard {
+  position: absolute;
+  z-index: 115;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--nbe-surface);
+  border-radius: var(--nbe-radius);
+  padding: 4px 5px;
+  box-shadow: var(--nbe-shadow-sm), rgba(15, 15, 15, 0.08) 0 3px 8px;
+  font-size: 13px;
+  max-width: 380px;
+  animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
+}
+.nbe-linkcard-url {
+  color: var(--nbe-accent);
+  text-decoration: none;
+  padding: 2px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.nbe-linkcard-url:hover {
+  text-decoration: underline;
+}
+.nbe-linkcard-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--nbe-radius-sm);
+  color: var(--nbe-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-linkcard-btn:hover {
+  background: var(--nbe-hover);
+  color: var(--nbe-text);
+}
+.nbe-linkcard-form {
+  padding: 2px;
+  min-width: 260px;
 }
 /* --- drop zone (shared by image blocks and the icon picker) --- */
 

@@ -86,6 +86,11 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     root.setAttribute('contenteditable', 'false');
     const src = String(block.props['src'] ?? '');
     if (src) {
+      const align = String(block.props['align'] ?? 'left');
+      const width = Number(block.props['width'] ?? 100);
+      root.classList.add(`nbe-align-${align}`);
+      const figure = el('figure', 'nbe-figure');
+      figure.style.width = `${Math.min(100, Math.max(10, width))}%`;
       const img = document.createElement('img');
       img.className = 'nbe-image';
       img.alt = String(block.props['caption'] ?? '');
@@ -96,7 +101,14 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
           if (img.isConnected || !img.src) img.src = url;
         });
       }
-      root.append(img);
+      figure.append(img);
+      const caption = String(block.props['caption'] ?? '');
+      if (caption) {
+        const figcaption = el('figcaption', 'nbe-figcaption');
+        figcaption.textContent = caption;
+        figure.append(figcaption);
+      }
+      root.append(figure);
     } else {
       const setSrc = (src: string) =>
         view.editor.dispatch((tx) => tx.op({ type: 'update_block', id: block.id, patch: { props: { src } } }), {

@@ -13,6 +13,8 @@ import { attachBlockClickRouting, domTextSelection } from './caret';
 import { attachDatabaseBlocks } from './database';
 import { attachSelectionToolbar } from './selection-toolbar';
 import { attachCrossBlockSelection } from './cross-block-selection';
+import { attachBlockToolbar } from './block-toolbar';
+import { attachLinkHover } from './link-hover';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -44,6 +46,13 @@ export class EditorView {
   readonly content: HTMLElement;
   readonly options: EditorViewOptions;
   composing = false;
+  /**
+   * True while a block-level gesture owns the selection (rubber band). The
+   * browser keeps making its own native text selection under the pointer even
+   * over non-editable content, and mapping that back would overwrite the block
+   * selection the gesture just built.
+   */
+  blockGesture = false;
 
   private unbinders: Array<() => void> = [];
 
@@ -66,7 +75,7 @@ export class EditorView {
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
     this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this), attachRubberBand(this));
     this.unbinders.push(attachBlockClickRouting(this), attachDatabaseBlocks(this), attachSelectionToolbar(this));
-    this.unbinders.push(attachCrossBlockSelection(this));
+    this.unbinders.push(attachCrossBlockSelection(this), attachBlockToolbar(this), attachLinkHover(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 
@@ -196,7 +205,10 @@ export class EditorView {
     // keyboard-driven block selection owns focus; a live mouse drag keeps its native selection
     if (origin !== 'dom' && origin !== 'render') {
       document.getSelection()?.removeAllRanges();
-      this.content.focus({ preventScroll: true });
+      // only take focus if it is outside the editor: focusing the root while a
+      // leaf holds it can make the browser drop a caret, which then reads as
+      // an intent to leave block mode
+      if (!this.content.contains(document.activeElement)) this.content.focus({ preventScroll: true });
       this.blockEl(sel.head)?.scrollIntoView({ block: 'nearest' });
     }
   }
