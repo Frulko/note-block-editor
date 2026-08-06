@@ -166,9 +166,11 @@ function renderBlock(b: BlockJSON, depth: number): string[] {
     case 'quote':
       return [pad + '> ' + text, ...quotedKids()];
     case 'callout': {
-      // Obsidian callout convention; icon emoji prepended to the text when present
+      // Obsidian callout convention: the variant IS the callout type, so
+      // presets round-trip as `> [!warning]` instead of collapsing to note
+      const variant = typeof p['variant'] === 'string' && p['variant'] ? p['variant'] : 'note';
       const icon = typeof p['icon'] === 'string' && p['icon'] ? p['icon'] + ' ' : '';
-      return [pad + '> [!note] ' + icon + text, ...quotedKids()];
+      return [pad + `> [!${variant}] ` + icon + text, ...quotedKids()];
     }
     case 'code': {
       const lang = typeof p['language'] === 'string' ? p['language'] : '';
@@ -315,8 +317,13 @@ function parseLevel(lines: string[], pos: number, level: number): [BlockJSON[], 
         .slice(1)
         .filter((l) => l.trim() !== '')
         .map((l) => mk('paragraph', {}, markdownToRuns(l)));
-      const cm = /^\[!\w+\]\s?(.*)$/.exec(quoteLines[0]!);
-      if (cm) out.push(mk('callout', {}, markdownToRuns(cm[1]!), children));
+      const cm = /^\[!(\w+)\][-+]?\s?(.*)$/.exec(quoteLines[0]!);
+      if (cm) {
+        // 'note' is the default rendering, so it is never stored — that keeps
+        // documents lean and makes the markdown round-trip byte-stable
+        const variant = cm[1]!.toLowerCase();
+        out.push(mk('callout', variant === 'note' ? {} : { variant }, markdownToRuns(cm[2]!), children));
+      }
       else out.push(mk('quote', {}, markdownToRuns(quoteLines[0]!), children));
       continue;
     }

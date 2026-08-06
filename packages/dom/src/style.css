@@ -723,8 +723,14 @@ a.nbe-m-link:hover {
 
 .nbe-tinted {
   border-radius: 4px;
+}
+/* breathing room only for blocks with no geometry of their own — tinting must
+   never move content, and callout/code/quote already carry their own padding */
+.nbe-tinted:not(.nbe-t-callout, .nbe-t-code, .nbe-t-quote) {
   padding-left: 6px;
   padding-right: 6px;
+  margin-left: -6px;
+  margin-right: -6px;
 }
 
 /* --- tooltip --- */

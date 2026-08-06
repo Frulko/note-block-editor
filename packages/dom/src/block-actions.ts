@@ -2,6 +2,7 @@ import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { createDropZone, fileToDataUrl, openIconPicker, type MenuEntry } from './ui';
+import { CALLOUT_PRESETS } from './callout';
 
 /**
  * Per-block-type actions contributed to the block menu (the ⋮⋮ handle).
@@ -50,11 +51,34 @@ registerBlockActions('callout', (ctx) => [
       openIconPicker(() => ctx.anchor.getBoundingClientRect(), {
         current: String(ctx.block.props['icon'] ?? ''),
         storeImage: ctx.view.options.onStoreAsset,
-        onPick: (icon) => setProps(ctx, { icon }),
-        onRemove: () => setProps(ctx, { icon: undefined }),
+        // an explicit icon choice drops the preset label but keeps its tint
+        onPick: (icon) => setProps(ctx, { icon, variant: undefined }),
+        onRemove: () => setProps(ctx, { icon: undefined, variant: undefined }),
       });
     },
   },
+  { kind: 'section', label: 'Type' },
+  ...CALLOUT_PRESETS.map((preset) => ({
+    label: preset.label,
+    icon: preset.icon,
+    hint: (ctx.block.props['variant'] ?? 'note') === preset.name ? '✓' : undefined,
+    onSelect: () =>
+      ctx.view.editor.dispatch(
+        (tx) => {
+          for (const id of ctx.ids) {
+            if (getBlock(ctx.view.editor.doc, id).type !== 'callout') continue;
+            tx.op({
+              type: 'update_block',
+              id,
+              patch: {
+                props: { variant: preset.name, icon: preset.icon, backgroundColor: preset.backgroundColor },
+              },
+            });
+          }
+        },
+        { origin: 'ui' },
+      ),
+  })),
 ]);
 
 const LANGUAGES = ['plain', 'ts', 'js', 'json', 'html', 'css', 'python', 'rust', 'go', 'sql', 'bash', 'swift'];
