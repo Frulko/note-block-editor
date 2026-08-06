@@ -1,0 +1,285 @@
+import type { Block, BlockId } from '@nbe/core';
+import {
+  applyAutoformat,
+  applyDividerAutoformat,
+  childIndex,
+  deleteBackward,
+  getBlock,
+  insertText,
+  isCollapsed,
+  marksAt,
+  matchAutoformat,
+  mergeBackward,
+  plainText,
+  splitBlock,
+  textCaret,
+  textLength,
+  toggleMark,
+  uuidv7,
+} from '@nbe/core';
+import type { EditorView } from './view';
+import { domToModelPoint, leafOf } from './selection';
+
+function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: number } | null {
+  const sel = view.editor.selection;
+  if (sel?.kind !== 'text' || sel.anchor.blockId !== sel.head.blockId) return null;
+  return {
+    id: sel.anchor.blockId,
+    from: Math.min(sel.anchor.offset, sel.head.offset),
+    to: Math.max(sel.anchor.offset, sel.head.offset),
+  };
+}
+
+function handleInsertText(view: EditorView, data: string): void {
+  const editor = view.editor;
+  const at = singleBlockCaret(view);
+  if (!at) return;
+  const block = getBlock(editor.doc, at.id);
+  insertText(editor, data, marksAt(block.text, at.from));
+
+  // markdown autoformat: check the text before the caret after insertion
+  const after = getBlock(editor.doc, at.id);
+  if (after.type !== 'paragraph') return;
+  const before = plainText(after.text).slice(0, at.from + data.length);
+  if (before === '---' && plainText(after.text) === '---') {
+    applyDividerAutoformat(editor, at.id);
+    return;
+  }
+  const rule = matchAutoformat(before);
+  if (rule) applyAutoformat(editor, at.id, rule);
+}
+
+function handleDeleteForward(view: EditorView): void {
+  const editor = view.editor;
+  const at = singleBlockCaret(view);
+  if (!at) return;
+  if (at.from !== at.to) {
+    editor.dispatch((tx) => tx.op({ type: 'delete_text', id: at.id, from: at.from, to: at.to }), {
+      origin: 'input',
+      selection: textCaret(at.id, at.from),
+    });
+    return;
+  }
+  const block = getBlock(editor.doc, at.id);
+  const plain = plainText(block.text);
+  if (at.from >= plain.length) return; // ponytail: no forward-merge yet
+  const code = plain.charCodeAt(at.from);
+  const step = code >= 0xd800 && code <= 0xdbff && at.from + 2 <= plain.length ? 2 : 1;
+  editor.dispatch(
+    (tx) => tx.op({ type: 'delete_text', id: at.id, from: at.from, to: at.from + step }),
+    { origin: 'input', selection: textCaret(at.id, at.from), coalesce: `typing:${at.id}` },
+  );
+}
+
+function handlePaste(view: EditorView, text: string): void {
+  const editor = view.editor;
+  const at = singleBlockCaret(view);
+  if (!at || !text) return;
+  const lines = text.replace(/\r/g, '').split('\n');
+  const block = getBlock(editor.doc, at.id);
+
+  editor.dispatch(
+    (tx) => {
+      if (at.from < at.to) tx.op({ type: 'delete_text', id: at.id, from: at.from, to: at.to });
+      if (lines[0]) tx.op({ type: 'insert_text', id: at.id, offset: at.from, runs: [{ text: lines[0] }] });
+      // ponytail: extra lines become sibling paragraphs; the tail of the split stays put — full
+      // three-format clipboard pipeline is ARCHITECTURE §7, later in phase 1
+      let afterId = at.id;
+      for (const line of lines.slice(1)) {
+        const p: Block = {
+          id: uuidv7(),
+          type: 'paragraph',
+          version: 1,
+          props: {},
+          text: line ? [{ text: line }] : [],
+          children: [],
+          parentId: block.parentId,
+        };
+        tx.op({ type: 'insert_block', block: p, index: childIndex(editor.doc, afterId) + 1 });
+        afterId = p.id;
+      }
+    },
+    { origin: 'input' },
+  );
+  const lastLine = lines[lines.length - 1] ?? '';
+  const sel = editor.selection;
+  const lastId = lines.length === 1 ? at.id : findLastInserted(view, at.id, lines.length - 1);
+  editor.setSelection(
+    lines.length === 1 ? textCaret(at.id, at.from + lastLine.length) : textCaret(lastId, lastLine.length),
+  );
+  view.syncDomSelection();
+  void sel;
+}
+
+function findLastInserted(view: EditorView, fromId: BlockId, count: number): BlockId {
+  const doc = view.editor.doc;
+  const parent = getBlock(doc, getBlock(doc, fromId).parentId!);
+  const idx = parent.children.indexOf(fromId);
+  return parent.children[idx + count] ?? fromId;
+}
+
+/** Reconcile the model from the DOM after an IME composition (never during — ARCHITECTURE §5.1). */
+function reconcileComposition(view: EditorView, leaf: HTMLElement): void {
+  const editor = view.editor;
+  const id = leaf.dataset['blockId'];
+  if (!id || !editor.doc.blocks.has(id)) return;
+  const block = getBlock(editor.doc, id);
+  const domText = leaf.textContent ?? '';
+  const modelText = plainText(block.text);
+  if (domText === modelText) return;
+
+  let p = 0;
+  const min = Math.min(domText.length, modelText.length);
+  while (p < min && domText[p] === modelText[p]) p++;
+  let s = 0;
+  while (s < min - p && domText[domText.length - 1 - s] === modelText[modelText.length - 1 - s]) s++;
+  const inserted = domText.slice(p, domText.length - s);
+
+  editor.dispatch(
+    (tx) => {
+      if (modelText.length - s > p) tx.op({ type: 'delete_text', id, from: p, to: modelText.length - s });
+      if (inserted) tx.op({ type: 'insert_text', id, offset: p, runs: [{ text: inserted, marks: marksAt(block.text, p) }] });
+    },
+    { origin: 'input', selection: textCaret(id, p + inserted.length), coalesce: `typing:${id}` },
+  );
+}
+
+export function attachInput(view: EditorView): () => void {
+  const editor = view.editor;
+  const content = view.content;
+
+  const onBeforeInput = (e: Event) => {
+    const ev = e as InputEvent;
+    if (view.composing) return; // browser owns the DOM during composition
+    switch (ev.inputType) {
+      case 'insertText':
+        ev.preventDefault();
+        handleInsertText(view, ev.data ?? '');
+        break;
+      case 'insertParagraph':
+        ev.preventDefault();
+        splitBlock(editor);
+        break;
+      case 'insertLineBreak':
+        ev.preventDefault();
+        handleInsertText(view, '\n');
+        break;
+      case 'deleteContentBackward':
+        ev.preventDefault();
+        if (!deleteBackward(editor)) mergeBackward(editor);
+        break;
+      case 'deleteContentForward':
+        ev.preventDefault();
+        handleDeleteForward(view);
+        break;
+      case 'insertFromPaste':
+        ev.preventDefault();
+        handlePaste(view, ev.dataTransfer?.getData('text/plain') ?? '');
+        break;
+      case 'insertFromDrop':
+        ev.preventDefault();
+        break;
+      case 'formatBold':
+        ev.preventDefault();
+        toggleMark(editor, 'bold');
+        break;
+      case 'formatItalic':
+        ev.preventDefault();
+        toggleMark(editor, 'italic');
+        break;
+      case 'formatUnderline':
+        ev.preventDefault();
+        toggleMark(editor, 'underline');
+        break;
+      case 'historyUndo':
+        ev.preventDefault();
+        editor.undo();
+        break;
+      case 'historyRedo':
+        ev.preventDefault();
+        editor.redo();
+        break;
+      case 'insertCompositionText':
+        break; // non-cancelable by spec; reconciled at compositionend
+      default:
+        // ponytail: unknown input types are blocked to protect the model;
+        // insertReplacementText (spellcheck) support comes with the MutationObserver path
+        ev.preventDefault();
+    }
+  };
+
+  const onCompositionStart = () => {
+    view.composing = true;
+  };
+  const onCompositionEnd = (e: Event) => {
+    view.composing = false;
+    const leaf = leafOf(e.target as Node);
+    if (leaf) reconcileComposition(view, leaf);
+  };
+
+  const onClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const checkbox = target.closest('.nbe-checkbox');
+    if (checkbox) {
+      const id = (checkbox.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
+      const checked = getBlock(editor.doc, id).props['checked'] === true;
+      editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { checked: !checked } } }), {
+        origin: 'ui',
+      });
+      return;
+    }
+    const arrow = target.closest('.nbe-toggle-arrow');
+    if (arrow) {
+      const id = (arrow.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
+      const collapsed = getBlock(editor.doc, id).props['collapsed'] === true;
+      editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { collapsed: !collapsed } } }), {
+        origin: 'ui',
+      });
+      return;
+    }
+    // click in the empty area below the last block: append a paragraph (Notion)
+    if (target === content) {
+      const root = getBlock(editor.doc, editor.doc.rootId);
+      const lastId = root.children[root.children.length - 1];
+      const last = lastId ? getBlock(editor.doc, lastId) : null;
+      if (last && last.type === 'paragraph' && textLength(last.text) === 0) {
+        view.focusBlock(last.id, 0);
+        return;
+      }
+      const p: Block = {
+        id: uuidv7(),
+        type: 'paragraph',
+        version: 1,
+        props: {},
+        text: [],
+        children: [],
+        parentId: editor.doc.rootId,
+      };
+      editor.dispatch((tx) => tx.op({ type: 'insert_block', block: p, index: root.children.length }), {
+        origin: 'ui',
+        selection: textCaret(p.id, 0),
+      });
+    }
+  };
+
+  const onCopy = (e: ClipboardEvent) => {
+    // ponytail: native copy carries the visible text; the three-format
+    // clipboard (schema slice in text/html, markdown text/plain) is ARCHITECTURE §7
+    void e;
+  };
+
+  content.addEventListener('beforeinput', onBeforeInput);
+  content.addEventListener('compositionstart', onCompositionStart);
+  content.addEventListener('compositionend', onCompositionEnd);
+  content.addEventListener('click', onClick);
+  content.addEventListener('copy', onCopy);
+  return () => {
+    content.removeEventListener('beforeinput', onBeforeInput);
+    content.removeEventListener('compositionstart', onCompositionStart);
+    content.removeEventListener('compositionend', onCompositionEnd);
+    content.removeEventListener('click', onClick);
+    content.removeEventListener('copy', onCopy);
+  };
+}
+
+export { domToModelPoint };

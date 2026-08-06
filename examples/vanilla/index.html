@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nbe — demo</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <span class="brand">notion-block-editor <span class="tag">demo</span></span>
+        <div class="actions">
+          <button id="undo" title="Cmd+Z">↩︎ Undo</button>
+          <button id="redo" title="Cmd+Shift+Z">↪︎ Redo</button>
+        </div>
+      </header>
+      <main class="layout">
+        <div class="page-scroll">
+          <div class="page" id="editor"></div>
+        </div>
+        <aside class="inspector">
+          <nav class="tabs">
+            <button data-tab="doc" class="active">Document</button>
+            <button data-tab="ops">Transactions</button>
+          </nav>
+          <pre id="panel-doc" class="panel active"></pre>
+          <div id="panel-ops" class="panel"></div>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

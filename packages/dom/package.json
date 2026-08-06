@@ -1,0 +1,16 @@
+{
+  "name": "@nbe/dom",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./style.css": "./src/style.css"
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*"
+  }
+}

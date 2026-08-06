@@ -1,0 +1,212 @@
+.nbe-editor {
+  --nbe-text: rgb(55, 53, 47);
+  --nbe-text-light: rgba(55, 53, 47, 0.5);
+  --nbe-placeholder: rgba(55, 53, 47, 0.35);
+  --nbe-code-bg: rgba(135, 131, 120, 0.15);
+  --nbe-accent: rgb(35, 131, 226);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--nbe-text);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-bottom: 30vh; /* click-below-to-append area */
+  cursor: text;
+}
+
+.nbe-editor ::selection {
+  background: rgba(35, 131, 226, 0.28);
+}
+
+.nbe-block {
+  padding: 3px 2px;
+  border-radius: 4px;
+}
+
+.nbe-row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.nbe-leaf {
+  flex: 1;
+  min-width: 0;
+  min-height: 1.5em;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  caret-color: var(--nbe-text);
+}
+
+/* placeholders: caret-only for paragraphs, always-when-empty for typed blocks */
+.nbe-leaf:empty::before {
+  content: "";
+  pointer-events: none;
+  float: left;
+}
+.nbe-leaf[data-ph-always]:empty::before,
+.nbe-leaf:focus:empty::before {
+  content: attr(data-placeholder);
+  color: var(--nbe-placeholder);
+}
+
+/* --- block types --- */
+
+.nbe-t-heading .nbe-leaf {
+  font-weight: 600;
+}
+.nbe-h1 {
+  font-size: 1.875em;
+  line-height: 1.3;
+  margin-top: 1.1em;
+}
+.nbe-h2 {
+  font-size: 1.5em;
+  line-height: 1.3;
+  margin-top: 0.9em;
+}
+.nbe-h3 {
+  font-size: 1.25em;
+  line-height: 1.3;
+  margin-top: 0.7em;
+}
+.nbe-h1:first-child,
+.nbe-h2:first-child,
+.nbe-h3:first-child {
+  margin-top: 0;
+}
+
+.nbe-gutter {
+  width: 24px;
+  flex-shrink: 0;
+  text-align: center;
+  user-select: none;
+}
+.nbe-bullet {
+  font-size: 1.1em;
+}
+.nbe-number {
+  font-variant-numeric: tabular-nums;
+  padding-right: 4px;
+}
+
+.nbe-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 4px 8px 0 2px;
+  flex-shrink: 0;
+  appearance: none;
+  border: 1.4px solid var(--nbe-text);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: background 120ms ease-in, border-color 120ms ease-in;
+}
+.nbe-checked > .nbe-row > .nbe-checkbox {
+  background: var(--nbe-accent);
+  border-color: var(--nbe-accent);
+}
+.nbe-checked > .nbe-row > .nbe-checkbox::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+.nbe-checked > .nbe-row > .nbe-leaf {
+  text-decoration: line-through;
+  color: var(--nbe-text-light);
+  transition: color 200ms ease-out;
+}
+
+.nbe-toggle-arrow {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.7em;
+  color: var(--nbe-text);
+  border-radius: 4px;
+  transition: transform 200ms ease-out, background 100ms ease-in;
+  padding: 0;
+}
+.nbe-toggle-arrow:hover {
+  background: rgba(55, 53, 47, 0.08);
+}
+.nbe-toggle-arrow.nbe-open {
+  transform: rotate(90deg);
+}
+
+.nbe-t-quote {
+  border-left: 3px solid currentColor;
+  padding-left: 14px;
+  margin: 4px 0;
+}
+
+.nbe-t-code {
+  background: var(--nbe-code-bg);
+  border-radius: 4px;
+  padding: 16px;
+  margin: 4px 0;
+}
+.nbe-t-code .nbe-leaf {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+.nbe-t-divider {
+  padding: 6px 2px;
+  cursor: default;
+}
+.nbe-divider-line {
+  width: 100%;
+  border-top: 1px solid rgba(55, 53, 47, 0.16);
+}
+
+.nbe-children {
+  margin-left: 24px;
+}
+
+/* --- inline marks --- */
+
+.nbe-m-bold {
+  font-weight: 600;
+}
+.nbe-m-italic {
+  font-style: italic;
+}
+.nbe-m-underline {
+  text-decoration: underline;
+}
+.nbe-m-strike {
+  text-decoration: line-through;
+}
+.nbe-m-underline.nbe-m-strike {
+  text-decoration: underline line-through;
+}
+.nbe-m-code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--nbe-code-bg);
+  color: #eb5757;
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+}
+a.nbe-m-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(55, 53, 47, 0.4);
+  transition: text-decoration-color 100ms ease-in;
+  cursor: pointer;
+}
+a.nbe-m-link:hover {
+  text-decoration-color: var(--nbe-text);
+}
