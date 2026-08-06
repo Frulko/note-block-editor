@@ -127,7 +127,22 @@ discipline. L1/L2 wait.
 **Explicit non-goals for v1:** frameworks bindings, databases, collab,
 mobile-touch design, virtualization, table block, plugin distribution story.
 
-## Phase 2 — SDK & bindings (TanStack-shaped)
+## Phase 2 — SDK & bindings (TanStack-shaped) — **done 2026-08-06**
+
+Shipped: `@nbe/static-renderer` (JSON → HTML, no editor instance, no DOM
+globals, list-run grouping, asset/page resolvers, 11 tests); `@nbe/react`
+(`useEditor` + `<BlockEditor>`, StrictMode-safe single mount verified),
+`@nbe/vue` (composable + component), `@nbe/svelte` (`use:blockEditor` action —
+plain TS, no compiler in the SDK); `examples/react|vue|svelte` each building
+in CI with a live static-render pane; packaging invariants enforced by
+`test/packaging.test.ts` (core has zero deps and no DOM globals, projection
+packages never import dom, bindings are exactly core+dom+framework peer,
+every package ESM-only and side-effect free).
+Deferred deliberately (ARCHITECTURE §9 "add when they hurt"): Changesets,
+size-limit budgets, sherif/knip, Nx, docs site — none of them hurt yet at
+7 packages with no publish.
+
+### Original scope
 
 - `react`, `vue`, `svelte` mounts — thin by CI-asserted dependency contract;
   custom-block portal bridge; controller-store chrome wrapped per framework

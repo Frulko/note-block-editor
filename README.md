@@ -53,15 +53,47 @@ pnpm typecheck
 docs/
   ARCHITECTURE.md    the design: model, pipeline, packages, storage, decisions
   ROADMAP.md         phases: spikes → editor → SDK → databases → storage → collab/native
+  TESTING.md         manual IME / screen-reader device matrix
   research/          8 source-backed research notes the design is derived from
 packages/
   core/              headless: schema, block store, 7 invertible ops, transactions,
-                     history with coalescing, commands, autoformat. Zero DOM.
-  dom/               the editor view: per-block contenteditable leaves, rendering,
-                     input (beforeinput + IME reconciliation), keymap, selection sync
+                     history, commands, autoformat, database engine. Zero DOM.
+  dom/               the editor view: contenteditable leaves, input/IME, keymap,
+                     caret authority, clipboard, drag & drop, UI primitives, tables
+  markdown/          block JSON ↔ markdown (both directions)
+  static-renderer/   block JSON → HTML with no editor instance (SSR/CLI safe)
+  react/ vue/ svelte thin mounts: lifecycle, projection, hosting. Nothing else.
 examples/
-  vanilla/           live demo — the editor plus a document/transaction inspector
+  vanilla/           full demo — multi-page workspace, databases, inspector
+  react/ vue/ svelte one-file integrations, each with a live static-render pane
 ```
 
-Coming next (see ARCHITECTURE.md §9 and ROADMAP.md): `packages/{react,vue,svelte}`,
-`packages/markdown`, `packages/sqlite`, block chrome (slash menu, drag handle).
+### Using the SDK
+
+```tsx
+// React
+import { BlockEditor } from '@nbe/react';
+import '@nbe/dom/style.css';
+<BlockEditor initialContent={doc} onChange={setDoc} />
+```
+
+```vue
+<!-- Vue -->
+<BlockEditor :initial-content="doc" @change="onChange" />
+```
+
+```svelte
+<!-- Svelte: an action, no compiled component needed -->
+<div use:blockEditor={{ initialContent, onChange }} />
+```
+
+```ts
+// Anywhere (SSR, CLI, static site): no editor, no DOM
+import { renderToHTML } from '@nbe/static-renderer';
+const html = renderToHTML(doc);
+```
+
+Adapter thinness is a CI-enforced invariant (`test/packaging.test.ts`): a
+binding's dependencies must be exactly `@nbe/core` + `@nbe/dom` with the
+framework as a peer — a third dependency means the feature belongs one layer
+down.
