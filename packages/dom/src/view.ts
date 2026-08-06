@@ -9,6 +9,7 @@ import { attachSlashMenu } from './slash';
 import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
 import { attachRubberBand } from './rubberband';
+import { attachBlockClickRouting, domTextSelection } from './caret';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -44,6 +45,7 @@ export class EditorView {
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
     this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this), attachRubberBand(this));
+    this.unbinders.push(attachBlockClickRouting(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 
@@ -132,6 +134,10 @@ export class EditorView {
 
   private handleChange(change: Change): void {
     const doc = this.editor.doc;
+    // DOM-truth snapshot: re-renders destroy the live caret; if the
+    // transaction didn't move the selection we put the caret back where the
+    // user visibly had it
+    const caretBefore = domTextSelection(this);
     const alive = [...change.dirty].filter((id) => doc.blocks.has(id));
     const set = new Set(alive);
     // skip ids whose ancestor is also dirty — the ancestor re-render covers them
@@ -145,7 +151,15 @@ export class EditorView {
         else this.renderAll(); // ponytail: lost track — full re-render is always correct
       }
     }
-    if (change.origin !== 'dom') this.syncDomSelection();
+    // only re-assert the DOM caret when the transaction moved the selection —
+    // ui/programmatic changes must never yank the caret from where the user put it
+    if (change.origin !== 'dom' && change.selectionSet) {
+      this.syncDomSelection();
+    } else if (caretBefore && !domTextSelection(this)) {
+      // the re-render destroyed the caret: restore the pre-render DOM truth
+      this.editor.setSelection(caretBefore, 'dom');
+      this.syncDomSelection();
+    }
     this.renderSelection(this.editor.selection, 'render');
   }
 

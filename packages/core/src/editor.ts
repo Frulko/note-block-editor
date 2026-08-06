@@ -10,6 +10,9 @@ export interface Change {
   origin: string;
   dirty: Set<BlockId>;
   ops: Op[];
+  /** True when the transaction explicitly moved the selection — the view only
+   * re-asserts the DOM caret in that case (never yanks it around otherwise). */
+  selectionSet: boolean;
 }
 
 export interface DispatchOptions {
@@ -118,7 +121,12 @@ export class Editor {
       this.redoStack = [];
     }
 
-    this.emit({ origin: opts.origin ?? 'unknown', dirty: tx.dirty, ops: tx.ops });
+    this.emit({
+      origin: opts.origin ?? 'unknown',
+      dirty: tx.dirty,
+      ops: tx.ops,
+      selectionSet: opts.selection !== undefined,
+    });
   }
 
   get undoDepth(): number {
@@ -135,7 +143,7 @@ export class Editor {
     const dirty = this.applyRaw(entry.undoOps);
     this.setSelection(entry.selectionBefore, 'history');
     this.redoStack.push(entry);
-    this.emit({ origin: 'history', dirty, ops: entry.undoOps });
+    this.emit({ origin: 'history', dirty, ops: entry.undoOps, selectionSet: true });
     return true;
   }
 
@@ -145,7 +153,7 @@ export class Editor {
     const dirty = this.applyRaw(entry.redoOps);
     this.setSelection(entry.selectionAfter, 'history');
     this.undoStack.push(entry);
-    this.emit({ origin: 'history', dirty, ops: entry.redoOps });
+    this.emit({ origin: 'history', dirty, ops: entry.redoOps, selectionSet: true });
     return true;
   }
 

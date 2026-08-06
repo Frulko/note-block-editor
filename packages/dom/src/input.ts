@@ -20,6 +20,7 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
+import { syncCaretFromDom } from './caret';
 
 function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: number } | null {
   const sel = view.editor.selection;
@@ -113,6 +114,8 @@ export function attachInput(view: EditorView): () => void {
     const ev = e as InputEvent;
     if (view.composing) return; // browser owns the DOM during composition
     if (!leafOf(ev.target as Node)) return; // UI inputs (image URL, menus) keep native behavior
+    // the DOM caret is the truth — typing must land where the caret visibly is
+    syncCaretFromDom(view);
     switch (ev.inputType) {
       case 'insertText':
         ev.preventDefault();

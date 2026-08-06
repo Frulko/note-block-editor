@@ -19,48 +19,8 @@ import {
   type BlockSelection,
 } from '@nbe/core';
 import type { EditorView } from './view';
-import { domToModelPoint, leafOf } from './selection';
-
-/** Current collapsed-caret X in client coordinates (goal-X seed). */
-function caretClientX(view: EditorView): number | null {
-  const s = document.getSelection();
-  if (!s || s.rangeCount === 0) return null;
-  const rect = s.getRangeAt(0).getBoundingClientRect();
-  if (rect.width === 0 && rect.height === 0 && rect.top === 0) {
-    return leafOf(s.getRangeAt(0).startContainer)?.getBoundingClientRect().left ?? null;
-  }
-  return rect.left;
-}
-
-/** Model offset closest to `x` on the first or last visual line of a block. */
-function offsetAtX(view: EditorView, blockId: string, x: number, edge: 'first' | 'last'): number {
-  const block = getBlock(view.editor.doc, blockId);
-  const fallback = edge === 'first' ? 0 : textLength(block.text);
-  const leaf = view.leafEl(blockId);
-  if (!leaf) return fallback;
-  const rect = leaf.getBoundingClientRect();
-  const line = parseFloat(getComputedStyle(leaf).lineHeight) || 24;
-  const y =
-    edge === 'first'
-      ? Math.min(rect.top + line / 2, rect.bottom - 2)
-      : Math.max(rect.bottom - line / 2, rect.top + 2);
-  const cx = Math.min(Math.max(x, rect.left + 1), rect.right - 1);
-  const doc = document as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  };
-  const pos = doc.caretPositionFromPoint?.(cx, y);
-  if (pos) {
-    const p = domToModelPoint(pos.offsetNode, pos.offset);
-    if (p?.blockId === blockId) return p.offset;
-  }
-  const range = doc.caretRangeFromPoint?.(cx, y);
-  if (range) {
-    const p = domToModelPoint(range.startContainer, range.startOffset);
-    if (p?.blockId === blockId) return p.offset;
-  }
-  return fallback;
-}
+import { leafOf } from './selection';
+import { caretClientX, offsetAtX, syncCaretFromDom } from './caret';
 
 function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
   const s = document.getSelection();
@@ -146,6 +106,8 @@ export function attachKeymap(view: EditorView): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
     if (view.composing) return;
     if ((e.target as HTMLElement).closest?.('input, textarea, [data-nbe-ui]')) return;
+    // the DOM caret is the truth — never act on a stale model selection
+    syncCaretFromDom(view);
     const mod = e.metaKey || e.ctrlKey;
     const sel = editor.selection;
 
