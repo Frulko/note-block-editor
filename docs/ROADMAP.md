@@ -9,11 +9,18 @@
 > autoformat, caret-only placeholders), three-format clipboard,
 > callout/image/page-link blocks, multi-page demo with L0 persistence
 > (localStorage), aria-live announcements and single-tab-stop focus.
-> **Phase 1 residuals** (tracked, not blockers): native-feel cross-block text
-> selection (block-escalation shipped, per D3), goal-X arrow navigation,
-> MutationObserver extension defense, paste fixture corpus, real-device
-> IME matrix and NVDA/VoiceOver smoke runs (AQ#6), forward-merge on Delete,
-> asset pipeline for images (AQ#2), simple table (post-v1 by design, AQ#3).
+> **Residuals pass (2026-08-06, post-phase-1):** goal-X arrows ✓,
+> MutationObserver extension defense ✓ (foreign text merges into the model,
+> foreign markup reverted), paste fixture corpus ✓ (14 fixtures: GDocs, Word,
+> Excel, VS Code, web), forward-merge on Delete ✓ (void blocks get selected),
+> image asset pipeline ✓ (opaque `asset:<sha256>` refs + host store/resolve
+> hooks; demo uses IndexedDB; GC at phase 4), rubber-band selection ✓, UI
+> primitives layer ✓ (position/menu/tooltip/hover/drag, D8 in-house DnD).
+> **Still open:** real-device IME/screen-reader matrix — protocol written in
+> `docs/TESTING.md`, needs hardware (AQ#6); simple table — designed in
+> `docs/design/table-block.md`, scheduled after Phase 2 (AQ#3); native-feel
+> cross-block text selection (block-escalation shipped per D3); Word
+> mso-list paragraphs not yet detected as list items (documented in fixtures).
 
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier
