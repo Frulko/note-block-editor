@@ -11,6 +11,7 @@ import { attachClipboard } from './clipboard';
 import { attachRubberBand } from './rubberband';
 import { attachBlockClickRouting, domTextSelection } from './caret';
 import { attachDatabaseBlocks } from './database';
+import { attachSelectionToolbar } from './selection-toolbar';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -63,7 +64,7 @@ export class EditorView {
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
     this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this), attachRubberBand(this));
-    this.unbinders.push(attachBlockClickRouting(this), attachDatabaseBlocks(this));
+    this.unbinders.push(attachBlockClickRouting(this), attachDatabaseBlocks(this), attachSelectionToolbar(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 

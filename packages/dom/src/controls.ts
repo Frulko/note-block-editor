@@ -27,29 +27,9 @@ import {
 
 type Edge = 'before' | 'after' | 'left' | 'right';
 
-const TURN_INTO: Array<{ label: string; type: string; props?: Record<string, unknown> }> = [
-  { label: 'Texte', type: 'paragraph' },
-  { label: 'Titre 1', type: 'heading', props: { level: 1 } },
-  { label: 'Titre 2', type: 'heading', props: { level: 2 } },
-  { label: 'Titre 3', type: 'heading', props: { level: 3 } },
-  { label: 'Liste à puces', type: 'bulleted_list_item' },
-  { label: 'Liste numérotée', type: 'numbered_list_item' },
-  { label: 'Case à cocher', type: 'to_do' },
-  { label: 'Toggle', type: 'toggle' },
-  { label: 'Citation', type: 'quote' },
-  { label: 'Callout', type: 'callout' },
-  { label: 'Code', type: 'code' },
-];
-
-const COLORS: Array<{ label: string; value: string }> = [
-  { label: 'Défaut', value: '' },
-  { label: 'Gris', value: 'rgb(120,119,116)' },
-  { label: 'Marron', value: 'rgb(159,107,83)' },
-  { label: 'Rouge', value: 'rgb(212,76,71)' },
-  { label: 'Orange', value: 'rgb(217,115,13)' },
-  { label: 'Bleu', value: 'rgb(51,126,169)' },
-  { label: 'Violet', value: 'rgb(144,101,176)' },
-];
+import { COLORS } from './colors';
+import { isActiveTarget, TURN_INTO } from './block-types';
+import { blockActionEntries } from './block-actions';
 
 export function attachControls(view: EditorView): () => void {
   const editor = view.editor;
@@ -201,14 +181,24 @@ export function attachControls(view: EditorView): () => void {
     ];
 
     const block = getBlock(editor.doc, first);
+
+    // type-specific actions (callout icon, code language, image source…)
+    const typeEntries = blockActionEntries({
+      view,
+      ids,
+      block,
+      anchor: handleBtn,
+      close: () => menu.close(),
+    });
+    if (typeEntries.length) entries.push({ kind: 'section', label: 'Ce bloc' }, ...typeEntries);
+
     if (editor.schema.get(block.type).inline) {
       entries.push({ kind: 'section', label: 'Transformer en' });
       for (const t of TURN_INTO) {
-        const active =
-          block.type === t.type && (t.type !== 'heading' || block.props['level'] === t.props?.['level']);
         entries.push({
           label: t.label,
-          hint: active ? '✓' : undefined,
+          icon: t.icon,
+          hint: isActiveTarget(t, block) ? '✓' : undefined,
           onSelect: () => {
             for (const id of ids) turnInto(editor, id, t.type, t.props);
             view.announce(`Transformé en ${t.label}`);
@@ -217,31 +207,42 @@ export function attachControls(view: EditorView): () => void {
       }
     }
 
-    entries.push({ kind: 'section', label: 'Couleur' });
-    const swatches = document.createElement('div');
-    swatches.className = 'nbe-menu-swatches';
-    for (const c of COLORS) {
-      const sw = document.createElement('button');
-      sw.type = 'button';
-      sw.className = 'nbe-swatch';
-      sw.title = c.label;
-      sw.textContent = 'A';
-      if (c.value) sw.style.color = c.value;
-      sw.addEventListener('mousedown', (e) => e.preventDefault());
-      sw.addEventListener('click', () => {
-        menu.close();
-        editor.dispatch(
-          (tx) => {
-            for (const id of ids)
-              tx.op({ type: 'update_block', id, patch: { props: { color: c.value || undefined } } });
-          },
-          { origin: 'ui' },
-        );
-        view.announce(`Couleur ${c.label}`);
-      });
-      swatches.append(sw);
-    }
-    entries.push({ kind: 'custom', el: swatches });
+    const swatchRow = (kind: 'color' | 'backgroundColor') => {
+      const swatches = document.createElement('div');
+      swatches.className = 'nbe-menu-swatches';
+      for (const c of COLORS) {
+        const sw = document.createElement('button');
+        sw.type = 'button';
+        sw.className = 'nbe-swatch';
+        sw.title = c.label;
+        sw.textContent = 'A';
+        if (kind === 'color') sw.style.color = c.text;
+        else {
+          sw.style.background = c.background;
+          if (c.name === 'default') sw.style.color = 'rgba(55,53,47,0.4)';
+        }
+        if (block.props[kind] === c.name || (c.name === 'default' && !block.props[kind])) {
+          sw.classList.add('nbe-active');
+        }
+        sw.addEventListener('mousedown', (e) => e.preventDefault());
+        sw.addEventListener('click', () => {
+          menu.close();
+          const value = c.name === 'default' ? undefined : c.name;
+          editor.dispatch(
+            (tx) => {
+              for (const id of ids) tx.op({ type: 'update_block', id, patch: { props: { [kind]: value } } });
+            },
+            { origin: 'ui' },
+          );
+          view.announce(`${kind === 'color' ? 'Couleur' : 'Fond'} ${c.label}`);
+        });
+        swatches.append(sw);
+      }
+      return swatches;
+    };
+
+    entries.push({ kind: 'section', label: 'Couleur du texte' }, { kind: 'custom', el: swatchRow('color') });
+    entries.push({ kind: 'section', label: 'Couleur de fond' }, { kind: 'custom', el: swatchRow('backgroundColor') });
     return entries;
   };
 

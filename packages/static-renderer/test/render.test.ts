@@ -24,6 +24,22 @@ describe('inline marks', () => {
     expect(html).toContain('href="https://x.dev?a=1&amp;b=2"');
   });
 
+  it('projects colours as palette classes, never frozen CSS values', () => {
+    const html = runsToHtml([
+      { text: 'rouge', marks: [{ type: 'color', attrs: { color: 'red' } }] },
+      { text: 'surligné', marks: [{ type: 'background', attrs: { color: 'yellow' } }] },
+    ]);
+    expect(html).toContain('class="nbe-m-color nbe-color-red"');
+    expect(html).toContain('class="nbe-m-background nbe-bg-yellow"');
+    expect(html).not.toContain('style=');
+  });
+
+  it('block colour and tint become classes on the block element', () => {
+    const html = renderBlocksToHTML([b('paragraph', 'x', { color: 'blue', backgroundColor: 'gray' })]);
+    expect(html).toContain('nbe-color-blue');
+    expect(html).toContain('nbe-bg-gray');
+  });
+
   it('nests combined marks and turns newlines into <br>', () => {
     const html = runsToHtml([{ text: 'x\ny', marks: [{ type: 'bold' }, { type: 'italic' }] }]);
     expect(html).toContain('<br>');

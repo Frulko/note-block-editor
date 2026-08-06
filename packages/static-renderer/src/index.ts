@@ -49,9 +49,14 @@ export function runsToHtml(runs: Run[] | undefined, opts: RenderOptions = {}): s
           const pageId = String(mark.attrs?.['pageId'] ?? '');
           const href = opts.resolvePageHref?.(pageId);
           html = href ? `<a class="${prefix}-m-mention" href="${escapeHtml(href)}">${html}</a>` : html;
-        } else if (mark.type === 'color') {
-          const color = escapeHtml(String(mark.attrs?.['color'] ?? ''));
-          html = `<span class="${prefix}-m-color" style="color:${color}">${html}</span>`;
+        } else if (mark.type === 'color' || mark.type === 'background') {
+          // colours are persisted as palette NAMES, so the projection emits
+          // classes: the consumer's stylesheet owns the actual values and can
+          // theme them (a raw CSS colour would freeze one theme into the export)
+          const name = String(mark.attrs?.['color'] ?? '').replace(/[^a-z0-9_-]/gi, '');
+          if (!name) return html;
+          const kind = mark.type === 'color' ? 'color' : 'bg';
+          html = `<span class="${prefix}-m-${mark.type} ${prefix}-${kind}-${name}">${html}</span>`;
         } else if (MARK_TAGS[mark.type]) {
           const tag = MARK_TAGS[mark.type]!;
           html = `<${tag} class="${prefix}-m-${mark.type}">${html}</${tag}>`;
@@ -69,8 +74,13 @@ const LIST_WRAPPERS: Record<string, string> = {
 };
 
 function blockAttrs(block: BlockJSON, cls: string, opts: RenderOptions): string {
+  const p = opts.classPrefix ?? 'nbe';
   const id = opts.blockIds === false ? '' : ` id="${escapeHtml(block.id)}"`;
-  return `${id} class="${cls}"`;
+  const clean = (v: unknown) => String(v ?? '').replace(/[^a-z0-9_-]/gi, '');
+  const color = clean(block.props?.['color']);
+  const background = clean(block.props?.['backgroundColor']);
+  const classes = [cls, color && `${p}-color-${color}`, background && `${p}-bg-${background}`].filter(Boolean);
+  return `${id} class="${classes.join(' ')}"`;
 }
 
 function renderOne(block: BlockJSON, opts: RenderOptions): string {

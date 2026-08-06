@@ -71,7 +71,14 @@ interface Mark { type: 'bold'|'italic'|'underline'|'strike'|'code'|'link'|'color
 - Flat run arrays with mark **sets** per run (Notion/ProseMirror style). No
   nested mark tree, no offset-based spans, **no HTML strings in props, ever**.
 - Closed mark set for v1: bold, italic, underline, strike, code, link, color,
-  mention (page/date). Equation and comment-anchor later.
+  background (highlight), mention (page/date). Equation and comment-anchor
+  later.
+- **Colours are palette names, never raw CSS.** Both marks (`color`,
+  `background`) and block props (`color`, `backgroundColor`) persist a name
+  from the closed palette in `dom/src/colors.ts`. That keeps documents
+  themeable (dark mode remaps the palette), keeps projections meaningful
+  (the static renderer emits classes, not frozen values), and stops arbitrary
+  CSS from entering the model through a colour picker.
 - Each mark type declares Peritext expansion semantics (bold expands at
   boundaries, links do not) — dormant metadata until CRDTs, cheap to declare now.
 - **Coordinate system: `(blockId, offset)`**, offsets in UTF-16 code units.
@@ -237,9 +244,19 @@ overlays. Framework adapters never re-implement it.
   widget positions, supplied by plugins per commit, never persisted, never in
   history. BlockId keying kills ProseMirror's DecorationSet mapping cost for
   untouched blocks.
-- **Chrome** (slash menu, drag handle, toolbar, turn-into) = headless
+- **Chrome** (slash menu, drag handle, selection toolbar, turn-into) = headless
   controller stores in core + vanilla DOM renderers in dom, wrapped per
   framework (the query-devtools pattern). Every component replaceable.
+- **Selection toolbar** (Medium/Notion): appears on a non-collapsed text
+  selection, anchored to the selection rect and flipping when there is no room
+  above. Every control cancels `mousedown`, so the toolbar never takes the
+  selection it is acting on. Turn-into, the five inline formats, link, text
+  colour and highlight.
+- **Per-block-type menu actions** live in a registry
+  (`dom/src/block-actions.ts`): a callout contributes "change icon", a code
+  block its language list, an image its replace drop zone. The generic block
+  menu never grows type-specific branches and custom blocks register their own
+  without touching `controls.ts`.
 - **UI primitives (`dom/src/ui/`),** shared by all chrome and exported for
   block authors: `position` (pure flip/clamp engine + `autoUpdate` live
   anchoring), `menu` (keyboard nav, outside-click/Escape dismissal, and it

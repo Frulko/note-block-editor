@@ -3,6 +3,7 @@ import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { renderDatabase } from './database';
 import { createDropZone, fileToDataUrl } from './ui';
+import { backgroundColor, textColor } from './colors';
 
 const PLAINTEXT_ONLY_SUPPORTED = (() => {
   if (typeof document === 'undefined') return false;
@@ -23,8 +24,10 @@ function renderRun(run: Run): Node {
   const span = link ? (el('a') as HTMLAnchorElement) : el('span');
   if (link) (span as HTMLAnchorElement).href = String(link.attrs?.['href'] ?? '#');
   span.className = run.marks.map((m) => `nbe-m-${m.type}`).join(' ');
-  const color = run.marks.find((m) => m.type === 'color');
-  if (color?.attrs?.['color']) (span as HTMLElement).style.color = String(color.attrs['color']);
+  const color = textColor(run.marks.find((m) => m.type === 'color')?.attrs?.['color']);
+  if (color) (span as HTMLElement).style.color = color;
+  const highlight = backgroundColor(run.marks.find((m) => m.type === 'background')?.attrs?.['color']);
+  if (highlight) (span as HTMLElement).style.background = highlight;
   span.textContent = run.text;
   return span;
 }
@@ -63,8 +66,13 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
   const spec = view.editor.schema.get(block.type);
   const root = el('div', `nbe-block nbe-t-${block.type}`);
   root.dataset['blockId'] = block.id;
-  if (typeof block.props['color'] === 'string' && block.props['color'])
-    root.style.color = String(block.props['color']);
+  const color = textColor(block.props['color']);
+  if (color) root.style.color = color;
+  const background = backgroundColor(block.props['backgroundColor']);
+  if (background) {
+    root.style.background = background;
+    root.classList.add('nbe-tinted');
+  }
 
   // layout containers render their children directly, no row/leaf
   if (block.type === 'column_list' || block.type === 'column') {
