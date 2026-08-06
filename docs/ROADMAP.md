@@ -165,6 +165,26 @@ size-limit budgets, sherif/knip, Nx, docs site — none of them hurt yet at
 - Docs site from in-repo markdown; publish pipeline (Changesets, size-limit
   budgets, sherif/knip)
 
+> **Publish tooling deferred, 2026-08-06.** Deliberately not started, because
+> every piece of it needs a decision that has not been made. The packages
+> currently export `src/*.ts` directly, which works for bundler consumers and
+> is why the examples run, but it ships TypeScript to consumers and type-checks
+> our sources against *their* tsconfig. A real release needs, in order:
+>
+> 1. **A build** (tsdown, per §9's ESM-only intent) — nothing downstream is
+>    meaningful without it. Size budgets in particular measure build output, so
+>    adding them first would measure nothing.
+> 2. **A licence.** None is chosen and no LICENSE file exists; the manifests
+>    deliberately carry no `license` field rather than an invented one.
+> 3. **A repository URL.** There is no git remote yet, so `repository` is
+>    likewise absent rather than guessed.
+> 4. **Changesets** for versioning and changelogs across the seven packages —
+>    useful from the first release, pure ceremony before it.
+>
+> The layering invariants that *do* matter today are already CI-enforced in
+> `test/packaging.test.ts`; what is missing is release machinery, not
+> architecture.
+
 ## Phase 3 — Databases — **done 2026-08-06** (except the SQLite index)
 
 Delivered in four slices after Phase 2:
