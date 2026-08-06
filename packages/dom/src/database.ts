@@ -64,7 +64,64 @@ const LAYOUTS: Array<{ layout: ViewLayout; label: string; icon: string }> = [
   { layout: 'table', label: 'Table', icon: '▤' },
   { layout: 'board', label: 'Board', icon: '▥' },
   { layout: 'list', label: 'Liste', icon: '☰' },
+  { layout: 'gallery', label: 'Galerie', icon: '▦' },
 ];
+
+const IMAGE_URL = /\.(png|jpe?g|gif|webp|avif|svg)(\?[^\s]*)?$/i;
+
+const PAGE_SIZE = 50;
+
+/**
+ * How much of each view has been scrolled into existence. It lives outside the
+ * render because the host replaces the whole database block on every change:
+ * without it, editing a cell on row 400 would snap the view back to row 1.
+ */
+const renderedCounts = new Map<string, number>();
+
+/**
+ * Progressive rendering rather than true windowing. The first page paints
+ * immediately and a sentinel appends the next as it scrolls into view, so a
+ * ten-thousand-row collection costs one page at first paint. Memory still
+ * grows with what has actually been looked at — the trade that keeps native
+ * scrolling, find-in-page and text selection working, which a windowed list
+ * with absolute positioning and estimated heights gives up.
+ */
+function paginate<T>(
+  container: HTMLElement,
+  items: T[],
+  key: string,
+  render: (item: T) => HTMLElement,
+): void {
+  const sentinel = el('div', 'nbe-db-sentinel');
+  let shown = 0;
+
+  /** Render up to `upTo` items, keeping the sentinel last. Returns true at the end. */
+  const growTo = (upTo: number): boolean => {
+    const next = Math.min(items.length, upTo);
+    for (const item of items.slice(shown, next)) container.insertBefore(render(item), sentinel);
+    shown = next;
+    renderedCounts.set(key, shown);
+    return shown >= items.length;
+  };
+
+  container.append(sentinel);
+  // restore how far the user had scrolled before the re-render, never less than a page
+  if (growTo(Math.max(PAGE_SIZE, renderedCounts.get(key) ?? 0))) {
+    sentinel.remove();
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    if (growTo(shown + PAGE_SIZE)) {
+      observer.disconnect();
+      sentinel.remove();
+    }
+  });
+  observer.observe(sentinel);
+}
+
+/** Exposed for tests only — pagination is an internal rendering detail. */
+export { paginate as __paginate };
 
 function el(tag: string, className?: string, text?: string): HTMLElement {
   const e = document.createElement(tag);
@@ -143,6 +200,8 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const { rows, groups } = evaluateView(data.rows, cfg, schema, computeCtx);
   const allColumns = (): Array<{ id: string; name: string }> => [{ id: 'title', name: 'Titre' }, ...schema.properties];
   const patchView = (patch: Partial<ViewConfig>) => host.updateView(collectionId, { ...cfg, ...patch });
+  /** Identifies one scrollable list of rows, so its rendered depth survives re-renders. */
+  const pageKey = (layout: string, group = '') => `${collectionId}/${cfg.id}/${layout}/${group}`;
 
   // ---------------------------------------------------------------- toolbar
   const toolbar = el('div', 'nbe-db-toolbar');
@@ -682,7 +741,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         const header = el('div', 'nbe-db-groupheader');
         header.append(el('span', 'nbe-db-grouplabel', group.label), el('span', 'nbe-db-groupcount', String(group.rows.length)));
         table.append(header);
-        for (const row of group.rows) table.append(tableRow(row));
+        paginate(table, group.rows, pageKey('table', group.key), tableRow);
         table.append(
           btn('nbe-db-newrow', '＋ Nouveau', () =>
             host.addRow(collectionId, groupProperties(group)),
@@ -690,7 +749,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         );
       }
     } else {
-      for (const row of rows) table.append(tableRow(row));
+      paginate(table, rows, pageKey('table'), tableRow);
       table.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
     }
     return table;
@@ -720,7 +779,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       header.append(el('span', 'nbe-db-grouplabel', group.label), el('span', 'nbe-db-groupcount', String(group.rows.length)));
       col.append(header);
       const body = el('div', 'nbe-db-colbody');
-      for (const row of group.rows) body.append(boardCard(row));
+      for (const row of group.rows) body.append(rowCard(row, { drag: true }));
       col.append(body);
       col.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId, groupProperties(group))));
       board.append(col);
@@ -728,9 +787,31 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     return board;
   };
 
-  const boardCard = (row: RowData): HTMLElement => {
+  /**
+   * The card both the board and the gallery are made of. `cover` adds the
+   * gallery's image strip: there is no file property type, so the cover is the
+   * first url property that points at an image — no extra config to set up,
+   * and a collection without one simply gets text cards.
+   */
+  const rowCard = (row: RowData, opts: { drag?: boolean; cover?: boolean } = {}): HTMLElement => {
     const card = el('div', 'nbe-db-card');
     card.dataset['pageId'] = row.pageId;
+    if (opts.cover) {
+      const src = columns
+        .filter((p) => p.type === 'url')
+        .map((p) => String(row.properties[p.id] ?? ''))
+        .find((v) => IMAGE_URL.test(v));
+      const cover = el('div', 'nbe-db-cardcover');
+      if (src) {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+        img.loading = 'lazy';
+        cover.append(img);
+      } else cover.classList.add('nbe-db-cardcover-empty');
+      cover.addEventListener('click', () => host.openRow(row.pageId));
+      card.append(cover);
+    }
     const cardTitle = el('div', 'nbe-db-cardtitle', row.title || 'Sans titre');
     cardTitle.addEventListener('click', () => host.openRow(row.pageId));
     card.append(cardTitle);
@@ -743,7 +824,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       line.append(el('span', 'nbe-db-cardpropname', prop.name), el('span', 'nbe-db-cardpropvalue', text));
       card.append(line);
     }
-    attachCardDrag(card, row);
+    if (opts.drag) attachCardDrag(card, row);
     return card;
   };
 
@@ -797,35 +878,66 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   // ------------------------------------------------------------------- list
   const renderList = (): HTMLElement => {
     const list = el('div', 'nbe-db-list');
-    const renderItems = (items: RowData[]) => {
-      for (const row of items) {
-        const item = el('div', 'nbe-db-listitem');
-        const label = el('span', 'nbe-db-listtitle');
-        label.append('📄 ', row.title || 'Sans titre');
-        label.addEventListener('click', () => host.openRow(row.pageId));
-        item.append(label);
-        for (const prop of columns) {
-          const text = formatValue(row.properties[prop.id], prop.type);
-          if (text) item.append(el('span', 'nbe-db-listprop', text));
-        }
-        list.append(item);
+    const listItem = (row: RowData): HTMLElement => {
+      const item = el('div', 'nbe-db-listitem');
+      const label = el('span', 'nbe-db-listtitle');
+      label.append('📄 ', row.title || 'Sans titre');
+      label.addEventListener('click', () => host.openRow(row.pageId));
+      item.append(label);
+      for (const prop of columns) {
+        const text = formatValue(row.properties[prop.id], prop.type);
+        if (text) item.append(el('span', 'nbe-db-listprop', text));
       }
+      return item;
     };
     if (groups) {
       for (const group of groups) {
         const header = el('div', 'nbe-db-groupheader');
         header.append(el('span', 'nbe-db-grouplabel', group.label), el('span', 'nbe-db-groupcount', String(group.rows.length)));
         list.append(header);
-        renderItems(group.rows);
+        paginate(list, group.rows, pageKey('list', group.key), listItem);
       }
     } else {
-      renderItems(rows);
+      paginate(list, rows, pageKey('list'), listItem);
     }
     list.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
     return list;
   };
 
-  root.append(cfg.layout === 'board' ? renderBoard() : cfg.layout === 'list' ? renderList() : renderTable());
+  // ---------------------------------------------------------------- gallery
+  const renderGallery = (): HTMLElement => {
+    const wrap = el('div', 'nbe-db-gallery-wrap');
+    const grid = () => el('div', 'nbe-db-gallery');
+    const card = (row: RowData) => rowCard(row, { cover: true });
+    if (groups) {
+      // grouped gallery: one grid per group, stacked, like the list layout
+      for (const group of groups) {
+        const header = el('div', 'nbe-db-groupheader');
+        header.append(
+          el('span', 'nbe-db-grouplabel', group.label),
+          el('span', 'nbe-db-groupcount', String(group.rows.length)),
+        );
+        wrap.append(header);
+        const g = grid();
+        wrap.append(g);
+        paginate(g, group.rows, pageKey('gallery', group.key), card);
+      }
+    } else {
+      const g = grid();
+      wrap.append(g);
+      paginate(g, rows, pageKey('gallery'), card);
+    }
+    wrap.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
+    return wrap;
+  };
+
+  const LAYOUT_RENDERERS = {
+    board: renderBoard,
+    list: renderList,
+    gallery: renderGallery,
+    table: renderTable,
+  };
+  root.append((LAYOUT_RENDERERS[cfg.layout] ?? renderTable)());
   if (data.rows.length && !rows.length) {
     root.append(el('div', 'nbe-db-empty', 'Aucune ligne ne correspond aux filtres.'));
   }

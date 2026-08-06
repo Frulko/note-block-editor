@@ -1284,6 +1284,40 @@ a.nbe-m-link:hover {
   content: ':';
 }
 
+/* gallery — the board's card in a responsive grid, with an image strip */
+.nbe-db-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 10px 0;
+}
+.nbe-db-gallery .nbe-db-card {
+  cursor: pointer; /* gallery cards open, they don't drag between groups */
+  padding: 0 0 8px;
+  overflow: hidden;
+}
+.nbe-db-gallery .nbe-db-cardtitle,
+.nbe-db-gallery .nbe-db-cardprop {
+  padding: 0 10px;
+}
+.nbe-db-gallery .nbe-db-cardtitle {
+  margin-top: 8px;
+}
+.nbe-db-cardcover {
+  aspect-ratio: 3 / 2;
+  background: var(--nbe-hover);
+}
+.nbe-db-cardcover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* no image property to draw from: a flat tint reads as "no cover", not broken */
+.nbe-db-cardcover-empty {
+  aspect-ratio: 5 / 2;
+}
+
 /* list */
 .nbe-db-list {
   border-top: 1px solid rgba(55, 53, 47, 0.12);
@@ -1364,4 +1398,9 @@ a.nbe-m-link:hover {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* pagination sentinel: zero-height, only there to be observed */
+.nbe-db-sentinel {
+  height: 1px;
 }

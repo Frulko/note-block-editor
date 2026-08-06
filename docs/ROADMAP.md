@@ -32,10 +32,12 @@
 > creation, property add/rename/retype/delete, one-filter/one-sort UI,
 > row open/delete), `DatabaseHost` contract, demo host over the localStorage
 > workspace (rows hidden from the sidebar, save flushed on pagehide).
-> **Phase 3 remaining:** board/list/gallery layouts, multi-filter/multi-sort
-> UI (engine already supports lists), groups, formula language (AQ#8),
-> relations/rollups, view virtualization, L2 SQLite (FTS5 search, backlinks
-> table, materialized views), markdown/CSV projection of collections.
+> **Phase 3 remaining after slice 1:** board/list/gallery layouts,
+> multi-filter/multi-sort UI (engine already supports lists), groups, formula
+> language (AQ#8), relations/rollups, view virtualization, L2 SQLite (FTS5
+> search, backlinks table, materialized views), markdown/CSV projection of
+> collections — all shipped by 2026-08-06 except the SQLite index, which is
+> deliberately deferred (see Phase 3 below).
 
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier
@@ -155,16 +157,22 @@ size-limit budgets, sherif/knip, Nx, docs site — none of them hurt yet at
 
 ## Phase 3 — Databases — **done 2026-08-06** (except the SQLite index)
 
-Delivered in three slices after Phase 2:
+Delivered in four slices after Phase 2:
 1. **Foundation** — the four record kinds (`database` view block in the core
    schema; `CollectionSchema` + `ViewConfig` as host records; rows as ordinary
    pages carrying `props.{collectionId,properties}`), the pure filter/sort
    engine, the interactive table view, the `DatabaseHost` contract.
-2. **Views** — table / board / list layouts, grouping (declared options become
+2. **Views** — table / board / list / gallery layouts (the gallery infers its
+   cover from a url property that points at an image, so no file property type
+   is needed yet), grouping (declared options become
    board columns, no-value group last, multi-select rows fan out), cards
    draggable between board columns (the drop writes the group property),
    multi-filter and multi-sort panels, property visibility.
-3. **Computation (AQ#8)** — a total pure formula language (tokenizer, Pratt
+3. **Scale** — views render progressively: 50 rows at first paint, the next
+   page appended by an IntersectionObserver sentinel, and the rendered depth
+   remembered per view so a re-render (any cell edit replaces the whole block)
+   does not throw the reader back to the top.
+4. **Computation (AQ#8)** — a total pure formula language (tokenizer, Pratt
    parser, evaluator; no clock, no randomness, never throws), relations,
    rollups (count/sum/average/min/max/show) across collections, all resolved
    before filtering/sorting/grouping so views work on derived values.
@@ -186,7 +194,13 @@ actually create the need. Nothing shipped in Phase 3 blocks it.
 - Table view first: filters, sorts, groups; board/list/gallery after
 - Property types: text, number, select, multi-select, date, checkbox, url,
   relation; formula language design (open question #8) before rollups
-- Views virtualize internally (the one sanctioned virtualization)
+- Views virtualize internally (the one sanctioned virtualization) — shipped as
+  progressive rendering rather than true windowing: the first 50 rows paint and
+  an IntersectionObserver sentinel appends the next page as it scrolls into
+  view, with the rendered depth kept across re-renders so editing a cell far
+  down a view does not snap back to the top. Native scrolling, find-in-page and
+  text selection keep working, which absolute-positioned windowing gives up;
+  revisit only if a real collection makes memory the binding constraint.
 - L2 SQLite lands here: FTS5 search, backlinks table, materialized views —
   derived, rebuildable, single writer
 
