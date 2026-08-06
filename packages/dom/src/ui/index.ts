@@ -1,4 +1,4 @@
-export { computePosition, positionFloating, autoUpdate } from './position';
+export { computePosition, positionFloating, autoUpdate, dismissable } from './position';
 export type { Placement, PositionOptions, AnchorRect, Size } from './position';
 export { createMenu } from './menu';
 export type { MenuController, MenuEntry, MenuItem, MenuOptions } from './menu';

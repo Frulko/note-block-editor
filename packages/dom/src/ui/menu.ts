@@ -1,4 +1,4 @@
-import { autoUpdate, type AnchorRect, type PositionOptions } from './position';
+import { autoUpdate, dismissable, positionFloating, type AnchorRect, type PositionOptions } from './position';
 
 export interface MenuItem {
   kind?: 'item';
@@ -54,6 +54,9 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
   let active = 0;
   let openFlag = false;
   let stopAuto: (() => void) | null = null;
+  let stopDismiss: (() => void) | null = null;
+  let anchorGetter: (() => AnchorRect | null) | null = null;
+  let positionOptions: PositionOptions | undefined;
 
   const selectable = (): MenuItem[] =>
     entries.filter((e): e is MenuItem => e.kind === undefined || e.kind === 'item');
@@ -107,6 +110,18 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
       }),
     );
     el.querySelector('.nbe-active')?.scrollIntoView({ block: 'nearest' });
+    // reposition synchronously after the content changed: a menu anchored
+    // above its trigger is placed from its own height, so filtering a long
+    // list down to one item must pull the box back down. Waiting for the
+    // ResizeObserver leaves a visible jump — and one frame of wrong geometry
+    // is exactly when the user clicks.
+    reposition();
+  };
+
+  const reposition = () => {
+    if (!openFlag || !anchorGetter) return;
+    const rect = anchorGetter();
+    if (rect) positionFloating(el, rect, positionOptions);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -137,21 +152,19 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     }
   };
 
-  const onOutsideMouseDown = (e: MouseEvent) => {
-    const t = e.target as Node;
-    if (el.contains(t) || opts.isOutsideExempt?.(t)) return;
-    close();
-  };
-
   const open: MenuController['open'] = (getAnchor, position) => {
     if (openFlag) return;
     openFlag = true;
     active = 0;
+    anchorGetter = getAnchor;
+    positionOptions = position;
     document.body.append(el);
     render();
+    // autoUpdate re-positions on content size changes too, so a menu that
+    // filters down to one item stays glued to its anchor instead of floating
     stopAuto = autoUpdate(el, getAnchor, position);
+    stopDismiss = dismissable(el, close, { exempt: opts.isOutsideExempt, onEscape: false });
     document.addEventListener('keydown', onKeyDown, { capture: true });
-    document.addEventListener('mousedown', onOutsideMouseDown);
   };
 
   const update: MenuController['update'] = (newEntries) => {
@@ -166,8 +179,10 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     openFlag = false;
     stopAuto?.();
     stopAuto = null;
+    stopDismiss?.();
+    stopDismiss = null;
+    anchorGetter = null;
     document.removeEventListener('keydown', onKeyDown, { capture: true });
-    document.removeEventListener('mousedown', onOutsideMouseDown);
     el.remove();
     opts.onClose?.();
   };

@@ -12,6 +12,7 @@ import {
 } from "@nbe/core";
 import type { EditorView } from "./view";
 import {
+  attachTooltip,
   createMenu,
   positionFloating,
   type AnchorRect,
@@ -95,6 +96,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     b.className = `nbe-seltoolbar-btn ${className}`.trim();
     b.title = title;
     b.append(label);
+    attachTooltip(b, title, { delayMs: 300 });
     // never let the toolbar steal the selection it is acting on
     b.addEventListener("mousedown", (e) => e.preventDefault());
     b.addEventListener("click", (e) => {

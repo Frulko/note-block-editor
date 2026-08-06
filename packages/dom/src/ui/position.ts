@@ -90,8 +90,15 @@ export function positionFloating(el: HTMLElement, anchor: AnchorRect, opts?: Pos
 }
 
 /**
- * Keep a floating element glued to a live anchor across scroll/resize and
- * re-renders (the anchor is re-resolved on every update). Returns cleanup.
+ * Keep a floating element glued to a live anchor across scroll, viewport
+ * resize, anchor movement AND its own content changing size.
+ *
+ * That last one is what makes filtering menus behave: a menu placed above its
+ * anchor is positioned from its own height, so when the list shrinks to one
+ * item the box must move back DOWN or it visibly floats away from what it is
+ * attached to. A ResizeObserver on the floating element catches every such
+ * change — content edits, images loading, fonts swapping — without the caller
+ * having to remember to reposition.
  */
 export function autoUpdate(
   el: HTMLElement,
@@ -103,10 +110,51 @@ export function autoUpdate(
     if (rect) positionFloating(el, rect, opts);
   };
   update();
+
+  const resizeObserver =
+    typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => update());
+  resizeObserver?.observe(el);
+
   window.addEventListener('resize', update);
   document.addEventListener('scroll', update, { capture: true, passive: true });
   return () => {
+    resizeObserver?.disconnect();
     window.removeEventListener('resize', update);
     document.removeEventListener('scroll', update, { capture: true });
+  };
+}
+
+/**
+ * Close-on-outside-interaction, the rule every overlay must obey. Handles
+ * pointer presses, Escape, and (optionally) focus leaving — in one place so
+ * no overlay can forget one of the three.
+ */
+export function dismissable(
+  el: HTMLElement,
+  close: () => void,
+  options: { exempt?: (target: Node) => boolean; onEscape?: boolean } = {},
+): () => void {
+  const { exempt, onEscape = true } = options;
+  const onPointerDown = (e: Event) => {
+    const target = e.target as Node | null;
+    if (!target) return;
+    if (el.contains(target) || exempt?.(target)) return;
+    close();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (onEscape && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    }
+  };
+  // pointerdown, not click: a press outside must dismiss before the click lands
+  document.addEventListener('pointerdown', onPointerDown, true);
+  document.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('blur', close);
+  return () => {
+    document.removeEventListener('pointerdown', onPointerDown, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('blur', close);
   };
 }

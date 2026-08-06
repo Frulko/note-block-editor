@@ -1,7 +1,7 @@
 import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
-import { createMenu, icon, positionFloating, type IconName, type MenuEntry } from './ui';
+import { attachTooltip, createMenu, icon, positionFloating, type IconName, type MenuEntry } from './ui';
 
 /**
  * Per-block floating toolbar, anchored to the block's top-right on hover.
@@ -164,6 +164,9 @@ export function attachBlockToolbar(view: EditorView): () => void {
       button.title = spec.title;
       button.setAttribute('aria-label', spec.title);
       button.append(icon(spec.icon, { size: 15 }));
+      // an icon-only control is unusable without a label; the native title
+      // attribute is too slow to appear to teach anything
+      attachTooltip(button, spec.title, { delayMs: 250 });
       button.addEventListener('mousedown', (e) => e.preventDefault());
       button.addEventListener('click', (e) => {
         e.preventDefault();

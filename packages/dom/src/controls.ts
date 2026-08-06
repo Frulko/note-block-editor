@@ -331,26 +331,39 @@ export function attachControls(view: EditorView): () => void {
     }
     const id = candidate.dataset['blockId']!;
     const rect = candidate.getBoundingClientRect();
-    const edge: Edge =
-      e.clientX < rect.left + 48
-        ? 'left'
-        : e.clientX > rect.right - 48
-          ? 'right'
-          : e.clientY < rect.top + rect.height / 2
-            ? 'before'
-            : 'after';
+
+    /*
+     * Drop zones sized for the hand, not for the pixel. The side bands scale
+     * with the block (a quarter of its width, clamped) instead of a fixed
+     * 48px, and they are skipped entirely on short blocks where they would
+     * eat the whole target. Hysteresis: once a side is engaged it stays
+     * engaged a little past its boundary, so a shaky pointer does not flicker
+     * between "make a column" and "move below".
+     */
+    const sideBand = Math.min(140, Math.max(64, rect.width * 0.25));
+    const tall = rect.height >= 28;
+    const wideEnough = rect.width > sideBand * 2 + 40;
+    const sticky = drop?.targetId === id && (drop.edge === 'left' || drop.edge === 'right') ? 24 : 0;
+
+    let edge: Edge;
+    if (wideEnough && tall && e.clientX < rect.left + sideBand + sticky) edge = 'left';
+    else if (wideEnough && tall && e.clientX > rect.right - sideBand - sticky) edge = 'right';
+    else edge = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+
     drop = { targetId: id, edge };
+    guide.classList.toggle('nbe-guide-side', edge === 'left' || edge === 'right');
     guide.style.display = 'block';
     if (edge === 'left' || edge === 'right') {
+      // paint the whole band, not a hairline: the target should look catchable
       guide.style.top = `${rect.top + window.scrollY}px`;
       guide.style.height = `${rect.height}px`;
-      guide.style.width = '3px';
-      guide.style.left = `${(edge === 'left' ? rect.left - 4 : rect.right + 1) + window.scrollX}px`;
+      guide.style.width = `${sideBand}px`;
+      guide.style.left = `${(edge === 'left' ? rect.left : rect.right - sideBand) + window.scrollX}px`;
     } else {
       guide.style.left = `${rect.left + window.scrollX}px`;
       guide.style.width = `${rect.width}px`;
-      guide.style.height = '3px';
-      guide.style.top = `${(edge === 'before' ? rect.top - 3 : rect.bottom) + window.scrollY}px`;
+      guide.style.height = '4px';
+      guide.style.top = `${(edge === 'before' ? rect.top - 2 : rect.bottom - 2) + window.scrollY}px`;
     }
   };
 

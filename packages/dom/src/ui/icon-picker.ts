@@ -1,4 +1,4 @@
-import { autoUpdate, type AnchorRect } from './position';
+import { autoUpdate, dismissable, type AnchorRect } from './position';
 import { createDropZone, fileToDataUrl } from './upload';
 
 /**
@@ -144,21 +144,11 @@ export function openIconPicker(
   root.dataset['nbeUi'] = '';
 
   let stopAuto: (() => void) | null = null;
+  let stopDismiss: (() => void) | null = null;
   const close = () => {
     stopAuto?.();
-    document.removeEventListener('mousedown', onOutside);
-    document.removeEventListener('keydown', onKey, { capture: true });
+    stopDismiss?.();
     root.remove();
-  };
-  const onOutside = (e: MouseEvent) => {
-    if (!root.contains(e.target as Node)) close();
-  };
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      close();
-    }
   };
 
   // --- tabs
@@ -273,8 +263,7 @@ export function openIconPicker(
 
   document.body.append(root);
   stopAuto = autoUpdate(root, getAnchor, { placement: 'bottom-start' });
-  document.addEventListener('mousedown', onOutside);
-  document.addEventListener('keydown', onKey, { capture: true });
+  stopDismiss = dismissable(root, close);
 
   return { close };
 }

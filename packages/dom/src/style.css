@@ -821,9 +821,16 @@ a.nbe-m-link:hover {
   position: absolute;
   z-index: 150;
   display: none;
-  background: rgba(35, 131, 226, 0.55);
+  background: var(--nbe-accent, rgb(35, 131, 226));
   border-radius: 2px;
   pointer-events: none;
+  transition: top 60ms linear, left 60ms linear, width 60ms linear, height 60ms linear;
+}
+/* a side drop creates columns — show the band it would occupy, not a hairline */
+.nbe-drop-guide.nbe-guide-side {
+  background: rgba(35, 131, 226, 0.16);
+  border: 2px solid var(--nbe-accent, rgb(35, 131, 226));
+  border-radius: var(--nbe-radius);
 }
 
 /* --- selection toolbar --- */

@@ -34,6 +34,13 @@ export function createDragGhost(sources: HTMLElement[], options: GhostOptions = 
     // clones must never be interactive or focusable while flying
     clone.removeAttribute('contenteditable');
     for (const node of clone.querySelectorAll('[contenteditable]')) node.removeAttribute('contenteditable');
+    // a ghost shows what is being MOVED, not what is selected: keep the
+    // selection tint out of it, or a grouped drag looks like two overlapping
+    // previews (the blue block highlight plus the stack)
+    clone.classList.remove('nbe-selected', 'nbe-drag-source');
+    for (const node of clone.querySelectorAll('.nbe-selected, .nbe-drag-source')) {
+      node.classList.remove('nbe-selected', 'nbe-drag-source');
+    }
     for (const node of clone.querySelectorAll('input, button, select, textarea')) {
       (node as HTMLInputElement).disabled = true;
     }

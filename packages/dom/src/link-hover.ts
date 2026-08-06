@@ -1,6 +1,6 @@
 import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
 import type { EditorView } from './view';
-import { icon, positionFloating } from './ui';
+import { attachTooltip, autoUpdate, dismissable, icon } from './ui';
 import { leafOf } from './selection';
 import { markTextIntent } from './caret';
 
@@ -16,9 +16,15 @@ export function attachLinkHover(view: EditorView): () => void {
   card.dataset['nbeUi'] = '';
   let current: HTMLAnchorElement | null = null;
   let hideTimer = 0;
+  let stopDismiss: (() => void) | null = null;
+  let stopAuto: (() => void) | null = null;
 
   const hide = () => {
     current = null;
+    stopDismiss?.();
+    stopDismiss = null;
+    stopAuto?.();
+    stopAuto = null;
     card.remove();
   };
   const scheduleHide = () => {
@@ -52,6 +58,7 @@ export function attachLinkHover(view: EditorView): () => void {
     b.title = title;
     b.setAttribute('aria-label', title);
     b.append(icon(name, { size: 14 }));
+    attachTooltip(b, title, { delayMs: 250 });
     b.addEventListener('mousedown', (e) => e.preventDefault());
     b.addEventListener('click', (e) => {
       e.preventDefault();
@@ -116,7 +123,15 @@ export function attachLinkHover(view: EditorView): () => void {
     );
 
     document.body.append(card);
-    positionFloating(card, anchor.getBoundingClientRect(), { placement: 'bottom-start', offset: 6 });
+    // autoUpdate, not a one-shot position: switching to the edit form changes
+    // the card's size and it must stay glued to the link
+    stopAuto?.();
+    stopAuto = autoUpdate(card, () => current?.getBoundingClientRect() ?? null, {
+      placement: 'bottom-start',
+      offset: 6,
+    });
+    stopDismiss?.();
+    stopDismiss = dismissable(card, hide);
   };
 
   const onMove = (e: MouseEvent) => {
