@@ -1,5 +1,20 @@
 # Roadmap
 
+> **Status (2026-08-06).** Phase 0 folded into Phase 1 (the per-block
+> contenteditable hypothesis D1 was implemented directly; the A/B spike is
+> superseded by the working editor — revisit only if IME/screen-reader testing
+> falsifies it). **Phase 1 is functionally complete**: core + dom + markdown
+> packages, the six-pattern UX (slash menu, hover +/handle with block menu,
+> block-selection key contract, drop guides with drag & drop columns,
+> autoformat, caret-only placeholders), three-format clipboard,
+> callout/image/page-link blocks, multi-page demo with L0 persistence
+> (localStorage), aria-live announcements and single-tab-stop focus.
+> **Phase 1 residuals** (tracked, not blockers): native-feel cross-block text
+> selection (block-escalation shipped, per D3), goal-X arrow navigation,
+> MutationObserver extension defense, paste fixture corpus, real-device
+> IME matrix and NVDA/VoiceOver smoke runs (AQ#6), forward-merge on Delete,
+> asset pipeline for images (AQ#2), simple table (post-v1 by design, AQ#3).
+
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier
 one — that's what the "cheap now, priceless later" invariants below are for.

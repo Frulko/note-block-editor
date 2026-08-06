@@ -392,7 +392,11 @@ export function attachControls(view: EditorView): () => void {
   handleBtn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     pointerStart = { x: e.clientX, y: e.clientY };
-    handleBtn.setPointerCapture(e.pointerId);
+    try {
+      handleBtn.setPointerCapture(e.pointerId);
+    } catch {
+      /* synthetic pointers have no capture */
+    }
   });
   handleBtn.addEventListener('pointermove', (e) => {
     if (!pointerStart) return;

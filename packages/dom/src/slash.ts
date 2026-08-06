@@ -52,6 +52,15 @@ export function attachSlashMenu(view: EditorView): () => void {
   let triggerOffset = 0; // offset of the '/' character
   let items: SlashItem[] = [];
   let index = 0;
+  let anchor: DOMRect | null = null;
+
+  const position = () => {
+    if (!anchor) return;
+    const menuH = menu.offsetHeight;
+    const below = anchor.bottom + 6 + menuH < window.innerHeight;
+    menu.style.top = `${(below ? anchor.bottom + 6 : Math.max(8, anchor.top - menuH - 6)) + window.scrollY}px`;
+    menu.style.left = `${Math.min(anchor.left, window.innerWidth - 280) + window.scrollX}px`;
+  };
 
   const close = () => {
     if (!open) return;
@@ -82,26 +91,22 @@ export function attachSlashMenu(view: EditorView): () => void {
       }),
     );
     if (!items.length) close();
+    else position();
   };
 
   const openAt = (id: BlockId, offset: number) => {
+    // anchored to the trigger block's leaf: deterministic even while the DOM
+    // selection is mid-flight during the input pipeline
+    const rect = view.leafEl(id)?.getBoundingClientRect() ?? null;
+    if (!rect) return;
     blockId = id;
     triggerOffset = offset;
     items = filterItems('', !!view.options.onCreatePage);
     index = 0;
     open = true;
-    const sel = document.getSelection();
-    let rect = sel && sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
-    if (!rect || (rect.width === 0 && rect.height === 0 && rect.top === 0)) {
-      rect = view.leafEl(id)?.getBoundingClientRect() ?? null;
-    }
-    if (!rect) return;
+    anchor = rect;
     document.body.append(menu);
     renderMenu();
-    const menuH = Math.min(320, menu.scrollHeight);
-    const below = rect.bottom + 6 + menuH < window.innerHeight;
-    menu.style.top = `${(below ? rect.bottom + 6 : rect.top - menuH - 6) + window.scrollY}px`;
-    menu.style.left = `${Math.min(rect.left, window.innerWidth - 280) + window.scrollX}px`;
   };
 
   const select = (item: SlashItem) => {

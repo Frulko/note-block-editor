@@ -4,12 +4,16 @@ A Notion-class block editor for the browser, written in vanilla TypeScript.
 Headless core, thin framework bindings (TanStack philosophy), and storage you
 can read without the tool: Markdown, CSV, SQLite.
 
-**Status: Phase 1 in progress.** The headless core (block model, invertible
-operations, history, commands — fully unit-tested) and a first DOM view
-(per-block contenteditable, autoformat, keymap, selection sync) are working.
-The architecture is derived from ~40k words of source-backed research on
-Notion's internals, contenteditable's failure modes, ProseMirror/Lexical/Slate,
-Gutenberg, BlockNote, TipTap, storage interop, and CRDT futures.
+**Status: Phase 1 functionally complete** (see ROADMAP for residuals). Working
+today: the headless core (flat block map, 7 invertible operations, coalescing
+history — fully unit-tested), the DOM view (per-block contenteditable leaves,
+IME-safe input, slash menu, hover controls with block menu, pointer drag & drop
+with column creation, block selection with the full Notion key contract,
+three-format clipboard with schema-sanitized paste), a markdown package, and a
+multi-page demo with persistence. The architecture is derived from ~40k words
+of source-backed research on Notion's internals, contenteditable's failure
+modes, ProseMirror/Lexical/Slate, Gutenberg, BlockNote, TipTap, storage
+interop, and CRDT futures.
 
 ## Getting started
 
