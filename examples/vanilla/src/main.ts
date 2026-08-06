@@ -3,6 +3,7 @@ import { EditorView } from '@nbe/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
+import { resolveAsset, storeAsset } from './assets';
 import {
   backlinkCounts,
   createPage,
@@ -117,6 +118,8 @@ function openPage(pageId: string): void {
       renderSidebar();
       return { pageId: created.id, title: 'Sans titre' };
     },
+    onStoreAsset: storeAsset,
+    resolveAssetUrl: resolveAsset,
   });
   detachInspector = attachInspector(editor);
   editor.on(() => {

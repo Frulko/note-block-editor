@@ -308,6 +308,16 @@ function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean):
   }
 }
 
+async function insertImageFiles(view: EditorView, files: File[]): Promise<void> {
+  const store = view.options.onStoreAsset;
+  if (!store) return;
+  const blocks: BlockJSON[] = [];
+  for (const file of files) {
+    blocks.push({ id: uuidv7(), type: 'image', version: 1, props: { src: await store(file) }, text: [] });
+  }
+  insertBlocksAt(view, blocks, false);
+}
+
 // --- wiring ---
 
 export function attachClipboard(view: EditorView): () => void {
@@ -358,6 +368,13 @@ export function attachClipboard(view: EditorView): () => void {
     if (!leafOf(e.target as Node) && editor.selection?.kind !== 'block') return;
     e.preventDefault();
 
+    // image files first (screenshots, copied images) — asset pipeline (AQ#2)
+    const imageFiles = [...(data.files ?? [])].filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length && view.options.onStoreAsset) {
+      void insertImageFiles(view, imageFiles);
+      return;
+    }
+
     const plainRequested = Date.now() - plainPasteAt < 600;
     const plain = data.getData('text/plain');
     if (plainRequested) {
@@ -405,14 +422,36 @@ export function attachClipboard(view: EditorView): () => void {
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'v') plainPasteAt = Date.now();
   };
 
+  // OS file drop — the one place native DnD is used by design (D8)
+  const onDragOver = (e: DragEvent) => {
+    if (e.dataTransfer?.types.includes('Files') && view.options.onStoreAsset) e.preventDefault();
+  };
+  const onDrop = (e: DragEvent) => {
+    const files = [...(e.dataTransfer?.files ?? [])].filter((f) => f.type.startsWith('image/'));
+    if (!files.length || !view.options.onStoreAsset) return;
+    e.preventDefault();
+    const under = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const anchorId =
+      (under?.closest?.('.nbe-block') as HTMLElement | null)?.dataset['blockId'] ??
+      getBlock(editor.doc, editor.doc.rootId).children.at(-1);
+    if (!anchorId) return;
+    const anchor = getBlock(editor.doc, anchorId);
+    editor.setSelection(textCaret(anchorId, textLength(anchor.text)), 'api');
+    void insertImageFiles(view, files);
+  };
+
   view.content.addEventListener('copy', onCopy);
   view.content.addEventListener('cut', onCut);
   view.content.addEventListener('paste', onPaste);
   view.content.addEventListener('keydown', onKeyDown);
+  view.content.addEventListener('dragover', onDragOver);
+  view.content.addEventListener('drop', onDrop);
   return () => {
     view.content.removeEventListener('copy', onCopy);
     view.content.removeEventListener('cut', onCut);
     view.content.removeEventListener('paste', onPaste);
     view.content.removeEventListener('keydown', onKeyDown);
+    view.content.removeEventListener('dragover', onDragOver);
+    view.content.removeEventListener('drop', onDrop);
   };
 }

@@ -78,8 +78,14 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     if (src) {
       const img = document.createElement('img');
       img.className = 'nbe-image';
-      img.src = src;
       img.alt = String(block.props['caption'] ?? '');
+      const resolved = view.options.resolveAssetUrl?.(src) ?? src;
+      if (typeof resolved === 'string') img.src = resolved;
+      else {
+        void resolved.then((url) => {
+          if (img.isConnected || !img.src) img.src = url;
+        });
+      }
       root.append(img);
     } else {
       const box = el('div', 'nbe-image-empty');

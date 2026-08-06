@@ -14,6 +14,13 @@ export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
   /** Create a page in the host workspace (slash menu "Page" item). */
   onCreatePage?: () => { pageId: string; title: string } | null;
+  /**
+   * Store a pasted/dropped binary and return the opaque src to persist
+   * (convention: `asset:<content-hash>`). Without it, file paste/drop is ignored.
+   */
+  onStoreAsset?: (blob: Blob) => Promise<string>;
+  /** Resolve a persisted src (asset:… or URL) to something an <img> can load. */
+  resolveAssetUrl?: (src: string) => string | Promise<string>;
 }
 
 export class EditorView {
