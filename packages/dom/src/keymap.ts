@@ -19,7 +19,48 @@ import {
   type BlockSelection,
 } from '@nbe/core';
 import type { EditorView } from './view';
-import { leafOf } from './selection';
+import { domToModelPoint, leafOf } from './selection';
+
+/** Current collapsed-caret X in client coordinates (goal-X seed). */
+function caretClientX(view: EditorView): number | null {
+  const s = document.getSelection();
+  if (!s || s.rangeCount === 0) return null;
+  const rect = s.getRangeAt(0).getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0 && rect.top === 0) {
+    return leafOf(s.getRangeAt(0).startContainer)?.getBoundingClientRect().left ?? null;
+  }
+  return rect.left;
+}
+
+/** Model offset closest to `x` on the first or last visual line of a block. */
+function offsetAtX(view: EditorView, blockId: string, x: number, edge: 'first' | 'last'): number {
+  const block = getBlock(view.editor.doc, blockId);
+  const fallback = edge === 'first' ? 0 : textLength(block.text);
+  const leaf = view.leafEl(blockId);
+  if (!leaf) return fallback;
+  const rect = leaf.getBoundingClientRect();
+  const line = parseFloat(getComputedStyle(leaf).lineHeight) || 24;
+  const y =
+    edge === 'first'
+      ? Math.min(rect.top + line / 2, rect.bottom - 2)
+      : Math.max(rect.bottom - line / 2, rect.top + 2);
+  const cx = Math.min(Math.max(x, rect.left + 1), rect.right - 1);
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const pos = doc.caretPositionFromPoint?.(cx, y);
+  if (pos) {
+    const p = domToModelPoint(pos.offsetNode, pos.offset);
+    if (p?.blockId === blockId) return p.offset;
+  }
+  const range = doc.caretRangeFromPoint?.(cx, y);
+  if (range) {
+    const p = domToModelPoint(range.startContainer, range.startOffset);
+    if (p?.blockId === blockId) return p.offset;
+  }
+  return fallback;
+}
 
 function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
   const s = document.getSelection();
@@ -40,6 +81,8 @@ function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
 export function attachKeymap(view: EditorView): () => void {
   const editor = view.editor;
   const isInline = (b: { type: string }) => editor.schema.get(b.type).inline;
+  /** Sticky horizontal target across consecutive vertical arrow moves (goal-X). */
+  let goalX: number | null = null;
 
   const handleBlockMode = (e: KeyboardEvent, sel: BlockSelection): void => {
     const mod = e.metaKey || e.ctrlKey;
@@ -105,6 +148,10 @@ export function attachKeymap(view: EditorView): () => void {
     if ((e.target as HTMLElement).closest?.('input, textarea, [data-nbe-ui]')) return;
     const mod = e.metaKey || e.ctrlKey;
     const sel = editor.selection;
+
+    const vertical = (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !mod && !e.altKey;
+    if (vertical) goalX ??= caretClientX(view);
+    else goalX = null;
 
     // undo/redo work in every mode
     if (mod && !e.altKey) {
@@ -240,8 +287,7 @@ export function attachKeymap(view: EditorView): () => void {
           const prev = previousInlineBlock(editor.doc, caret.blockId, isInline);
           if (prev) {
             e.preventDefault();
-            // ponytail: caret goes to end of previous block; goal-X preservation later
-            view.focusBlock(prev.id, textLength(prev.text));
+            view.focusBlock(prev.id, goalX !== null ? offsetAtX(view, prev.id, goalX, 'last') : textLength(prev.text));
           }
         }
         return;
@@ -251,7 +297,7 @@ export function attachKeymap(view: EditorView): () => void {
           const next = nextInlineBlock(editor.doc, caret.blockId, isInline);
           if (next) {
             e.preventDefault();
-            view.focusBlock(next.id, 0);
+            view.focusBlock(next.id, goalX !== null ? offsetAtX(view, next.id, goalX, 'first') : 0);
           }
         }
         return;

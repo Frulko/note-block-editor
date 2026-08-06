@@ -88,6 +88,43 @@ export function mergeBackward(editor: Editor): boolean {
   return true;
 }
 
+/**
+ * Delete-at-end semantics: pull the next visible block into this one. A void
+ * next block (divider, image) gets block-selected instead of destroyed.
+ */
+export function mergeForward(editor: Editor): boolean {
+  const caret = caretOf(editor.selection);
+  if (!caret) return false;
+  const block = getBlock(editor.doc, caret.blockId);
+  if (!editor.schema.get(block.type).inline) return false;
+  if (caret.offset !== textLength(block.text)) return false;
+
+  const order = visibleBlocks(editor.doc);
+  const idx = order.findIndex((b) => b.id === block.id);
+  const next = idx >= 0 ? order[idx + 1] : undefined;
+  if (!next) return false;
+
+  if (!editor.schema.get(next.type).inline) {
+    editor.setSelection({ kind: 'block', anchor: next.id, head: next.id }, 'keyboard');
+    return true;
+  }
+
+  const runs = next.text ?? [];
+  editor.dispatch(
+    (tx) => {
+      let after: BlockId | null = next.id;
+      for (const childId of [...next.children]) {
+        tx.op({ type: 'move_block', id: childId, parentId: next.parentId!, after });
+        after = childId;
+      }
+      if (runs.length) tx.op({ type: 'insert_text', id: block.id, offset: caret.offset, runs });
+      tx.op({ type: 'delete_block', id: next.id });
+    },
+    { origin: 'input', selection: textCaret(block.id, caret.offset) },
+  );
+  return true;
+}
+
 export function turnInto(
   editor: Editor,
   id: BlockId,

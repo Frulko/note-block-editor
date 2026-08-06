@@ -10,6 +10,7 @@ import {
   marksAt,
   matchAutoformat,
   mergeBackward,
+  mergeForward,
   plainText,
   splitBlock,
   textCaret,
@@ -62,7 +63,10 @@ function handleDeleteForward(view: EditorView): void {
   }
   const block = getBlock(editor.doc, at.id);
   const plain = plainText(block.text);
-  if (at.from >= plain.length) return; // ponytail: no forward-merge yet
+  if (at.from >= plain.length) {
+    mergeForward(editor);
+    return;
+  }
   const code = plain.charCodeAt(at.from);
   const step = code >= 0xd800 && code <= 0xdbff && at.from + 2 <= plain.length ? 2 : 1;
   editor.dispatch(
@@ -71,8 +75,12 @@ function handleDeleteForward(view: EditorView): void {
   );
 }
 
-/** Reconcile the model from the DOM after an IME composition (never during — ARCHITECTURE §5.1). */
-function reconcileComposition(view: EditorView, leaf: HTMLElement): void {
+/**
+ * Reconcile the model from a leaf's DOM text via prefix/suffix diff. Used
+ * after IME composition and when an extension edits text outside our pipeline
+ * (never during composition — ARCHITECTURE §5.1).
+ */
+export function reconcileLeaf(view: EditorView, leaf: HTMLElement): void {
   const editor = view.editor;
   const id = leaf.dataset['blockId'];
   if (!id || !editor.doc.blocks.has(id)) return;
@@ -167,7 +175,7 @@ export function attachInput(view: EditorView): () => void {
   const onCompositionEnd = (e: Event) => {
     view.composing = false;
     const leaf = leafOf(e.target as Node);
-    if (leaf) reconcileComposition(view, leaf);
+    if (leaf) reconcileLeaf(view, leaf);
   };
 
   const onClick = (e: MouseEvent) => {

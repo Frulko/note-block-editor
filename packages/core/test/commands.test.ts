@@ -7,6 +7,7 @@ import {
   indent,
   matchAutoformat,
   mergeBackward,
+  mergeForward,
   outdent,
   splitBlock,
   toggleMark,
@@ -105,6 +106,54 @@ describe('mergeBackward', () => {
     seed(editor, 'a', 'x');
     editor.setSelection(textCaret('a', 0));
     expect(mergeBackward(editor)).toBe(false);
+  });
+});
+
+describe('mergeForward', () => {
+  it('pulls the next block in, promoting its children, caret unchanged', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'hello ');
+    seed(editor, 'b', 'world', 'heading');
+    seed(editor, 'b1', 'child', 'paragraph', 'b');
+    editor.setSelection(textCaret('a', 6));
+    expect(mergeForward(editor)).toBe(true);
+
+    expect(plainText(getBlock(editor.doc, 'a').text)).toBe('hello world');
+    expect(editor.doc.blocks.has('b')).toBe(false);
+    expect(getBlock(editor.doc, editor.doc.rootId).children).toEqual(['a', 'b1']);
+    expect(editor.selection).toEqual(textCaret('a', 6));
+    editor.undo();
+    expect(plainText(getBlock(editor.doc, 'a').text)).toBe('hello ');
+    expect(getBlock(editor.doc, 'b').children).toEqual(['b1']);
+  });
+
+  it('merges the first child into its parent (next visible block)', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'parent');
+    seed(editor, 'a1', 'kid', 'paragraph', 'a');
+    editor.setSelection(textCaret('a', 6));
+    expect(mergeForward(editor)).toBe(true);
+    expect(plainText(getBlock(editor.doc, 'a').text)).toBe('parentkid');
+    expect(editor.doc.blocks.has('a1')).toBe(false);
+  });
+
+  it('block-selects a void next block instead of deleting it', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'x');
+    seed(editor, 'd', '', 'divider');
+    editor.setSelection(textCaret('a', 1));
+    expect(mergeForward(editor)).toBe(true);
+    expect(editor.doc.blocks.has('d')).toBe(true);
+    expect(editor.selection).toEqual({ kind: 'block', anchor: 'd', head: 'd' });
+  });
+
+  it('does nothing mid-text or on the last block', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'xy');
+    editor.setSelection(textCaret('a', 1));
+    expect(mergeForward(editor)).toBe(false);
+    editor.setSelection(textCaret('a', 2));
+    expect(mergeForward(editor)).toBe(false);
   });
 });
 
