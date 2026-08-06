@@ -70,6 +70,10 @@ export function baseSchema(): Schema {
   s.register({ type: 'link_to_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
   s.register({ type: 'column_list', version: 1, inline: false, layout: true });
   s.register({ type: 'column', version: 1, inline: false, layout: true, defaultProps: {} });
+  // simple table: blocks all the way down (AQ#3, docs/design/table-block.md)
+  s.register({ type: 'table', version: 1, inline: false, layout: true, defaultProps: { headerRow: true } });
+  s.register({ type: 'table_row', version: 1, inline: false, layout: true });
+  s.register(inline('table_cell'));
   // the database VIEW BLOCK: placement of a collection view in a page (§2.5)
   s.register({ type: 'database', version: 1, inline: false, defaultProps: { collectionId: '', viewId: '' } });
   return s;

@@ -17,8 +17,8 @@
 > hooks; demo uses IndexedDB; GC at phase 4), rubber-band selection ✓, UI
 > primitives layer ✓ (position/menu/tooltip/hover/drag, D8 in-house DnD).
 > **Still open:** real-device IME/screen-reader matrix — protocol written in
-> `docs/TESTING.md`, needs hardware (AQ#6); simple table — designed in
-> `docs/design/table-block.md`, scheduled after Phase 2 (AQ#3); native-feel
+> `docs/TESTING.md`, needs hardware (AQ#6); simple table — shipped 2026-08-06 (AQ#3 resolved),
+> minus cell-range selection and column resize; native-feel
 > cross-block text selection (block-escalation shipped per D3); Word
 > mso-list paragraphs not yet detected as list items (documented in fixtures).
 >
@@ -229,7 +229,7 @@ Before the phase that needs them (owner: whoever starts the phase):
 | IME/clipboard/drag simulation in CI | Phase 0–1 | AQ#6 |
 | Unicode grapheme handling at boundaries | Phase 1 | AQ#4 |
 | Asset pipeline | Phase 4 | AQ#2 |
-| Table block design | post-v1 | AQ#3 |
+| Table block design | ~~post-v1~~ shipped 2026-08-06 | AQ#3 |
 | Touch interaction design | Phase 5 | AQ#7 |
 | Formula/eval engine | Phase 3 | AQ#8 |
 

@@ -142,3 +142,26 @@ describe('block rendering', () => {
     expect(renderBlocksToHTML([b('paragraph', 'ok')])).toContain('ok');
   });
 });
+
+describe('table', () => {
+  const cell = (t: string) => ({ id: 'c' + t, type: 'table_cell', version: 1, text: [{ text: t }] });
+  const row = (...t: string[]) => ({ id: 'r' + t[0], type: 'table_row', version: 1, children: t.map(cell) });
+
+  it('renders real table markup with a thead', () => {
+    const html = renderBlocksToHTML([
+      { id: 't', type: 'table', version: 1, children: [row('Nom', 'Ville'), row('Ada', 'Londres')] },
+    ] as never);
+    expect(html).toContain('<thead>');
+    expect(html).toContain('<th');
+    expect(html).toContain('Ada');
+    expect(html.match(/<tr/g)).toHaveLength(2);
+  });
+
+  it('skips the thead when the table has no header row', () => {
+    const html = renderBlocksToHTML([
+      { id: 't', type: 'table', version: 1, props: { headerRow: false }, children: [row('a', 'b')] },
+    ] as never);
+    expect(html).not.toContain('<thead>');
+    expect(html).not.toContain('<th');
+  });
+});

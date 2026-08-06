@@ -35,6 +35,18 @@ import { blockActionEntries } from './block-actions';
 export function attachControls(view: EditorView): () => void {
   const editor = view.editor;
 
+  /**
+   * Blocks a user can grab, drop next to, or open a menu on. Layout containers
+   * are transparent — you act on what they hold — with the table as the one
+   * exception: it is the unit you move, and its menu owns the row and column
+   * actions, so its rows and cells stay out of the way.
+   */
+  const standalone = (type: string): boolean => {
+    if (type === 'table') return true;
+    if (type === 'table_row' || type === 'table_cell') return false;
+    return blockCategory(editor.schema, type) !== 'layout';
+  };
+
   // --- floating hover controls ---
   const controls = document.createElement('div');
   controls.className = 'nbe-controls';
@@ -97,9 +109,7 @@ export function attachControls(view: EditorView): () => void {
 
     const eligible = (el: HTMLElement): boolean => {
       const id = el.dataset['blockId'];
-      if (!id || !editor.doc.blocks.has(id)) return false;
-      const type = getBlock(editor.doc, id).type;
-      return type !== 'column_list' && type !== 'column';
+      return !!id && editor.doc.blocks.has(id) && standalone(getBlock(editor.doc, id).type);
     };
 
     // exact hit first (cheap, and correct for nested blocks)
@@ -320,8 +330,7 @@ export function attachControls(view: EditorView): () => void {
       const blockEl = (el as HTMLElement).closest?.('.nbe-block') as HTMLElement | null;
       const id = blockEl?.dataset['blockId'];
       if (!id || !editor.doc.blocks.has(id)) continue;
-      const type = getBlock(editor.doc, id).type;
-      if (type === 'column_list' || type === 'column') continue;
+      if (!standalone(getBlock(editor.doc, id).type)) continue;
       if (isDraggedOrInside(id)) continue;
       candidate = blockEl;
       break;
@@ -453,11 +462,13 @@ export function attachControls(view: EditorView): () => void {
       const blockEl = target.closest('.nbe-block') as HTMLElement | null;
       const id = blockEl?.dataset['blockId'];
       if (!id || !editor.doc.blocks.has(id)) return false;
-      const category = blockCategory(editor.schema, getBlock(editor.doc, id).type);
-      if (category === 'layout') return false;
+      const type = getBlock(editor.doc, id).type;
+      if (!standalone(type)) return false;
       const sel = editor.selection;
       const inSelection = sel?.kind === 'block' && selectedBlocks(editor.doc, sel).includes(id);
-      if (category !== 'void' && !inSelection) return false;
+      // void blocks have no caret to compete with, so they drag on contact;
+      // everything else has to be selected first, or typing would move blocks
+      if (blockCategory(editor.schema, type) !== 'void' && !inSelection) return false;
       directDragId = id;
       return true;
     },

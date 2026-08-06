@@ -1,5 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
-import { childIndex, getBlock, plainText, textLength, uuidv7 } from '@nbe/core';
+import { childIndex, getBlock, insertTable, plainText, textLength, uuidv7 } from '@nbe/core';
 import type { EditorView } from './view';
 import { createMenu, type MenuEntry } from './ui';
 
@@ -10,6 +10,7 @@ interface SlashItem {
   action:
     | { kind: 'block'; type: string; props?: Record<string, unknown> }
     | { kind: 'divider' }
+    | { kind: 'table' }
     | { kind: 'page' }
     | { kind: 'database' };
 }
@@ -31,6 +32,7 @@ const ITEMS: SlashItem[] = [
   { label: 'Erreur', keywords: ['danger', 'erreur', 'error', 'callout'], icon: '🛑', action: { kind: 'block', type: 'callout', props: { variant: 'danger', icon: '🛑', backgroundColor: 'red' } } },
   { label: 'Code', keywords: ['code', 'snippet'], icon: '⌨', action: { kind: 'block', type: 'code' } },
   { label: 'Image', keywords: ['image', 'img', 'photo'], icon: '🖼', action: { kind: 'block', type: 'image' } },
+  { label: 'Tableau', keywords: ['table', 'tableau', 'grille', 'grid'], icon: '▦', action: { kind: 'table' } },
   { label: 'Séparateur', keywords: ['divider', 'hr', 'ligne'], icon: '—', action: { kind: 'divider' } },
   { label: 'Page', keywords: ['page', 'sous-page', 'subpage'], icon: '📄', action: { kind: 'page' } },
   { label: 'Base de données', keywords: ['database', 'table', 'bdd', 'db'], icon: '🗃', action: { kind: 'database' } },
@@ -91,6 +93,16 @@ export function attachSlashMenu(view: EditorView): () => void {
       children: [],
       parentId: block.parentId,
     });
+
+    // a table is a subtree, not a single block, so it takes its own path:
+    // clear the query, then let insertTable build and focus the grid
+    if (item.action.kind === 'table') {
+      editor.dispatch((tx) => tx.op({ type: 'delete_text', id: blockId, from: triggerOffset, to: queryEnd }), {
+        origin: 'input',
+      });
+      insertTable(editor, blockId, 3, 3);
+      return;
+    }
 
     const resolve = (): { type: string; props?: Record<string, unknown>; extraParagraph?: boolean } | null => {
       if (item.action.kind === 'block') return { type: item.action.type, props: item.action.props };

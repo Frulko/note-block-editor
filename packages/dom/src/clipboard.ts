@@ -235,13 +235,13 @@ function elementToBlocks(el: Element): BlockJSON[] {
     case 'img':
       return [block('image', { src: el.getAttribute('src') ?? '' })];
     case 'table': {
-      // ponytail: tables flatten to one paragraph per row — real table block is AQ#3
-      const rows: BlockJSON[] = [];
-      for (const tr of el.querySelectorAll('tr')) {
-        const cells = [...tr.querySelectorAll('td,th')].map((c) => c.textContent?.trim() ?? '');
-        rows.push(block('paragraph', undefined, [{ text: cells.join(' — ') }]));
-      }
-      return rows;
+      const rows = [...el.querySelectorAll('tr')].map((tr) =>
+        [...tr.querySelectorAll('td,th')].map((c) => c.textContent?.trim() ?? ''),
+      );
+      // a table whose first row is all <th> keeps its header; otherwise the
+      // grid is data all the way down and promoting row 0 would be a lie
+      const header = [...(el.querySelector('tr')?.children ?? [])].every((c) => c.tagName === 'TH');
+      return rows.length ? [tableFromGrid(rows, header)] : [];
     }
     default: {
       // container-ish elements: recurse if they hold block children, else paragraph
@@ -254,6 +254,41 @@ function elementToBlocks(el: Element): BlockJSON[] {
       return [block('paragraph', undefined, runs)];
     }
   }
+}
+
+/** Build a table subtree from a grid of plain strings, padded to the widest row. */
+export function tableFromGrid(rows: string[][], headerRow: boolean): BlockJSON {
+  const width = Math.max(...rows.map((r) => r.length));
+  return {
+    id: uuidv7(),
+    type: 'table',
+    version: 1,
+    props: headerRow ? {} : { headerRow: false },
+    children: rows.map((cells) => ({
+      id: uuidv7(),
+      type: 'table_row',
+      version: 1,
+      children: Array.from({ length: width }, (_, i) => ({
+        id: uuidv7(),
+        type: 'table_cell',
+        version: 1,
+        text: cells[i] ? [{ text: cells[i]! }] : [],
+      })),
+    })),
+  };
+}
+
+/**
+ * Spreadsheet paste: tab-separated rows. Only treated as a grid when every
+ * line has the same number of tabs — otherwise it is prose that happens to
+ * contain a tab, and turning it into a table would be worse than useless.
+ */
+export function tsvToTable(text: string): BlockJSON | null {
+  const lines = text.replace(/\n+$/, '').split(/\r?\n/);
+  if (lines.length < 2 || !lines[0]!.includes('\t')) return null;
+  const rows = lines.map((l) => l.split('\t'));
+  if (rows.some((r) => r.length !== rows[0]!.length)) return null;
+  return tableFromGrid(rows, true);
 }
 
 export function htmlToBlocks(html: string): BlockJSON[] {
@@ -502,6 +537,12 @@ export function attachClipboard(view: EditorView): () => void {
         insertBlocksAt(view, blocks, blocks.length === 1 && blocks[0]!.type === 'paragraph');
         return;
       }
+    }
+    // spreadsheet copy with no HTML flavour (Numbers, some terminals)
+    const tsv = tsvToTable(plain);
+    if (tsv) {
+      insertBlocksAt(view, [tsv], false);
+      return;
     }
     const md = data.getData('text/markdown') || plain;
     if (md) {

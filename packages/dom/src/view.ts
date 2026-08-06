@@ -1,4 +1,4 @@
-import type { Change, Editor, Selection } from '@nbe/core';
+import type { Change, Editor, Point, Selection } from '@nbe/core';
 import { ancestors, getBlock, selectedBlocks, textCaret } from '@nbe/core';
 import { renderBlock } from './render';
 import { attachSelectionSync, leafOf, modelPointToDom } from './selection';
@@ -53,6 +53,12 @@ export class EditorView {
    * selection the gesture just built.
    */
   blockGesture = false;
+  /**
+   * Where the caret last was in text. Opening a menu or selecting a block
+   * replaces the live selection, so anything that needs to act "where the user
+   * was typing" — table row/column actions, for one — reads this instead.
+   */
+  lastTextCaret: Point | null = null;
 
   private unbinders: Array<() => void> = [];
 
@@ -195,6 +201,7 @@ export class EditorView {
 
   /** Render block-selection overlays; text selection is native. */
   private renderSelection(sel: Selection, origin: string): void {
+    if (sel?.kind === 'text') this.lastTextCaret = sel.head;
     const isBlock = sel?.kind === 'block';
     this.content.classList.toggle('nbe-blocksel', isBlock);
     for (const n of this.content.querySelectorAll('.nbe-selected')) n.classList.remove('nbe-selected');

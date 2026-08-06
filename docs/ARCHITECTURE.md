@@ -443,9 +443,17 @@ phase begins:
    safety, watcher-based conflict handling.
 2. **Binary asset pipeline.** Where blobs live across L0/L1/L2, content-hash
    dedup, reference counting/GC on delete+undo, sync later.
-3. **The simple table block.** Cell model, row/col operations, cell-range
-   selection, Tab/Enter navigation, spreadsheet clipboard round-trip.
-   Historically among the hardest editor features; deliberately post-v1.
+3. **The simple table block.** *Resolved 2026-08-06 and shipped.* Cells are
+   ordinary blocks (`table` / `table_row` / `table_cell`), so no new op types
+   were needed — a column insert is a transaction of per-row `insert_block`,
+   and undo is free. `normalizeTables` holds two invariants: every row has
+   exactly `columnCount` cells, and a table with no rows or columns dissolves.
+   One CSS grid on the table with `display: contents` rows keeps column widths
+   in a single template. Tab/Shift+Tab walk cells (Tab past the last one
+   appends a row); Enter moves down instead of splitting. Round-trips as a GFM
+   pipe table; `<table>` and aligned TSV paste build a real table.
+   **Still open:** cell-range selection as a third selection kind, column
+   resize handles, and cell merging — none block the block itself.
 4. **Unicode correctness.** Grapheme clusters, surrogate pairs, ZWJ emoji,
    NFC/NFD, bidi — how splits/marks/selection avoid bisecting a perceived
    character despite UTF-16 offsets.

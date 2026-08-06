@@ -183,6 +183,27 @@ function renderBlock(b: BlockJSON, depth: number): string[] {
       return [pad + `![${text}](${String(p['src'] ?? '')})`];
     case 'link_to_page':
       return [pad + `[[${String(p['title'] || 'page')}]]`];
+    case 'table': {
+      const rows = (b.children ?? []).filter((r) => r.type === 'table_row');
+      if (!rows.length) return [];
+      const cells = (row: BlockJSON) =>
+        (row.children ?? [])
+          .filter((c) => c.type === 'table_cell')
+          // a pipe inside a cell would end the cell, so it has to be escaped
+          .map((c) => runsToMarkdown(c.text).replace(/\|/g, '\\|').replace(/\n/g, ' '));
+      const width = Math.max(...rows.map((r) => cells(r).length));
+      const line = (values: string[]) =>
+        pad + '| ' + Array.from({ length: width }, (_, i) => values[i] ?? '').join(' | ') + ' |';
+      // GFM has no headerless table: without a header row we emit an empty one,
+      // which renders as a thin blank strip rather than promoting real data
+      const header = p['headerRow'] === false ? [] : cells(rows[0]!);
+      const body = p['headerRow'] === false ? rows : rows.slice(1);
+      return [
+        line(header),
+        pad + '| ' + Array.from({ length: width }, () => '---').join(' | ') + ' |',
+        ...body.map((r) => line(cells(r))),
+      ];
+    }
     case 'column_list':
       // documented loss: column layout is lost — columns' contents flattened sequentially
       return (b.children ?? []).flatMap((col) => (col.children ?? []).flatMap((c) => renderBlock(c, depth)));
@@ -244,6 +265,35 @@ function stripLevels(line: string, levels: number): string {
   return line.slice(i);
 }
 
+/** `| --- | :-: |` — the row that turns pipe lines into a GFM table. */
+function isDelimiterRow(line: string): boolean {
+  const t = line.trim();
+  if (!t.includes('-') || !t.includes('|')) return false;
+  return t
+    .replace(/^\||\|$/g, '')
+    .split('|')
+    .every((c) => /^\s*:?-+:?\s*$/.test(c));
+}
+
+/** Split a pipe row into cells, honouring `\|` escapes and optional edge pipes. */
+function splitRow(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\' && line[i + 1] === '|') {
+      current += '\\|';
+      i++;
+    } else if (line[i] === '|') {
+      cells.push(current);
+      current = '';
+    } else current += line[i];
+  }
+  cells.push(current);
+  if (cells[0]!.trim() === '') cells.shift();
+  if (cells.length && cells[cells.length - 1]!.trim() === '') cells.pop();
+  return cells.map((c) => c.trim());
+}
+
 function parseLevel(lines: string[], pos: number, level: number): [BlockJSON[], number] {
   const out: BlockJSON[] = [];
   while (pos < lines.length) {
@@ -270,6 +320,40 @@ function parseLevel(lines: string[], pos: number, level: number): [BlockJSON[], 
       const lang = m[1]!.trim();
       const code = body.join('\n');
       out.push(mk('code', lang ? { language: lang } : {}, code ? [{ text: code }] : undefined));
+      continue;
+    }
+
+    // GFM table: a pipe row is only a table if the next line is the delimiter
+    if (content.includes('|') && pos + 1 < lines.length && isDelimiterRow(stripLevels(lines[pos + 1]!, level))) {
+      const rows = [splitRow(content)];
+      pos += 2;
+      while (pos < lines.length) {
+        const next = stripLevels(lines[pos]!, level);
+        if (!next.includes('|') || next.trim() === '') break;
+        rows.push(splitRow(next));
+        pos++;
+      }
+      const width = Math.max(...rows.map((r) => r.length));
+      // an all-empty first row is the headerless marker we serialize
+      const headerRow = rows[0]!.some((c) => c.trim() !== '');
+      const body = headerRow ? rows : rows.slice(1);
+      out.push(
+        mk(
+          'table',
+          headerRow ? {} : { headerRow: false },
+          undefined,
+          body.map((cells) =>
+            mk(
+              'table_row',
+              {},
+              undefined,
+              Array.from({ length: width }, (_, i) =>
+                mk('table_cell', {}, markdownToRuns((cells[i] ?? '').replace(/\\\|/g, '|'))),
+              ),
+            ),
+          ),
+        ),
+      );
       continue;
     }
 

@@ -5,6 +5,7 @@ import type { Op } from './ops';
 import { applyOp } from './ops';
 import type { Schema } from './schema';
 import { baseSchema } from './schema';
+import { normalizeTables } from './table';
 
 export interface Change {
   origin: string;
@@ -93,6 +94,7 @@ export class Editor {
     if (tx.ops.length === 0) return;
     if (tx.ops.some((o) => o.type !== 'insert_text' && o.type !== 'delete_text' && o.type !== 'format_text')) {
       this.normalizeWrappers(tx);
+      normalizeTables(this.doc, tx);
     }
     if (opts.selection !== undefined) this.setSelection(opts.selection, opts.origin ?? 'dispatch');
 

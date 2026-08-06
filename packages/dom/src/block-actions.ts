@@ -1,5 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
-import { getBlock } from '@nbe/core';
+import { cellPosition, deleteColumn, deleteRow, getBlock, insertColumn, insertRow } from '@nbe/core';
 import type { EditorView } from './view';
 import { createDropZone, fileToDataUrl, openIconPicker, type MenuEntry } from './ui';
 import { CALLOUT_PRESETS } from './callout';
@@ -107,6 +107,39 @@ registerBlockActions('image', (ctx) => {
     },
   });
   return [{ kind: 'section', label: 'Image' }, { kind: 'custom', el: zone }];
+});
+
+/**
+ * Table actions operate on the cell the caret is in, so the ⋮⋮ menu of a
+ * table row is really "what do I do here" rather than a table-wide dialog.
+ */
+registerBlockActions('table', (ctx) => {
+  const doc = ctx.view.editor.doc;
+  // the live selection is the block itself by the time this menu opens, so the
+  // row and column come from where the caret last was in text
+  const caret = ctx.view.lastTextCaret;
+  const caretCell = caret ? cellPosition(doc, caret.blockId) : null;
+  const position = caretCell?.tableId === ctx.block.id ? caretCell : null;
+  const row = position?.row ?? 0;
+  const column = position?.column ?? 0;
+  const editor = ctx.view.editor;
+
+  return [
+    { kind: 'section', label: `Ligne ${row + 1}` },
+    { label: 'Insérer une ligne au-dessus', onSelect: () => insertRow(editor, ctx.block.id, row) },
+    { label: 'Insérer une ligne en dessous', onSelect: () => insertRow(editor, ctx.block.id, row + 1) },
+    { label: 'Supprimer la ligne', onSelect: () => deleteRow(editor, ctx.block.id, row) },
+    { kind: 'section', label: `Colonne ${column + 1}` },
+    { label: 'Insérer une colonne à gauche', onSelect: () => insertColumn(editor, ctx.block.id, column) },
+    { label: 'Insérer une colonne à droite', onSelect: () => insertColumn(editor, ctx.block.id, column + 1) },
+    { label: 'Supprimer la colonne', onSelect: () => deleteColumn(editor, ctx.block.id, column) },
+    { kind: 'section', label: 'Tableau' },
+    {
+      label: "Ligne d'en-tête",
+      hint: ctx.block.props['headerRow'] !== false ? '✓' : undefined,
+      onSelect: () => setProps(ctx, { headerRow: ctx.block.props['headerRow'] === false }),
+    },
+  ];
 });
 
 registerBlockActions('to_do', (ctx) => [

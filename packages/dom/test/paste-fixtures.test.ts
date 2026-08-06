@@ -5,7 +5,7 @@
 // every fixture here is a regression tripwire for htmlToBlocks.
 import { describe, expect, it } from 'vitest';
 import { plainText, type BlockJSON } from '@nbe/core';
-import { htmlToBlocks } from '../src/clipboard';
+import { htmlToBlocks, tsvToTable } from '../src/clipboard';
 
 const types = (blocks: BlockJSON[]) => blocks.map((b) => b.type);
 const texts = (blocks: BlockJSON[]) => blocks.map((b) => plainText(b.text));
@@ -67,10 +67,37 @@ describe('paste: Excel / spreadsheet table', () => {
     <tr height=21><td height=21>Pomme</td><td align=right>3</td><td align=right>2,50</td></tr>
   </table>`;
 
-  it('flattens rows to one paragraph per row (table block is AQ#3)', () => {
-    const blocks = htmlToBlocks(html);
-    expect(types(blocks)).toEqual(['paragraph', 'paragraph']);
-    expect(texts(blocks)).toEqual(['Nom — Qté — Prix', 'Pomme — 3 — 2,50']);
+  const grid = (block: { children?: { children?: { text?: { text: string }[] }[] }[] }) =>
+    (block.children ?? []).map((r) => (r.children ?? []).map((c) => (c.text ?? []).map((t) => t.text).join('')));
+
+  it('becomes a real table block', () => {
+    const [block] = htmlToBlocks(html);
+    expect(block!.type).toBe('table');
+    expect(grid(block!)).toEqual([
+      ['Nom', 'Qté', 'Prix'],
+      ['Pomme', '3', '2,50'],
+    ]);
+    // Excel emits <td> everywhere, so nothing claims to be a header
+    expect(block!.props?.['headerRow']).toBe(false);
+  });
+
+  it('keeps the header when the source marks one with <th>', () => {
+    const [block] = htmlToBlocks('<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>');
+    expect(block!.props?.['headerRow']).toBeUndefined();
+  });
+});
+
+describe('paste: TSV without an HTML flavour', () => {
+  it('turns an aligned tab grid into a table', () => {
+    const block = tsvToTable('Nom\tVille\nAda\tLondres');
+    expect(block!.type).toBe('table');
+    expect(block!.children).toHaveLength(2);
+  });
+
+  it('leaves prose alone when the tab counts disagree', () => {
+    expect(tsvToTable('a\tb\nc')).toBeNull();
+    expect(tsvToTable('une seule ligne\tavec tab')).toBeNull();
+    expect(tsvToTable('pas de tab\ndu tout')).toBeNull();
   });
 });
 

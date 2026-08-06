@@ -141,6 +141,23 @@ function renderOne(block: BlockJSON, opts: RenderOptions): string {
         ? `<p${attrs()}><a href="${escapeHtml(href)}">${label}</a></p>`
         : `<p${attrs()}>${label}</p>`;
     }
+    case 'table': {
+      // real <table> markup, so an exported page stays readable and accessible
+      // outside the editor's CSS — the header row becomes a <thead>
+      const rows = (block.children ?? []).filter((r) => r.type === 'table_row');
+      const rowHtml = (row: BlockJSON, cellTag: 'td' | 'th') =>
+        `<tr${blockAttrs(row, `${p}-t-table_row`, opts)}>${(row.children ?? [])
+          .map(
+            (c) =>
+              `<${cellTag}${blockAttrs(c, `${p}-t-table_cell`, opts)}>${runsToHtml(c.text, opts)}</${cellTag}>`,
+          )
+          .join('')}</tr>`;
+      const header = props['headerRow'] !== false && rows.length ? rows[0] : null;
+      const body = header ? rows.slice(1) : rows;
+      return `<table${attrs()}>${header ? `<thead>${rowHtml(header, 'th')}</thead>` : ''}<tbody>${body
+        .map((r) => rowHtml(r, 'td'))
+        .join('')}</tbody></table>`;
+    }
     case 'column_list':
       return `<div${attrs()}>${children}</div>`;
     case 'column': {

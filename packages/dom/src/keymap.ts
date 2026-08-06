@@ -1,8 +1,11 @@
 import {
+  cellAt,
+  cellPosition,
   deleteBlocks,
   duplicateBlocks,
   getBlock,
   indent,
+  insertRow,
   insertText,
   isCollapsed,
   mergeBackward,
@@ -12,6 +15,8 @@ import {
   previousInlineBlock,
   selectedBlocks,
   splitBlock,
+  tableCells,
+  tableRows,
   textCaret,
   textLength,
   toggleMarkRange,
@@ -36,6 +41,43 @@ function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
     first: rect.top - leafRect.top < line * 0.75,
     last: leafRect.bottom - rect.bottom < line * 0.75,
   };
+}
+
+/**
+ * Tab through table cells. Tabbing past the last cell appends a row, so a
+ * table can be filled entirely from the keyboard.
+ */
+function moveThroughCells(view: EditorView, blockId: string, direction: 1 | -1): boolean {
+  const editor = view.editor;
+  const position = cellPosition(editor.doc, blockId);
+  if (!position) return false;
+  const cells = tableCells(editor.doc, position.tableId);
+  const index = cells.findIndex((c) => c.id === blockId);
+  const next = cells[index + direction];
+  if (next) {
+    view.focusBlock(next.id, textLength(next.text));
+    return true;
+  }
+  if (direction === -1) return true; // at the first cell: stay put, never indent
+  const rows = tableRows(editor.doc, position.tableId).length;
+  insertRow(editor, position.tableId, rows);
+  view.syncDomSelection();
+  return true;
+}
+
+/** Enter in a cell: down one row, creating it when at the bottom. */
+function moveDownCell(view: EditorView, blockId: string): void {
+  const editor = view.editor;
+  const position = cellPosition(editor.doc, blockId);
+  if (!position) return;
+  const below = cellAt(editor.doc, position.tableId, position.row + 1, position.column);
+  if (below) {
+    view.focusBlock(below.id, textLength(below.text));
+    return;
+  }
+  insertRow(editor, position.tableId, position.row + 1);
+  const created = cellAt(editor.doc, position.tableId, position.row + 1, position.column);
+  if (created) view.focusBlock(created.id, 0);
 }
 
 export function attachKeymap(view: EditorView): () => void {
@@ -197,6 +239,13 @@ export function attachKeymap(view: EditorView): () => void {
           insertText(editor, '\n');
           return;
         }
+        // a cell never splits: Enter moves to the cell below, adding a row at
+        // the bottom edge, which is how a table is filled in by typing
+        if (caret && getBlock(editor.doc, caret.blockId).type === 'table_cell') {
+          e.preventDefault();
+          moveDownCell(view, caret.blockId);
+          return;
+        }
         if (caret && getBlock(editor.doc, caret.blockId).type === 'code') {
           e.preventDefault();
           insertText(editor, '\n');
@@ -216,6 +265,8 @@ export function attachKeymap(view: EditorView): () => void {
       case 'Tab': {
         e.preventDefault();
         if (!caret) return;
+        // inside a table, Tab walks cells instead of indenting (Notion)
+        if (moveThroughCells(view, caret.blockId, e.shiftKey ? -1 : 1)) return;
         if (e.shiftKey) outdent(editor, caret.blockId);
         else indent(editor, caret.blockId);
         view.syncDomSelection();
