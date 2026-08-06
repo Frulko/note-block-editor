@@ -262,6 +262,21 @@ overlays. Framework adapters never re-implement it.
 - **Link hover card** (`dom/src/link-hover.ts`): hovering a link offers open /
   copy / edit / remove without selecting the text first; editing selects the
   link's exact range so the range commands apply to it.
+- **Three block categories** (`blockCategory` in core), and every behavioural
+  question follows from which one you have: `text` carries inline content so
+  it owns a caret and is edited; `void` (image, divider, page link, database)
+  has no caret, so a press on it is a **grab**, not an edit — it drags
+  directly; `layout` (columns, page) is structure and is never a drag target.
+  A block that is part of the current block selection drags directly too, so a
+  rubber-band selection is immediately reorderable without hunting for the
+  handle.
+- **One way to build an action control**: `ui/createActionButton`. It takes a
+  mandatory `title` that becomes both the accessible name and the tooltip, and
+  handles popover-toggle behaviour and selection preservation. Every surface
+  goes through it — gutter, block toolbar, selection toolbar, link card,
+  block-rendered affordances — so a control cannot ship without a label. This
+  is a factory rather than a convention precisely because conventions get
+  forgotten at the fortieth call site.
 - **UI primitives (`dom/src/ui/`),** shared by all chrome and exported for
   block authors: `position` (pure flip/clamp engine + `autoUpdate` live
   anchoring), `menu` (keyboard nav, outside-click/Escape dismissal, and it

@@ -1,15 +1,7 @@
 import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
-import {
-  attachTooltip,
-  createMenu,
-  dismissedBy,
-  icon,
-  positionFloating,
-  type IconName,
-  type MenuEntry,
-} from './ui';
+import { createActionButton, createMenu, positionFloating, type IconName, type MenuEntry } from './ui';
 
 /**
  * Per-block floating toolbar, anchored to the block's top-right on hover.
@@ -166,22 +158,15 @@ export function attachBlockToolbar(view: EditorView): () => void {
 
     bar.replaceChildren();
     for (const spec of provider({ view, block, setProps })) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'nbe-blocktoolbar-btn' + (spec.active ? ' nbe-active' : '');
-      button.title = spec.title;
-      button.setAttribute('aria-label', spec.title);
-      button.append(icon(spec.icon, { size: 15 }));
-      // an icon-only control is unusable without a label; the native title
-      // attribute is too slow to appear to teach anything
-      attachTooltip(button, spec.title, { delayMs: 250 });
-      button.addEventListener('mousedown', (e) => e.preventDefault());
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        // the press already closed the popover this button owns: a click that
-        // reopened it would read as a broken toggle
-        if (dismissedBy(button)) return;
-        spec.onClick({ view, block, anchor: button, setProps }, button);
+      const button = createActionButton({
+        title: spec.title,
+        icon: spec.icon,
+        iconSize: 15,
+        className: 'nbe-blocktoolbar-btn' + (spec.active ? ' nbe-active' : ''),
+        preserveSelection: true,
+        popover: true,
+        tooltipDelay: 250,
+        onClick: () => spec.onClick({ view, block, anchor: button, setProps }, button),
       });
       bar.append(button);
     }

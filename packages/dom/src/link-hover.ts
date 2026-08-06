@@ -1,6 +1,6 @@
 import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
 import type { EditorView } from './view';
-import { attachTooltip, autoUpdate, dismissable, icon } from './ui';
+import { autoUpdate, createActionButton, dismissable, type IconName } from './ui';
 import { leafOf } from './selection';
 import { markTextIntent } from './caret';
 
@@ -51,21 +51,16 @@ export function attachLinkHover(view: EditorView): () => void {
     return true;
   };
 
-  const button = (name: Parameters<typeof icon>[0], title: string, onClick: () => void): HTMLButtonElement => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'nbe-linkcard-btn';
-    b.title = title;
-    b.setAttribute('aria-label', title);
-    b.append(icon(name, { size: 14 }));
-    attachTooltip(b, title, { delayMs: 250 });
-    b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', (e) => {
-      e.preventDefault();
-      onClick();
+  const button = (name: IconName, title: string, onClick: () => void): HTMLButtonElement =>
+    createActionButton({
+      title,
+      icon: name,
+      iconSize: 14,
+      className: 'nbe-linkcard-btn',
+      preserveSelection: true,
+      tooltipDelay: 250,
+      onClick,
     });
-    return b;
-  };
 
   const show = (anchor: HTMLAnchorElement) => {
     clearTimeout(hideTimer);

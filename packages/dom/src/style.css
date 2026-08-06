@@ -277,6 +277,20 @@
   padding: 0;
 }
 
+/* void blocks (no caret to place) are grabbed, not edited */
+.nbe-t-image,
+.nbe-t-divider,
+.nbe-t-link_to_page {
+  cursor: grab;
+}
+.nbe-selected {
+  cursor: grab;
+}
+.nbe-drag-active .nbe-t-image,
+.nbe-drag-active .nbe-selected {
+  cursor: grabbing;
+}
+
 /* --- block selection --- */
 
 .nbe-selected {

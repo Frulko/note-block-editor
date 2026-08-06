@@ -1,5 +1,6 @@
 import type { Block, BlockId } from '@nbe/core';
 import {
+  blockCategory,
   childIndex,
   deleteBlocks,
   duplicateBlocks,
@@ -15,8 +16,7 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import {
-  attachTooltip,
-  icon,
+  createActionButton,
   createDragGhost,
   createHoverZone,
   createMenu,
@@ -39,22 +39,24 @@ export function attachControls(view: EditorView): () => void {
   const controls = document.createElement('div');
   controls.className = 'nbe-controls';
   controls.dataset['nbeUi'] = '';
-  const plusBtn = document.createElement('button');
-  plusBtn.type = 'button';
-  plusBtn.className = 'nbe-ctrl-btn nbe-plus';
-  plusBtn.append(icon('plus', { size: 18 }));
-  plusBtn.setAttribute('aria-label', 'Ajouter un bloc en dessous');
-  const handleBtn = document.createElement('button');
-  handleBtn.type = 'button';
-  handleBtn.className = 'nbe-ctrl-btn nbe-handle';
-  handleBtn.append(icon('grip-vertical', { size: 18 }));
-  handleBtn.setAttribute('aria-label', 'Menu du bloc (glisser pour déplacer)');
-  handleBtn.setAttribute('aria-haspopup', 'menu');
+  const plusBtn = createActionButton({
+    title: 'Ajouter un bloc en dessous',
+    icon: 'plus',
+    iconSize: 18,
+    className: 'nbe-ctrl-btn nbe-plus',
+    preserveSelection: true,
+    onClick: () => insertBelow(),
+  });
+  const handleBtn = createActionButton({
+    title: 'Glisser pour déplacer\nCliquer pour ouvrir le menu',
+    icon: 'grip-vertical',
+    iconSize: 18,
+    className: 'nbe-ctrl-btn nbe-handle',
+    popover: true,
+    // the drag session owns the press; the factory's click only opens the menu
+    onClick: () => {},
+  });
   controls.append(plusBtn, handleBtn);
-  const unTooltips = [
-    attachTooltip(plusBtn, 'Cliquer pour ajouter en dessous'),
-    attachTooltip(handleBtn, 'Glisser pour déplacer\nCliquer pour ouvrir le menu'),
-  ];
 
   let hoveredId: BlockId | null = null;
 
@@ -130,8 +132,7 @@ export function attachControls(view: EditorView): () => void {
   });
 
   // --- plus button: new paragraph below + slash menu ---
-  plusBtn.addEventListener('mousedown', (e) => e.preventDefault());
-  plusBtn.addEventListener('click', () => {
+  function insertBelow() {
     if (!hoveredId) return;
     const block = getBlock(editor.doc, hoveredId);
     const p: Block = {
@@ -149,7 +150,7 @@ export function attachControls(view: EditorView): () => void {
     );
     view.syncDomSelection();
     insertText(editor, '/'); // opens the slash menu
-  });
+  }
 
   // --- block menu (generic menu primitive) ---
   const menu = createMenu({
@@ -291,6 +292,7 @@ export function attachControls(view: EditorView): () => void {
 
   // --- drag & drop (drag session primitive, ARCHITECTURE §7 / D8) ---
   let dragIds: BlockId[] = [];
+  let directDragId: BlockId | null = null;
   let drop: { targetId: BlockId; edge: Edge } | null = null;
 
   let ghost: DragGhost | null = null;
@@ -401,50 +403,89 @@ export function attachControls(view: EditorView): () => void {
     }
   };
 
+  /** Blocks a gesture starting on `id` should move: the selection, or just it. */
+  const dragTargets = (id: BlockId | null): BlockId[] => {
+    if (!id || !editor.doc.blocks.has(id)) return [];
+    const sel = editor.selection;
+    if (sel?.kind === 'block') {
+      const ids = selectedBlocks(editor.doc, sel);
+      if (ids.includes(id)) return ids; // dragging one of them drags them all
+    }
+    return [id];
+  };
+
+  const beginDrag = (e: PointerEvent, ids: BlockId[]): boolean => {
+    if (!ids.length) return false;
+    menu.close();
+    dragIds = ids;
+    hover.freeze(true);
+    document.body.classList.add('nbe-drag-active');
+    const sources = dragIds.map((id) => view.blockEl(id)).filter((el): el is HTMLElement => el !== null);
+    for (const el of sources) el.classList.add('nbe-drag-source');
+    ghost = createDragGhost(sources, { count: dragIds.length });
+    ghost.move(e.clientX, e.clientY);
+    document.body.append(guide);
+    controls.classList.add('nbe-ctrl-hidden');
+    return true;
+  };
+
+  const endDrag = (commit: boolean) => {
+    try {
+      if (commit) commitDrop();
+    } finally {
+      cleanupDrag();
+      hover.hide();
+    }
+  };
+
+  /*
+   * Second drag source, alongside the ⋮⋮ handle: press-and-drag directly on a
+   * block. Allowed for VOID blocks (an image has no caret, so a press on it is
+   * a grab, not an edit) and for any block that is part of the current block
+   * selection — which is what makes a rubber-band selection immediately
+   * reorderable without hunting for the handle.
+   */
+  const unDirectDrag = draggable(view.content, {
+    scrollContainer: () => findScrollParent(view.content),
+    canStart: (e) => {
+      const target = e.target as HTMLElement | null;
+      if (!target || target.closest('[data-nbe-ui], input, textarea, select, a, button')) return false;
+      const blockEl = target.closest('.nbe-block') as HTMLElement | null;
+      const id = blockEl?.dataset['blockId'];
+      if (!id || !editor.doc.blocks.has(id)) return false;
+      const category = blockCategory(editor.schema, getBlock(editor.doc, id).type);
+      if (category === 'layout') return false;
+      const sel = editor.selection;
+      const inSelection = sel?.kind === 'block' && selectedBlocks(editor.doc, sel).includes(id);
+      if (category !== 'void' && !inSelection) return false;
+      directDragId = id;
+      return true;
+    },
+    onStart: (e) => beginDrag(e, dragTargets(directDragId)),
+    onMove: updateDrop,
+    onDrop: () => endDrag(true),
+    onCancel: () => endDrag(false),
+  });
+
   const unDrag = draggable(handleBtn, {
     onTap: () => toggleMenu(),
     scrollContainer: () => findScrollParent(view.content),
     onStart: (e) => {
       menu.close();
-      const sel = editor.selection;
-      dragIds =
-        sel?.kind === 'block' && hoveredId && selectedBlocks(editor.doc, sel).includes(hoveredId)
-          ? selectedBlocks(editor.doc, sel)
-          : hoveredId
-            ? [hoveredId]
-            : [];
+      dragIds = dragTargets(hoveredId);
       if (!dragIds.length) return false;
-      hover.freeze(true);
-      document.body.classList.add('nbe-drag-active');
-      const sources = dragIds.map((id) => view.blockEl(id)).filter((el): el is HTMLElement => el !== null);
-      for (const el of sources) el.classList.add('nbe-drag-source');
-      ghost = createDragGhost(sources, { count: dragIds.length });
-      ghost.move(e.clientX, e.clientY);
-      document.body.append(guide);
-      // hide, never remove: the handle keeps its pointer capture alive
-      controls.classList.add('nbe-ctrl-hidden');
-      return true;
+      return beginDrag(e, dragIds);
     },
     onMove: updateDrop,
-    onDrop: () => {
-      try {
-        commitDrop();
-      } finally {
-        cleanupDrag();
-        hover.hide();
-      }
-    },
-    onCancel: () => {
-      cleanupDrag();
-      hover.hide();
-    },
+    onDrop: () => endDrag(true),
+    onCancel: () => endDrag(false),
   });
 
   return () => {
     hover.destroy();
     menu.close();
     unDrag();
-    for (const un of unTooltips) un();
+    unDirectDrag();
     controls.remove();
     ghost?.destroy();
     guide.remove();

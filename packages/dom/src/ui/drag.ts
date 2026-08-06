@@ -1,4 +1,11 @@
 export interface DraggableOptions {
+  /**
+   * Decide at press time whether this press may become a drag. Returning
+   * false leaves the event completely alone — no preventDefault, no tracking
+   * — so attaching a drag source to a large container (the editor content)
+   * cannot break text selection on the parts that are not drag handles.
+   */
+  canStart?: (e: PointerEvent) => boolean;
   /** Movement in px before a press becomes a drag (default 4). */
   thresholdPx?: number;
   /** Press released under the threshold — a click, not a drag. */
@@ -141,6 +148,7 @@ export function draggable(handle: HTMLElement, opts: DraggableOptions): () => vo
 
   const onDown = (e: PointerEvent) => {
     if (e.button !== 0 || start) return;
+    if (opts.canStart && !opts.canStart(e)) return;
     e.preventDefault();
     start = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
     try {

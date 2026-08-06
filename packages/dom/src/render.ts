@@ -2,7 +2,7 @@ import type { Block, Run } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { renderDatabase } from './database';
-import { createDropZone, fileToDataUrl } from './ui';
+import { createActionButton, createDropZone, fileToDataUrl } from './ui';
 import { backgroundColor, textColor } from './colors';
 
 const PLAINTEXT_ONLY_SUPPORTED = (() => {
@@ -182,9 +182,14 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       break;
     }
     case 'callout': {
-      const icon = el('button', 'nbe-callout-icon') as HTMLButtonElement;
-      icon.type = 'button';
-      icon.setAttribute('aria-label', "Changer l'icône");
+      // through the factory like every other action, so it can never ship
+      // without a tooltip and accessible name
+      const icon = createActionButton({
+        title: "Changer l'icône du callout",
+        className: 'nbe-callout-icon',
+        popover: true,
+        onClick: () => {}, // the delegated handler in input.ts opens the picker
+      });
       const value = String(block.props['icon'] ?? '💡');
       if (/^(data:|https?:|asset:)/.test(value)) {
         const img = document.createElement('img');
