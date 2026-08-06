@@ -4,9 +4,13 @@ import { renderBlock } from './render';
 import { attachSelectionSync, modelPointToDom } from './selection';
 import { attachInput } from './input';
 import { attachKeymap } from './keymap';
+import { attachSlashMenu } from './slash';
+import { attachControls } from './controls';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
+  /** Create a page in the host workspace (slash menu "Page" item). */
+  onCreatePage?: () => { pageId: string; title: string } | null;
 }
 
 export class EditorView {
@@ -30,6 +34,7 @@ export class EditorView {
 
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
+    this.unbinders.push(attachSlashMenu(this), attachControls(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
   }
@@ -112,5 +117,21 @@ export class EditorView {
   focusBlock(id: string, offset: number): void {
     this.editor.setSelection(textCaret(id, offset));
     this.syncDomSelection();
+  }
+
+  private announcer: HTMLElement | null = null;
+
+  /** Screen-reader announcement (polite live region, ARCHITECTURE §8). */
+  announce(message: string): void {
+    if (!this.announcer) {
+      this.announcer = document.createElement('div');
+      this.announcer.className = 'nbe-announcer';
+      this.announcer.setAttribute('aria-live', 'polite');
+      this.content.after(this.announcer);
+    }
+    this.announcer.textContent = '';
+    requestAnimationFrame(() => {
+      if (this.announcer) this.announcer.textContent = message;
+    });
   }
 }
