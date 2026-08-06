@@ -29,12 +29,14 @@ export function loadWorkspace(seed: () => BlockJSON): Workspace {
 let saveTimer = 0;
 let pending: Workspace | null = null;
 
-function flush(): void {
+export function flushWorkspace(): void {
   if (!pending) return;
   clearTimeout(saveTimer);
   localStorage.setItem(KEY, JSON.stringify(pending));
   pending = null;
 }
+
+const flush = flushWorkspace;
 
 export function saveWorkspace(ws: Workspace): void {
   pending = ws;

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyView, compareRows, formatValue, matchesFilter } from '../src/db';
+import {
+  applyView,
+  compareRows,
+  evaluateView,
+  formatValue,
+  groupRows,
+  matchesFilter,
+  visibleProperties,
+} from '../src/db';
 import type { CollectionSchema, RowData, ViewConfig } from '../src/db';
 
 const schema: CollectionSchema = {
@@ -80,6 +88,58 @@ describe('sorting', () => {
     expect(statusOrder.indexOf('Fait')).toBeGreaterThan(statusOrder.indexOf('En cours'));
     const faits = out.filter((r) => r.properties['p_status'] === 'Fait').map((r) => r.pageId);
     expect(faits).toEqual(['r4', 'r1']); // prio 1 before prio 2
+  });
+});
+
+describe('grouping', () => {
+  it('groups by select in the declared option order, empty group last', () => {
+    const groups = groupRows(rows, 'p_status', schema);
+    expect(groups.map((g) => g.label)).toEqual(['À faire', 'En cours', 'Fait']);
+    expect(groups.find((g) => g.label === 'Fait')!.rows.map((r) => r.pageId)).toEqual(['r1']);
+  });
+
+  it('keeps declared options as empty columns (a board needs them)', () => {
+    const groups = groupRows([rows[0]!], 'p_status', schema);
+    expect(groups.map((g) => g.label)).toEqual(['À faire', 'En cours', 'Fait']);
+    expect(groups.find((g) => g.label === 'À faire')!.rows).toEqual([]);
+  });
+
+  it('a multi-select row appears in every group it belongs to', () => {
+    const groups = groupRows(rows, 'p_tags', schema);
+    const perso = groups.find((g) => g.label === 'perso')!;
+    const pro = groups.find((g) => g.label === 'pro')!;
+    expect(perso.rows.map((r) => r.pageId)).toEqual(['r2']);
+    expect(pro.rows.map((r) => r.pageId)).toEqual(['r1', 'r2']);
+    // the row with an empty array lands in the no-value group, listed last
+    expect(groups[groups.length - 1]!.key).toBe('');
+    expect(groups[groups.length - 1]!.rows.map((r) => r.pageId)).toEqual(['r3']);
+  });
+
+  it('checkbox grouping yields both columns with readable labels', () => {
+    const groups = groupRows(rows, 'p_done', schema);
+    expect(groups.map((g) => g.label)).toEqual(['Coché', 'Non coché']);
+    expect(groups[0]!.rows.map((r) => r.pageId)).toEqual(['r1']);
+    expect(groups[1]!.rows).toHaveLength(2);
+  });
+
+  it('evaluateView applies filters and sorts before grouping', () => {
+    const out = evaluateView(
+      rows,
+      view({ groupBy: 'p_status', filters: [{ propertyId: 'p_done', op: 'eq', value: false }] }),
+      schema,
+    );
+    expect(out.rows.map((r) => r.pageId)).toEqual(['r2', 'r3']);
+    expect(out.groups!.find((g) => g.label === 'Fait')!.rows).toEqual([]);
+    expect(evaluateView(rows, view({}), schema).groups).toBeNull();
+  });
+
+  it('visibleProperties honors the hidden list, keeping schema order', () => {
+    expect(visibleProperties(schema, view({})).map((p) => p.id)).toEqual(schema.properties.map((p) => p.id));
+    expect(visibleProperties(schema, view({ hidden: ['p_prio', 'p_tags'] })).map((p) => p.name)).toEqual([
+      'Statut',
+      'OK',
+      'Échéance',
+    ]);
   });
 });
 

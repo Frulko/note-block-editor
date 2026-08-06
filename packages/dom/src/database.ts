@@ -1,7 +1,17 @@
-import type { Block, CollectionSchema, PropertyDef, RowData, ViewConfig } from '@nbe/core';
-import { applyView, formatValue, PROPERTY_TYPES } from '@nbe/core';
+import type {
+  Block,
+  CollectionSchema,
+  Filter,
+  FilterOp,
+  PropertyDef,
+  RowData,
+  RowGroup,
+  ViewConfig,
+  ViewLayout,
+} from '@nbe/core';
+import { evaluateView, formatValue, PROPERTY_TYPES, visibleProperties } from '@nbe/core';
 import type { EditorView } from './view';
-import { createMenu, type MenuEntry } from './ui';
+import { createMenu, draggable, type MenuEntry } from './ui';
 import { renderBlock } from './render';
 
 export interface DatabaseData {
@@ -14,7 +24,7 @@ export interface DatabaseData {
 export interface DatabaseHost {
   get(collectionId: string): DatabaseData | null;
   create(): { collectionId: string } | null;
-  addRow(collectionId: string): void;
+  addRow(collectionId: string, initialProperties?: Record<string, unknown>): void;
   deleteRow(collectionId: string, pageId: string): void;
   updateCell(collectionId: string, pageId: string, propertyId: string, value: unknown): void;
   addProperty(collectionId: string): void;
@@ -26,7 +36,7 @@ export interface DatabaseHost {
   onChange(cb: () => void): () => void;
 }
 
-const FILTER_OPS: Array<{ op: ViewConfig['filters'][number]['op']; label: string; needsValue: boolean }> = [
+const FILTER_OPS: Array<{ op: FilterOp; label: string; needsValue: boolean }> = [
   { op: 'contains', label: 'contient', needsValue: true },
   { op: 'eq', label: 'est', needsValue: true },
   { op: 'neq', label: "n'est pas", needsValue: true },
@@ -34,6 +44,12 @@ const FILTER_OPS: Array<{ op: ViewConfig['filters'][number]['op']; label: string
   { op: 'lt', label: '<', needsValue: true },
   { op: 'not_empty', label: 'non vide', needsValue: false },
   { op: 'empty', label: 'vide', needsValue: false },
+];
+
+const LAYOUTS: Array<{ layout: ViewLayout; label: string; icon: string }> = [
+  { layout: 'table', label: 'Table', icon: '▤' },
+  { layout: 'board', label: 'Board', icon: '▥' },
+  { layout: 'list', label: 'Liste', icon: '☰' },
 ];
 
 function el(tag: string, className?: string, text?: string): HTMLElement {
@@ -50,13 +66,20 @@ function btn(className: string, text: string, onClick: (e: MouseEvent) => void):
   return b;
 }
 
+function select(options: Array<{ value: string; label: string }>, value: string): HTMLSelectElement {
+  const s = document.createElement('select');
+  for (const o of options) {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    s.append(opt);
+  }
+  s.value = value;
+  return s;
+}
+
 /** Swap a cell's content for an input; commit on Enter/blur, cancel on Escape. */
-function inlineInput(
-  cell: HTMLElement,
-  initial: string,
-  commit: (value: string) => void,
-  inputType = 'text',
-): void {
+function inlineInput(cell: HTMLElement, initial: string, commit: (value: string) => void, inputType = 'text'): void {
   const input = document.createElement('input');
   input.type = inputType;
   input.className = 'nbe-db-input';
@@ -97,94 +120,159 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     return root;
   }
   const { schema, view: cfg } = data;
-  const rows = applyView(data.rows, cfg, schema);
+  const columns = visibleProperties(schema, cfg);
+  const { rows, groups } = evaluateView(data.rows, cfg, schema);
+  const allColumns = (): Array<{ id: string; name: string }> => [{ id: 'title', name: 'Titre' }, ...schema.properties];
+  const patchView = (patch: Partial<ViewConfig>) => host.updateView(collectionId, { ...cfg, ...patch });
 
-  // --- toolbar ---
+  // ---------------------------------------------------------------- toolbar
   const toolbar = el('div', 'nbe-db-toolbar');
   const title = el('span', 'nbe-db-title', schema.name);
+  title.title = 'Double-clic pour renommer';
   title.addEventListener('dblclick', () =>
     inlineInput(title, schema.name, (v) => host.updateSchemaName?.(collectionId, v.trim() || schema.name)),
   );
-  const filterBtn = btn('nbe-db-tool', cfg.filters.length ? `Filtre (${cfg.filters.length})` : 'Filtrer', () =>
+
+  /** First property a board can meaningfully group by. */
+  const firstGroupable = (): string | undefined =>
+    schema.properties.find((p) => p.type === 'select' || p.type === 'multi_select' || p.type === 'checkbox')?.id;
+
+  const layoutSwitch = el('div', 'nbe-db-layouts');
+  for (const l of LAYOUTS) {
+    const b = btn(
+      'nbe-db-layout' + (cfg.layout === l.layout ? ' nbe-active' : ''),
+      `${l.icon} ${l.label}`,
+      () => patchView({ layout: l.layout, ...(l.layout === 'board' && !cfg.groupBy ? { groupBy: firstGroupable() } : {}) }),
+    );
+    b.title = l.label;
+    layoutSwitch.append(b);
+  }
+
+  const filterBtn = btn('nbe-db-tool', cfg.filters.length ? `Filtres (${cfg.filters.length})` : 'Filtrer', () =>
     openFilterMenu(filterBtn),
   );
-  const sortBtn = btn('nbe-db-tool', cfg.sorts.length ? `Tri (${cfg.sorts.length})` : 'Trier', () =>
-    openSortMenu(sortBtn),
+  const sortBtn = btn('nbe-db-tool', cfg.sorts.length ? `Tris (${cfg.sorts.length})` : 'Trier', () => openSortMenu(sortBtn));
+  const groupBtn = btn(
+    'nbe-db-tool' + (cfg.groupBy ? ' nbe-active' : ''),
+    cfg.groupBy ? `Groupe : ${allColumns().find((c) => c.id === cfg.groupBy)?.name ?? '—'}` : 'Grouper',
+    () => openGroupMenu(groupBtn),
   );
-  toolbar.append(title, el('span', 'nbe-db-spacer'), filterBtn, sortBtn);
+  const propsBtn = btn('nbe-db-tool', 'Propriétés', () => openPropsMenu(propsBtn));
+  toolbar.append(title, layoutSwitch, el('span', 'nbe-db-spacer'), propsBtn, groupBtn, filterBtn, sortBtn);
   root.append(toolbar);
 
-  // --- menus ---
+  // ------------------------------------------------------------------ menus
   const openSortMenu = (anchor: HTMLElement) => {
     const menu = createMenu({ className: 'nbe-db-menu' });
     const entries: MenuEntry[] = [];
-    if (cfg.sorts.length)
-      entries.push({ label: 'Aucun tri', onSelect: () => host.updateView(collectionId, { ...cfg, sorts: [] }) });
-    const cols: Array<{ id: string; name: string }> = [{ id: 'title', name: 'Titre' }, ...schema.properties];
-    for (const c of cols) {
-      const active = cfg.sorts[0]?.propertyId === c.id ? cfg.sorts[0].dir : null;
-      entries.push({
-        label: `${c.name} ↑`,
-        hint: active === 'asc' ? '✓' : undefined,
-        onSelect: () => host.updateView(collectionId, { ...cfg, sorts: [{ propertyId: c.id, dir: 'asc' }] }),
+    if (cfg.sorts.length) {
+      entries.push({ kind: 'section', label: 'Tris actifs' });
+      cfg.sorts.forEach((sort, i) => {
+        const name = allColumns().find((c) => c.id === sort.propertyId)?.name ?? sort.propertyId;
+        entries.push({
+          label: `${i + 1}. ${name} ${sort.dir === 'asc' ? '↑' : '↓'}`,
+          hint: '✕',
+          onSelect: () => patchView({ sorts: cfg.sorts.filter((_, j) => j !== i) }),
+        });
       });
-      entries.push({
-        label: `${c.name} ↓`,
-        hint: active === 'desc' ? '✓' : undefined,
-        onSelect: () => host.updateView(collectionId, { ...cfg, sorts: [{ propertyId: c.id, dir: 'desc' }] }),
-      });
+      entries.push({ label: 'Tout effacer', onSelect: () => patchView({ sorts: [] }) });
+    }
+    entries.push({ kind: 'section', label: 'Ajouter un tri' });
+    for (const c of allColumns()) {
+      for (const dir of ['asc', 'desc'] as const) {
+        entries.push({
+          label: `${c.name} ${dir === 'asc' ? '↑' : '↓'}`,
+          onSelect: () =>
+            patchView({ sorts: [...cfg.sorts.filter((s) => s.propertyId !== c.id), { propertyId: c.id, dir }] }),
+        });
+      }
     }
     menu.update(entries);
-    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
+    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
   };
 
   const openFilterMenu = (anchor: HTMLElement) => {
-    const menu = createMenu({ className: 'nbe-db-menu' });
-    const wrap = el('div', 'nbe-db-filter');
-    const propSel = document.createElement('select');
-    for (const c of [{ id: 'title', name: 'Titre' }, ...schema.properties]) {
-      const o = document.createElement('option');
-      o.value = c.id;
-      o.textContent = c.name;
-      propSel.append(o);
-    }
-    const opSel = document.createElement('select');
-    for (const o of FILTER_OPS) {
-      const opt = document.createElement('option');
-      opt.value = o.op;
-      opt.textContent = o.label;
-      opSel.append(opt);
-    }
-    const valInput = document.createElement('input');
-    valInput.className = 'nbe-db-input';
-    valInput.placeholder = 'valeur';
-    const current = cfg.filters[0];
-    if (current) {
-      propSel.value = current.propertyId;
-      opSel.value = current.op;
-      valInput.value = String(current.value ?? '');
-    }
-    const syncVal = () => {
-      valInput.style.display = FILTER_OPS.find((o) => o.op === opSel.value)?.needsValue ? '' : 'none';
-    };
-    opSel.addEventListener('change', syncVal);
-    syncVal();
-    wrap.append(propSel, opSel, valInput);
-    const entries: MenuEntry[] = [
-      { kind: 'custom', el: wrap },
-      {
-        label: 'Appliquer',
-        onSelect: () =>
-          host.updateView(collectionId, {
-            ...cfg,
-            filters: [{ propertyId: propSel.value, op: opSel.value as never, value: valInput.value }],
-          }),
-      },
-    ];
-    if (cfg.filters.length)
-      entries.push({ label: 'Effacer le filtre', onSelect: () => host.updateView(collectionId, { ...cfg, filters: [] }) });
+    const menu = createMenu({ className: 'nbe-db-menu nbe-db-filtermenu' });
+    const entries: MenuEntry[] = [];
+
+    cfg.filters.forEach((filter, i) => {
+      const row = el('div', 'nbe-db-filter');
+      const propSel = select(allColumns().map((c) => ({ value: c.id, label: c.name })), filter.propertyId);
+      const opSel = select(FILTER_OPS.map((o) => ({ value: o.op, label: o.label })), filter.op);
+      const valInput = document.createElement('input');
+      valInput.className = 'nbe-db-input';
+      valInput.placeholder = 'valeur';
+      valInput.value = String(filter.value ?? '');
+      const syncVis = () => {
+        valInput.style.display = FILTER_OPS.find((o) => o.op === opSel.value)?.needsValue ? '' : 'none';
+      };
+      syncVis();
+      const commit = () => {
+        const next = [...cfg.filters];
+        next[i] = { propertyId: propSel.value, op: opSel.value as FilterOp, value: valInput.value };
+        patchView({ filters: next });
+      };
+      propSel.addEventListener('change', commit);
+      opSel.addEventListener('change', () => {
+        syncVis();
+        commit();
+      });
+      valInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+        }
+      });
+      valInput.addEventListener('blur', commit);
+      row.append(propSel, opSel, valInput, btn('nbe-db-x', '✕', () => patchView({ filters: cfg.filters.filter((_, j) => j !== i) })));
+      entries.push({ kind: 'custom', el: row });
+    });
+
+    entries.push({
+      label: '＋ Ajouter un filtre',
+      onSelect: () =>
+        patchView({
+          filters: [...cfg.filters, { propertyId: allColumns()[0]!.id, op: 'contains', value: '' }],
+        }),
+    });
+    if (cfg.filters.length) entries.push({ label: 'Tout effacer', onSelect: () => patchView({ filters: [] }) });
     menu.update(entries);
-    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
+    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
+  };
+
+  const openGroupMenu = (anchor: HTMLElement) => {
+    const menu = createMenu({ className: 'nbe-db-menu' });
+    const entries: MenuEntry[] = [
+      { label: 'Aucun groupe', hint: cfg.groupBy ? undefined : '✓', onSelect: () => patchView({ groupBy: undefined }) },
+      { kind: 'section', label: 'Grouper par' },
+      ...allColumns().map((c) => ({
+        label: c.name,
+        hint: cfg.groupBy === c.id ? '✓' : undefined,
+        onSelect: () => patchView({ groupBy: c.id }),
+      })),
+    ];
+    menu.update(entries);
+    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
+  };
+
+  const openPropsMenu = (anchor: HTMLElement) => {
+    const menu = createMenu({ className: 'nbe-db-menu' });
+    const hidden = new Set(cfg.hidden ?? []);
+    const entries: MenuEntry[] = [
+      { kind: 'section', label: 'Afficher' },
+      ...schema.properties.map((p) => ({
+        label: p.name,
+        hint: hidden.has(p.id) ? '○' : '●',
+        onSelect: () =>
+          patchView({
+            hidden: hidden.has(p.id) ? [...hidden].filter((id) => id !== p.id) : [...hidden, p.id],
+          }),
+      })),
+      { label: '＋ Nouvelle propriété', onSelect: () => host.addProperty(collectionId) },
+    ];
+    menu.update(entries);
+    menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
   };
 
   const openPropertyMenu = (anchor: HTMLElement, prop: PropertyDef) => {
@@ -194,16 +282,20 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     nameInput.className = 'nbe-db-input';
     nameInput.value = prop.name;
     nameInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
       if (e.key === 'Enter') {
         e.preventDefault();
         menu.close();
         host.updateProperty(collectionId, { ...prop, name: nameInput.value.trim() || prop.name });
       }
-      e.stopPropagation();
     });
     nameWrap.append(nameInput);
-    const entries: MenuEntry[] = [
+    menu.update([
       { kind: 'custom', el: nameWrap },
+      { label: 'Trier ↑', onSelect: () => patchView({ sorts: [{ propertyId: prop.id, dir: 'asc' }] }) },
+      { label: 'Trier ↓', onSelect: () => patchView({ sorts: [{ propertyId: prop.id, dir: 'desc' }] }) },
+      { label: 'Grouper par', onSelect: () => patchView({ groupBy: prop.id }) },
+      { label: 'Masquer', onSelect: () => patchView({ hidden: [...(cfg.hidden ?? []), prop.id] }) },
       { kind: 'section', label: 'Type' },
       ...PROPERTY_TYPES.map((t) => ({
         label: t.label,
@@ -212,8 +304,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       })),
       { kind: 'section', label: ' ' },
       { label: 'Supprimer la propriété', onSelect: () => host.deleteProperty(collectionId, prop.id) },
-    ];
-    menu.update(entries);
+    ]);
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
   };
 
@@ -257,90 +348,257 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
   };
 
-  // --- table ---
-  const table = el('div', 'nbe-db-table');
-  const head = el('div', 'nbe-db-row nbe-db-head');
-  head.append(el('div', 'nbe-db-cell nbe-db-titlecol', 'Titre'));
-  for (const prop of schema.properties) {
-    const cell = el('div', 'nbe-db-cell nbe-db-headcell', prop.name);
-    cell.addEventListener('click', () => openPropertyMenu(cell, prop));
-    head.append(cell);
-  }
-  head.append(btn('nbe-db-cell nbe-db-addprop', '＋', () => host.addProperty(collectionId)));
-  table.append(head);
+  // ------------------------------------------------------------------ cells
+  const renderCell = (row: RowData, prop: PropertyDef): HTMLElement => {
+    const cell = el('div', 'nbe-db-cell');
+    const value = row.properties[prop.id];
+    switch (prop.type) {
+      case 'checkbox': {
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = value === true;
+        cb.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, cb.checked));
+        cell.append(cb);
+        break;
+      }
+      case 'date': {
+        const d = document.createElement('input');
+        d.type = 'date'; // native picker (the ladder)
+        d.className = 'nbe-db-date';
+        d.value = String(value ?? '');
+        d.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, d.value));
+        cell.append(d);
+        break;
+      }
+      case 'select':
+      case 'multi_select': {
+        const label = formatValue(value, prop.type) || '—';
+        const b = btn('nbe-db-selectbtn', label, () => openSelectMenu(b, prop, row, prop.type === 'multi_select'));
+        cell.append(b);
+        break;
+      }
+      case 'url': {
+        const raw = String(value ?? '');
+        if (raw) {
+          const a = document.createElement('a');
+          a.href = raw;
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.textContent = raw;
+          a.className = 'nbe-db-url';
+          cell.append(a);
+        }
+        cell.classList.add('nbe-db-editable');
+        cell.addEventListener('dblclick', () =>
+          inlineInput(cell, raw, (v) => host.updateCell(collectionId, row.pageId, prop.id, v)),
+        );
+        break;
+      }
+      default: {
+        cell.textContent = formatValue(value, prop.type);
+        cell.classList.add('nbe-db-editable');
+        cell.addEventListener('click', () =>
+          inlineInput(
+            cell,
+            String(value ?? ''),
+            (v) =>
+              host.updateCell(
+                collectionId,
+                row.pageId,
+                prop.id,
+                prop.type === 'number' ? (v.trim() === '' ? '' : Number(v)) : v,
+              ),
+            prop.type === 'number' ? 'number' : 'text',
+          ),
+        );
+      }
+    }
+    return cell;
+  };
 
-  for (const row of rows) {
+  // ------------------------------------------------------------------ table
+  const tableRow = (row: RowData): HTMLElement => {
     const tr = el('div', 'nbe-db-row');
     const titleCell = el('div', 'nbe-db-cell nbe-db-titlecol nbe-db-titlecell');
     titleCell.append('📄 ', row.title || 'Sans titre');
     titleCell.addEventListener('click', () => host.openRow(row.pageId));
     tr.append(titleCell);
-
-    for (const prop of schema.properties) {
-      const cell = el('div', 'nbe-db-cell');
-      const value = row.properties[prop.id];
-      switch (prop.type) {
-        case 'checkbox': {
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.checked = value === true;
-          cb.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, cb.checked));
-          cell.append(cb);
-          break;
-        }
-        case 'date': {
-          const d = document.createElement('input');
-          d.type = 'date'; // native picker (the ladder)
-          d.className = 'nbe-db-date';
-          d.value = String(value ?? '');
-          d.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, d.value));
-          cell.append(d);
-          break;
-        }
-        case 'select':
-        case 'multi_select': {
-          const label = formatValue(value, prop.type) || '—';
-          const b = btn('nbe-db-selectbtn', label, () =>
-            openSelectMenu(b, prop, row, prop.type === 'multi_select'),
-          );
-          cell.append(b);
-          break;
-        }
-        default: {
-          cell.textContent = formatValue(value, prop.type);
-          cell.classList.add('nbe-db-editable');
-          cell.addEventListener('click', () =>
-            inlineInput(
-              cell,
-              String(value ?? ''),
-              (v) =>
-                host.updateCell(
-                  collectionId,
-                  row.pageId,
-                  prop.id,
-                  prop.type === 'number' ? (v.trim() === '' ? '' : Number(v)) : v,
-                ),
-              prop.type === 'number' ? 'number' : 'text',
-            ),
-          );
-        }
-      }
-      tr.append(cell);
-    }
-    const rowMenuBtn = btn('nbe-db-cell nbe-db-rowmenu', '⋯', () => {
+    for (const prop of columns) tr.append(renderCell(row, prop));
+    const menuBtn = btn('nbe-db-cell nbe-db-rowmenu', '⋯', () => {
       const menu = createMenu({ className: 'nbe-db-menu' });
       menu.update([
         { label: 'Ouvrir', onSelect: () => host.openRow(row.pageId) },
         { label: 'Supprimer la ligne', onSelect: () => host.deleteRow(collectionId, row.pageId) },
       ]);
-      menu.open(() => rowMenuBtn.getBoundingClientRect(), { placement: 'bottom-end' });
+      menu.open(() => menuBtn.getBoundingClientRect(), { placement: 'bottom-end' });
     });
-    tr.append(rowMenuBtn);
-    table.append(tr);
-  }
+    tr.append(menuBtn);
+    return tr;
+  };
 
-  table.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
-  root.append(table);
+  const tableHead = (): HTMLElement => {
+    const head = el('div', 'nbe-db-row nbe-db-head');
+    head.append(el('div', 'nbe-db-cell nbe-db-titlecol', 'Titre'));
+    for (const prop of columns) {
+      const sort = cfg.sorts.find((s) => s.propertyId === prop.id);
+      const cell = el('div', 'nbe-db-cell nbe-db-headcell', `${prop.name}${sort ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}`);
+      cell.addEventListener('click', () => openPropertyMenu(cell, prop));
+      head.append(cell);
+    }
+    head.append(btn('nbe-db-cell nbe-db-addprop', '＋', () => host.addProperty(collectionId)));
+    return head;
+  };
+
+  const renderTable = (): HTMLElement => {
+    const table = el('div', 'nbe-db-table');
+    table.append(tableHead());
+    if (groups) {
+      for (const group of groups) {
+        const header = el('div', 'nbe-db-groupheader');
+        header.append(el('span', 'nbe-db-grouplabel', group.label), el('span', 'nbe-db-groupcount', String(group.rows.length)));
+        table.append(header);
+        for (const row of group.rows) table.append(tableRow(row));
+        table.append(
+          btn('nbe-db-newrow', '＋ Nouveau', () =>
+            host.addRow(collectionId, groupProperties(group)),
+          ),
+        );
+      }
+    } else {
+      for (const row of rows) table.append(tableRow(row));
+      table.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
+    }
+    return table;
+  };
+
+  /** Values a new row must carry to belong to the group it was created in. */
+  const groupProperties = (group: RowGroup): Record<string, unknown> | undefined => {
+    if (!cfg.groupBy || group.key === '' || cfg.groupBy === 'title') return undefined;
+    const prop = schema.properties.find((p) => p.id === cfg.groupBy);
+    if (!prop) return undefined;
+    const value =
+      prop.type === 'multi_select' ? [group.key] : prop.type === 'checkbox' ? group.key === 'true' : group.key;
+    return { [prop.id]: value };
+  };
+
+  // ------------------------------------------------------------------ board
+  const renderBoard = (): HTMLElement => {
+    const board = el('div', 'nbe-db-board');
+    if (!groups) {
+      board.append(el('div', 'nbe-db-missing', 'Choisis une propriété de groupement pour le board.'));
+      return board;
+    }
+    for (const group of groups) {
+      const col = el('div', 'nbe-db-col');
+      col.dataset['groupKey'] = group.key;
+      const header = el('div', 'nbe-db-colhead');
+      header.append(el('span', 'nbe-db-grouplabel', group.label), el('span', 'nbe-db-groupcount', String(group.rows.length)));
+      col.append(header);
+      const body = el('div', 'nbe-db-colbody');
+      for (const row of group.rows) body.append(boardCard(row));
+      col.append(body);
+      col.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId, groupProperties(group))));
+      board.append(col);
+    }
+    return board;
+  };
+
+  const boardCard = (row: RowData): HTMLElement => {
+    const card = el('div', 'nbe-db-card');
+    card.dataset['pageId'] = row.pageId;
+    const cardTitle = el('div', 'nbe-db-cardtitle', row.title || 'Sans titre');
+    cardTitle.addEventListener('click', () => host.openRow(row.pageId));
+    card.append(cardTitle);
+    for (const prop of columns) {
+      if (prop.id === cfg.groupBy) continue; // redundant inside its own column
+      const value = row.properties[prop.id];
+      const text = formatValue(value, prop.type);
+      if (!text) continue;
+      const line = el('div', 'nbe-db-cardprop');
+      line.append(el('span', 'nbe-db-cardpropname', prop.name), el('span', 'nbe-db-cardpropvalue', text));
+      card.append(line);
+    }
+    attachCardDrag(card, row);
+    return card;
+  };
+
+  /** Dragging a card to another column writes the group property (Notion). */
+  const attachCardDrag = (card: HTMLElement, row: RowData): void => {
+    if (!cfg.groupBy || cfg.groupBy === 'title') return;
+    const prop = schema.properties.find((p) => p.id === cfg.groupBy);
+    if (!prop) return;
+    let targetKey: string | null = null;
+    draggable(card, {
+      onStart: () => {
+        card.classList.add('nbe-db-dragging');
+        document.body.classList.add('nbe-drag-active');
+      },
+      onMove: (e) => {
+        const col = (document.elementsFromPoint(e.clientX, e.clientY).find((n) =>
+          (n as HTMLElement).classList?.contains('nbe-db-col'),
+        ) ?? null) as HTMLElement | null;
+        for (const c of root.querySelectorAll('.nbe-db-col')) c.classList.remove('nbe-db-coltarget');
+        targetKey = col?.dataset['groupKey'] ?? null;
+        if (col && targetKey !== null) col.classList.add('nbe-db-coltarget');
+      },
+      onDrop: () => {
+        card.classList.remove('nbe-db-dragging');
+        document.body.classList.remove('nbe-drag-active');
+        for (const c of root.querySelectorAll('.nbe-db-col')) c.classList.remove('nbe-db-coltarget');
+        if (targetKey === null) return;
+        const value =
+          prop.type === 'multi_select'
+            ? targetKey === ''
+              ? []
+              : [targetKey]
+            : prop.type === 'checkbox'
+              ? targetKey === 'true'
+              : targetKey;
+        host.updateCell(collectionId, row.pageId, prop.id, value);
+      },
+      onCancel: () => {
+        card.classList.remove('nbe-db-dragging');
+        document.body.classList.remove('nbe-drag-active');
+        for (const c of root.querySelectorAll('.nbe-db-col')) c.classList.remove('nbe-db-coltarget');
+      },
+    });
+  };
+
+  // ------------------------------------------------------------------- list
+  const renderList = (): HTMLElement => {
+    const list = el('div', 'nbe-db-list');
+    const renderItems = (items: RowData[]) => {
+      for (const row of items) {
+        const item = el('div', 'nbe-db-listitem');
+        const label = el('span', 'nbe-db-listtitle');
+        label.append('📄 ', row.title || 'Sans titre');
+        label.addEventListener('click', () => host.openRow(row.pageId));
+        item.append(label);
+        for (const prop of columns) {
+          const text = formatValue(row.properties[prop.id], prop.type);
+          if (text) item.append(el('span', 'nbe-db-listprop', text));
+        }
+        list.append(item);
+      }
+    };
+    if (groups) {
+      for (const group of groups) {
+        const header = el('div', 'nbe-db-groupheader');
+        header.append(el('span', 'nbe-db-grouplabel', group.label), el('span', 'nbe-db-groupcount', String(group.rows.length)));
+        list.append(header);
+        renderItems(group.rows);
+      }
+    } else {
+      renderItems(rows);
+    }
+    list.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
+    return list;
+  };
+
+  root.append(cfg.layout === 'board' ? renderBoard() : cfg.layout === 'list' ? renderList() : renderTable());
+  if (data.rows.length && !rows.length) {
+    root.append(el('div', 'nbe-db-empty', 'Aucune ligne ne correspond aux filtres.'));
+  }
   return root;
 }
 

@@ -38,11 +38,17 @@ export interface Sort {
   dir: 'asc' | 'desc';
 }
 
+export type ViewLayout = 'table' | 'board' | 'list' | 'gallery';
+
 export interface ViewConfig {
   id: string;
-  layout: 'table'; // board | list | gallery in a later slice
+  layout: ViewLayout;
   filters: Filter[];
   sorts: Sort[];
+  /** Property to group by (board columns / table sections). */
+  groupBy?: string;
+  /** Property ids hidden in this view. */
+  hidden?: string[];
 }
 
 export interface RowData {
@@ -146,6 +152,96 @@ export function applyView(rows: RowData[], view: ViewConfig, schema: CollectionS
     out.sort((a, b) => compareRows(a, b, sort, schema));
   }
   return out;
+}
+
+export interface RowGroup {
+  /** Stable group key ('' for the no-value group). */
+  key: string;
+  label: string;
+  rows: RowData[];
+}
+
+export const EMPTY_GROUP_LABEL = 'Sans valeur';
+
+/**
+ * Group rows by a property. Group order follows the property's declared
+ * options (so board columns keep the schema order), then any ad-hoc values,
+ * with the no-value group last. A multi-select row appears in every group it
+ * belongs to — the Notion board behavior.
+ */
+export function groupRows(rows: RowData[], groupBy: string, schema: CollectionSchema): RowGroup[] {
+  const prop = schema.properties.find((p) => p.id === groupBy);
+  const buckets = new Map<string, RowData[]>();
+  const push = (key: string, row: RowData) => {
+    const list = buckets.get(key);
+    if (list) list.push(row);
+    else buckets.set(key, [row]);
+  };
+
+  // seed declared options so empty columns still render (a board needs them)
+  if (prop?.type === 'select' || prop?.type === 'multi_select') {
+    for (const opt of prop.options ?? []) buckets.set(opt, []);
+  } else if (prop?.type === 'checkbox') {
+    buckets.set('true', []);
+    buckets.set('false', []);
+  }
+
+  for (const row of rows) {
+    const value = groupBy === 'title' ? row.title : row.properties[groupBy];
+    if (prop?.type === 'multi_select' && Array.isArray(value)) {
+      if (value.length === 0) push('', row);
+      else for (const v of value) push(String(v), row);
+      continue;
+    }
+    if (prop?.type === 'checkbox') {
+      push(value ? 'true' : 'false', row);
+      continue;
+    }
+    push(isEmptyValue(value) ? '' : String(value), row);
+  }
+
+  const label = (key: string): string => {
+    if (key === '') return EMPTY_GROUP_LABEL;
+    if (prop?.type === 'checkbox') return key === 'true' ? 'Coché' : 'Non coché';
+    return key;
+  };
+
+  const entries = [...buckets.entries()].filter(([key, list]) => key !== '' || list.length > 0);
+  entries.sort(([a], [b]) => {
+    if (a === '') return 1; // no-value group last
+    if (b === '') return -1;
+    // checked before unchecked (alphabetical would put 'false' first)
+    if (prop?.type === 'checkbox') return a === 'true' ? -1 : 1;
+    const declared = prop?.options;
+    if (declared) {
+      const ia = declared.indexOf(a);
+      const ib = declared.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+    }
+    return a.localeCompare(b);
+  });
+  return entries.map(([key, list]) => ({ key, label: label(key), rows: list }));
+}
+
+/** Filters + sorts + optional grouping in one call (what views actually need). */
+export function evaluateView(
+  rows: RowData[],
+  view: ViewConfig,
+  schema: CollectionSchema,
+): { rows: RowData[]; groups: RowGroup[] | null } {
+  const visible = applyView(rows, view, schema);
+  return {
+    rows: visible,
+    groups: view.groupBy ? groupRows(visible, view.groupBy, schema) : null,
+  };
+}
+
+/** Properties shown in a view, in schema order, honoring `hidden`. */
+export function visibleProperties(schema: CollectionSchema, view: ViewConfig): PropertyDef[] {
+  const hidden = new Set(view.hidden ?? []);
+  return schema.properties.filter((p) => !hidden.has(p.id));
 }
 
 /** Human formatting of a cell value for read-only display. */

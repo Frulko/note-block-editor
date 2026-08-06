@@ -1,6 +1,6 @@
 import { uuidv7, type CollectionSchema, type PropertyDef, type ViewConfig } from '@nbe/core';
 import type { DatabaseData, DatabaseHost } from '@nbe/dom';
-import { createPage, pageTitle, saveWorkspace, type Workspace } from './workspace';
+import { createPage, flushWorkspace, pageTitle, saveWorkspace, type Workspace } from './workspace';
 
 export interface CollectionRecord {
   schema: CollectionSchema;
@@ -16,16 +16,19 @@ export interface CollectionRecord {
 export function createDatabaseHost(ws: Workspace, opts: { openPage: (id: string) => void; onMutate: () => void }): DatabaseHost {
   const listeners = new Set<() => void>();
   const notify = () => {
+    // database edits are infrequent and user-meaningful: persist synchronously
+    // so a reload inside the text-typing debounce window can never drop them
     saveWorkspace(ws);
+    flushWorkspace();
     opts.onMutate();
     for (const l of listeners) l();
   };
   const record = (collectionId: string): CollectionRecord | undefined =>
     (ws.collections ?? []).find((c) => c.schema.id === collectionId);
 
-  const addRowTo = (rec: CollectionRecord): string => {
+  const addRowTo = (rec: CollectionRecord, properties: Record<string, unknown> = {}): string => {
     const page = createPage(ws, '');
-    page.props = { ...page.props, collectionId: rec.schema.id, properties: {} };
+    page.props = { ...page.props, collectionId: rec.schema.id, properties };
     rec.rowIds.push(page.id);
     return page.id;
   };
@@ -66,10 +69,11 @@ export function createDatabaseHost(ws: Workspace, opts: { openPage: (id: string)
       return { collectionId: rec.schema.id };
     },
 
-    addRow(collectionId) {
+    addRow(collectionId, initialProperties) {
       const rec = record(collectionId);
       if (!rec) return;
-      addRowTo(rec);
+      // a row created inside a group must belong to it
+      addRowTo(rec, initialProperties ?? {});
       notify();
     },
 
