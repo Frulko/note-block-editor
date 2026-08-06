@@ -36,6 +36,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/markdown:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@esbuild/aix-ppc64@0.25.12':

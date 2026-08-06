@@ -1,0 +1,15 @@
+{
+  "name": "@nbe/markdown",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*"
+  }
+}
