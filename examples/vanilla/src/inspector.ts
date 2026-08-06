@@ -23,9 +23,10 @@ function summarize(op: Op): string {
   }
 }
 
-export function attachInspector(editor: Editor): void {
+export function attachInspector(editor: Editor): () => void {
   const docPanel = document.getElementById('panel-doc')!;
   const opsPanel = document.getElementById('panel-ops')!;
+  opsPanel.replaceChildren();
 
   let scheduled = false;
   const renderDoc = () => {
@@ -34,7 +35,7 @@ export function attachInspector(editor: Editor): void {
   };
   renderDoc();
 
-  editor.on((change) => {
+  return editor.on((change) => {
     if (!scheduled) {
       scheduled = true;
       requestAnimationFrame(renderDoc);

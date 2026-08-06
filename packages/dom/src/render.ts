@@ -31,6 +31,7 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
   const spec = view.editor.schema.get(block.type);
   const leaf = el('div', 'nbe-leaf');
   leaf.setAttribute('contenteditable', PLAINTEXT_ONLY_SUPPORTED ? 'plaintext-only' : 'true');
+  leaf.tabIndex = -1; // single document tab stop lives on the editor root (ARCHITECTURE §8)
   leaf.dataset['blockId'] = block.id;
   leaf.dataset['gramm'] = 'false'; // Grammarly-class extension opt-out (best effort)
   const placeholder =
