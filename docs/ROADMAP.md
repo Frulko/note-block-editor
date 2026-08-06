@@ -16,11 +16,12 @@
 > image asset pipeline ✓ (opaque `asset:<sha256>` refs + host store/resolve
 > hooks; demo uses IndexedDB; GC at phase 4), rubber-band selection ✓, UI
 > primitives layer ✓ (position/menu/tooltip/hover/drag, D8 in-house DnD).
+> **Shipped since:** simple table (2026-08-06, AQ#3 resolved) minus cell-range
+> selection, column resize and cell merging; Word mso-list paragraphs now parse
+> as real list items (nesting still flattened, recorded in the fixtures).
 > **Still open:** real-device IME/screen-reader matrix — protocol written in
-> `docs/TESTING.md`, needs hardware (AQ#6); simple table — shipped 2026-08-06 (AQ#3 resolved),
-> minus cell-range selection and column resize; native-feel
-> cross-block text selection (block-escalation shipped per D3); Word
-> mso-list paragraphs not yet detected as list items (documented in fixtures).
+> `docs/TESTING.md`, needs hardware (AQ#6); native-feel cross-block text
+> selection (block-escalation shipped per D3).
 >
 > **Phase 3 slice 1 (2026-08-06) — databases, started BEFORE Phase 2 by
 > decision.** Shipped: the four record kinds (database view block in the core
