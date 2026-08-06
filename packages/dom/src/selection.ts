@@ -51,12 +51,8 @@ export function attachSelectionSync(view: EditorView): () => void {
     const head = domToModelPoint(sel.focusNode!, sel.focusOffset);
     if (!anchor || !head) return;
     const prev = view.editor.selection;
-    if (anchor.blockId !== head.blockId) {
-      // a range crossing leaf boundaries escalates to block selection (D3 / Notion)
-      if (prev?.kind === 'block' && prev.anchor === anchor.blockId && prev.head === head.blockId) return;
-      view.editor.setSelection({ kind: 'block', anchor: anchor.blockId, head: head.blockId }, 'dom');
-      return;
-    }
+    // a range crossing leaf boundaries is a real cross-block TEXT selection
+    // (D3): the browser paints it, and the model represents it natively
     if (
       prev?.kind === 'text' &&
       prev.anchor.blockId === anchor.blockId &&

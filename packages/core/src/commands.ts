@@ -198,6 +198,153 @@ export function outdent(editor: Editor, id: BlockId): boolean {
   return true;
 }
 
+// --- cross-block text ranges (ARCHITECTURE §5.2, D3) ---
+
+export interface ResolvedRange {
+  /** Blocks touched, in document order. */
+  blocks: BlockId[];
+  startBlockId: BlockId;
+  startOffset: number;
+  endBlockId: BlockId;
+  endOffset: number;
+  /** True when the range lives inside a single block. */
+  single: boolean;
+}
+
+/**
+ * Put a text selection into document order and enumerate the inline blocks it
+ * covers. Everything that acts on a range (delete, format, copy) works from
+ * this, so cross-block behaviour is defined in exactly one place.
+ */
+export function resolveTextRange(editor: Editor, sel: Selection = editor.selection): ResolvedRange | null {
+  if (sel?.kind !== 'text') return null;
+  const doc = editor.doc;
+  if (!doc.blocks.has(sel.anchor.blockId) || !doc.blocks.has(sel.head.blockId)) return null;
+  if (sel.anchor.blockId === sel.head.blockId) {
+    const from = Math.min(sel.anchor.offset, sel.head.offset);
+    const to = Math.max(sel.anchor.offset, sel.head.offset);
+    return {
+      blocks: [sel.anchor.blockId],
+      startBlockId: sel.anchor.blockId,
+      startOffset: from,
+      endBlockId: sel.anchor.blockId,
+      endOffset: to,
+      single: true,
+    };
+  }
+  const order = visibleBlocks(doc)
+    .filter((b) => editor.schema.get(b.type).inline)
+    .map((b) => b.id);
+  const ai = order.indexOf(sel.anchor.blockId);
+  const hi = order.indexOf(sel.head.blockId);
+  if (ai < 0 || hi < 0) return null;
+  const forward = ai <= hi;
+  const [startIdx, endIdx] = forward ? [ai, hi] : [hi, ai];
+  const [start, end] = forward ? [sel.anchor, sel.head] : [sel.head, sel.anchor];
+  return {
+    blocks: order.slice(startIdx, endIdx + 1),
+    startBlockId: start.blockId,
+    startOffset: start.offset,
+    endBlockId: end.blockId,
+    endOffset: end.offset,
+    single: false,
+  };
+}
+
+/** The covered [from, to) inside one block of a resolved range. */
+export function rangeInBlock(editor: Editor, range: ResolvedRange, id: BlockId): { from: number; to: number } {
+  const len = textLength(getBlock(editor.doc, id).text);
+  if (range.single) return { from: range.startOffset, to: range.endOffset };
+  if (id === range.startBlockId) return { from: range.startOffset, to: len };
+  if (id === range.endBlockId) return { from: 0, to: range.endOffset };
+  return { from: 0, to: len };
+}
+
+/**
+ * Delete a text selection, including one spanning several blocks: the tail of
+ * the first block and the head of the last are removed, blocks fully inside
+ * disappear, and the remainder of the last block merges into the first —
+ * exactly what a user expects from pressing Backspace over a selection.
+ */
+export function deleteTextSelection(editor: Editor): boolean {
+  const range = resolveTextRange(editor);
+  if (!range) return false;
+  if (range.single) {
+    if (range.startOffset === range.endOffset) return false;
+    editor.dispatch(
+      (tx) =>
+        tx.op({ type: 'delete_text', id: range.startBlockId, from: range.startOffset, to: range.endOffset }),
+      { origin: 'input', selection: textCaret(range.startBlockId, range.startOffset) },
+    );
+    return true;
+  }
+
+  const doc = editor.doc;
+  const startLen = textLength(getBlock(doc, range.startBlockId).text);
+  const endBlock = getBlock(doc, range.endBlockId);
+  const tail = sliceRuns(endBlock.text ?? [], range.endOffset, textLength(endBlock.text));
+  const middle = range.blocks.slice(1, -1);
+
+  editor.dispatch(
+    (tx) => {
+      if (range.startOffset < startLen) {
+        tx.op({ type: 'delete_text', id: range.startBlockId, from: range.startOffset, to: startLen });
+      }
+      // middle blocks vanish entirely, deepest first so delete_block sees leaves
+      for (const id of [...middle].reverse()) {
+        if (doc.blocks.has(id)) deleteSubtree(tx, doc, id);
+      }
+      if (!doc.blocks.has(range.endBlockId)) return; // was nested inside a deleted middle block
+      if (tail.length) {
+        tx.op({ type: 'insert_text', id: range.startBlockId, offset: range.startOffset, runs: tail });
+      }
+      // the last block's children are promoted where it stood, then it goes
+      let after: BlockId | null = range.endBlockId;
+      for (const childId of [...getBlock(doc, range.endBlockId).children]) {
+        if (!doc.blocks.has(childId)) continue;
+        tx.op({ type: 'move_block', id: childId, parentId: endBlock.parentId!, after });
+        after = childId;
+      }
+      tx.op({ type: 'delete_block', id: range.endBlockId });
+    },
+    { origin: 'input', selection: textCaret(range.startBlockId, range.startOffset) },
+  );
+  return true;
+}
+
+/** Toggle a mark over a range, across blocks when the selection spans them. */
+export function toggleMarkRange(editor: Editor, markType: string, attrs?: Record<string, unknown>): boolean {
+  const range = resolveTextRange(editor);
+  if (!range) return false;
+  const parts = range.blocks
+    .map((id) => ({ id, ...rangeInBlock(editor, range, id) }))
+    .filter((p) => p.to > p.from);
+  if (!parts.length) return false;
+
+  // "already formatted" means every covered stretch carries the mark
+  const add = !parts.every((p) => hasMark(getBlock(editor.doc, p.id).text ?? [], p.from, p.to, markType));
+  const selection = editor.selection;
+  editor.dispatch(
+    (tx) => {
+      for (const p of parts) {
+        tx.op({ type: 'format_text', id: p.id, from: p.from, to: p.to, mark: { type: markType, attrs }, add });
+      }
+    },
+    { origin: 'format', selection },
+  );
+  return true;
+}
+
+/** True when every covered stretch of the range carries the mark. */
+export function rangeHasMark(editor: Editor, markType: string): boolean {
+  const range = resolveTextRange(editor);
+  if (!range) return false;
+  const parts = range.blocks
+    .map((id) => ({ id, ...rangeInBlock(editor, range, id) }))
+    .filter((p) => p.to > p.from);
+  return parts.length > 0 && parts.every((p) => hasMark(getBlock(editor.doc, p.id).text ?? [], p.from, p.to, markType));
+}
+
 // --- block selection commands (ARCHITECTURE §5.2) ---
 
 /**

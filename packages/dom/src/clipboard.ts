@@ -3,7 +3,10 @@ import {
   blockToJSON,
   childIndex,
   deleteBlocks,
+  deleteTextSelection,
   getBlock,
+  rangeInBlock,
+  resolveTextRange,
   selectedBlocks,
   sliceRuns,
   textCaret,
@@ -30,17 +33,42 @@ function buildSlice(view: EditorView): Slice | null {
     if (!ids.length) return null;
     return { blocks: ids.map((id) => blockToJSON(editor.doc, id)), inline: false };
   }
-  if (sel?.kind === 'text' && sel.anchor.blockId === sel.head.blockId) {
-    const from = Math.min(sel.anchor.offset, sel.head.offset);
-    const to = Math.max(sel.anchor.offset, sel.head.offset);
-    if (from === to) return null;
-    const block = getBlock(editor.doc, sel.anchor.blockId);
-    const runs = sliceRuns(block.text ?? [], from, to);
-    const full = from === 0 && to === textLength(block.text);
-    return {
-      blocks: [{ id: block.id, type: full ? block.type : 'paragraph', version: 1, props: full ? block.props : {}, text: runs }],
-      inline: !full,
-    };
+  if (sel?.kind === 'text') {
+    const range = resolveTextRange(editor);
+    if (!range) return null;
+
+    if (range.single) {
+      const from = range.startOffset;
+      const to = range.endOffset;
+      if (from === to) return null;
+      const block = getBlock(editor.doc, range.startBlockId);
+      const runs = sliceRuns(block.text ?? [], from, to);
+      const full = from === 0 && to === textLength(block.text);
+      return {
+        blocks: [
+          { id: block.id, type: full ? block.type : 'paragraph', version: 1, props: full ? block.props : {}, text: runs },
+        ],
+        inline: !full,
+      };
+    }
+
+    // cross-block: partially covered ends become paragraphs (their type would
+    // be a lie), fully covered blocks keep their type and children
+    const blocks: BlockJSON[] = [];
+    for (const id of range.blocks) {
+      const block = getBlock(editor.doc, id);
+      const { from, to } = rangeInBlock(editor, range, id);
+      const len = textLength(block.text);
+      const full = from === 0 && to === len;
+      if (!full && to <= from) continue;
+      const json = blockToJSON(editor.doc, id);
+      blocks.push(
+        full
+          ? json
+          : { id: block.id, type: 'paragraph', version: 1, text: sliceRuns(block.text ?? [], from, to) },
+      );
+    }
+    return blocks.length ? { blocks, inline: false } : null;
   }
   return null;
 }
@@ -348,17 +376,9 @@ export function attachClipboard(view: EditorView): () => void {
     const slice = writeSlice(e);
     if (!slice) return;
     const sel = editor.selection;
-    if (sel?.kind === 'block') {
-      deleteBlocks(editor, selectedBlocks(editor.doc, sel));
-    } else if (sel?.kind === 'text' && sel.anchor.blockId === sel.head.blockId) {
-      const from = Math.min(sel.anchor.offset, sel.head.offset);
-      const to = Math.max(sel.anchor.offset, sel.head.offset);
-      if (from < to)
-        editor.dispatch((tx) => tx.op({ type: 'delete_text', id: sel.anchor.blockId, from, to }), {
-          origin: 'input',
-          selection: textCaret(sel.anchor.blockId, from),
-        });
-    }
+    if (sel?.kind === 'block') deleteBlocks(editor, selectedBlocks(editor.doc, sel));
+    else deleteTextSelection(editor);
+    view.syncDomSelection();
   };
 
   const onPaste = (e: ClipboardEvent) => {

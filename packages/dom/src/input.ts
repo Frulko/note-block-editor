@@ -11,11 +11,13 @@ import {
   matchAutoformat,
   mergeBackward,
   mergeForward,
+  deleteTextSelection,
+  resolveTextRange,
   plainText,
   splitBlock,
   textCaret,
   textLength,
-  toggleMark,
+  toggleMarkRange,
   uuidv7,
 } from '@nbe/core';
 import type { EditorView } from './view';
@@ -35,6 +37,14 @@ function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: nu
 
 function handleInsertText(view: EditorView, data: string): void {
   const editor = view.editor;
+  // typing over a cross-block selection replaces it, like any editor
+  const range = resolveTextRange(editor);
+  if (range && !range.single) {
+    deleteTextSelection(editor);
+    view.syncDomSelection();
+    insertText(editor, data);
+    return;
+  }
   const at = singleBlockCaret(view);
   if (!at) return;
   const block = getBlock(editor.doc, at.id);
@@ -131,13 +141,18 @@ export function attachInput(view: EditorView): () => void {
         handleInsertText(view, '\n');
         break;
       case 'deleteContentBackward':
+      case 'deleteContentForward': {
         ev.preventDefault();
-        if (!deleteBackward(editor)) mergeBackward(editor);
+        const range = resolveTextRange(editor);
+        if (range && !range.single) {
+          deleteTextSelection(editor);
+          view.syncDomSelection();
+          break;
+        }
+        if (ev.inputType === 'deleteContentForward') handleDeleteForward(view);
+        else if (!deleteBackward(editor)) mergeBackward(editor);
         break;
-      case 'deleteContentForward':
-        ev.preventDefault();
-        handleDeleteForward(view);
-        break;
+      }
       case 'insertFromPaste':
         ev.preventDefault(); // the 'paste' event pipeline in clipboard.ts owns pasting
         break;
@@ -146,15 +161,15 @@ export function attachInput(view: EditorView): () => void {
         break;
       case 'formatBold':
         ev.preventDefault();
-        toggleMark(editor, 'bold');
+        toggleMarkRange(editor, 'bold');
         break;
       case 'formatItalic':
         ev.preventDefault();
-        toggleMark(editor, 'italic');
+        toggleMarkRange(editor, 'italic');
         break;
       case 'formatUnderline':
         ev.preventDefault();
-        toggleMark(editor, 'underline');
+        toggleMarkRange(editor, 'underline');
         break;
       case 'historyUndo':
         ev.preventDefault();

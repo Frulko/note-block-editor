@@ -14,7 +14,7 @@ import {
   splitBlock,
   textCaret,
   textLength,
-  toggleMark,
+  toggleMarkRange,
   visibleBlocks,
   type BlockSelection,
 } from '@nbe/core';
@@ -172,12 +172,12 @@ export function attachKeymap(view: EditorView): () => void {
       }
       if (!e.shiftKey && (key === 'b' || key === 'i' || key === 'u' || key === 'e')) {
         e.preventDefault();
-        toggleMark(editor, { b: 'bold', i: 'italic', u: 'underline', e: 'code' }[key]!);
+        toggleMarkRange(editor, { b: 'bold', i: 'italic', u: 'underline', e: 'code' }[key]!);
         return;
       }
       if (e.shiftKey && key === 's') {
         e.preventDefault();
-        toggleMark(editor, 'strike');
+        toggleMarkRange(editor, 'strike');
         return;
       }
       return;

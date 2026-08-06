@@ -219,11 +219,11 @@ All browser warfare is quarantined in one dependency-free module:
 First-class core state, a tagged union with two modes (the Notion contract):
 
 - `TextSelection {anchor: (blockId, offset), head: (blockId, offset)}` —
-  **cross-block capable in the model from day one**; v1 UI renders intra-leaf
-  ranges natively and escalates to block selection when a range crosses a leaf
-  boundary (Notion's shipped behavior). Gutenberg's temporary
-  contenteditable-toggle trick is the later path to native-feel cross-block
-  text selection.
+  cross-block capable in the model **and in the UI** (D3). Every operation on
+  a range goes through `resolveTextRange` in core, so cross-block delete,
+  format and copy are defined in exactly one place: the tail of the first
+  block and the head of the last are covered, blocks in between fully, and
+  deleting merges the remainder upward as any editor would.
 - `BlockSelection {anchor, head}` — Esc selects current block / Enter
   re-enters text; arrows & Shift+arrows navigate/extend; Cmd+A escalates;
   Shift+Click ranges; Cmd/Alt+Shift+Click toggles; Cmd+Shift+arrows move
@@ -406,7 +406,7 @@ Where the research notes conflicted, resolved here:
 |---|----------|----------|-----|
 | D1 | Per-block contenteditable vs single editable root | **Per-block `plaintext-only` leaves** + document-level selection model from day one; confirmed by Phase 0 spike (Android IME, screen readers, cross-block selection) | Notion's actual production DOM; BlockSuite chose it greenfield; single-root means matching PM's decade of monthly reconciler workarounds. Notion's 5-year retrofit pain came from the missing selection *model*, which we build up front |
 | D2 | Build on ProseMirror vs from scratch | **From scratch, vanilla TS** — adopting PM's *ideas* (invertible ops, schema-at-apply, command chains) without the dependency | The project's raison d'être; per-block topology confines browser warfare to one leaf module instead of a document-wide reconciler, which is what makes from-scratch tractable; skipping PM's global position system removes its dominant complexity |
-| D3 | Cross-block text selection timing | **Model: day one. UI: block-escalation in v1**, native-feel toggle trick later | The model retrofit is the five-year trap; the UI enhancement is incremental |
+| D3 | Cross-block text selection | **Shipped, and simpler than the researched options: we drive the drag, the browser paints the range** | Verified empirically in 2026: a DOM Range MAY span several separate `contenteditable` hosts and renders normally — the browser only refuses to *create* one from a drag (it clamps drag-selection to the host the gesture started in). So `cross-block-selection.ts` tracks the pointer and calls `setBaseAndExtent` across leaves. Lighter than Gutenberg's container-`contentEditable` toggle (which then needs every key blocked while on), and unlike a CSS Custom Highlight overlay it yields a REAL selection, so native copy, find-in-page and screen readers keep working. Block selection remains for margin rubber-band and Escape |
 | D4 | Inline text representation | **Flat runs with mark sets**, no offset spans, no HTML strings | Offset spans contradict the no-persisted-integers rule; runs are Santos-proof, CRDT-ready, AttributedString-friendly |
 | D5 | Flat map vs nested tree | **Both: flat `Map` at runtime, nested JSON per page at rest** | Not a real conflict — same model, two serializations; each optimal for its medium |
 | D6 | Block ID format | **UUIDv7** | Time-ordered (SQLite index locality) yet still non-semantic/non-positional; creation time is not position |
