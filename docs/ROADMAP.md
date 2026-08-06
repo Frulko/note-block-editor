@@ -1,0 +1,158 @@
+# Roadmap
+
+Phases are sequential gates, not a calendar. Each phase ends with something
+usable; nothing in a later phase is allowed to require rewriting an earlier
+one — that's what the "cheap now, priceless later" invariants below are for.
+
+## Invariants bought in v0 that pay off in v5
+
+The whole point of the research phase. These cost almost nothing today and are
+decade-scale retrofits later (Notion paid for each one):
+
+- Stable client-generated UUIDv7 block IDs, never semantic, never reused
+- Every mutation = serializable invertible op through one reducer
+- No persisted integer offsets or DOM positions, anywhere
+- `parentId` inverse pointer maintained alongside `children` arrays
+- Move as intent (parent + after-sibling ID), never delete+reinsert
+- Soft-delete tombstones
+- `schemaVersion` on every document; additive-only evolution; unknown
+  types/props round-trip untouched
+- Columns and nesting in the core schema (BlockNote/Editor.js prove they
+  cannot be retrofitted)
+- Marks carry declared expansion semantics (Peritext), dormant until CRDTs
+- Selection model is cross-block capable even while the UI isn't
+
+---
+
+## Phase 0 — Spikes (de-risk before building)
+
+The one genuinely open architecture fork gets settled by prototype, not
+debate.
+
+**Spike A — editable surface (the big one).** Two throwaway prototypes of a
+3-block page: (1) per-block `plaintext-only` leaves, (2) single editable root
+with minimal reconciler. Test matrix: Android Chrome + GBoard (mid-word
+backspace, autocorrect), CJK IME composition, VoiceOver + NVDA reading and
+navigating, cross-block selection behavior, Grammarly installed.
+**Exit criterion:** D1 confirmed or reversed with written evidence.
+
+**Spike B — markdown round-trip.** One gnarly fixture page (columns, toggles,
+callout, code, mentions, a fake database) → L1 projection → hand-edit in
+Obsidian → re-import → L0 diff. **Exit criterion:** loss boundary documented;
+`^id` preservation works; parser stack chosen (open question #5).
+
+**Spike C — InlineEditor kernel.** The dual input path (beforeinput +
+MutationObserver + composition freeze) as a standalone module with its IME
+test matrix runnable locally. This module's API is the most important
+interface in the project.
+
+Also in phase 0: monorepo bootstrap (pnpm workspaces, tsdown ESM-only, Vitest,
+publint), `core` package skeleton with the op reducer + history and **headless
+op-layer tests** — the editor logic gets tested without a browser from day one.
+
+## Phase 1 — L'éditeur parfait (v1, the reason this project exists)
+
+Packages: `core`, `dom`, `examples/vanilla`. Zero framework code.
+
+**Model & pipeline:** the full §2–§4 architecture — block store, 7 ops,
+transactions, inverse-op history with coalescing, schema registry with
+versioned migrations, per-block validation at apply.
+
+**Block set:** paragraph, headings 1–3, bulleted/numbered list, to-do, toggle,
+quote, callout, code (with language), divider, image, columnList/column,
+page, link-to-page. (Simple table is deliberately post-v1 — open question #3.)
+
+**The six-pattern Notion UX core, at high fidelity — this is the quality bar,
+not a feature list:**
+1. Slash menu with real-time filtering + aliases
+2. Hover-only + button and drag handle with the block menu (Turn into, Color,
+   Duplicate, Delete, Copy link to block, Move to)
+3. Esc/Enter block-selection ↔ text modes with the full key contract
+4. Blue drop guides, horizontal and vertical (columns by drag only)
+5. Full markdown autoformat table (`# `, `- `, `[] `, `> `, ` ``` `, `---`)
+6. Caret-only placeholder ("Type / for commands")
+
+Plus: non-destructive Turn Into everywhere, per-block stable URLs/anchors,
+subtle hover/toggle transitions (150–200 ms, the Notion feel — polish is in
+scope for v1, it's the product).
+
+**Interactions:** clipboard three-format copy + full paste pipeline + fixture
+corpus; pointer-based drag with multi-block preview and column drops;
+Enter/Backspace command chains per block type; goal-X arrow navigation.
+
+**Accessibility:** Navigation/Edit modes, single tab stop, drag parity via
+handle menu, live regions, NVDA+VoiceOver smoke tests in CI checklist.
+
+**Persistence:** L0 JSON save/load (single page, then multi-page workspace +
+wikilink mentions + derived backlink index). Local-first single-writer
+discipline. L1/L2 wait.
+
+**Explicit non-goals for v1:** frameworks bindings, databases, collab,
+mobile-touch design, virtualization, table block, plugin distribution story.
+
+## Phase 2 — SDK & bindings (TanStack-shaped)
+
+- `react`, `vue`, `svelte` mounts — thin by CI-asserted dependency contract;
+  custom-block portal bridge; controller-store chrome wrapped per framework
+- Block author API hardened: `blocks-*` split (schema entry vs /dom renderer),
+  end-to-end type inference from the registered schema
+- `static-renderer` (JSON → HTML/Markdown, no editor instance, SSR-safe)
+- `examples/react|vue|svelte` as CI-checked workspace packages
+- Docs site from in-repo markdown; publish pipeline (Changesets, size-limit
+  budgets, sherif/knip)
+
+## Phase 3 — Databases
+
+- The four record kinds (view block / view / schema / rows-as-pages) wired
+  into the editor
+- Table view first: filters, sorts, groups; board/list/gallery after
+- Property types: text, number, select, multi-select, date, checkbox, url,
+  relation; formula language design (open question #8) before rollups
+- Views virtualize internally (the one sanctioned virtualization)
+- L2 SQLite lands here: FTS5 search, backlinks table, materialized views —
+  derived, rebuildable, single writer
+
+## Phase 4 — Storage & interop (file-over-app, fully honored)
+
+- Full L1 vault projection: Obsidian-flavored markdown per page, one .md per
+  database row + `.base` view files + rows.csv
+- Watcher-based external-edit import (Obsidian/vim round-trip), atomic writes,
+  crash safety (open question #1)
+- Binary asset pipeline (open question #2)
+- Notion importers: ZIP export and Enhanced Markdown
+- The acceptance test becomes CI: delete the app, read the files
+
+## Phase 5 — Collaboration, native, ecosystem (the long game)
+
+- **CRDT:** Loro is the presumptive choice (MovableTree, Peritext-grade text,
+  Rust core shared with Swift bindings) behind the same store interface the
+  plain-JSON implementation satisfies — audit, then adopt when this phase
+  starts, not before
+- **Sync:** opaque update blobs over pluggable transports (Automerge-Repo
+  pattern); default ~100-line self-hostable websocket relay; iroh for p2p
+  native later; presence on a separate ephemeral channel; ACL outside the CRDT
+- **Native Swift editor:** same JSON schema + registry, per-block TextKit 2
+  views, SwiftUI chrome, loro-swift when collab lands (Craft proves the
+  category)
+- **Obsidian:** decide plugin vs standalone app once L1 vaults are stable —
+  an L1 workspace already *is* an Obsidian vault, which keeps both doors open
+- Mobile/touch interaction design (open question #7)
+
+---
+
+## Research follow-ups
+
+Before the phase that needs them (owner: whoever starts the phase):
+
+| Topic | Blocks | Ref |
+|---|---|---|
+| Storage runtime (browser FS/OPFS vs Tauri vs CLI) | Phase 1 persistence | AQ#1 |
+| Markdown parser stack + diff-stable serialization | Spike B | AQ#5 |
+| IME/clipboard/drag simulation in CI | Phase 0–1 | AQ#6 |
+| Unicode grapheme handling at boundaries | Phase 1 | AQ#4 |
+| Asset pipeline | Phase 4 | AQ#2 |
+| Table block design | post-v1 | AQ#3 |
+| Touch interaction design | Phase 5 | AQ#7 |
+| Formula/eval engine | Phase 3 | AQ#8 |
+
+(AQ# = open questions in ARCHITECTURE.md §12.)
