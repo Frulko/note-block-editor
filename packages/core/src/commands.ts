@@ -1,10 +1,10 @@
-import type { Block, BlockId, Run, Selection } from './types';
+import type { Block, BlockId, BlockSelection, Run, Selection } from './types';
 import { isCollapsed, textCaret } from './types';
-import { childIndex, getBlock, previousInlineBlock } from './doc';
+import { childIndex, getBlock, previousInlineBlock, visibleBlocks, type Doc } from './doc';
 import { sliceRuns, textLength } from './richtext';
 import { hasMark } from './richtext';
 import { uuidv7 } from './id';
-import type { Editor } from './editor';
+import type { Editor, Tx } from './editor';
 
 function caretOf(sel: Selection): { blockId: BlockId; offset: number } | null {
   if (sel?.kind !== 'text' || !isCollapsed(sel)) return null;
@@ -159,6 +159,208 @@ export function outdent(editor: Editor, id: BlockId): boolean {
     { origin: 'input', selection: editor.selection },
   );
   return true;
+}
+
+// --- block selection commands (ARCHITECTURE §5.2) ---
+
+/**
+ * Resolve a block selection to its top-level selected blocks: the blocks in
+ * the visible range whose ancestors are not themselves selected (a selected
+ * block always implies its whole subtree).
+ */
+export function selectedBlocks(doc: Doc, sel: BlockSelection): BlockId[] {
+  const order = visibleBlocks(doc).map((b) => b.id);
+  const ai = order.indexOf(sel.anchor);
+  const hi = order.indexOf(sel.head);
+  if (ai < 0 || hi < 0) return [];
+  const [from, to] = ai <= hi ? [ai, hi] : [hi, ai];
+  const range = new Set(order.slice(from, to + 1));
+  return order.slice(from, to + 1).filter((id) => {
+    for (let p = getBlock(doc, id).parentId; p !== null; p = getBlock(doc, p).parentId) {
+      if (range.has(p)) return false;
+    }
+    return true;
+  });
+}
+
+function deleteSubtree(tx: Tx, doc: Doc, id: BlockId): void {
+  for (const child of [...getBlock(doc, id).children]) {
+    if (doc.blocks.has(child)) deleteSubtree(tx, doc, child);
+  }
+  tx.op({ type: 'delete_block', id });
+}
+
+export function deleteBlocks(editor: Editor, ids: BlockId[]): void {
+  if (!ids.length) return;
+  const isInline = (b: Block) => editor.schema.get(b.type).inline;
+  const doomed = new Set(ids);
+  const fallback = visibleBlocks(editor.doc).filter(
+    (b) => isInline(b) && !doomed.has(b.id) && ![...doomed].some((d) => isDescendant(editor.doc, b.id, d)),
+  );
+  const first = ids[0]!;
+  const order = visibleBlocks(editor.doc).map((b) => b.id);
+  const beforeIdx = order.indexOf(first);
+  const prev = [...fallback].reverse().find((b) => order.indexOf(b.id) < beforeIdx);
+  const next = fallback.find((b) => order.indexOf(b.id) > beforeIdx);
+  const target = prev ?? next ?? null;
+
+  editor.dispatch(
+    (tx) => {
+      for (const id of ids) deleteSubtree(tx, editor.doc, id);
+    },
+    {
+      origin: 'input',
+      selection: target ? textCaret(target.id, prev ? textLength(target.text) : 0) : null,
+    },
+  );
+}
+
+function isDescendant(doc: Doc, id: BlockId, ancestor: BlockId): boolean {
+  for (let p = getBlock(doc, id).parentId; p !== null; p = getBlock(doc, p).parentId) {
+    if (p === ancestor) return true;
+  }
+  return false;
+}
+
+function cloneSubtree(doc: Doc, id: BlockId): { root: Block; all: Block[] } {
+  const src = getBlock(doc, id);
+  const copy: Block = { ...structuredClone(src), id: uuidv7() };
+  const all: Block[] = [copy];
+  copy.children = src.children.map((childId) => {
+    const sub = cloneSubtree(doc, childId);
+    sub.root.parentId = copy.id;
+    all.push(...sub.all);
+    return sub.root.id;
+  });
+  return { root: copy, all };
+}
+
+export function duplicateBlocks(editor: Editor, ids: BlockId[]): BlockId[] {
+  if (!ids.length) return [];
+  const last = ids[ids.length - 1]!;
+  const newIds: BlockId[] = [];
+  editor.dispatch(
+    (tx) => {
+      let after = last;
+      for (const id of ids) {
+        const { root, all } = cloneSubtree(editor.doc, id);
+        root.parentId = getBlock(editor.doc, last).parentId;
+        newIds.push(root.id);
+        // parent-first: descendants are already listed in their parent's clone,
+        // so insert_block only registers them (no re-splice)
+        tx.op({ type: 'insert_block', block: root, index: childIndex(editor.doc, after) + 1 });
+        for (const b of all.slice(1)) tx.op({ type: 'insert_block', block: b, index: 0 });
+        after = root.id;
+      }
+    },
+    { origin: 'input', selection: editor.selection },
+  );
+  return newIds;
+}
+
+/** Move a contiguous group of sibling blocks one slot up or down. */
+export function moveBlocksVertical(editor: Editor, ids: BlockId[], dir: 'up' | 'down'): boolean {
+  if (!ids.length) return false;
+  const first = getBlock(editor.doc, ids[0]!);
+  const parent = getBlock(editor.doc, first.parentId!);
+  if (!ids.every((id) => getBlock(editor.doc, id).parentId === parent.id)) return false;
+  const idxs = ids.map((id) => parent.children.indexOf(id)).sort((a, b) => a - b);
+  const lo = idxs[0]!;
+  const hi = idxs[idxs.length - 1]!;
+  if (dir === 'up' && lo === 0) return false;
+  if (dir === 'down' && hi === parent.children.length - 1) return false;
+  const ordered = parent.children.slice(lo, hi + 1);
+  editor.dispatch(
+    (tx) => {
+      let after: BlockId | null =
+        dir === 'up' ? (lo >= 2 ? parent.children[lo - 2]! : null) : parent.children[hi + 1]!;
+      for (const id of ordered) {
+        tx.op({ type: 'move_block', id, parentId: parent.id, after });
+        after = id;
+      }
+    },
+    { origin: 'input', selection: editor.selection },
+  );
+  return true;
+}
+
+/** Move blocks to an explicit position (drag & drop before/after). */
+export function moveBlocks(editor: Editor, ids: BlockId[], parentId: BlockId, after: BlockId | null): void {
+  editor.dispatch(
+    (tx) => {
+      let anchor = after;
+      for (const id of ids) {
+        tx.op({ type: 'move_block', id, parentId, after: anchor });
+        anchor = id;
+      }
+    },
+    { origin: 'input', selection: editor.selection },
+  );
+}
+
+/**
+ * Drop blocks on the left/right edge of a target (ARCHITECTURE §7): wraps the
+ * target in a column_list, or adds a column when the target is already one.
+ */
+export function moveIntoColumns(
+  editor: Editor,
+  ids: BlockId[],
+  targetId: BlockId,
+  side: 'left' | 'right',
+): void {
+  const doc = editor.doc;
+  const target = getBlock(doc, targetId);
+  const targetParent = getBlock(doc, target.parentId!);
+
+  editor.dispatch(
+    (tx) => {
+      const newColumn = (parentId: BlockId): Block => ({
+        id: uuidv7(),
+        type: 'column',
+        version: 1,
+        props: {},
+        children: [],
+        parentId,
+      });
+
+      if (targetParent.type === 'column') {
+        // add a sibling column to the existing column_list
+        const list = getBlock(doc, targetParent.parentId!);
+        const col = newColumn(list.id);
+        const colIdx = list.children.indexOf(targetParent.id);
+        tx.op({ type: 'insert_block', block: col, index: side === 'left' ? colIdx : colIdx + 1 });
+        let after: BlockId | null = null;
+        for (const id of ids) {
+          tx.op({ type: 'move_block', id, parentId: col.id, after });
+          after = id;
+        }
+        return;
+      }
+
+      const list: Block = {
+        id: uuidv7(),
+        type: 'column_list',
+        version: 1,
+        props: {},
+        children: [],
+        parentId: target.parentId,
+      };
+      tx.op({ type: 'insert_block', block: list, index: childIndex(doc, targetId) });
+      const colA = newColumn(list.id);
+      const colB = newColumn(list.id);
+      tx.op({ type: 'insert_block', block: colA, index: 0 });
+      tx.op({ type: 'insert_block', block: colB, index: 1 });
+      const targetCol = side === 'left' ? colB : colA;
+      const draggedCol = side === 'left' ? colA : colB;
+      tx.op({ type: 'move_block', id: targetId, parentId: targetCol.id, after: null });
+      let after: BlockId | null = null;
+      for (const id of ids) {
+        tx.op({ type: 'move_block', id, parentId: draggedCol.id, after });
+        after = id;
+      }
+    },
+    { origin: 'input', selection: editor.selection },
+  );
 }
 
 // --- markdown autoformat (ARCHITECTURE §5, Notion's autoformat table) ---

@@ -29,13 +29,17 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       if (block.parentId === null) throw new Error('insert_block: cannot insert a root');
       const parent = getBlock(doc, block.parentId);
       doc.blocks.set(block.id, { ...block, children: [...block.children] });
-      parent.children.splice(op.index, 0, block.id);
+      // subtree inserts: a parent inserted first already lists this child id
+      if (!parent.children.includes(block.id)) parent.children.splice(op.index, 0, block.id);
       return { inverse: [{ type: 'delete_block', id: block.id }], dirty: [block.parentId, block.id] };
     }
     case 'delete_block': {
       const block = getBlock(doc, op.id);
       if (block.parentId === null) throw new Error('delete_block: cannot delete the root');
-      if (block.children.length) throw new Error('delete_block: block has children (delete bottom-up)');
+      // children may be listed in the array as long as their blocks are already
+      // deleted from the map (bottom-up deletes, subtree-insert undo)
+      if (block.children.some((c) => doc.blocks.has(c)))
+        throw new Error('delete_block: block has children (delete bottom-up)');
       const parent = getBlock(doc, block.parentId);
       const index = parent.children.indexOf(op.id);
       parent.children.splice(index, 1);

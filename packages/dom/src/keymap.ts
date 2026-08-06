@@ -1,16 +1,22 @@
 import {
+  deleteBlocks,
+  duplicateBlocks,
   getBlock,
   indent,
   insertText,
   isCollapsed,
   mergeBackward,
+  moveBlocksVertical,
   nextInlineBlock,
   outdent,
-  plainText,
   previousInlineBlock,
+  selectedBlocks,
   splitBlock,
+  textCaret,
   textLength,
   toggleMark,
+  visibleBlocks,
+  type BlockSelection,
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { leafOf } from './selection';
@@ -33,14 +39,74 @@ function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
 
 export function attachKeymap(view: EditorView): () => void {
   const editor = view.editor;
+  const isInline = (b: { type: string }) => editor.schema.get(b.type).inline;
+
+  const handleBlockMode = (e: KeyboardEvent, sel: BlockSelection): void => {
+    const mod = e.metaKey || e.ctrlKey;
+    const key = e.key;
+    const order = visibleBlocks(editor.doc).map((b) => b.id);
+    const headIdx = order.indexOf(sel.head);
+
+    if (mod && key.toLowerCase() === 'a') {
+      e.preventDefault();
+      if (order.length) {
+        editor.setSelection({ kind: 'block', anchor: order[0]!, head: order[order.length - 1]! }, 'keyboard');
+      }
+      return;
+    }
+    if (mod && key.toLowerCase() === 'd') {
+      e.preventDefault();
+      duplicateBlocks(editor, selectedBlocks(editor.doc, sel));
+      return;
+    }
+    if (mod && e.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
+      e.preventDefault();
+      moveBlocksVertical(editor, selectedBlocks(editor.doc, sel), key === 'ArrowUp' ? 'up' : 'down');
+      view.editor.setSelection(sel, 'keyboard'); // re-render overlays at the new position
+      return;
+    }
+    switch (key) {
+      case 'Enter': {
+        e.preventDefault();
+        const head = getBlock(editor.doc, sel.head);
+        if (isInline(head)) view.focusBlock(head.id, textLength(head.text));
+        return;
+      }
+      case 'Escape':
+        e.preventDefault();
+        return;
+      case 'Backspace':
+      case 'Delete':
+        e.preventDefault();
+        deleteBlocks(editor, selectedBlocks(editor.doc, sel));
+        return;
+      case 'ArrowUp':
+      case 'ArrowDown': {
+        e.preventDefault();
+        const next = order[headIdx + (key === 'ArrowDown' ? 1 : -1)];
+        if (!next) return;
+        editor.setSelection(
+          { kind: 'block', anchor: e.shiftKey ? sel.anchor : next, head: next },
+          'keyboard',
+        );
+        return;
+      }
+      case 'Tab': {
+        e.preventDefault();
+        const ids = selectedBlocks(editor.doc, sel);
+        if (ids.length === 1) (e.shiftKey ? outdent : indent)(editor, ids[0]!);
+        return;
+      }
+    }
+  };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (view.composing) return;
+    if ((e.target as HTMLElement).closest?.('input, textarea, [data-nbe-ui]')) return;
     const mod = e.metaKey || e.ctrlKey;
     const sel = editor.selection;
-    const caret = sel?.kind === 'text' && isCollapsed(sel) ? sel.anchor : null;
-    const isInline = (b: { type: string }) => editor.schema.get(b.type).inline;
 
+    // undo/redo work in every mode
     if (mod && !e.altKey) {
       const key = e.key.toLowerCase();
       if (key === 'z') {
@@ -52,6 +118,47 @@ export function attachKeymap(view: EditorView): () => void {
       if (key === 'y' && !e.shiftKey) {
         e.preventDefault();
         editor.redo();
+        return;
+      }
+    }
+
+    if (sel?.kind === 'block') {
+      handleBlockMode(e, sel);
+      return;
+    }
+
+    const caret = sel?.kind === 'text' && isCollapsed(sel) ? sel.anchor : null;
+
+    if (mod && !e.altKey) {
+      const key = e.key.toLowerCase();
+      if (key === 'a') {
+        // Cmd+A escalation: block text → whole document (Notion)
+        if (sel?.kind !== 'text') return;
+        e.preventDefault();
+        const block = getBlock(editor.doc, sel.anchor.blockId);
+        const len = textLength(block.text);
+        const from = Math.min(sel.anchor.offset, sel.head.offset);
+        const to = Math.max(sel.anchor.offset, sel.head.offset);
+        if (from === 0 && to === len) {
+          editor.setSelection({ kind: 'block', anchor: block.id, head: block.id }, 'keyboard');
+        } else {
+          editor.setSelection(
+            { kind: 'text', anchor: { blockId: block.id, offset: 0 }, head: { blockId: block.id, offset: len } },
+            'keyboard',
+          );
+          view.syncDomSelection();
+        }
+        return;
+      }
+      if (key === 'd' && !e.shiftKey && caret) {
+        e.preventDefault();
+        duplicateBlocks(editor, [caret.blockId]);
+        return;
+      }
+      if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && caret) {
+        e.preventDefault();
+        moveBlocksVertical(editor, [caret.blockId], e.key === 'ArrowUp' ? 'up' : 'down');
+        view.syncDomSelection();
         return;
       }
       if (!e.shiftKey && (key === 'b' || key === 'i' || key === 'u' || key === 'e')) {
@@ -68,6 +175,13 @@ export function attachKeymap(view: EditorView): () => void {
     }
 
     switch (e.key) {
+      case 'Escape': {
+        if (caret) {
+          e.preventDefault();
+          editor.setSelection({ kind: 'block', anchor: caret.blockId, head: caret.blockId }, 'keyboard');
+        }
+        return;
+      }
       case 'Enter': {
         if (e.shiftKey) {
           e.preventDefault();

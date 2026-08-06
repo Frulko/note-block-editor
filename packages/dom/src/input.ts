@@ -151,6 +151,7 @@ export function attachInput(view: EditorView): () => void {
   const onBeforeInput = (e: Event) => {
     const ev = e as InputEvent;
     if (view.composing) return; // browser owns the DOM during composition
+    if (!leafOf(ev.target as Node)) return; // UI inputs (image URL, menus) keep native behavior
     switch (ev.inputType) {
       case 'insertText':
         ev.preventDefault();
@@ -228,6 +229,14 @@ export function attachInput(view: EditorView): () => void {
       });
       return;
     }
+    const pageLink = target.closest('.nbe-t-link_to_page');
+    if (pageLink) {
+      const pageId = String(
+        getBlock(editor.doc, (pageLink as HTMLElement).dataset['blockId']!).props['pageId'] ?? '',
+      );
+      if (pageId) view.options.onOpenPage?.(pageId);
+      return;
+    }
     const arrow = target.closest('.nbe-toggle-arrow');
     if (arrow) {
       const id = (arrow.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
@@ -262,23 +271,28 @@ export function attachInput(view: EditorView): () => void {
     }
   };
 
-  const onCopy = (e: ClipboardEvent) => {
-    // ponytail: native copy carries the visible text; the three-format
-    // clipboard (schema slice in text/html, markdown text/plain) is ARCHITECTURE §7
-    void e;
+  // image URL input: Enter commits the src
+  const onUiKeydown = (e: KeyboardEvent) => {
+    const input = e.target as HTMLElement;
+    if (e.key === 'Enter' && input.classList?.contains('nbe-image-input')) {
+      e.preventDefault();
+      const id = input.dataset['blockId']!;
+      const src = (input as HTMLInputElement).value.trim();
+      if (src) editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { src } } }), { origin: 'ui' });
+    }
   };
 
   content.addEventListener('beforeinput', onBeforeInput);
   content.addEventListener('compositionstart', onCompositionStart);
   content.addEventListener('compositionend', onCompositionEnd);
   content.addEventListener('click', onClick);
-  content.addEventListener('copy', onCopy);
+  content.addEventListener('keydown', onUiKeydown);
   return () => {
     content.removeEventListener('beforeinput', onBeforeInput);
     content.removeEventListener('compositionstart', onCompositionStart);
     content.removeEventListener('compositionend', onCompositionEnd);
     content.removeEventListener('click', onClick);
-    content.removeEventListener('copy', onCopy);
+    content.removeEventListener('keydown', onUiKeydown);
   };
 }
 

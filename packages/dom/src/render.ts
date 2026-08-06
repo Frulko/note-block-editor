@@ -60,6 +60,48 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
   const spec = view.editor.schema.get(block.type);
   const root = el('div', `nbe-block nbe-t-${block.type}`);
   root.dataset['blockId'] = block.id;
+  if (typeof block.props['color'] === 'string' && block.props['color'])
+    root.style.color = String(block.props['color']);
+
+  // layout containers render their children directly, no row/leaf
+  if (block.type === 'column_list' || block.type === 'column') {
+    if (block.type === 'column' && typeof block.props['ratio'] === 'number')
+      root.style.flexGrow = String(block.props['ratio']);
+    for (const childId of block.children) root.append(renderBlock(view, childId));
+    return root;
+  }
+
+  if (block.type === 'image') {
+    root.setAttribute('contenteditable', 'false');
+    const src = String(block.props['src'] ?? '');
+    if (src) {
+      const img = document.createElement('img');
+      img.className = 'nbe-image';
+      img.src = src;
+      img.alt = String(block.props['caption'] ?? '');
+      root.append(img);
+    } else {
+      const box = el('div', 'nbe-image-empty');
+      const input = document.createElement('input');
+      input.className = 'nbe-image-input';
+      input.placeholder = "URL de l'image, puis Entrée";
+      input.dataset['blockId'] = block.id;
+      box.append('🖼️ ', input);
+      root.append(box);
+    }
+    return root;
+  }
+
+  if (block.type === 'link_to_page') {
+    root.setAttribute('contenteditable', 'false');
+    const row = el('div', 'nbe-row nbe-page-link');
+    row.append('📄 ');
+    const title = el('span', 'nbe-page-link-title');
+    title.textContent = String(block.props['title'] ?? '') || 'Page sans titre';
+    row.append(title);
+    root.append(row);
+    return root;
+  }
 
   const row = el('div', 'nbe-row');
 
@@ -95,6 +137,12 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       btn.textContent = '▶';
       if (block.props['collapsed'] !== true) btn.classList.add('nbe-open');
       row.append(btn);
+      break;
+    }
+    case 'callout': {
+      const icon = el('div', 'nbe-callout-icon');
+      icon.textContent = String(block.props['icon'] ?? '💡');
+      row.append(icon);
       break;
     }
   }

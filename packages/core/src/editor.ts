@@ -60,6 +60,7 @@ export class Editor {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private listeners = new Set<(change: Change) => void>();
+  private selListeners = new Set<(sel: Selection, origin: string) => void>();
 
   constructor(opts: { doc?: Doc; schema?: Schema } = {}) {
     this.doc = opts.doc ?? createDoc();
@@ -71,9 +72,15 @@ export class Editor {
     return () => this.listeners.delete(listener);
   }
 
+  onSelection(listener: (sel: Selection, origin: string) => void): () => void {
+    this.selListeners.add(listener);
+    return () => this.selListeners.delete(listener);
+  }
+
   /** Update selection without a transaction (caret moves are not edits). */
-  setSelection(sel: Selection): void {
+  setSelection(sel: Selection, origin = 'api'): void {
     this.selection = sel;
+    for (const l of this.selListeners) l(sel, origin);
   }
 
   dispatch(build: (tx: Tx) => void, opts: DispatchOptions = {}): void {
@@ -81,7 +88,10 @@ export class Editor {
     const tx = new Tx(this.doc, this.schema);
     build(tx);
     if (tx.ops.length === 0) return;
-    if (opts.selection !== undefined) this.selection = opts.selection;
+    if (tx.ops.some((o) => o.type !== 'insert_text' && o.type !== 'delete_text' && o.type !== 'format_text')) {
+      this.normalizeWrappers(tx);
+    }
+    if (opts.selection !== undefined) this.setSelection(opts.selection, opts.origin ?? 'dispatch');
 
     if (opts.addToHistory !== false) {
       const now = Date.now();
@@ -123,7 +133,7 @@ export class Editor {
     const entry = this.undoStack.pop();
     if (!entry) return false;
     const dirty = this.applyRaw(entry.undoOps);
-    this.selection = entry.selectionBefore;
+    this.setSelection(entry.selectionBefore, 'history');
     this.redoStack.push(entry);
     this.emit({ origin: 'history', dirty, ops: entry.undoOps });
     return true;
@@ -133,10 +143,49 @@ export class Editor {
     const entry = this.redoStack.pop();
     if (!entry) return false;
     const dirty = this.applyRaw(entry.redoOps);
-    this.selection = entry.selectionAfter;
+    this.setSelection(entry.selectionAfter, 'history');
     this.undoStack.push(entry);
     this.emit({ origin: 'history', dirty, ops: entry.redoOps });
     return true;
+  }
+
+  /**
+   * Wrapper garbage collection (ARCHITECTURE §2.3): every transaction that
+   * touches structure dissolves empty columns and underfull column_lists.
+   * ponytail: full scan per structural tx — fine at document scale, index later.
+   */
+  private normalizeWrappers(tx: Tx): void {
+    for (let pass = 0; pass < 100; pass++) {
+      let fixed = false;
+      for (const block of [...this.doc.blocks.values()]) {
+        if (!this.doc.blocks.has(block.id)) continue;
+        if (block.type === 'column' && block.children.every((c) => !this.doc.blocks.has(c))) {
+          tx.op({ type: 'delete_block', id: block.id });
+          fixed = true;
+          break;
+        }
+        if (block.type === 'column_list') {
+          const liveCols = block.children.filter((c) => this.doc.blocks.has(c));
+          if (liveCols.length < 2) {
+            // unwrap: promote the surviving column's children next to the list, then delete wrappers
+            let after: BlockId | null = block.id;
+            for (const colId of liveCols) {
+              const col = this.doc.blocks.get(colId)!;
+              for (const childId of [...col.children]) {
+                if (!this.doc.blocks.has(childId)) continue;
+                tx.op({ type: 'move_block', id: childId, parentId: block.parentId!, after });
+                after = childId;
+              }
+              tx.op({ type: 'delete_block', id: colId });
+            }
+            tx.op({ type: 'delete_block', id: block.id });
+            fixed = true;
+            break;
+          }
+        }
+      }
+      if (!fixed) return;
+    }
   }
 
   private applyRaw(ops: Op[]): Set<BlockId> {

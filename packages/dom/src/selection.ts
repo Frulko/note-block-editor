@@ -50,7 +50,12 @@ export function attachSelectionSync(view: EditorView): () => void {
     const anchor = domToModelPoint(sel.anchorNode!, sel.anchorOffset);
     const head = domToModelPoint(sel.focusNode!, sel.focusOffset);
     if (!anchor || !head) return;
-    view.editor.setSelection({ kind: 'text', anchor, head });
+    if (anchor.blockId !== head.blockId) {
+      // a range crossing leaf boundaries escalates to block selection (D3 / Notion)
+      view.editor.setSelection({ kind: 'block', anchor: anchor.blockId, head: head.blockId }, 'dom');
+      return;
+    }
+    view.editor.setSelection({ kind: 'text', anchor, head }, 'dom');
   };
   document.addEventListener('selectionchange', handler);
   return () => document.removeEventListener('selectionchange', handler);

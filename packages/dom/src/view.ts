@@ -1,27 +1,37 @@
-import type { Change, Editor } from '@nbe/core';
-import { getBlock, textCaret } from '@nbe/core';
+import type { Change, Editor, Selection } from '@nbe/core';
+import { getBlock, selectedBlocks, textCaret } from '@nbe/core';
 import { renderBlock } from './render';
 import { attachSelectionSync, modelPointToDom } from './selection';
 import { attachInput } from './input';
 import { attachKeymap } from './keymap';
 
+export interface EditorViewOptions {
+  onOpenPage?: (pageId: string) => void;
+}
+
 export class EditorView {
   readonly editor: Editor;
   readonly content: HTMLElement;
+  readonly options: EditorViewOptions;
   composing = false;
   suppressSelectionEvents = 0;
 
   private unbinders: Array<() => void> = [];
 
-  constructor(container: HTMLElement, editor: Editor) {
+  constructor(container: HTMLElement, editor: Editor, options: EditorViewOptions = {}) {
     this.editor = editor;
+    this.options = options;
     this.content = document.createElement('div');
     this.content.className = 'nbe-editor';
+    this.content.tabIndex = 0; // the document's single tab stop (ARCHITECTURE §8)
+    this.content.setAttribute('role', 'textbox');
+    this.content.setAttribute('aria-multiline', 'true');
     container.append(this.content);
 
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
+    this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
   }
 
   destroy(): void {
@@ -63,6 +73,25 @@ export class EditorView {
       }
     }
     if (change.origin !== 'dom') this.syncDomSelection();
+    this.renderSelection(this.editor.selection, 'render');
+  }
+
+  /** Render block-selection overlays; text selection is native. */
+  private renderSelection(sel: Selection, origin: string): void {
+    const isBlock = sel?.kind === 'block';
+    this.content.classList.toggle('nbe-blocksel', isBlock);
+    for (const n of this.content.querySelectorAll('.nbe-selected')) n.classList.remove('nbe-selected');
+    if (!isBlock) return;
+    for (const id of selectedBlocks(this.editor.doc, sel)) {
+      this.blockEl(id)?.classList.add('nbe-selected');
+    }
+    // keyboard-driven block selection owns focus; a live mouse drag keeps its native selection
+    if (origin !== 'dom' && origin !== 'render') {
+      this.suppressSelectionEvents++;
+      document.getSelection()?.removeAllRanges();
+      this.content.focus({ preventScroll: true });
+      this.blockEl(sel.head)?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   /** Push the model selection into the browser (after re-renders and focus moves). */
