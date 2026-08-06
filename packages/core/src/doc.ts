@@ -69,16 +69,17 @@ export interface BlockJSON {
   children?: BlockJSON[];
 }
 
+export function blockToJSON(doc: Doc, id: BlockId): BlockJSON {
+  const b = getBlock(doc, id);
+  const json: BlockJSON = { id: b.id, type: b.type, version: b.version };
+  if (Object.keys(b.props).length) json.props = b.props;
+  if (b.text?.length) json.text = b.text;
+  if (b.children.length) json.children = b.children.map((c) => blockToJSON(doc, c));
+  return json;
+}
+
 export function docToJSON(doc: Doc): BlockJSON {
-  const toJSON = (id: BlockId): BlockJSON => {
-    const b = getBlock(doc, id);
-    const json: BlockJSON = { id: b.id, type: b.type, version: b.version };
-    if (Object.keys(b.props).length) json.props = b.props;
-    if (b.text?.length) json.text = b.text;
-    if (b.children.length) json.children = b.children.map(toJSON);
-    return json;
-  };
-  return toJSON(doc.rootId);
+  return blockToJSON(doc, doc.rootId);
 }
 
 export function docFromJSON(json: BlockJSON): Doc {

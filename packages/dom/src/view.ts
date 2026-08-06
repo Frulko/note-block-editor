@@ -6,6 +6,7 @@ import { attachInput } from './input';
 import { attachKeymap } from './keymap';
 import { attachSlashMenu } from './slash';
 import { attachControls } from './controls';
+import { attachClipboard } from './clipboard';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -34,7 +35,7 @@ export class EditorView {
 
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
-    this.unbinders.push(attachSlashMenu(this), attachControls(this));
+    this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
   }

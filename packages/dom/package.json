@@ -11,6 +11,7 @@
     "./style.css": "./src/style.css"
   },
   "dependencies": {
-    "@nbe/core": "workspace:*"
+    "@nbe/core": "workspace:*",
+    "@nbe/markdown": "workspace:*"
   }
 }

@@ -71,53 +71,6 @@ function handleDeleteForward(view: EditorView): void {
   );
 }
 
-function handlePaste(view: EditorView, text: string): void {
-  const editor = view.editor;
-  const at = singleBlockCaret(view);
-  if (!at || !text) return;
-  const lines = text.replace(/\r/g, '').split('\n');
-  const block = getBlock(editor.doc, at.id);
-
-  editor.dispatch(
-    (tx) => {
-      if (at.from < at.to) tx.op({ type: 'delete_text', id: at.id, from: at.from, to: at.to });
-      if (lines[0]) tx.op({ type: 'insert_text', id: at.id, offset: at.from, runs: [{ text: lines[0] }] });
-      // ponytail: extra lines become sibling paragraphs; the tail of the split stays put — full
-      // three-format clipboard pipeline is ARCHITECTURE §7, later in phase 1
-      let afterId = at.id;
-      for (const line of lines.slice(1)) {
-        const p: Block = {
-          id: uuidv7(),
-          type: 'paragraph',
-          version: 1,
-          props: {},
-          text: line ? [{ text: line }] : [],
-          children: [],
-          parentId: block.parentId,
-        };
-        tx.op({ type: 'insert_block', block: p, index: childIndex(editor.doc, afterId) + 1 });
-        afterId = p.id;
-      }
-    },
-    { origin: 'input' },
-  );
-  const lastLine = lines[lines.length - 1] ?? '';
-  const sel = editor.selection;
-  const lastId = lines.length === 1 ? at.id : findLastInserted(view, at.id, lines.length - 1);
-  editor.setSelection(
-    lines.length === 1 ? textCaret(at.id, at.from + lastLine.length) : textCaret(lastId, lastLine.length),
-  );
-  view.syncDomSelection();
-  void sel;
-}
-
-function findLastInserted(view: EditorView, fromId: BlockId, count: number): BlockId {
-  const doc = view.editor.doc;
-  const parent = getBlock(doc, getBlock(doc, fromId).parentId!);
-  const idx = parent.children.indexOf(fromId);
-  return parent.children[idx + count] ?? fromId;
-}
-
 /** Reconcile the model from the DOM after an IME composition (never during — ARCHITECTURE §5.1). */
 function reconcileComposition(view: EditorView, leaf: HTMLElement): void {
   const editor = view.editor;
@@ -174,8 +127,7 @@ export function attachInput(view: EditorView): () => void {
         handleDeleteForward(view);
         break;
       case 'insertFromPaste':
-        ev.preventDefault();
-        handlePaste(view, ev.dataTransfer?.getData('text/plain') ?? '');
+        ev.preventDefault(); // the 'paste' event pipeline in clipboard.ts owns pasting
         break;
       case 'insertFromDrop':
         ev.preventDefault();
