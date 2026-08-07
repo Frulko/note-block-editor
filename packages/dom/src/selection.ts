@@ -1,12 +1,9 @@
 import type { Point } from '@nbe/core';
 import type { EditorView } from './view';
 import { textIntentActive } from './caret';
+import { leafOf } from './topology';
 
-export function leafOf(node: Node | null): HTMLElement | null {
-  if (!node) return null;
-  const elNode = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-  return (elNode?.closest('.nbe-leaf') as HTMLElement) ?? null;
-}
+export { leafOf } from './topology';
 
 /** Map a DOM position to a (blockId, offset) model point. */
 export function domToModelPoint(node: Node, offset: number): Point | null {

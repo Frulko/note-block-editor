@@ -15,6 +15,7 @@ import { attachSelectionToolbar } from './selection-toolbar';
 import { attachCrossBlockSelection } from './cross-block-selection';
 import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
+import { perBlockTopology, type EditableTopology } from './topology';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -39,12 +40,19 @@ export interface EditorViewOptions {
   padding?: { top?: string; bottom?: string; x?: string };
   /** Text column width; '100%' disables centering. Default 708px (Notion). */
   maxWidth?: string;
+  /**
+   * Where the editable boundary sits. Defaults to one host per block (D1);
+   * `singleHostTopology` puts it on the root instead. Every interaction module
+   * is written against this, so switching is a config change.
+   */
+  topology?: EditableTopology;
 }
 
 export class EditorView {
   readonly editor: Editor;
   readonly content: HTMLElement;
   readonly options: EditorViewOptions;
+  readonly topology: EditableTopology;
   composing = false;
   /**
    * True while a block-level gesture owns the selection (rubber band). The
@@ -65,6 +73,7 @@ export class EditorView {
   constructor(container: HTMLElement, editor: Editor, options: EditorViewOptions = {}) {
     this.editor = editor;
     this.options = options;
+    this.topology = options.topology ?? perBlockTopology;
     this.content = document.createElement('div');
     this.content.className = 'nbe-editor';
     if (options.padding?.top !== undefined) this.content.style.setProperty('--nbe-pad-top', options.padding.top);
@@ -75,6 +84,8 @@ export class EditorView {
     this.content.tabIndex = 0; // the document's single tab stop (ARCHITECTURE §8)
     this.content.setAttribute('role', 'textbox');
     this.content.setAttribute('aria-multiline', 'true');
+    this.content.dataset['topology'] = this.topology.name;
+    this.topology.prepareRoot(this.content);
     container.append(this.content);
 
     this.renderAll();

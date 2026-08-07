@@ -5,13 +5,6 @@ import { renderDatabase } from './database';
 import { createActionButton, createDropZone, fileToDataUrl } from './ui';
 import { backgroundColor, textColor } from './colors';
 
-const PLAINTEXT_ONLY_SUPPORTED = (() => {
-  if (typeof document === 'undefined') return false;
-  const d = document.createElement('div');
-  d.setAttribute('contenteditable', 'plaintext-only');
-  return d.contentEditable === 'plaintext-only';
-})();
-
 function el(tag: string, className?: string): HTMLElement {
   const e = document.createElement(tag);
   if (className) e.className = className;
@@ -35,9 +28,9 @@ function renderRun(run: Run): Node {
 function renderLeaf(view: EditorView, block: Block): HTMLElement {
   const spec = view.editor.schema.get(block.type);
   const leaf = el('div', 'nbe-leaf');
-  leaf.setAttribute('contenteditable', PLAINTEXT_ONLY_SUPPORTED ? 'plaintext-only' : 'true');
-  leaf.tabIndex = -1; // single document tab stop lives on the editor root (ARCHITECTURE §8)
   leaf.dataset['blockId'] = block.id;
+  // editability is the topology's call, not the renderer's
+  view.topology.prepareLeaf(leaf, block.id);
   leaf.dataset['gramm'] = 'false'; // Grammarly-class extension opt-out (best effort)
   const placeholder =
     block.type === 'paragraph' ? 'Écris quelque chose…' : (spec.placeholder ?? '');

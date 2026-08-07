@@ -1,5 +1,5 @@
 import type { EditorView } from './view';
-import { leafOf } from './selection';
+import { leafOf, nativeRangeSpans } from './topology';
 import { markTextIntent } from './caret';
 
 /**
@@ -85,7 +85,10 @@ export function attachCrossBlockSelection(view: EditorView): () => void {
     if (!dragging || !anchor) return;
     const head = pointFromClient(view, e.clientX, e.clientY);
     if (!head) return;
-    if (head.leaf === anchor.leaf && !crossed) return; // the browser handles intra-leaf natively
+    // when the browser can span these two natively, it already is: stay out
+    // of its way. Single-host topology makes that always true, which switches
+    // this driver off without it needing to know why.
+    if (!crossed && nativeRangeSpans(view.topology, anchor.node, head.node)) return;
     crossed = true;
     e.preventDefault();
     // suppress the caret-drag autoscroll fight and text-drag cursor
