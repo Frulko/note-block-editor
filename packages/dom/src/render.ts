@@ -49,8 +49,12 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
   // view is read-only, in which case no leaf is editable and no caret appears
   if (!view.readOnly) view.topology.prepareLeaf(leaf, block.id);
   leaf.dataset['gramm'] = 'false'; // Grammarly-class extension opt-out (best effort)
+  // the spec's placeholder lives in core, which has no language: it is the
+  // fallback for a type the labels do not name, never the translation
   const placeholder =
-    block.type === 'paragraph' ? view.labels.emptyParagraph : (spec.placeholder ?? '');
+    block.type === 'paragraph'
+      ? view.labels.emptyParagraph
+      : (view.labels.placeholders[block.type] ?? spec.placeholder ?? '');
   if (placeholder) {
     leaf.dataset['placeholder'] = placeholder;
     // paragraphs: caret-only placeholder (Notion); other types: always when empty

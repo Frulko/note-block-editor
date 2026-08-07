@@ -94,6 +94,113 @@ function persistCurrentPage(): void {
  */
 const tree = new PageTree(pageStorage(ws));
 
+const searchEl = document.getElementById('search') as HTMLInputElement;
+const resultsEl = document.getElementById('results')!;
+const crumbsEl = document.getElementById('crumbs')!;
+const backlinksEl = document.getElementById('backlinks')!;
+
+/** A button that opens a page, used by the breadcrumb, results and backlinks. */
+function pageButton(pageId: string, label: string, className: string): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.className = className;
+  btn.textContent = label;
+  btn.addEventListener('click', () => openPage(pageId));
+  return btn;
+}
+
+/** The path from a root down to the open page — where am I. */
+function renderCrumbs(): void {
+  const path = tree.path(ws.openId);
+  crumbsEl.replaceChildren(
+    ...path.flatMap((node, i) => {
+      const parts: Node[] = [];
+      if (i > 0) parts.push(document.createTextNode(' / '));
+      parts.push(
+        i === path.length - 1
+          ? Object.assign(document.createElement('span'), { className: 'crumb current', textContent: node.title })
+          : pageButton(node.id, node.title, 'crumb'),
+      );
+      return parts;
+    }),
+  );
+}
+
+/**
+ * Pages that point at this one.
+ *
+ * @remarks
+ * Derived, never authored (§2.4) — and the *kind* is shown because the three
+ * mean different things: a sub-page is where the page lives, a link and a
+ * mention are where it is talked about.
+ */
+const BACKLINK_LABEL: Record<string, string> = {
+  sub_page: 'sous-page de',
+  link_to_page: 'lien depuis',
+  mention: 'mentionnée dans',
+};
+
+function renderBacklinks(): void {
+  const links = tree.backlinks(ws.openId);
+  backlinksEl.hidden = links.length === 0;
+  if (!links.length) return;
+  const title = document.createElement('h2');
+  title.textContent = `${links.length} référence${links.length > 1 ? 's' : ''}`;
+  backlinksEl.replaceChildren(
+    title,
+    ...links.map((link) => {
+      const row = document.createElement('div');
+      row.className = 'backlink';
+      const kind = document.createElement('span');
+      kind.className = 'backlink-kind';
+      kind.textContent = BACKLINK_LABEL[link.kind] ?? link.kind;
+      row.append(kind, pageButton(link.pageId, link.title, 'backlink-page'));
+      return row;
+    }),
+  );
+}
+
+/** Full-text search across the workspace, replacing the tree while it is live. */
+function renderSearch(): void {
+  const query = searchEl.value.trim();
+  const active = query.length > 0;
+  resultsEl.hidden = !active;
+  pagesEl.hidden = active;
+  if (!active) return;
+  const hits = tree.search(query);
+  if (!hits.length) {
+    resultsEl.replaceChildren(
+      Object.assign(document.createElement('p'), { className: 'no-results', textContent: 'Aucun résultat' }),
+    );
+    return;
+  }
+  resultsEl.replaceChildren(
+    ...hits.map((hit) => {
+      const row = document.createElement('button');
+      row.className = 'result';
+      const title = document.createElement('span');
+      title.className = 'result-title';
+      title.textContent = hit.title;
+      const snippet = document.createElement('span');
+      snippet.className = 'result-snippet';
+      snippet.textContent = hit.snippet;
+      row.append(title, snippet);
+      row.addEventListener('click', () => {
+        searchEl.value = '';
+        renderSearch();
+        openPage(hit.pageId);
+      });
+      return row;
+    }),
+  );
+}
+
+searchEl.addEventListener('input', () => renderSearch());
+searchEl.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  searchEl.value = '';
+  renderSearch();
+});
+
 async function renderSidebar(): Promise<void> {
   await tree.load();
   // database row pages live inside their collection's table, not the sidebar
@@ -162,6 +269,9 @@ async function renderSidebar(): Promise<void> {
   };
 
   pagesEl.replaceChildren(...tree.roots.flatMap((id) => row(id, 0)));
+  renderCrumbs();
+  renderBacklinks();
+  renderSearch();
 }
 
 function openPage(pageId: string): void {

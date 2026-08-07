@@ -90,3 +90,81 @@ test.describe('the sidebar is a page tree', () => {
     expect(editor.errors()).toEqual([]);
   });
 });
+
+/**
+ * Navigation over the same derived model: where am I, what points here, and
+ * finding a page without knowing where it lives.
+ */
+test.describe('navigating the workspace', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(250);
+  });
+
+  test('the breadcrumb shows the path to the open page', async ({ page }) => {
+    await addChild(page, 0);
+    await page.waitForTimeout(200);
+    const crumbs = await page.locator('#crumbs .crumb').allTextContents();
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0]).toBe("L'éditeur de blocs");
+    await expect(page.locator('#crumbs .crumb.current')).toHaveCount(1);
+  });
+
+  test('a breadcrumb link opens its page', async ({ page }) => {
+    await addChild(page, 0);
+    await page.locator('#crumbs .crumb').first().click();
+    await page.waitForTimeout(300);
+    expect(await page.locator('#crumbs .crumb').allTextContents()).toEqual(["L'éditeur de blocs"]);
+  });
+
+  test('a sub-page lists its parent as a backlink, and says why', async ({ page }) => {
+    await addChild(page, 0);
+    await page.waitForTimeout(200);
+    await expect(page.locator('#backlinks')).toBeVisible();
+    expect(await page.locator('.backlink-kind').first().textContent()).toBe('sous-page de');
+    expect(await page.locator('.backlink-page').first().textContent()).toBe("L'éditeur de blocs");
+  });
+
+  test('a page with nothing pointing at it shows no panel', async ({ page }) => {
+    await expect(page.locator('#backlinks')).toBeHidden();
+  });
+
+  test('search finds a page by its content and replaces the tree', async ({ page }) => {
+    await page.locator('#search').fill('invertibles');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#pages')).toBeHidden();
+    const results = page.locator('.result');
+    await expect(results).toHaveCount(1);
+    expect(await results.first().locator('.result-snippet').textContent()).toContain('invertibles');
+  });
+
+  test('search ignores accents, and says so when it finds nothing', async ({ page }) => {
+    await page.locator('#search').fill('EDITEUR');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.result')).toHaveCount(1);
+    await page.locator('#search').fill('zzzzz introuvable');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.no-results')).toBeVisible();
+  });
+
+  test('Escape clears the search and brings the tree back', async ({ page }) => {
+    await page.locator('#search').fill('invertibles');
+    await page.waitForTimeout(200);
+    await page.locator('#search').press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#pages')).toBeVisible();
+    await expect(page.locator('#results')).toBeHidden();
+  });
+
+  test('choosing a result opens that page', async ({ page, editor }) => {
+    await addChild(page, 0);
+    await page.locator('#search').fill('invertibles');
+    await page.waitForTimeout(200);
+    await page.locator('.result').first().click();
+    await page.waitForTimeout(300);
+    expect(await page.locator('#search').inputValue()).toBe('');
+    expect(await page.locator('#crumbs .crumb').allTextContents()).toEqual(["L'éditeur de blocs"]);
+    expect(editor.errors()).toEqual([]);
+  });
+});

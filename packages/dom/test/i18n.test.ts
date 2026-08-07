@@ -96,7 +96,18 @@ describe('resolveLabels', () => {
   it('covers every key, so a translator sees the whole surface', () => {
     const keys = Object.keys(defaultLabels) as Array<keyof EditorLabels>;
     expect(keys.length).toBeGreaterThan(60);
-    expect(keys.every((k) => typeof defaultLabels[k] === 'string' && defaultLabels[k].length > 0)).toBe(true);
+    const filled = (value: unknown): boolean =>
+      typeof value === 'string'
+        ? value.length > 0
+        : // `placeholders` maps block type to text; every entry must be real too
+          typeof value === 'object' && value !== null && Object.values(value).every(filled);
+    expect(keys.every((k) => filled(defaultLabels[k]))).toBe(true);
+  });
+
+  it('translating one block placeholder keeps the others', () => {
+    const labels = resolveLabels({ placeholders: { heading: 'Heading' } });
+    expect(labels.placeholders.heading).toBe('Heading');
+    expect(labels.placeholders.quote).toBe(defaultLabels.placeholders.quote);
   });
 });
 
