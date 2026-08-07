@@ -9,3 +9,4 @@ export * from './commands';
 export * from './db';
 export * from './formula';
 export * from './table';
+export * from './plugin';
