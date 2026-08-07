@@ -361,6 +361,56 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   border-color: var(--accent);
   color: var(--accent);
 }
+.settings-panel {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+  padding: 0.6rem 0.85rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.settings-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+.settings-row output {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  min-width: 3.5rem;
+  text-align: right;
+}
+.settings-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.settings-row input[type='checkbox'] {
+  justify-self: start;
+  accent-color: var(--accent);
+}
+.settings-row select {
+  font: inherit;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: inherit;
+  justify-self: start;
+}
+.settings-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+}
+.settings-features label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
 .debug-panel {
   margin: 0;
   padding: 1rem;
