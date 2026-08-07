@@ -1,0 +1,283 @@
+/* Carnet — the shell around the editor. The editor owns its own page geometry
+   (padding, centred column, gutter margin), so this only provides boxes. */
+
+:root {
+  --ink: #37352f;
+  --muted: #8a8a8a;
+  --line: rgb(55 53 47 / 0.09);
+  --surface: #fff;
+  --sidebar: #fbfbfa;
+  --accent: rgb(35 131 226);
+  color-scheme: light dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 14px/1.5 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  /* a desktop chrome-less window: the whole surface is the app */
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+/* --- sidebar --- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  background: var(--sidebar);
+  min-height: 0;
+}
+.sidebar[hidden] { display: none; }
+
+.vault {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 10px 6px;
+  /* room for the traffic lights on macOS */
+  padding-top: 30px;
+}
+.vault-name {
+  flex: 1;
+  text-align: start;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault button,
+.vault-actions button {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.vault button:hover,
+.vault-actions button:hover { background: rgb(0 0 0 / 0.06); }
+
+.search {
+  margin: 0 10px 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: rgb(0 0 0 / 0.04);
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.search:focus {
+  outline: none;
+  border-color: rgb(35 131 226 / 0.5);
+  background: var(--surface);
+}
+
+.pages,
+.results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 6px 12px;
+  min-height: 0;
+}
+.results:not([hidden]) { display: block; }
+
+.page-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  padding: 5px 8px;
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  cursor: pointer;
+}
+.page-item:hover { background: rgb(0 0 0 / 0.05); }
+.page-item.active { background: rgb(35 131 226 / 0.12); font-weight: 500; }
+.page-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-add {
+  margin-inline-start: auto;
+  padding: 0 4px;
+  color: var(--muted);
+  opacity: 0;
+}
+.page-item:hover .page-add { opacity: 1; }
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.result:hover { background: rgb(0 0 0 / 0.05); }
+.result-title { font-size: 13px; font-weight: 500; }
+.result-snippet,
+.empty {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.empty { padding: 6px 8px; }
+
+.vault-actions {
+  border-top: 1px solid var(--line);
+  padding: 6px;
+}
+.vault-actions button { width: 100%; font-size: 12px; color: var(--muted); }
+
+/* --- the page --- */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 30px 24px 0;
+  font-size: 13px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.crumbs:empty { display: none; }
+.crumb {
+  padding: 2px 4px;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.crumb:hover { background: rgb(0 0 0 / 0.06); }
+.crumb.current { color: var(--ink); font-weight: 500; cursor: default; }
+
+.page-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.page { min-height: 60vh; }
+
+.backlinks {
+  max-width: 756px;
+  margin: 0 auto 48px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+}
+.backlinks h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.backlink { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.backlink-kind { color: var(--muted); font-size: 12px; }
+.backlink-page {
+  padding: 2px 4px;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgb(0 0 0 / 0.2);
+}
+
+/* --- first run --- */
+
+.welcome {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px;
+  text-align: center;
+  background: var(--surface);
+  z-index: 50;
+}
+.welcome[hidden] { display: none; }
+.welcome h1 { margin: 0; font-size: 28px; }
+.welcome p { margin: 0; max-width: 46ch; color: var(--muted); }
+.primary {
+  padding: 8px 16px;
+  font: inherit;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.status {
+  position: fixed;
+  inset-block-end: 16px;
+  inset-inline-end: 16px;
+  padding: 8px 14px;
+  font-size: 13px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 8px;
+  z-index: 60;
+}
+.status[hidden] { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e9e9e7;
+    --muted: #999;
+    --line: rgb(255 255 255 / 0.1);
+    --surface: #191919;
+    --sidebar: #202020;
+  }
+  .vault button:hover,
+  .vault-actions button:hover,
+  .page-item:hover,
+  .result:hover,
+  .crumb:hover { background: rgb(255 255 255 / 0.07); }
+  .search { background: rgb(255 255 255 / 0.06); }
+}

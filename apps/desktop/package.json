@@ -1,0 +1,27 @@
+{
+  "name": "@nbe/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "tauri",
+    "app": "tauri dev",
+    "app:build": "tauri build"
+  },
+  "dependencies": {
+    "@nbe/blocks-callout": "workspace:*",
+    "@nbe/core": "workspace:*",
+    "@nbe/dom": "workspace:*",
+    "@nbe/markdown": "workspace:*",
+    "@nbe/workspace": "workspace:*",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "vite": "^7.1.7"
+  }
+}

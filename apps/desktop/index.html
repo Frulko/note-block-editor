@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carnet</title>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <aside class="sidebar" id="sidebar">
+        <header class="vault">
+          <button id="pick-vault" class="vault-name" title="Changer de dossier">
+            <span id="vault-label">Aucun dossier</span>
+          </button>
+          <button id="new-page" title="Nouvelle page">＋</button>
+        </header>
+        <input id="search" class="search" type="search" placeholder="Rechercher…" autocomplete="off" />
+        <nav id="pages" class="pages"></nav>
+        <div id="results" class="results" hidden></div>
+        <footer class="vault-actions">
+          <button id="sync">Régénérer le Markdown</button>
+        </footer>
+      </aside>
+
+      <main class="main">
+        <nav id="crumbs" class="crumbs"></nav>
+        <div class="page-scroll">
+          <div id="editor" class="page"></div>
+          <section id="backlinks" class="backlinks" hidden></section>
+        </div>
+      </main>
+
+      <div id="welcome" class="welcome">
+        <h1>Carnet</h1>
+        <p>
+          Choisissez un dossier. Vos pages y seront écrites en Markdown, lisibles
+          dans n'importe quel éditeur de texte — et dans Obsidian.
+        </p>
+        <button id="welcome-pick" class="primary">Ouvrir un dossier…</button>
+      </div>
+      <div id="status" class="status" hidden></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

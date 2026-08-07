@@ -1,0 +1,26 @@
+[package]
+name = "carnet"
+version = "0.0.1"
+description = "Un carnet de notes dont le stockage est un dossier de Markdown"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "carnet_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+# remembers the folder the user picked, so the next launch reopens it without
+# asking again — the scope a dialog grants is otherwise lost on exit
+tauri-plugin-persisted-scope = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
