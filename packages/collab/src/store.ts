@@ -68,6 +68,16 @@ export class LoroBlockStore implements BlockStore {
     const treeId = this.index.get(id);
     if (!treeId) return undefined;
     try {
+      /*
+       * A deleted node is still in the tree and still resolves — Loro keeps the
+       * tombstone, which is what lets a concurrent move converge instead of
+       * duplicating. It is not still in the *document*, and every read here
+       * goes through this method, so this is the one place the distinction has
+       * to be made. Without it `get`, `has` and `values` all handed back blocks
+       * the editor had deleted; rendering walks `children` from the root and so
+       * never noticed, and the first caller to iterate `values()` did.
+       */
+      if (this.tree.isNodeDeleted(treeId)) return undefined;
       return this.tree.getNodeByID(treeId) ?? undefined;
     } catch {
       return undefined; // deleted under us
@@ -215,12 +225,17 @@ export class LoroBlockStore implements BlockStore {
 
   *values(): IterableIterator<Block> {
     for (const node of this.tree.nodes()) {
-      if (this.idOf(node) !== null) yield this.toBlock(node);
+      const id = this.idOf(node);
+      // `nodeOf` is what knows about tombstones; going through it keeps that
+      // knowledge in one place rather than repeating the check here
+      if (id !== null && this.nodeOf(id)) yield this.toBlock(node);
     }
   }
 
   get size(): number {
-    return this.index.size;
+    let n = 0;
+    for (const id of this.index.keys()) if (this.nodeOf(id)) n++;
+    return n;
   }
 
   /** Everything since `from`, as an opaque blob for a peer. */

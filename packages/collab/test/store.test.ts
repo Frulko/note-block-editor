@@ -247,3 +247,26 @@ describe('two people can type in the same paragraph', () => {
     expect(store.get(block.id)!.text).toEqual([{ text: 'gras' }]);
   });
 });
+
+describe('a deleted block is gone from every read', () => {
+  it('get, has, values and size all agree after a delete', () => {
+    const store = new LoroBlockStore();
+    store.set('root', { id: 'root', type: 'page', version: 1, props: {}, children: [], parentId: null });
+    store.set('a', { id: 'a', type: 'paragraph', version: 1, props: {}, children: [], parentId: 'root' });
+    store.set('b', { id: 'b', type: 'paragraph', version: 1, props: {}, children: [], parentId: 'root' });
+
+    expect(store.delete('b')).toBe(true);
+
+    /*
+     * Loro keeps the tombstone — that is what lets a concurrent move converge
+     * instead of duplicating — so the node still resolves in the tree. It must
+     * not still resolve in the *document*. Rendering walks `children` from the
+     * root and so never noticed; history iterates `values()` and did.
+     */
+    expect(store.get('b')).toBeUndefined();
+    expect(store.has('b')).toBe(false);
+    expect([...store.values()].map((block) => block.id).sort()).toEqual(['a', 'root']);
+    expect(store.size).toBe(2);
+    expect(store.delete('b')).toBe(false);
+  });
+});
