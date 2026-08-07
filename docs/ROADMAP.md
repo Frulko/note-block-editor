@@ -50,6 +50,25 @@
 > the document body. The editor also paints its own page background now, so a
 > dark theme cannot end up as white text on the host's white page.
 
+> **Plugin architecture pulled forward (2026-08-07).** Adding one block type
+> today touches **14 files across 4 packages**, and there are 18 closed
+> dispatches on `block.type` in the source. The declarative half of the
+> extension point is right and per-instance (`BlockSpec`, `Schema`); the
+> behavioural half — render, keys, menu actions, paste, and both projections —
+> never travels with the spec. That makes the "single extension point" of §4
+> open in principle and closed in practice, and it is now the binding
+> constraint on everything the roadmap calls ecosystem. Phase 4 would add a
+> *fourth* projection (the vault), far cheaper to add to a contribution API
+> than to a fifth closed switch. Research: `docs/research/plugin-architecture.md`.
+> Plan: `docs/design/plugin-refactor-plan.md`. Target shape, Tiptap-style —
+> activation is an import plus an array entry, and not importing a block keeps
+> it out of the bundle.
+
+> **Presentation site (2026-08-07).** Astro, in `site/`. Chosen over TanStack
+> Start because it renders React, Vue and Svelte islands natively on one page,
+> which is what documenting three framework bindings actually requires — the
+> alternative turns two of the three integrations into screenshots.
+
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier
 one — that's what the "cheap now, priceless later" invariants below are for.
