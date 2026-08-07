@@ -427,7 +427,8 @@ as Notion-import, preserving IDs via frontmatter/`^id`.
 
 **Acceptance test:** with the app deleted, the workspace folder opened in a
 text editor shows every page, row, view definition, and asset. Content that
-exists only in SQLite or a binary blob is a bug.
+exists only in the derived index — whatever that runtime's index happens to be
+— or only inside a binary blob, is a bug.
 
 Interop targets: Obsidian vaults (L1 *is* one), Notion ZIP import (UUID
 filenames, CSV databases, flattened toggles), Notion Enhanced Markdown, Djot
