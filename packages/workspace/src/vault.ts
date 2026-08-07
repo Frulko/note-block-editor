@@ -1,4 +1,4 @@
-import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
+import { blocksToMarkdown, markdownToBlocks, slugify } from '@nbe/markdown';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import { SUB_PAGE, pageTitle } from './index';
 import type { Workspace } from './index';
@@ -66,15 +66,6 @@ export interface ExportOptions {
    * block that held it.
    */
   assets?: ReadonlyMap<string, Uint8Array>;
-}
-
-/** Filesystem-safe, human-readable, and stable for the same title. */
-export function slugify(title: string): string {
-  const cleaned = title
-    .replace(/[/\\:*?"<>|#^[\]]/g, ' ') // illegal on some filesystem or in a wikilink
-    .replace(/\s+/g, ' ')
-    .trim();
-  return cleaned.slice(0, 60) || 'sans-titre';
 }
 
 function frontmatter(id: string, title: string): string {
@@ -265,4 +256,4 @@ export function vaultPathFor(workspace: Workspace, pageId: string): string | nul
 }
 
 /** Re-exported so a caller can name a page without loading a workspace. */
-export { pageTitle };
+export { pageTitle, slugify };

@@ -18,6 +18,46 @@ function escapeMd(s: string): string {
 }
 
 /**
+ * A title reduced to what a filename and a wikilink target can both hold.
+ *
+ * @remarks
+ * Lives here, beside the code that writes wikilinks, because the two
+ * constraints are one constraint. A vault names a page `<Title>.md` and refers
+ * to it as `[[Title]]`, and a reader resolves the second against the first —
+ * so a title containing `/` or `:`, illegal in a filename, must lose them in
+ * *both* or the link points at nothing.
+ *
+ * Also strips `[ ] | # ^`, which are wikilink syntax rather than filesystem
+ * trouble: unescaped, they would end the link early.
+ */
+export function slugify(title: string): string {
+  const cleaned = title
+    .replace(/[/\\:*?"<>|#^[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.slice(0, 60) || 'sans-titre';
+}
+
+/**
+ * A wikilink that resolves *and* reads as the page is really called.
+ *
+ * @remarks
+ * A vault reader matches `[[target]]` against filenames, so the target must be
+ * the slug. But a page called `Réunion : 2026/07` should not be shown as
+ * `Réunion 2026 07` merely because a filesystem cannot hold a slash — so when
+ * the two differ, the alias form `[[target|display]]` carries both. Obsidian
+ * follows the target and shows the display text, which is exactly the split we
+ * need, and the parser reads the display half back as the title.
+ *
+ * The plain form is emitted when nothing was lost, which is almost always —
+ * `[[Notes|Notes]]` would be noise in a file meant to be read by a person.
+ */
+function wikilink(title: string): string {
+  const target = slugify(title);
+  return target === title ? `[[${title}]]` : `[[${target}|${title}]]`;
+}
+
+/**
  * Serialize inline runs to markdown.
  *
  * @remarks
@@ -108,7 +148,7 @@ function atomicRun(run: Run): string {
    * trade. Re-import matches the title back to a page, which is exactly how
    * Obsidian itself behaves when a note is renamed.
    */
-  if (has('mention')) return `[[${run.text}]]`;
+  if (has('mention')) return wikilink(run.text);
 
   let s: string;
   if (has('code')) {
@@ -182,7 +222,10 @@ function parseInline(text: string, marks: Mark[]): Run[] {
       const wm = /^\[\[([^\]]+)\]\]/.exec(text.slice(i));
       if (wm) {
         flush();
-        runs.push({ text: wm[1]!, marks: [...marks.map((m) => ({ ...m })), { type: 'mention' }] });
+        // `[[target|display]]` — the display half is the title, which is what
+        // a mention shows and what a vault import matches a page against
+        const shown = wm[1]!.slice(wm[1]!.indexOf('|') + 1);
+        runs.push({ text: shown, marks: [...marks.map((m) => ({ ...m })), { type: 'mention' }] });
         i += wm[0].length;
         continue;
       }
@@ -383,7 +426,7 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
       // documented loss (D7): both become a wikilink, so a re-import cannot
       // tell "the page lives here" from "the page is mentioned here". In a
       // vault the hierarchy is the folder layout, which is phase 4b's job.
-      return [pad + `[[${String(p['title'] || 'page')}]]`];
+      return [pad + wikilink(String(p['title'] || 'page'))];
     case 'table': {
       const rows = (b.children ?? []).filter((r) => r.type === 'table_row');
       if (!rows.length) return [];
