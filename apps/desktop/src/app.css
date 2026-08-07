@@ -281,3 +281,11 @@ body {
   .crumb:hover { background: rgb(255 255 255 / 0.07); }
   .search { background: rgb(255 255 255 / 0.06); }
 }
+
+/* an error stays on screen: it is the only thing explaining why nothing
+   happened, and it must not fade before it has been read */
+.status.error {
+  background: rgb(212 76 71);
+  max-width: 60ch;
+  cursor: pointer;
+}

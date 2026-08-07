@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { docFromJSON, docToJSON, Editor, type BlockJSON } from '@nbe/core';
@@ -58,12 +59,40 @@ let collections: CollectionRecord[] = [];
 
 /** A short message that fades, for things that succeeded quietly. */
 let statusTimer = 0;
-function say(message: string): void {
+function say(message: string, kind: 'ok' | 'error' = 'ok'): void {
   statusEl.textContent = message;
+  statusEl.classList.toggle('error', kind === 'error');
   statusEl.hidden = false;
   clearTimeout(statusTimer);
-  statusTimer = window.setTimeout(() => (statusEl.hidden = true), 2400);
+  // an error stays until the next message: it is the only thing telling the
+  // user why nothing happened
+  if (kind === 'ok') statusTimer = window.setTimeout(() => (statusEl.hidden = true), 2400);
 }
+
+/**
+ * Nothing fails quietly.
+ *
+ * @remarks
+ * Reported after the first build: "I open a folder and nothing happens." Two
+ * faults, and this is the one that made the other invisible — every entry
+ * point was called with `void`, so a rejected promise disappeared into the
+ * console of a window with no console open. An application that cannot tell
+ * you why it did nothing is worse than one that crashes.
+ */
+function guard<A extends unknown[]>(what: string, run: (...args: A) => Promise<unknown>) {
+  return (...args: A): void => {
+    void run(...args).catch((error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[carnet] ${what}`, error);
+      say(`${what} : ${detail}`, 'error');
+    });
+  };
+}
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[carnet] promesse rejetée', event.reason);
+  say(String(event.reason instanceof Error ? event.reason.message : event.reason), 'error');
+});
 
 // --- where the vault is ------------------------------------------------------
 
@@ -101,12 +130,27 @@ async function rememberRoot(path: string): Promise<void> {
 async function pickVault(): Promise<void> {
   const chosen = await open({ directory: true, multiple: false, title: 'Choisir un dossier' });
   if (typeof chosen !== 'string') return;
+  await grantAccess(chosen);
   await rememberRoot(chosen);
   await openVault(chosen);
 }
 
+/**
+ * Ask the backend for access to the folder and everything under it.
+ *
+ * @remarks
+ * The picker grants the folder itself, and only that. The canonical documents
+ * live in `.nbe/` one level down, so without this every read and write there
+ * is denied — which is exactly what "I open a folder and nothing happens"
+ * looked like.
+ */
+async function grantAccess(path: string): Promise<void> {
+  await invoke('allow_vault', { path });
+}
+
 async function openVault(path: string): Promise<void> {
   root = path;
+  await grantAccess(path);
   workspace = new Workspace(vaultStorage(path));
   await workspace.load();
   vaultLabel.textContent = path.split('/').pop() ?? path;
@@ -345,20 +389,21 @@ async function syncVault(): Promise<void> {
 
 // --- wiring ------------------------------------------------------------------
 
-el('pick-vault').addEventListener('click', () => void pickVault());
-el('welcome-pick').addEventListener('click', () => void pickVault());
-el('new-page').addEventListener('click', async () => {
+el('pick-vault').addEventListener('click', guard('Ouverture du dossier', pickVault));
+el('welcome-pick').addEventListener('click', guard('Ouverture du dossier', pickVault));
+el('new-page').addEventListener('click', guard('Nouvelle page', async () => {
   if (!workspace) return;
   const id = await workspace.createPage({ title: '' });
   await syncVault();
   await render();
   await openPage(id);
-});
-el('sync').addEventListener('click', async () => {
+}));
+el('sync').addEventListener('click', guard('Régénération du Markdown', async () => {
   await persistNow();
   await syncVault();
   say('Markdown régénéré');
-});
+}));
+statusEl.addEventListener('click', () => (statusEl.hidden = true));
 searchEl.addEventListener('input', () => renderSearch());
 searchEl.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
@@ -369,9 +414,21 @@ searchEl.addEventListener('keydown', (event) => {
 // a debounced save may not have fired yet when the window closes
 window.addEventListener('beforeunload', () => void persistNow());
 
-const remembered = await rememberedRoot();
-if (remembered && (await exists(remembered))) await openVault(remembered);
-else {
+/*
+ * A remembered folder can be gone, renamed, or on a volume that is not
+ * mounted. None of those is a crash: fall back to the welcome screen and say
+ * what happened, rather than opening onto an empty workspace that looks like
+ * data loss.
+ */
+try {
+  const remembered = await rememberedRoot();
+  if (remembered && (await exists(remembered))) await openVault(remembered);
+  else {
+    sidebarEl.hidden = true;
+    welcomeEl.hidden = false;
+  }
+} catch (error) {
   sidebarEl.hidden = true;
   welcomeEl.hidden = false;
+  say(`Dossier précédent inaccessible : ${error instanceof Error ? error.message : String(error)}`, 'error');
 }

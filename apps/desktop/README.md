@@ -48,6 +48,13 @@ n'apparaît pas dans l'arbre : elle appartient à sa table. Les lignes ne sont
 listées nulle part — une page appartient à une collection parce que ses propres
 propriétés le disent, et c'est le seul endroit où c'est écrit.
 
+## Si quelque chose ne marche pas
+
+L'application le dit. Toute erreur s'affiche en bas à droite, en rouge, et y
+reste jusqu'au message suivant — cliquez dessus pour la fermer. Il n'y a aucun
+chemin où il ne se passe simplement rien : c'est le défaut trouvé au premier
+essai, et le plus coûteux, parce qu'il rendait tous les autres invisibles.
+
 ## Ce que l'application n'ajoute pas
 
 Presque rien, et c'est voulu. L'arbre des pages, la recherche, les backlinks,
