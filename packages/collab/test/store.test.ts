@@ -157,3 +157,93 @@ describe('two peers converge', () => {
     expect(inAlice[0]!.parentId).toBe(inBob[0]!.parentId);
   });
 });
+
+describe('two people can type in the same paragraph', () => {
+  /** Set up one paragraph, replicated to a second peer. */
+  function pair(initial: string) {
+    const alice = new LoroBlockStore();
+    const editor = editorOn(alice);
+    const block = paragraph(editor.doc.rootId, initial);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    const bob = new LoroBlockStore();
+    bob.import(alice.export());
+    return { alice, bob, blockId: block.id };
+  }
+
+  /** Type into a store the way the reducer does: hand it the finished runs. */
+  function retype(store: LoroBlockStore, id: BlockId, text: string) {
+    const block = store.get(id)!;
+    store.set(id, { ...block, text: [{ text }] });
+  }
+
+  function sync(a: LoroBlockStore, b: LoroBlockStore) {
+    a.import(b.export());
+    b.import(a.export());
+  }
+
+  it('edits at different points in one line both survive', () => {
+    const { alice, bob, blockId } = pair('bonjour monde');
+    // stored as a value this is last-write-wins and one edit disappears
+    retype(alice, blockId, 'bonjour cher monde');
+    retype(bob, blockId, 'bonjour monde !');
+    sync(alice, bob);
+
+    const merged = alice.get(blockId)!.text!.map((run) => run.text).join('');
+    expect(merged).toBe(bob.get(blockId)!.text!.map((run) => run.text).join(''));
+    expect(merged).toContain('cher');
+    expect(merged).toContain('!');
+  });
+
+  it('a deletion on one side and an insertion on the other both apply', () => {
+    const { alice, bob, blockId } = pair('un deux trois');
+    retype(alice, blockId, 'un trois');
+    retype(bob, blockId, 'un deux trois quatre');
+    sync(alice, bob);
+
+    const merged = alice.get(blockId)!.text!.map((run) => run.text).join('');
+    expect(merged).toBe(bob.get(blockId)!.text!.map((run) => run.text).join(''));
+    expect(merged).toContain('quatre');
+    expect(merged).not.toContain('deux');
+  });
+
+  it('marks survive a round trip', () => {
+    const store = new LoroBlockStore();
+    const editor = editorOn(store);
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    store.set(block.id, {
+      ...store.get(block.id)!,
+      text: [{ text: 'du ' }, { text: 'gras', marks: [{ type: 'bold' }] }, { text: ' ici' }],
+    });
+
+    const back = store.get(block.id)!.text!;
+    expect(back.map((run) => run.text).join('')).toBe('du gras ici');
+    expect(back.find((run) => run.text === 'gras')?.marks).toEqual([{ type: 'bold' }]);
+  });
+
+  it('a mark with attributes keeps them', () => {
+    const store = new LoroBlockStore();
+    const editor = editorOn(store);
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    store.set(block.id, {
+      ...store.get(block.id)!,
+      text: [{ text: 'site', marks: [{ type: 'link', attrs: { href: 'https://example.com' } }] }],
+    });
+    expect(store.get(block.id)!.text![0]!.marks).toEqual([
+      { type: 'link', attrs: { href: 'https://example.com' } },
+    ]);
+  });
+
+  it('removing a mark actually removes it', () => {
+    const store = new LoroBlockStore();
+    const editor = editorOn(store);
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    store.set(block.id, { ...store.get(block.id)!, text: [{ text: 'gras', marks: [{ type: 'bold' }] }] });
+    // marking never clears what it does not name, so this is where a word
+    // stays bold after the bold is switched off
+    store.set(block.id, { ...store.get(block.id)!, text: [{ text: 'gras' }] });
+    expect(store.get(block.id)!.text).toEqual([{ text: 'gras' }]);
+  });
+});

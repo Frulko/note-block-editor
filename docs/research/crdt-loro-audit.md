@@ -144,10 +144,21 @@ it did not say that `get` may return a fresh object, or that mutations must be
 written back. Both are now stated on `BlockStore` and tested by driving the
 editor against a store that deliberately returns copies.
 
-Still missing: text is stored as a value, so two people typing in one paragraph
-conflict on the whole paragraph rather than merging. Mapping runs onto
-`LoroText` is the next step and a larger one, since `insert_text` carries an
-offset and offsets are what does not merge.
+~~Still missing: text stored as a value.~~ Done (`collab/src/text.ts`): runs
+map onto `LoroText`, so two people editing one paragraph merge instead of one
+of them disappearing.
+
+The difficulty was not the offsets, which turned out to be a question about the
+*wire* format and was already settled. It was that `set(id, block)` hands over
+a finished run array rather than an operation. Replacing the container with it
+would be one enormous replacement per keystroke, throwing away exactly what the
+CRDT is for — so the store diffs, and a keystroke becomes one insert at one
+position. The operation is recovered from the value we were given.
+
+A prefix/suffix diff is enough because that is the shape of typing. It is not
+minimal for arbitrary rewrites: a paste changing the middle of a paragraph
+produces one replacement spanning the change, which merges worse than it could
+and is still correct.
 
 ## Not evaluated here
 

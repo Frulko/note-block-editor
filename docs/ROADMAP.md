@@ -481,8 +481,8 @@ framework, no runtime dependency at all):
   non-`Map` store, because a seam nothing implements is a seam in name only.
   ~~Adoption~~ — `packages/collab` (2026-08-07): a `LoroBlockStore` a real
   editor runs on unchanged, with the tree owning structure and two peers
-  converging on a contested move. Text is still stored as a value, so
-  paragraph-level rather than character-level merging; `LoroText` is next. The ops stay a local format — they carry integer
+  converging on a contested move. Text is a `LoroText` container, so two
+  people editing one paragraph merge rather than one edit disappearing. The ops stay a local format — they carry integer
   positions — and the wire format is Loro's own updates.
 - **Sync:** opaque update blobs over pluggable transports (Automerge-Repo
   pattern); default ~100-line self-hostable websocket relay; iroh for p2p

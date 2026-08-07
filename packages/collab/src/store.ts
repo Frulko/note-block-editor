@@ -1,5 +1,6 @@
 import { LoroDoc, type LoroTree, type LoroTreeNode, type TreeID } from 'loro-crdt';
-import type { Block, BlockId, BlockStore, Run } from '@nbe/core';
+import type { Block, BlockId, BlockStore } from '@nbe/core';
+import { LoroText, applyRuns, textToRuns } from './text';
 import { MARKS } from '@nbe/core';
 
 /**
@@ -22,11 +23,12 @@ import { MARKS } from '@nbe/core';
  * chose `moveBlock` to be. Two clients moving the same block converge instead
  * of duplicating it, which is the whole reason for choosing a movable tree.
  *
- * **What this does not do yet** is make text collaborative. Runs are stored as
- * a value, so two people typing in the same paragraph will conflict on the
- * whole paragraph rather than merging character by character. Mapping runs onto
- * `LoroText` with `configTextStyle` is the next step, and it is a bigger one:
- * `insert_text` carries an offset, and offsets are what does not merge.
+ * **Text is a container, not a value** (`text.ts`). Stored as a value, two
+ * people editing one paragraph conflict on the whole paragraph and a sentence
+ * disappears; as a `LoroText` they merge by position. The store is handed a
+ * finished run array rather than an operation, so it diffs — a keystroke
+ * becomes one insert at one position, which is the operation Loro wants,
+ * recovered from the value we were given.
  *
  * @category Collaboration
  */
@@ -107,8 +109,19 @@ export class LoroBlockStore implements BlockStore {
       // derived, never stored: the tree is the only place structure lives
       children,
       parentId: parent ? this.idOf(parent) : null,
-      ...(data.get('text') !== undefined ? { text: data.get('text') as Run[] } : {}),
+      ...(this.hasText(node) ? { text: textToRuns(this.textOf(node)) } : {}),
     };
+  }
+
+  private hasText(node: LoroTreeNode): boolean {
+    return node.data.get('text') !== undefined;
+  }
+
+  /** The node's text container, created on first use. */
+  private textOf(node: LoroTreeNode): LoroText {
+    const existing = node.data.get('text');
+    if (existing instanceof LoroText) return existing;
+    return node.data.setContainer('text', new LoroText());
   }
 
   get(id: BlockId): Block | undefined {
@@ -127,8 +140,8 @@ export class LoroBlockStore implements BlockStore {
     data.set('type', block.type);
     data.set('version', block.version);
     data.set('props', block.props as never);
-    if (block.text !== undefined) data.set('text', block.text as never);
-    else data.delete('text');
+    if (block.text !== undefined) applyRuns(this.textOf(node), block.text);
+    else if (data.get('text') !== undefined) data.delete('text');
 
     this.applyParent(node, block.parentId);
     this.applyChildren(node, block.children);
