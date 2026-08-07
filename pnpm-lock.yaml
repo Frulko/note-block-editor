@@ -199,6 +199,16 @@ importers:
       '@nbe/workspace':
         specifier: workspace:*
         version: link:../workspace
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.2
+    devDependencies:
+      '@nbe/collab':
+        specifier: workspace:*
+        version: link:../collab
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
 
   packages/collab:
     dependencies:

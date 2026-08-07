@@ -34,7 +34,9 @@ describe('package layering', () => {
   });
 
   it('the cli depends on core, markdown and workspace — and no framework', () => {
-    expect(deps('cli').sort()).toEqual(['@nbe/core', '@nbe/markdown', '@nbe/workspace']);
+    //  because Node ships a WebSocket *client* and no server, and the
+    // handshake plus framing is a protocol rather than a few lines
+    expect(deps('cli').sort()).toEqual(['@nbe/core', '@nbe/markdown', '@nbe/workspace', 'ws']);
   });
 
   it('workspace depends on core and markdown (the vault is a markdown projection)', () => {

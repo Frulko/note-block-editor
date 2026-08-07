@@ -492,11 +492,19 @@ framework, no runtime dependency at all):
   missing (104 bytes against a 372-byte snapshot on the measured sample, and
   that ratio grows with history). Local changes are distinguished from imported
   ones so an update is not echoed back and forth.
-  **Remaining:** the concrete websocket relay (needs a server-side WebSocket,
-  which Node does not provide — a dependency decision), iroh for p2p on native,
-  and presence on a separate ephemeral channel. ACL stays outside the CRDT: it
-  merges whatever it is handed, so a peer that should not have written must be
-  stopped before the blob arrives.
+  ~~The websocket relay~~ — shipped 2026-08-07 as `nbe relay`. It forwards
+  bytes between the peers in a room and knows nothing else: **a relay that
+  cannot understand the data cannot corrupt it**, needs no upgrade when the
+  document format changes, and can be replaced by any pipe. It holds no state
+  either — a room exists while someone is in it, because the document lives on
+  the peers. The client side needs no dependency (`WebSocket` is a global in
+  browsers and in Node 22+); the server side takes `ws`, since Node ships a
+  client and no server and the handshake plus framing is a protocol rather than
+  a few lines. Tested through a real HTTP server, not a loopback.
+  **Remaining:** iroh for p2p on native, and presence on a separate ephemeral
+  channel. ACL stays outside the CRDT — it merges whatever it is handed, so the
+  check must happen before the bytes arrive; `startRelay` takes an `authorize`
+  hook and is meant to sit behind a proxy that authenticates.
 - **Native Swift editor:** same JSON schema + registry, per-block TextKit 2
   views, SwiftUI chrome, loro-swift when collab lands (Craft proves the
   category)

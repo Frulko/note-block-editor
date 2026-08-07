@@ -4,6 +4,7 @@ import { checkReadable, importDirectory, openWorkspace, writeVault } from './ind
 import { watchVault } from './watch';
 import { WorkspaceIndex } from './index-db';
 import { LockedError, withLock } from './lock';
+import { startRelay } from './relay';
 
 /**
  * `nbe` — a workspace on the command line.
@@ -31,6 +32,7 @@ const USAGE = `nbe — un espace de travail en Markdown
   nbe import <dossier>      un vault ou un export Notion
   nbe watch                 reprend les modifications faites dans un autre éditeur
   nbe check                 vérifie que tout est lisible sans cet outil
+  nbe relay [--port <n>]    relais de synchronisation entre pairs
 
   --root <dossier>          l'espace de travail (défaut : le dossier courant)
 `;
@@ -167,6 +169,16 @@ async function main(argv: string[]): Promise<number> {
       await new Promise(() => {});
       return 0;
       });
+    }
+
+    case 'relay': {
+      const relay = await startRelay({
+        port: Number(flags['port'] ?? 8787),
+        onChange: (room, peers) => process.stdout.write(`${room} : ${peers} pair(s)\n`),
+      });
+      process.stdout.write(`relais sur ws://localhost:${relay.port} — Ctrl+C pour arrêter\n`);
+      await new Promise(() => {});
+      return 0;
     }
 
     case 'check': {

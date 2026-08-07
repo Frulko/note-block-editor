@@ -15,6 +15,11 @@
   "dependencies": {
     "@nbe/core": "workspace:*",
     "@nbe/markdown": "workspace:*",
-    "@nbe/workspace": "workspace:*"
+    "@nbe/workspace": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "@nbe/collab": "workspace:*"
   }
 }
