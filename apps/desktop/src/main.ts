@@ -366,7 +366,7 @@ async function openPage(pageId: string): Promise<void> {
         .slice(0, 8)
         .map((node) => ({ pageId: node.id, title: node.title || 'Sans titre' }));
     },
-    onResolvePageTitle: (id) => workspace?.node(id)?.title ?? null,
+    resolvePageTitle: (id: string) => workspace?.node(id)?.title ?? null,
     onCreatePage: () => {
       // the editor asks synchronously; create the page and let the tree catch up
       const created = { pageId: crypto.randomUUID(), title: 'Sans titre' };

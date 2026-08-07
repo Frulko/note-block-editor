@@ -1,0 +1,28 @@
+/* Carnet inside Obsidian.
+
+   Obsidian owns the window; we own the editing surface and nothing outside it.
+   The editor's own stylesheet is bundled into main.js, so this file only maps
+   Carnet's tokens onto Obsidian's, which is what makes the plugin follow the
+   user's chosen theme instead of imposing ours. */
+
+.carnet-host {
+  height: 100%;
+  overflow: auto;
+}
+
+.carnet-host .nbe-editor {
+  /* the vault's theme wins: a plugin that repainted the app would be rude,
+     and Obsidian's variables are already the user's stated preference */
+  --nbe-surface: var(--background-primary);
+  --nbe-surface-sunken: var(--background-secondary);
+  --nbe-font-sans: var(--font-interface);
+  --nbe-font-mono: var(--font-monospace);
+  min-height: 100%;
+}
+
+/* Obsidian sets its own colour scheme on <body>; mirror it so `light-dark()`
+   in the token layer resolves the same way the app does. */
+body.theme-dark .carnet-host .nbe-editor,
+body.theme-dark .nbe-portal {
+  color-scheme: dark;
+}

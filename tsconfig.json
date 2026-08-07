@@ -12,5 +12,6 @@
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["packages/*/src", "packages/*/test", "examples/*/src", "test"]
+  "include": ["packages/*/src", "packages/*/test", "examples/*/src",
+    "apps/*/src", "test"]
 }
