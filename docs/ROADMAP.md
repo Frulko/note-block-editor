@@ -524,8 +524,15 @@ framework, no runtime dependency at all):
   **Remaining:** the editor itself — per-block TextKit 2 views, SwiftUI chrome,
   `loro-swift` when it is needed. That needs an application project and a
   device, not a package.
-- **Obsidian:** decide plugin vs standalone app once L1 vaults are stable —
-  an L1 workspace already *is* an Obsidian vault, which keeps both doors open
+- ~~**Obsidian:** decide plugin vs standalone app once L1 vaults are stable.~~
+  **Decided** (`docs/research/obsidian.md`): standalone app, with the vault as
+  the interoperability surface. A plugin would invert §10 — Markdown becomes
+  canonical and L0 a cache of it — and block ids, D7's loss and the invertible
+  op model all rest on the other order. Checking the premise found it *false*:
+  a title holding `/` or `:` was filed under one name and linked under another,
+  so every such link dangled. Fixed and tested before deciding on it. Still
+  open: concurrent edits in both programs clobber at page granularity until
+  phase 5's CRDT lands.
 - Mobile/touch interaction design (open question #7)
 
 ---
