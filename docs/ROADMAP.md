@@ -523,9 +523,29 @@ framework, no runtime dependency at all):
   forever. Known limit, stated in the code: a selection is integer offsets,
   which are briefly wrong after someone else's edit; `Cursor` gives stable
   positions and is the upgrade when a moment starts to feel long.
-  **Remaining:** iroh for p2p on native. ACL stays outside the CRDT — it merges
-  whatever it is handed, so the check must happen before the bytes arrive;
-  `startRelay` takes an `authorize` hook and is meant to sit behind a proxy.
+  ~~A node that keeps the document~~ — shipped 2026-08-08 as `nbe serve`. Not a
+  smarter relay: it joins each room as an ordinary peer running the same
+  `connect()` as every client, so no second implementation of the protocol
+  exists to drift, and the relay stays unable to corrupt what it forwards.
+  Rooms are Loro snapshots written temp-then-rename.
+  ~~Comments~~ and ~~history~~ — shipped 2026-08-08. A comment anchors to a
+  *mark*, never an offset, so the anchor moves with its text through every
+  merge; history derives from Loro's change log and stores only the names, and
+  restoring **writes the past forward** rather than rewinding, because a rewind
+  is unrepresentable when peers hold later changes.
+  ~~Desktop on the CRDT~~ — shipped 2026-08-08. Each page keeps its Loro
+  snapshot in `.nbe/rooms/` beside its JSON, and the shape was forced by a
+  test: a document cannot be rebuilt from its content, because two peers seeded
+  separately from identical JSON merge to *every block twice*
+  (`collab/test/seeding.test.ts`). The JSON survives the app being deleted; the
+  snapshot carries the merge identity JSON has nowhere to put.
+  **Remaining:** iroh for p2p on native, and the Swift client. ACL stays outside
+  the CRDT — it merges whatever it is handed, so the check must happen before
+  the bytes arrive; `startRelay` takes an `authorize` hook and is meant to sit
+  behind a proxy. The protocol decision
+  (`docs/research/sync-protocol.md`) settles what comes next: per-device Ed25519
+  keys as `did:key`, an owner-signed ACL the node checks before forwarding a
+  byte, and **ActivityPub rejected for sync**.
 - **Native Swift: the model half is verified** (`native/swift`, 2026-08-07).
   §9 claims the contract "doubles as the spec a Swift port mirrors" and §4 that
   unknown types and props round-trip untouched — neither had been checked
