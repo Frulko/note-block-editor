@@ -533,6 +533,18 @@ framework, no runtime dependency at all):
   so every such link dangled. Fixed and tested before deciding on it. Still
   open: concurrent edits in both programs clobber at page granularity until
   phase 5's CRDT lands.
+- **Sync protocol, identity, ActivityPub:** decided
+  (`docs/research/sync-protocol.md`). Transport is a WebSocket to a
+  self-hostable node — which is what `@nbe/collab` and `nbe serve` already are.
+  Identity is a per-device Ed25519 keypair as `did:key`, with an account being
+  a set of device keys and no account server at all. Authorization is an
+  owner-signed ACL the node checks *before* forwarding a byte, because a CRDT
+  merges whatever it is handed — and the ACL deliberately is not itself a CRDT,
+  since concurrent add/remove has no answer that is both conflict-free and
+  secure. **ActivityPub is rejected for sync** (federated `Update` requires
+  whole-object replacement, which is the opposite of a delta) and kept as an
+  optional publish-only adapter. Still to verify: `loro-dev/protocol`, which is
+  first-party and the same shape as what we hand-built.
 - Mobile/touch interaction design (open question #7)
 
 ---
