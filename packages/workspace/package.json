@@ -27,6 +27,10 @@
     "./collection": {
       "types": "./src/collection.ts",
       "default": "./src/collection.ts"
+    },
+    "./database": {
+      "types": "./src/database.ts",
+      "default": "./src/database.ts"
     }
   },
   "dependencies": {

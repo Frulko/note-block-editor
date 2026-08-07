@@ -35,31 +35,9 @@ import {
 } from './ui';
 import { renderBlock } from './render';
 
-export interface DatabaseData {
-  schema: CollectionSchema;
-  view: ViewConfig;
-  rows: RowData[];
-}
-
-/** Workspace-side contract: collections, views and row pages live in the host. */
-export interface DatabaseHost {
-  get(collectionId: string): DatabaseData | null;
-  create(): { collectionId: string } | null;
-  addRow(collectionId: string, initialProperties?: Record<string, unknown>): void;
-  deleteRow(collectionId: string, pageId: string): void;
-  updateCell(collectionId: string, pageId: string, propertyId: string, value: unknown): void;
-  addProperty(collectionId: string): void;
-  updateProperty(collectionId: string, prop: PropertyDef): void;
-  deleteProperty(collectionId: string, propertyId: string): void;
-  updateView(collectionId: string, view: ViewConfig): void;
-  updateSchemaName?(collectionId: string, name: string): void;
-  /** All collections in the workspace — the relation picker needs targets. */
-  listCollections?(): Array<{ id: string; name: string }>;
-  /** Bulk-create rows (CSV import): creating pages is the host's job. */
-  importRows?(collectionId: string, rows: RowData[]): void;
-  openRow(pageId: string): void;
-  onChange(cb: () => void): () => void;
-}
+// the contract lives in core (§2.5): the editor consumes it, and an
+// application over `@nbe/workspace` implements it
+export type { DatabaseData, DatabaseHost } from '@nbe/core';
 
 const FILTER_OPS: Array<{ op: FilterOp; label: string; needsValue: boolean }> = [
   { op: 'contains', label: 'contient', needsValue: true },

@@ -19,6 +19,7 @@ mon-carnet/
       Éditeur.md
   .nbe/                   ← les documents canoniques, en JSON
     019fdbe8-….json
+    collections.json      ← schémas et vues des bases de données
 ```
 
 `pages/` **est** un vault Obsidian : ouvrez-le dans Obsidian et tout est là,
@@ -35,6 +36,17 @@ s'accumuleraient à chaque enregistrement.
 Le JSON fait donc foi et le Markdown est **régénéré**. En échange, le Markdown
 est toujours sûr à lire, à éditer et à comparer dans un `git diff`. Obsidian
 ignore les dossiers commençant par un point, donc `.nbe/` ne le dérange pas.
+
+## Les bases de données
+
+Une base est quatre enregistrements (§2.5), jamais un seul : un **bloc de vue**
+la place dans une page, une **vue** porte la mise en page et les filtres, un
+**schéma** porte les propriétés typées, et **chaque ligne est une page**.
+
+C'est pour ça qu'une ligne s'ouvre comme n'importe quelle autre page, et qu'elle
+n'apparaît pas dans l'arbre : elle appartient à sa table. Les lignes ne sont
+listées nulle part — une page appartient à une collection parce que ses propres
+propriétés le disent, et c'est le seul endroit où c'est écrit.
 
 ## Ce que l'application n'ajoute pas
 

@@ -404,3 +404,46 @@ export function formatValue(v: unknown, type: PropertyType): string {
   if (Array.isArray(v)) return v.join(', ');
   return String(v);
 }
+
+
+/**
+ * What a database view needs from its host.
+ *
+ * @remarks
+ * §2.5 keeps four record kinds apart: a *view block* places a database in a
+ * page, a *view* holds layout and filters, a *schema* holds typed properties,
+ * and the *rows are pages*. Only the first is a block, so the editor cannot
+ * own the other three — they belong to whatever owns the workspace.
+ *
+ * The contract lives here rather than in the view layer because it speaks only
+ * in core types, and because two things now implement it: an application over
+ * `@nbe/workspace`, and any host that keeps its collections elsewhere. A
+ * contract defined by its only consumer is a contract that cannot have a
+ * second implementation.
+ *
+ * @category Databases
+ */
+export interface DatabaseData {
+  schema: CollectionSchema;
+  view: ViewConfig;
+  rows: RowData[];
+}
+
+export interface DatabaseHost {
+  get(collectionId: string): DatabaseData | null;
+  create(): { collectionId: string } | null;
+  addRow(collectionId: string, initialProperties?: Record<string, unknown>): void;
+  deleteRow(collectionId: string, pageId: string): void;
+  updateCell(collectionId: string, pageId: string, propertyId: string, value: unknown): void;
+  addProperty(collectionId: string): void;
+  updateProperty(collectionId: string, prop: PropertyDef): void;
+  deleteProperty(collectionId: string, propertyId: string): void;
+  updateView(collectionId: string, view: ViewConfig): void;
+  updateSchemaName?(collectionId: string, name: string): void;
+  /** All collections in the workspace — the relation picker needs targets. */
+  listCollections?(): Array<{ id: string; name: string }>;
+  /** Bulk-create rows (CSV import): creating pages is the host's job. */
+  importRows?(collectionId: string, rows: RowData[]): void;
+  openRow(pageId: string): void;
+  onChange(cb: () => void): () => void;
+}

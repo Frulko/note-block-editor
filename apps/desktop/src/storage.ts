@@ -1,6 +1,7 @@
 import { exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs';
 import type { BlockJSON } from '@nbe/core';
 import type { WorkspaceStorage } from '@nbe/workspace';
+import type { CollectionRecord, CollectionStore } from '@nbe/workspace/database';
 
 /**
  * Pages as files, in the folder the user chose.
@@ -101,4 +102,40 @@ export async function writeInto(root: string, relative: string, text: string): P
  */
 export async function clearDirectory(path: string): Promise<void> {
   if (await exists(path)) await remove(path, { recursive: true });
+}
+
+/**
+ * Collection schemas and views, in one file beside the pages.
+ *
+ * @remarks
+ * These are workspace-level records, not pages (§2.5), so they do not belong
+ * in {@link WorkspaceStorage} — which is deliberately four methods about pages
+ * and nothing else. A handful of small objects, read once and rewritten whole,
+ * is a file.
+ *
+ * Written the same atomic way as a page: a crash mid-write would otherwise
+ * leave truncated JSON, and a truncated collections file is every database in
+ * the workspace at once.
+ */
+export function collectionStore(root: string): CollectionStore {
+  const path = `${root}/${PAGES_DIRECTORY}/collections.json`;
+  return {
+    read: async () => {
+      if (!(await exists(path))) return [];
+      try {
+        const parsed = JSON.parse(await readTextFile(path)) as unknown;
+        return Array.isArray(parsed) ? (parsed as CollectionRecord[]) : [];
+      } catch {
+        console.error(`[carnet] collections illisibles, ignorées : ${path}`);
+        return [];
+      }
+    },
+    write: async (records) => {
+      const directory = `${root}/${PAGES_DIRECTORY}`;
+      if (!(await exists(directory))) await mkdir(directory, { recursive: true });
+      const temp = `${path}.tmp`;
+      await writeTextFile(temp, `${JSON.stringify(records, null, 2)}\n`);
+      await rename(temp, path);
+    },
+  };
 }

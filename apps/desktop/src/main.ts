@@ -7,7 +7,8 @@ import { Workspace, pageTitle } from '@nbe/workspace';
 import { exportVault } from '@nbe/workspace/vault';
 import '@nbe/dom/style.css';
 import './app.css';
-import { clearDirectory, vaultStorage, writeInto } from './storage';
+import { createDatabaseHost, type CollectionRecord } from '@nbe/workspace/database';
+import { clearDirectory, collectionStore, vaultStorage, writeInto } from './storage';
 
 /**
  * Carnet — a notes application whose storage is a folder you can read.
@@ -52,6 +53,8 @@ let workspace: Workspace | null = null;
 let editor: Editor | null = null;
 let view: EditorView | null = null;
 let openId: string | null = null;
+let database: ReturnType<typeof createDatabaseHost> | null = null;
+let collections: CollectionRecord[] = [];
 
 /** A short message that fades, for things that succeeded quietly. */
 let statusTimer = 0;
@@ -110,6 +113,18 @@ async function openVault(path: string): Promise<void> {
   welcomeEl.hidden = true;
   sidebarEl.hidden = false;
 
+  /*
+   * Databases are §2.5's four records: the schema and the view are workspace
+   * records in `.nbe/collections.json`, and every row is an ordinary page —
+   * which is why a row opens in the editor like anything else.
+   */
+  const store = collectionStore(path);
+  collections = await store.read();
+  database = createDatabaseHost(workspace, collections, store, {
+    openPage: (id) => void openPage(id),
+    onMutate: () => void render(),
+  });
+
   if (!workspace.roots.length) await workspace.createPage({ title: 'Bienvenue' });
   await render();
   await openPage(workspace.roots[0]!);
@@ -131,7 +146,8 @@ async function render(): Promise<void> {
 
   const row = (id: string, depth: number): HTMLElement[] => {
     const node = workspace!.node(id);
-    if (!node) return [];
+    // a row page belongs to its table, not to the tree
+    if (!node || workspace!.document(id)?.props?.['collectionId']) return [];
     const button = document.createElement('button');
     button.className = `page-item${id === openId ? ' active' : ''}`;
     button.style.paddingInlineStart = `${10 + depth * 14}px`;
@@ -279,6 +295,7 @@ async function openPage(pageId: string): Promise<void> {
   editor = new Editor({ doc: docFromJSON(document_) });
   view = new EditorView(editorEl, editor, {
     blocks: [callout],
+    database: database ?? undefined,
     onOpenPage: (id) => void openPage(id),
     onSearchPages: (query) => {
       const wanted = query.toLowerCase().trim();
