@@ -385,3 +385,32 @@ describe('finding the assets a workspace still uses', () => {
     expect(referencedAssets([])).toEqual(new Set());
   });
 });
+
+describe('loading is atomic', () => {
+  it('the workspace is never empty part-way through a reload', async () => {
+    // clearing before the await left it empty across one, and anything that
+    // rendered in that window drew nothing — which looks like data loss
+    const store = memoryStorage();
+    const w = new Workspace(store);
+    await w.load();
+    await w.createPage({ title: 'Présente' });
+
+    const slow = {
+      list: () => store.list(),
+      read: async (id: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return store.read(id);
+      },
+      write: store.write,
+      remove: store.remove,
+    };
+    const watched = new Workspace(slow);
+    await watched.load();
+
+    const reloading = watched.load();
+    // read it while the reload is in flight
+    expect(watched.pages.length).toBe(1);
+    await reloading;
+    expect(watched.pages.length).toBe(1);
+  });
+});

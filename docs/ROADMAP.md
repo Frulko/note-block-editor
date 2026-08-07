@@ -416,6 +416,11 @@ them directly. Two writers, never at once.
   fits, and the schema is marked `inferred` so an app can say where they came
   from rather than presenting a guess as a declaration.
 
+- ~~One `DatabaseHost`, not one per application~~ — shipped 2026-08-07. The
+  demo's 160-line copy is gone; both it and the desktop app use
+  `@nbe/workspace/database`. Doing it needed the database e2e coverage that did
+  not exist, and writing that coverage found two real bugs on its first runs.
+
 **Phase 4 is complete.** The notes app exists: a derived page tree, navigation,
 search, backlinks, a storage seam with an IndexedDB adapter, a Markdown vault
 that leaves and comes back, Notion import in both flavours, and binaries that

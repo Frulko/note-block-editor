@@ -96,12 +96,27 @@ export function createDatabaseHost(
   const listeners = new Set<() => void>();
   const report = opts.onError ?? ((error: unknown) => console.error('[workspace] écriture échouée', error));
 
-  /** Apply now, persist behind, tell everyone. */
-  const commit = (work?: () => Promise<void>): void => {
-    void store.write(records).catch(report);
-    if (work) void work().catch(report);
+  const notify = (): void => {
     opts.onMutate?.();
     for (const listener of listeners) listener();
+  };
+
+  /**
+   * Apply now, persist behind, and tell everyone **twice**.
+   *
+   * @remarks
+   * Once immediately, because the records changed synchronously and the view
+   * should show that; once after the asynchronous half settles, because a new
+   * row is a *page* and does not exist until the workspace has written it.
+   *
+   * Notifying only up front was measured to render an empty table over a row
+   * that existed: the page was in storage and the view had already drawn
+   * itself from a workspace that did not know about it yet.
+   */
+  const commit = (work?: () => Promise<void>): void => {
+    const settled = Promise.all([store.write(records), work?.()]);
+    notify();
+    void settled.then(notify).catch(report);
   };
 
   const find = (collectionId: string): CollectionRecord | undefined =>
@@ -156,17 +171,11 @@ export function createDatabaseHost(
           props['collectionId'] = collectionId;
           props['properties'] = initialProperties;
         });
-        opts.onMutate?.();
-        for (const listener of listeners) listener();
       });
     },
 
     deleteRow(_collectionId, pageId) {
-      commit(async () => {
-        await workspace.deletePage(pageId);
-        opts.onMutate?.();
-        for (const listener of listeners) listener();
-      });
+      commit(() => workspace.deletePage(pageId).then(() => undefined));
     },
 
     updateCell(_collectionId, pageId, propertyId, value) {
@@ -233,8 +242,6 @@ export function createDatabaseHost(
             props['properties'] = row.properties;
           });
         }
-        opts.onMutate?.();
-        for (const listener of listeners) listener();
       });
     },
 

@@ -1,7 +1,7 @@
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import type { WorkspaceStorage } from '@nbe/workspace';
 import { indexedDbStorage } from '@nbe/workspace/idb';
-import type { CollectionRecord } from './dbhost';
+import type { CollectionRecord } from '@nbe/workspace/database';
 
 export interface Workspace {
   pages: BlockJSON[]; // each root is a 'page' block; page id = root id

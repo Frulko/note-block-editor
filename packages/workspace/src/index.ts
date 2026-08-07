@@ -181,13 +181,23 @@ export class Workspace {
 
   constructor(private readonly storage: WorkspaceStorage) {}
 
-  /** Read every page and build the tree. Safe to call again at any time. */
+  /**
+   * Read every page and build the tree. Safe to call again at any time.
+   *
+   * @remarks
+   * Loaded into a fresh map and swapped in at the end, never emptied in place.
+   * Clearing first leaves the workspace *empty across an await* — and anything
+   * that renders during that window draws nothing. Measured: a database table
+   * re-rendered mid-load and showed zero rows over rows that existed, which
+   * looked exactly like data loss.
+   */
   async load(): Promise<void> {
-    this.docs.clear();
+    const loaded = new Map<string, BlockJSON>();
     for (const id of await this.storage.list()) {
       const doc = await this.storage.read(id);
-      if (doc) this.docs.set(id, doc);
+      if (doc) loaded.set(id, doc);
     }
+    this.docs = loaded;
     this.reindex();
   }
 

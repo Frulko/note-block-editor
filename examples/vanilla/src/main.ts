@@ -5,8 +5,8 @@ import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
 import { allAssetBytes, resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
-import { createDatabaseHost } from './dbhost';
 import { Workspace as PageTree, pageTitle, referencedAssets } from '@nbe/workspace';
+import { createDatabaseHost, type CollectionRecord, type CollectionStore } from '@nbe/workspace/database';
 import { exportVault, importVault } from '@nbe/workspace/vault';
 import { importNotion } from '@nbe/workspace/notion';
 import { download, unzip, zip } from './zip';
@@ -74,8 +74,44 @@ const ws: Workspace = await loadWorkspace(seedPage);
 let editor: Editor;
 let view: EditorView | null = null;
 let detachInspector: (() => void) | null = null;
-const dbHost = createDatabaseHost(ws, {
-  openPage: (id) => openPage(id),
+
+/**
+ * The page tree, derived from the documents on every render.
+ *
+ * @remarks
+ * Phase 4's model: nothing about the tree is stored — it is computed from the
+ * `sub_page` blocks inside each page. Rebuilding it per render is a scan of a
+ * handful of documents, and it means the sidebar cannot disagree with what is
+ * actually written in the pages, which a cached tree eventually does.
+ */
+const tree = new PageTree(pageStorage(ws));
+await tree.load();
+
+/**
+ * Collection schemas and views, in the workspace metadata.
+ *
+ * @remarks
+ * Persisted synchronously rather than on the typing debounce: a database edit
+ * is infrequent and deliberate, and a reload landing inside a 300ms window
+ * would drop one.
+ */
+const collections: CollectionStore = {
+  read: async () => (ws.collections ??= []),
+  write: async (records: CollectionRecord[]) => {
+    ws.collections = records;
+    saveWorkspace(ws);
+    flushWorkspace();
+  },
+};
+
+/*
+ * The shared host, not a copy. The demo used to carry its own implementation
+ * of §2.5 beside the one in `@nbe/workspace`; they agreed until one of them
+ * learned something. This one derives rows from `props.collectionId` instead
+ * of keeping a parallel `rowIds` list.
+ */
+const dbHost = createDatabaseHost(tree, await collections.read(), collections, {
+  openPage: (id) => void openPage(id),
   onMutate: () => void renderSidebar(),
 });
 
@@ -89,16 +125,6 @@ function persistCurrentPage(): void {
   saveWorkspace(ws);
 }
 
-/**
- * The page tree, derived from the documents on every render.
- *
- * @remarks
- * Phase 4's model: nothing about the tree is stored — it is computed from the
- * `sub_page` blocks inside each page. Rebuilding it per render is a scan of a
- * handful of documents, and it means the sidebar cannot disagree with what is
- * actually written in the pages, which a cached tree eventually does.
- */
-const tree = new PageTree(pageStorage(ws));
 
 const searchEl = document.getElementById('search') as HTMLInputElement;
 const resultsEl = document.getElementById('results')!;
@@ -456,11 +482,9 @@ document.getElementById('import-file')!.addEventListener('change', async (e) => 
     // a database arrives as §2.5's four records: its schema and view are host
     // records the database host owns, its rows are pages like any other
     for (const collection of imported.collections) {
-      (ws.collections ??= []).push({
-        schema: collection.schema,
-        view: collection.view,
-        rowIds: collection.rows.map((row) => row.id),
-      });
+      // no row list: a page belongs to a collection because its own props say
+      // so, which is the only place that fact is written
+      (ws.collections ??= []).push({ schema: collection.schema, view: collection.view });
     }
     if (!pages.length) {
       alert('Aucune page trouvée dans cette archive.');
