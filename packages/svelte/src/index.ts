@@ -28,6 +28,9 @@ export function blockEditor(node: HTMLElement, options: BlockEditorActionOptions
     doc: options.initialContent ? docFromJSON(options.initialContent) : createDoc(),
   });
   const view = new EditorView(node, editor, {
+    // forward every view option (maxWidth, padding, …), then re-wrap the
+    // callbacks through `latest` so they never go stale
+    ...latest,
     onOpenPage: (id) => latest.onOpenPage?.(id),
     onCreatePage: () => latest.onCreatePage?.() ?? null,
     onStoreAsset: latest.onStoreAsset ? (blob) => latest.onStoreAsset!(blob) : undefined,

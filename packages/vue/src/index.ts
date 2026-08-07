@@ -31,13 +31,8 @@ export function useEditor(options: UseEditorOptions = {}): UseEditorResult {
     const instance = new Editor({
       doc: options.initialContent ? docFromJSON(options.initialContent) : createDoc(),
     });
-    view = new EditorView(container, instance, {
-      onOpenPage: options.onOpenPage,
-      onCreatePage: options.onCreatePage,
-      onStoreAsset: options.onStoreAsset,
-      resolveAssetUrl: options.resolveAssetUrl,
-      database: options.database,
-    });
+    // every view option (maxWidth, padding, …) goes through as-is
+    view = new EditorView(container, instance, options);
     off = instance.on((change) => options.onChange?.(docToJSON(instance.doc), change));
     editor.value = instance;
     options.onReady?.(instance);

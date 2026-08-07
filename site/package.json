@@ -10,6 +10,7 @@
   "dependencies": {
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
+    "@nbe/markdown": "workspace:*",
     "@nbe/react": "workspace:*",
     "@nbe/svelte": "workspace:*",
     "@nbe/vue": "workspace:*"

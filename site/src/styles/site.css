@@ -337,6 +337,54 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   max-height: 460px;
   overflow: auto;
 }
+.demo-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.demo-bar button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.demo-bar button:hover {
+  background: var(--bg-sunken);
+}
+.demo-bar button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.debug-panel {
+  margin: 0;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  max-height: 320px;
+  overflow: auto;
+}
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  background: var(--accent-soft);
+  opacity: 0.94;
+  font-weight: 550;
+  color: var(--accent);
+  pointer-events: none;
+}
 
 .site-footer {
   border-top: 1px solid var(--border);

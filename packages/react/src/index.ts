@@ -44,6 +44,9 @@ export function useEditor(options: UseEditorOptions = {}): UseEditorResult {
     const initial = latest.current.initialContent;
     const instance = new Editor({ doc: initial ? docFromJSON(initial) : createDoc() });
     const view = new EditorView(container, instance, {
+      // forward every view option (maxWidth, padding, …), then re-wrap the
+      // callbacks through `latest` so they never go stale
+      ...latest.current,
       onOpenPage: (id) => latest.current.onOpenPage?.(id),
       onCreatePage: () => latest.current.onCreatePage?.() ?? null,
       onStoreAsset: latest.current.onStoreAsset ? (blob) => latest.current.onStoreAsset!(blob) : undefined,
