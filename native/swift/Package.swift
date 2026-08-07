@@ -16,6 +16,7 @@ let package = Package(
     products: [
         .library(name: "NbeModel", targets: ["NbeModel"]),
         .library(name: "NbeSync", targets: ["NbeSync"]),
+        .library(name: "NbeEditorKit", targets: ["NbeEditorKit"]),
     ],
     dependencies: [
         .package(url: "https://github.com/loro-dev/loro-swift.git", from: "1.8.1"),
@@ -23,9 +24,10 @@ let package = Package(
     targets: [
         .target(name: "NbeModel"),
         .target(name: "NbeSync", dependencies: [.product(name: "Loro", package: "loro-swift"), "NbeModel"]),
+        .target(name: "NbeEditorKit", dependencies: ["NbeModel"]),
         .testTarget(
             name: "NbeModelTests",
-            dependencies: ["NbeModel", "NbeSync"],
+            dependencies: ["NbeModel", "NbeSync", "NbeEditorKit"],
             resources: [.copy("document.json"), .copy("document.loro")]
         ),
     ]
