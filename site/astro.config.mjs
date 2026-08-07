@@ -4,6 +4,8 @@ import mdx from '@astrojs/mdx';
 import react from '@astrojs/react';
 import vue from '@astrojs/vue';
 import svelte from '@astrojs/svelte';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
 
 /**
  * Astro is the point of this site, not an incidental choice: the three
@@ -20,6 +22,16 @@ export default defineConfig({
     shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, wrap: true },
   },
   vite: {
+    /**
+     * Loro ships as WebAssembly with a top-level `await` in its loader. Vite's
+     * production path handles neither without these, and the collaborative
+     * island is the only thing on the site that needs a CRDT — so it is the
+     * island, not the site, that pays: `client:only` keeps the WASM out of
+     * every other page's bundle.
+     */
+    plugins: [wasm(), topLevelAwait()],
+    build: { target: 'esnext' },
+    optimizeDeps: { esbuildOptions: { target: 'esnext' } },
     ssr: {
       /**
        * The editor packages export `src/*.ts` with extensionless relative
@@ -31,7 +43,15 @@ export default defineConfig({
        * build step those packages still lack; see the publish-tooling note in
        * docs/ROADMAP.md.
        */
-      noExternal: ['@nbe/core', '@nbe/dom', '@nbe/markdown', '@nbe/react', '@nbe/vue', '@nbe/svelte'],
+      noExternal: [
+        '@nbe/core',
+        '@nbe/dom',
+        '@nbe/markdown',
+        '@nbe/react',
+        '@nbe/vue',
+        '@nbe/svelte',
+        '@nbe/collab',
+      ],
     },
   },
 });

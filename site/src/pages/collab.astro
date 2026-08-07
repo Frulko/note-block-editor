@@ -1,0 +1,51 @@
+---
+import Base from '../layouts/Base.astro';
+import '@nbe/dom/style.css';
+import CollabDemo from '../components/demos/CollabDemo.tsx';
+---
+<Base title="À plusieurs — Carnet">
+  <div class="shell" style="padding-top:2.5rem;padding-bottom:5rem;">
+    <div class="prose">
+      <h1>À plusieurs</h1>
+      <p>
+        Deux volets, deux documents, une fusion. Tapez dans l’un et regardez
+        l’autre&nbsp;: le curseur d’en face porte le nom et la couleur de la
+        personne, et rien de tout cela ne passe par un serveur — la page joint
+        les deux pairs entre eux.
+      </p>
+      <p>
+        La fusion est un CRDT&nbsp;: deux personnes peuvent écrire dans la même
+        phrase sans que l’une écrase l’autre, et un pair hors ligne rattrape son
+        retard en se reconnectant. Les commentaires et l’historique de versions
+        vivent dans le même document, donc ils arrivent avec le texte plutôt que
+        par un second canal qui pourrait prendre du retard.
+      </p>
+    </div>
+    <div class="demo-frame" style="max-height:none;">
+      <CollabDemo client:only="react" />
+    </div>
+  </div>
+</Base>
+
+<style>
+  .collab-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line, rgb(0 0 0 / 0.1));
+  }
+  @media (max-width: 780px) {
+    .collab-grid { grid-template-columns: 1fr; }
+  }
+  .collab-pane { background: var(--paper, #fff); }
+  .collab-who {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-bottom: 1px solid var(--line, rgb(0 0 0 / 0.08));
+  }
+  .collab-dot { width: 9px; height: 9px; border-radius: 50%; }
+</style>
