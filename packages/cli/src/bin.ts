@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { blocksToMarkdown } from '@nbe/markdown';
 import { checkReadable, importDirectory, openWorkspace, writeVault } from './index';
+import { watchVault } from './watch';
 
 /**
  * `nbe` — a workspace on the command line.
@@ -25,6 +26,7 @@ const USAGE = `nbe — un espace de travail en Markdown
   nbe search <requête>
   nbe sync                  régénère le miroir Markdown depuis les pages
   nbe import <dossier>      un vault ou un export Notion
+  nbe watch                 reprend les modifications faites dans un autre éditeur
   nbe check                 vérifie que tout est lisible sans cet outil
 
   --root <dossier>          l'espace de travail (défaut : le dossier courant)
@@ -105,6 +107,19 @@ async function main(argv: string[]): Promise<number> {
       const count = await importDirectory(workspace, from);
       writeVault(workspace, root);
       process.stdout.write(`${count} page(s) importée(s)\n`);
+      return 0;
+    }
+
+    case 'watch': {
+      process.stdout.write(`surveillance de ${root}/vault — Ctrl+C pour arrêter\n`);
+      watchVault(workspace, root, {
+        onImport: (paths, pages) =>
+          process.stdout.write(`↻ ${paths.length} fichier(s) modifié(s), ${pages} page(s) à jour\n`),
+        onMissing: (paths) =>
+          process.stderr.write(`? ${paths.length} fichier(s) disparu(s), pages conservées : ${paths.join(', ')}\n`),
+      });
+      // the watcher unrefs its timer, so hold the process open deliberately
+      await new Promise(() => {});
       return 0;
     }
 
