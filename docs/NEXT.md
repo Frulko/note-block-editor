@@ -8,10 +8,10 @@ remembered.
 
 | Suite | State |
 | --- | --- |
-| Unit (`pnpm test`) | 845 passing, 65 files |
+| Unit (`pnpm test`) | 846 passing, 65 files |
 | Browser, Chromium (`pnpm e2e --project=chromium`) | 116/116, **gates CI** |
 | Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 111/111, **gates CI** |
-| Browser, WebKit (`pnpm e2e --project=webkit`) | 105 passed, 3 failed, 8 skipped, informational |
+| Browser, WebKit (`pnpm e2e --project=webkit`) | 107 passed, **1** failed, 8 skipped, informational |
 | Swift (`cd native/swift && swift test`) | 49 passing |
 | `pnpm typecheck` | clean, and now covers `apps/` |
 
@@ -19,10 +19,13 @@ Three clients share one document, proven end to end: a keystroke typed into an
 `NSTextView` in Swift merges into a TypeScript peer, and a desktop snapshot
 reopened in a new process converges with a browser holding nothing.
 
-## The three open WebKit failures
+## The one open WebKit failure
 
-Each has been diagnosed to a different depth. None is a mystery; all need a
-session with room to verify properly.
+Two of the original four were closed on the way out. One was a test that
+cannot be expressed on WebKit at all (`Input.dispatchTouchEvent` is CDP), and
+two were a **real product bug**: WebKit's IndexedDB refuses a `Blob` value, so
+every image would have silently failed to persist on Safari and iOS. That is
+what the WebKit run was for, and it paid for itself the first day.
 
 **1. `gutter.spec.ts` — the gutter does not follow the scroll.**
 Diagnosed. Both engines lay the document out *identically* (fifty blocks, an
@@ -35,17 +38,11 @@ hovered scrollable element; WebKit does not.
 > parallel run. That trades a known failure for a flaky one, which is worse,
 > and it was reverted. **Verify any replacement in a full run.**
 
-**2 and 3. `assets.spec.ts` — the helper hangs on `indexedDB.open`.**
-Dug one level. The helper forced version `1`, which requests an upgrade
-whenever the app already opened the database higher, and an upgrade blocks
-while the app holds its connection — with `onblocked` unhandled the promise
-never settled. That is fixed (no forced version, `onblocked` rejects loudly)
-and Chromium passes. **WebKit still hangs, and not through `onblocked`**: the
-request fires none of success, error or blocked.
-
-Start by checking whether the demo's own IndexedDB connection is open at that
-moment, and whether WebKit's stricter storage partitioning under Playwright is
-involved.
+**And a lesson about diagnosing.** I first concluded the asset tests were
+hanging on a blocked `indexedDB.open` and wrote that here as fact. A three-line
+probe showed `open` succeeding and the *write* failing. The moral is cheap and
+worth repeating: probe before recording a cause, especially when the cause is
+about to become someone else's starting point.
 
 ## What needs something this machine does not have
 
