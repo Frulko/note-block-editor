@@ -123,3 +123,36 @@ export function autoUpdate(
     document.removeEventListener('scroll', update, { capture: true });
   };
 }
+
+/**
+ * Convert a viewport point into coordinates inside a positioned container.
+ *
+ * @remarks
+ * Chrome anchored to a *block* — the hover gutter, the per-block toolbar —
+ * belongs in the editor's own coordinate space rather than on `document.body`.
+ * Mounted outside it, three things went wrong at once and were reported
+ * together on 2026-08-07: it did not follow the editor's own scrolling (only
+ * the window's), it was positioned once on hover and never again, and nothing
+ * stopped it being placed outside the editor entirely — the gutter sat in the
+ * host page, left of the editor card.
+ *
+ * Inside the container all three stop being possible: it scrolls because it is
+ * part of what scrolls, it moves with its block because it is measured against
+ * the same box, and it cannot escape a box it lives in.
+ *
+ * Floating chrome that must *break out* — menus, the drag ghost, popovers over
+ * a clipping ancestor — still uses `positionFloating` and `ui/portal.ts`.
+ *
+ * @param container - A positioned element (`position: relative` or better).
+ * Assumes no border, which holds for `.nbe-editor`: `getBoundingClientRect`
+ * measures the border box while absolute children resolve against the padding
+ * box.
+ */
+export function toContainerPoint(
+  container: HTMLElement,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  const rect = container.getBoundingClientRect();
+  return { x: x - rect.left + container.scrollLeft, y: y - rect.top + container.scrollTop };
+}

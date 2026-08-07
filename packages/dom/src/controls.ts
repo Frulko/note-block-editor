@@ -1,4 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
+import { toContainerPoint } from './ui/position';
 import { resolveDrop, type DropCandidate, type DropTarget } from './drop';
 import { mountPortal } from './ui/portal';
 import {
@@ -56,6 +57,10 @@ export function attachControls(view: EditorView): () => void {
   // --- floating hover controls ---
   const controls = document.createElement('div');
   controls.className = 'nbe-controls';
+  // it lives inside the content, which is the editing host under a single-host
+  // topology: mark it so the input path and the keymap leave it alone
+  controls.setAttribute('contenteditable', 'false');
+  controls.setAttribute('data-nbe-ui', '');
   controls.dataset['nbeUi'] = '';
   const plusBtn = createActionButton({
     title: 'Ajouter un bloc en dessous',
@@ -78,17 +83,29 @@ export function attachControls(view: EditorView): () => void {
 
   let hoveredId: BlockId | null = null;
 
+  /*
+   * The gutter lives **inside** the editor, in the margin the page geometry
+   * reserves for it (`--nbe-gutter-width`). On `document.body` it drifted out
+   * of the editor whenever the host was narrower than the gutter is wide, and
+   * it followed only the window's scroll — not the editor's own.
+   */
   const showControlsFor = (blockEl: HTMLElement) => {
     hoveredId = blockEl.dataset['blockId']!;
+    view.content.append(controls);
     const rect = blockEl.getBoundingClientRect();
-    mountPortal(controls);
     // align to the block's first line rather than its box, so the gutter sits
     // next to the text on tall blocks (callouts, code, images)
     const line = parseFloat(getComputedStyle(blockEl).lineHeight) || 24;
     const padTop = parseFloat(getComputedStyle(blockEl).paddingTop) || 0;
-    const top = rect.top + padTop + Math.max(0, (line - controls.offsetHeight || 0) / 2);
-    controls.style.top = `${top + window.scrollY}px`;
-    controls.style.left = `${rect.left + window.scrollX - controls.offsetWidth - 6}px`;
+    const at = toContainerPoint(
+      view.content,
+      rect.left - controls.offsetWidth - 6,
+      rect.top + padTop + Math.max(0, (line - controls.offsetHeight || 0) / 2),
+    );
+    // a host that sets `padding.x: 0` leaves no margin to sit in; hugging the
+    // edge and overlapping the text is worse-looking but still inside
+    controls.style.left = `${Math.max(0, at.x)}px`;
+    controls.style.top = `${at.y}px`;
   };
 
   const hideControls = () => {

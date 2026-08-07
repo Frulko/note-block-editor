@@ -1,8 +1,7 @@
 import type { Block, BlockId } from '@nbe/core';
-import { mountPortal } from './ui/portal';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
-import { createActionButton, createMenu, positionFloating, type IconName, type MenuEntry } from './ui';
+import { createActionButton, createMenu, toContainerPoint, type IconName, type MenuEntry } from './ui';
 import type { EditorLabels } from './labels';
 
 /**
@@ -136,6 +135,8 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
 export function attachBlockToolbar(view: EditorView): () => void {
   const bar = document.createElement('div');
   bar.className = 'nbe-blocktoolbar';
+  bar.setAttribute('contenteditable', 'false');
+  bar.setAttribute('data-nbe-ui', '');
   bar.dataset['nbeUi'] = '';
   let currentId: BlockId | null = null;
   let hideTimer = 0;
@@ -176,12 +177,13 @@ export function attachBlockToolbar(view: EditorView): () => void {
       });
       bar.append(button);
     }
-    mountPortal(bar);
+    // inside the editor, like the gutter and for the same reasons: anchored to
+    // a block, it must scroll with it and must not leave the editor's box
+    view.content.append(bar);
     const rect = blockEl.getBoundingClientRect();
-    positionFloating(bar, { top: rect.top, bottom: rect.top, left: rect.right, right: rect.right }, {
-      placement: 'bottom-end',
-      offset: 6,
-    });
+    const at = toContainerPoint(view.content, rect.right - bar.offsetWidth, rect.top + 6);
+    bar.style.left = `${Math.max(0, at.x)}px`;
+    bar.style.top = `${at.y}px`;
   };
 
   const onMove = (e: MouseEvent) => {

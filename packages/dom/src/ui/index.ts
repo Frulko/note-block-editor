@@ -1,4 +1,4 @@
-export { computePosition, positionFloating, autoUpdate } from './position';
+export { computePosition, positionFloating, autoUpdate, toContainerPoint } from './position';
 export { pushOverlay, dismissedBy, openOverlays, closeAllOverlays, ESCAPE_SELF_ATTR } from './overlay';
 export type { OverlayEntry } from './overlay';
 export type { Placement, PositionOptions, AnchorRect, Size } from './position';

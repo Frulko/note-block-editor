@@ -296,7 +296,21 @@ overlays. Framework adapters never re-implement it.
   remain editor surface: rubber-band selection, click-to-place and drop
   targets all work out there (Word-like margins). Set them to `0` for a
   flush-to-the-edge embed.
-- **Floating chrome carries its own token scope** (`ui/portal.ts`). Menus,
+- **Chrome anchored to a block lives inside the editor**, not on
+  `document.body` (`ui/position.ts#toContainerPoint`). The hover gutter and the
+  per-block toolbar are positioned against `.nbe-editor`, which is the
+  positioning context, and the horizontal padding reserves `--nbe-gutter-width`
+  so the gutter has a margin to sit in. Mounted outside, three faults were
+  possible at once and all three were reported together on 2026-08-07: it
+  followed only the window's scroll and not the editor's, it was positioned
+  once on hover and never updated, and it was placed outside the editor
+  entirely when the host was narrower than the gutter. Inside, none of them
+  can happen — it scrolls because it is part of what scrolls, it tracks its
+  block because it is measured against the same box, and it cannot leave a box
+  it lives in. Both carry `contenteditable="false"` and `data-nbe-ui`, since
+  under a single-host topology that container *is* the editing host.
+- **Floating chrome that must break out carries its own token scope**
+  (`ui/portal.ts`). Menus,
   toolbars, the drag ghost, the drop indicator and the rubber band are mounted
   on `document.body` so nothing inside the editor can clip them — and so they
   inherit none of the design tokens, which are declared on the editor element.
