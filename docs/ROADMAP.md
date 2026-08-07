@@ -262,10 +262,14 @@ size-limit budgets, sherif/knip, Nx, docs site — none of them hurt yet at
 > 1. **A build** (tsdown, per §9's ESM-only intent) — nothing downstream is
 >    meaningful without it. Size budgets in particular measure build output, so
 >    adding them first would measure nothing.
-> 2. **A licence.** None is chosen and no LICENSE file exists; the manifests
->    deliberately carry no `license` field rather than an invented one.
-> 3. **A repository URL.** There is no git remote yet, so `repository` is
->    likewise absent rather than guessed.
+> 2. **A licence**, and 3. **a repository URL** — still the owner's to choose,
+>    and still not invented. But no longer open questions: the evidence and a
+>    recommendation are in `docs/design/licence.md` (short version — MIT, one
+>    licence everywhere, because the survey found "source-available" reads as a
+>    bait and switch and a split boundary gets misread), and
+>    `scripts/set-licence.mjs` writes the LICENSE file and all eleven manifests
+>    from the two words once they are picked. The script refuses to run without
+>    both, which is the point.
 > 4. **Changesets** for versioning and changelogs across the seven packages —
 >    useful from the first release, pure ceremony before it.
 >
