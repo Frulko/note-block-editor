@@ -66,7 +66,9 @@ function seedPage(): BlockJSON {
   };
 }
 
-const ws: Workspace = loadWorkspace(seedPage);
+// top-level await: pages now live in IndexedDB, and the shell has nothing
+// useful to show before they arrive
+const ws: Workspace = await loadWorkspace(seedPage);
 let editor: Editor;
 let view: EditorView | null = null;
 let detachInspector: (() => void) | null = null;
@@ -416,7 +418,7 @@ document.getElementById('export-vault')!.addEventListener('click', async () => {
   download(zip(exportVault(tree)), 'workspace-markdown.zip');
 });
 document.getElementById('reset')!.addEventListener('click', () => {
-  if (confirm('Réinitialiser la démo ? Toutes les pages seront perdues.')) resetWorkspace();
+  if (confirm('Réinitialiser la démo ? Toutes les pages seront perdues.')) void resetWorkspace();
 });
 document.getElementById('undo')!.addEventListener('click', () => editor.undo());
 document.getElementById('redo')!.addEventListener('click', () => editor.redo());

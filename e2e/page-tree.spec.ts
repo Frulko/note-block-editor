@@ -63,9 +63,18 @@ test.describe('the sidebar is a page tree', () => {
 
   test('the sub-page is a block in the parent document, not a stored field', async ({ page }) => {
     await addChild(page, 0);
-    const parentBlocks = await page.evaluate(() => {
-      const ws = JSON.parse(localStorage.getItem('nbe-workspace-v1') ?? '{}');
-      return (ws.pages?.[0]?.children ?? []).map((b: { type: string }) => b.type);
+    const parentBlocks = await page.evaluate(async () => {
+      const db: IDBDatabase = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('nbe-demo-workspace', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const pages: Array<{ children?: Array<{ type: string }> }> = await new Promise((resolve) => {
+        const request = db.transaction('pages').objectStore('pages').getAll();
+        request.onsuccess = () => resolve(request.result);
+      });
+      // the parent is the page that has a child reference; find it by shape
+      return pages.flatMap((p) => (p.children ?? []).map((b) => b.type));
     });
     // this is the invariant the whole model rests on: the tree is derived from
     // these blocks, so a workspace with no index still has a tree
