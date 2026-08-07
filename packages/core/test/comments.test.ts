@@ -3,6 +3,7 @@ import { Editor } from '../src/editor';
 import { getBlock } from '../src/doc';
 import { insertText, toggleMarkRange } from '../src/commands';
 import { marksAt } from '../src/richtext';
+import { documentOrder } from '../src/doc';
 import {
   anchoredThreads,
   memoryComments,
@@ -184,5 +185,47 @@ describe('threads are listed the way the page reads', () => {
     const store = memoryComments();
     store.create(newThread(newMessage('alice', 'sans ancre')));
     expect(threadsInDocumentOrder(editor.doc, store, ['a', 'b'])).toEqual([]);
+  });
+});
+
+describe('reading order is not iteration order', () => {
+  it('documentOrder walks the tree depth-first from the root', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'premier');
+    seed(editor, 'b', 'deuxième');
+    // a child of the second block, which iteration order would misplace
+    const child: Block = {
+      id: 'b1',
+      type: 'paragraph',
+      version: 1,
+      props: {},
+      text: [{ text: 'enfant' }],
+      children: [],
+      parentId: 'b',
+    };
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block: child, index: 0 }), { addToHistory: false });
+    seed(editor, 'c', 'troisième');
+
+    expect(documentOrder(editor.doc)).toEqual([editor.doc.rootId, 'a', 'b', 'b1', 'c']);
+  });
+
+  it('sorts threads by where their anchors read, not where they were made', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'premier bloc');
+    seed(editor, 'b', 'deuxième bloc');
+    const store = memoryComments();
+
+    const second = newThread(newMessage('alice', 'sur b'), 'b');
+    editor.setSelection(range('b', 0, 'b', 8));
+    store.create(second);
+    comment(editor, second.id);
+
+    const first = newThread(newMessage('bob', 'sur a'), 'a');
+    editor.setSelection(range('a', 0, 'a', 7));
+    store.create(first);
+    comment(editor, first.id);
+
+    const ordered = threadsInDocumentOrder(editor.doc, store, documentOrder(editor.doc));
+    expect(ordered.map((thread) => thread.messages[0]!.body)).toEqual(['sur a', 'sur b']);
   });
 });

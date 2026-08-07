@@ -3,6 +3,7 @@ import {
   newMessage,
   newThread,
   orphanThreads,
+  documentOrder,
   threadsInDocumentOrder,
   toggleMarkRange,
   uuidv7,
@@ -167,7 +168,8 @@ function pane(
 
   const renderComments = (): void => {
     commentList.replaceChildren();
-    const order = [...store.values()].map((block) => block.id);
+    // reading order, not the store's iteration order — they differ
+    const order = documentOrder(editor.doc);
     const live = threadsInDocumentOrder(editor.doc, comments, order);
     const orphans = orphanThreads(editor.doc, comments);
 

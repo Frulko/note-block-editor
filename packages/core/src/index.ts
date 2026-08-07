@@ -30,6 +30,7 @@ export {
   snapGrapheme,
 } from './grapheme';
 export { MARKS, expandsForward, markExpansion, registerMark, type MarkExpansion, type MarkSpec } from './marks';
+export { documentOrder } from './doc';
 export {
   anchoredThreads,
   memoryComments,

@@ -177,3 +177,30 @@ export function docFromJSON(
   add(json, null);
   return { blocks, rootId: json.id };
 }
+
+/**
+ * Every block id in reading order — depth-first from the root.
+ *
+ * @remarks
+ * Not the same as iterating `doc.blocks`. A `Map` yields insertion order and a
+ * CRDT-backed store yields its own tree walk; neither is the order a person
+ * reads in, and both look close enough to pass a casual test. Both
+ * implementations of this project made that mistake within an hour of each
+ * other — a TypeScript test asserted the order `values()` returns, a Swift one
+ * asserted the order `nodes()` returns — which is what makes this worth naming
+ * rather than leaving to each caller.
+ *
+ * The root itself is included, because a caller sorting anything anchored to
+ * blocks needs it in the sequence too.
+ */
+export function documentOrder(doc: Doc): BlockId[] {
+  const out: BlockId[] = [];
+  const walk = (id: BlockId): void => {
+    const block = doc.blocks.get(id);
+    if (!block) return;
+    out.push(id);
+    for (const child of block.children ?? []) walk(child);
+  };
+  walk(doc.rootId);
+  return out;
+}
