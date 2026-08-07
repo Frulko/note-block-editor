@@ -451,7 +451,17 @@ document.getElementById('import-file')!.addEventListener('change', async (e) => 
       if (file.bytes) await storeAsset(new Blob([file.bytes as unknown as BlobPart]));
     }
     const fromNotion = files.some((f) => NOTION_NAMING.test(f.path));
-    const pages = fromNotion ? importNotion(files) : importVault(files);
+    const imported = fromNotion ? importNotion(files) : { pages: importVault(files), collections: [] };
+    const pages = imported.pages;
+    // a database arrives as §2.5's four records: its schema and view are host
+    // records the database host owns, its rows are pages like any other
+    for (const collection of imported.collections) {
+      (ws.collections ??= []).push({
+        schema: collection.schema,
+        view: collection.view,
+        rowIds: collection.rows.map((row) => row.id),
+      });
+    }
     if (!pages.length) {
       alert('Aucune page trouvée dans cette archive.');
       return;

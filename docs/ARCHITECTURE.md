@@ -490,9 +490,18 @@ text editor shows every page, row, view definition, and asset. Content that
 exists only in the derived index — whatever that runtime's index happens to be
 — or only inside a binary blob, is a bug.
 
-Interop targets: Obsidian vaults (L1 *is* one), Notion ZIP import (UUID
-filenames, CSV databases, flattened toggles), Notion Enhanced Markdown, Djot
-`{attr}` syntax borrowed now to keep that export trivial.
+Interop targets, all shipped 2026-08-07 in `@nbe/workspace`: Obsidian vaults
+(L1 *is* one — `/vault` exports and re-imports one, assets included), Notion
+ZIP import (`/notion`: UUID filenames become page ids, folders become the
+tree, CSV databases become collections), and Notion Enhanced Markdown
+(`/enhanced`: `<callout>`, `<details>`, `<columns>`, page and mention tags).
+Djot `{attr}` syntax is borrowed to keep that export trivial.
+
+Two honest limits carried by the importers rather than hidden: their fixtures
+are written from the *documented* shape of each format, not captured from a
+real Notion workspace (`docs/TESTING.md` says what to check once), and a CSV
+cannot yield a relation, a rollup or a formula because it never encoded one —
+Notion does not put views or formulas in Markdown either.
 
 ## 11. Decisions
 

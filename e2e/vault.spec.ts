@@ -190,3 +190,75 @@ test.describe('an archive comes back in', () => {
     expect(indents).toContain('22px');
   });
 });
+
+test.describe('the richer Notion formats', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(300);
+  });
+
+  test('an Enhanced Markdown export keeps its callouts, toggles and columns', async ({ page }) => {
+    const hex = 'cccccccc1111222233334444444444aa';
+    const archive = makeArchive([
+      {
+        path: `Riche ${hex}.md`,
+        text: [
+          '# Riche',
+          '',
+          '<callout icon="⚠️">',
+          'Un encadré conservé',
+          '</callout>',
+          '',
+          '<details>',
+          '<summary>Une bascule</summary>',
+          '',
+          'Contenu caché.',
+          '</details>',
+          '',
+          '<columns>',
+          '<column>',
+          'Gauche',
+          '</column>',
+          '<column>',
+          'Droite',
+          '</column>',
+          '</columns>',
+        ].join('\n'),
+      },
+    ]);
+    await page.locator('#import-file').setInputFiles(archive);
+    await page.waitForTimeout(900);
+    await page.locator('.page-item').filter({ hasText: 'Riche' }).first().click();
+    await page.waitForTimeout(400);
+
+    await expect(page.locator('.nbe-t-callout')).toHaveCount(1);
+    await expect(page.locator('.nbe-t-toggle')).toHaveCount(1);
+    await expect(page.locator('.nbe-t-column_list')).toHaveCount(1);
+    await expect(page.locator('.nbe-t-column')).toHaveCount(2);
+    expect(await page.locator('.nbe-editor').textContent()).toContain('Un encadré conservé');
+  });
+
+  test('a database CSV becomes a real collection, not a flat table', async ({ page }) => {
+    const hexA = 'dddddddd1111222233334444444444bb';
+    const hexB = 'eeeeeeee1111222233334444444444cc';
+    const archive = makeArchive([
+      { path: `Suivi ${hexA}.md`, text: '# Suivi\n\nMes tâches.' },
+      {
+        path: `Suivi ${hexA}/Tâches ${hexB}.csv`,
+        text: 'Nom,Statut,Fait\nÉcrire,En cours,Oui\nRelire,À faire,Non\nPublier,En cours,Non\nArchiver,Fini,Non',
+      },
+    ]);
+    await page.locator('#import-file').setInputFiles(archive);
+    await page.waitForTimeout(1000);
+    await page.locator('.page-item').filter({ hasText: 'Suivi' }).first().click();
+    await page.waitForTimeout(600);
+
+    // a database view block, not a table block
+    await expect(page.locator('.nbe-t-database')).toHaveCount(1);
+    await expect(page.locator('.nbe-t-table')).toHaveCount(0);
+    const shown = await page.locator('.nbe-editor').textContent();
+    expect(shown).toContain('Écrire');
+    expect(shown).toContain('Statut');
+  });
+});

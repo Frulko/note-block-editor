@@ -406,11 +406,25 @@ them directly. Two writers, never at once.
   mark-and-sweep at load, no reference counts; blobs travel with a vault export
   in an `assets/` folder and come back on import. Open: multi-tab undo.
 
-**Phase 4 is done.** What is left under this heading is refinement rather than
-structure: Notion's *Enhanced Markdown* export is a different shape again, and
-an imported database arrives as a table rather than as §2.5's four records —
-inferring property types from CSV strings is a guess this should not make
-silently.
+- ~~Notion *Enhanced Markdown*~~ — shipped 2026-08-07
+  (`@nbe/workspace/enhanced`): callouts, toggles, columns, page references and
+  inline mentions read back as blocks. The flavour is detected from the body,
+  so nobody picks an import mode they cannot see.
+- ~~Databases as §2.5's four records~~ — shipped 2026-08-07
+  (`@nbe/workspace/collection`): a CSV yields a schema, a view, rows as pages
+  and a view block. Types are inferred only when *every* value in a column
+  fits, and the schema is marked `inferred` so an app can say where they came
+  from rather than presenting a guess as a declaration.
+
+**Phase 4 is complete.** The notes app exists: a derived page tree, navigation,
+search, backlinks, a storage seam with an IndexedDB adapter, a Markdown vault
+that leaves and comes back, Notion import in both flavours, and binaries that
+are collected and that travel.
+
+What is deliberately *not* in it, and why: writing files to a directory needs a
+runtime with files (4b), multi-tab safety needs single-writer election (4b),
+and a relation or rollup cannot be recovered from a CSV that never encoded one
+— Notion does not encode views or formulas in Markdown either.
 - Notion *Enhanced Markdown* export, which is a different shape again.
 - Databases as four records rather than a flat table on import (§2.5).
 

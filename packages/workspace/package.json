@@ -19,6 +19,14 @@
     "./notion": {
       "types": "./src/notion.ts",
       "default": "./src/notion.ts"
+    },
+    "./enhanced": {
+      "types": "./src/enhanced.ts",
+      "default": "./src/enhanced.ts"
+    },
+    "./collection": {
+      "types": "./src/collection.ts",
+      "default": "./src/collection.ts"
     }
   },
   "dependencies": {

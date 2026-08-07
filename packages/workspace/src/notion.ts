@@ -1,6 +1,8 @@
 import { markdownToBlocks } from '@nbe/markdown';
+import { enhancedToBlocks, isEnhancedMarkdown } from './enhanced';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import { SUB_PAGE } from './index';
+import { collectionFromRows, type ImportedCollection } from './collection';
 import type { VaultFile } from './vault';
 
 /**
@@ -39,6 +41,13 @@ import type { VaultFile } from './vault';
  *
  * @category Storage
  */
+
+/** What an import yields: pages, and the collections §2.5 keeps beside them. */
+export interface NotionImport {
+  /** Page documents, including one per database row. */
+  pages: BlockJSON[];
+  collections: ImportedCollection[];
+}
 
 /** `Title 1a2b3c…` → the title and the 32-hex id Notion appended. */
 const NOTION_NAME = /^(.*?)[\s-]+([0-9a-f]{32})$/i;
@@ -118,48 +127,23 @@ function splitCsvLine(line: string): string[] {
   return cells;
 }
 
-/**
- * A Notion database CSV as a table block.
- *
- * @remarks
- * A first pass on purpose. §2.5 models a database as four separate records —
- * view block, view, schema, rows — and reconstructing those from a CSV means
- * inferring property types from strings, which is a guess this cannot make
- * safely. A table keeps every value visible and editable, and losing a *view*
- * is a smaller loss than inventing a schema.
- */
-function csvToTable(text: string): BlockJSON | null {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim());
-  if (!lines.length) return null;
-  const rows = lines.map(splitCsvLine);
-  const columnCount = Math.max(...rows.map((r) => r.length));
-  return {
-    id: uuidv7(),
-    type: 'table',
-    version: 1,
-    props: { columnCount },
-    children: rows.map((cells) => ({
-      id: uuidv7(),
-      type: 'table_row',
-      version: 1,
-      children: Array.from({ length: columnCount }, (_, i) => ({
-        id: uuidv7(),
-        type: 'table_cell',
-        version: 1,
-        text: cells[i] ? [{ text: cells[i]! }] : [],
-      })),
-    })),
-  };
+/** Every non-blank CSV line, split into cells. */
+function parseCsv(text: string): string[][] {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .map(splitCsvLine);
 }
 
 /**
  * Import a Notion Markdown export.
  *
  * @param files - Every file from the unzipped export, `.md` and `.csv` alike.
- * @returns Page documents carrying `sub_page` blocks for their children —
- * ready to hand to a `WorkspaceStorage` one at a time.
+ * @returns The page documents, and the collections read from the CSVs. Rows
+ * are pages too and are included in `pages`, since that is what §2.5 says
+ * they are.
  */
-export function importNotion(files: VaultFile[]): BlockJSON[] {
+export function importNotion(files: VaultFile[]): NotionImport {
   const entries: Entry[] = [];
   for (const file of files) {
     if (!/\.(md|csv)$/i.test(file.path)) continue;
@@ -190,7 +174,8 @@ export function importNotion(files: VaultFile[]): BlockJSON[] {
     return byPath.get(joined) ?? byPath.get(target) ?? null;
   };
 
-  return markdown.map((entry) => {
+  const collections: ImportedCollection[] = [];
+  const pages = markdown.map((entry) => {
     /*
      * Notion repeats the title as a level-1 heading, and so does every page
      * `newPage()` creates — so it is kept. Stripping it looked like removing a
@@ -198,7 +183,11 @@ export function importNotion(files: VaultFile[]): BlockJSON[] {
      * comes from its first line of content, so the import silently renamed
      * every page after its first paragraph.
      */
-    const blocks = markdownToBlocks(entry.text);
+    // an export may be plain Markdown or Notion's enhanced flavour; the body
+    // says which, so nobody has to choose an import mode they cannot see
+    const blocks = isEnhancedMarkdown(entry.text)
+      ? enhancedToBlocks(entry.text)
+      : markdownToBlocks(entry.text);
     promoteCallouts(blocks);
 
     const folder = `${entry.directory}${entry.stem}/`;
@@ -233,9 +222,17 @@ export function importNotion(files: VaultFile[]): BlockJSON[] {
         props: { pageId: child.id, title: child.title },
       });
     }
+    /*
+     * A database is four records (§2.5), not a table: its schema and view are
+     * host records, its rows are pages, and the page only holds a view block
+     * pointing at them. A flat table would have been less code and a worse
+     * import — filters, sorts and typed values all die with it.
+     */
     for (const table of csv.filter((c) => c.directory === folder)) {
-      const block = csvToTable(table.text);
-      if (block) blocks.push(block);
+      const imported = collectionFromRows(table.title, parseCsv(table.text));
+      if (!imported) continue;
+      collections.push(imported);
+      blocks.push(imported.viewBlock);
     }
 
     return {
@@ -246,4 +243,6 @@ export function importNotion(files: VaultFile[]): BlockJSON[] {
       children: blocks,
     } satisfies BlockJSON;
   });
+
+  return { pages: [...pages, ...collections.flatMap((c) => c.rows)], collections };
 }
