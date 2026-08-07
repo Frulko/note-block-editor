@@ -166,6 +166,7 @@ export function importNotion(files: VaultFile[]): BlockJSON[] {
     const directory = directoryOf(file.path);
     const stem = file.path.slice(directory.length).replace(/\.(md|csv)$/i, '');
     const { title, id } = parseName(stem);
+    if (typeof file.text !== 'string') continue; // a binary asset, not a page
     entries.push({ path: file.path, directory, stem, title, id, text: file.text });
   }
 

@@ -403,8 +403,14 @@ them directly. Two writers, never at once.
   tables. Fixtures are constructed from the documented shape, not a real
   export — see `docs/TESTING.md`.
 - ~~Binary asset pipeline (AQ#2)~~ — shipped 2026-08-07 for the browser:
-  mark-and-sweep at load, no reference counts. Open: multi-tab undo, and where
-  blobs live inside an exported vault.
+  mark-and-sweep at load, no reference counts; blobs travel with a vault export
+  in an `assets/` folder and come back on import. Open: multi-tab undo.
+
+**Phase 4 is done.** What is left under this heading is refinement rather than
+structure: Notion's *Enhanced Markdown* export is a different shape again, and
+an imported database arrives as a table rather than as §2.5's four records —
+inferring property types from CSV strings is a guess this should not make
+silently.
 - Notion *Enhanced Markdown* export, which is a different shape again.
 - Databases as four records rather than a flat table on import (§2.5).
 

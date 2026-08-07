@@ -4,7 +4,7 @@ import { callout } from '@nbe/blocks-callout/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
-import { resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
+import { allAssetBytes, resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
 import { createDatabaseHost } from './dbhost';
 import { Workspace as PageTree, pageTitle, referencedAssets } from '@nbe/workspace';
 import { exportVault, importVault } from '@nbe/workspace/vault';
@@ -417,7 +417,10 @@ document.getElementById('new-page')!.addEventListener('click', () => {
  */
 document.getElementById('export-vault')!.addEventListener('click', async () => {
   await tree.load();
-  download(zip(exportVault(tree)), 'workspace-markdown.zip');
+  // the images travel too, or the vault has dangling references — which is
+  // the one thing "readable without the tool" cannot afford
+  const assets = await allAssetBytes(referencedAssets(ws.pages));
+  download(zip(exportVault(tree, { assets })), 'workspace-markdown.zip');
 });
 /**
  * Import an archive: one of ours, or a Notion export.
@@ -443,6 +446,10 @@ document.getElementById('import-file')!.addEventListener('change', async (e) => 
   if (!archive) return;
   try {
     const files = await unzip(await archive.arrayBuffer());
+    // put the binaries back first, so the pages that refer to them resolve
+    for (const file of files) {
+      if (file.bytes) await storeAsset(new Blob([file.bytes as unknown as BlobPart]));
+    }
     const fromNotion = files.some((f) => NOTION_NAMING.test(f.path));
     const pages = fromNotion ? importNotion(files) : importVault(files);
     if (!pages.length) {

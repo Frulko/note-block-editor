@@ -70,7 +70,7 @@ function bytes(...values: Array<[size: 2 | 4, value: number]>): Uint8Array {
  *
  * @param files - Paths use `/`; a leading slash is not allowed by the format.
  */
-export function zip(files: Array<{ path: string; text: string }>): Blob {
+export function zip(files: Array<{ path: string; text?: string; bytes?: Uint8Array }>): Blob {
   const encoder = new TextEncoder();
   const parts: ArrayBuffer[] = [];
   const entries: Entry[] = [];
@@ -78,7 +78,7 @@ export function zip(files: Array<{ path: string; text: string }>): Blob {
 
   for (const file of files) {
     const name = encoder.encode(file.path.replace(/^\/+/, ''));
-    const data = encoder.encode(file.text);
+    const data = file.bytes ?? encoder.encode(file.text ?? '');
     const entry: Entry = { name, data, crc: crc32(data), offset };
     entries.push(entry);
 
@@ -169,7 +169,7 @@ export function download(blob: Blob, filename: string): void {
  * streamed archive may leave sizes zero in the local header and only fill them
  * in afterwards. The directory at the end is always authoritative.
  */
-export async function unzip(data: ArrayBuffer): Promise<Array<{ path: string; text: string }>> {
+export async function unzip(data: ArrayBuffer): Promise<Array<{ path: string; text?: string; bytes?: Uint8Array }>> {
   const view = new DataView(data);
   const bytes = new Uint8Array(data);
 
@@ -186,7 +186,7 @@ export async function unzip(data: ArrayBuffer): Promise<Array<{ path: string; te
   const count = view.getUint16(end + 10, true);
   let at = view.getUint32(end + 16, true);
   const decoder = new TextDecoder();
-  const files: Array<{ path: string; text: string }> = [];
+  const files: Array<{ path: string; text?: string; bytes?: Uint8Array }> = [];
 
   for (let i = 0; i < count; i++) {
     if (view.getUint32(at, true) !== 0x02014b50) break;
@@ -207,14 +207,20 @@ export async function unzip(data: ArrayBuffer): Promise<Array<{ path: string; te
     const start = headerOffset + 30 + localName + localExtra;
     const raw = bytes.subarray(start, start + compressed);
 
-    if (method === 0) {
-      files.push({ path, text: decoder.decode(raw) });
-    } else if (method === 8) {
-      const stream = new Blob([raw as unknown as BlobPart])
-        .stream()
-        .pipeThrough(new DecompressionStream('deflate-raw'));
-      files.push({ path, text: await new Response(stream).text() });
-    }
+    const inflated =
+      method === 0
+        ? raw
+        : method === 8
+          ? new Uint8Array(
+              await new Response(
+                new Blob([raw as unknown as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw')),
+              ).arrayBuffer(),
+            )
+          : null;
+    if (!inflated) continue;
+    // assets stay bytes; everything else is text the importers parse
+    if (path.startsWith('assets/')) files.push({ path, bytes: inflated });
+    else files.push({ path, text: decoder.decode(inflated) });
     // any other method is a compressor we do not ship; skipping it loses one
     // file rather than failing the whole import
   }

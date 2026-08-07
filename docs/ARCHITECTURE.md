@@ -530,8 +530,10 @@ phase begins:
    only garbage while nothing can bring a reference back, and the undo history
    lives in memory and dies with the page. **Still open:** a second tab does
    have a history, so sweeping can strand its undo — the answer is single-writer
-   election, which belongs with phase 4b's real storage. And where blobs sit in
-   an L1 vault export (an `assets/` folder beside the Markdown) is unresolved.
+   election, which belongs with phase 4b's real storage. Blobs sit in an
+   `assets/` folder beside the Markdown, and a page refers to one by a path
+   relative to its own depth, so a vault stays self-contained wherever it is
+   moved; the import restores the opaque ref.
 3. **The simple table block.** *Resolved 2026-08-06 and shipped.* Cells are
    ordinary blocks (`table` / `table_row` / `table_cell`), so no new op types
    were needed — a column insert is a transaction of per-row `insert_block`,

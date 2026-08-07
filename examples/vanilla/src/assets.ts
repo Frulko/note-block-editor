@@ -104,3 +104,14 @@ export async function sweepAssets(referenced: Set<string>): Promise<number> {
   for (const key of orphans) await inTx('readwrite', (store) => store.delete(key));
   return orphans.length;
 }
+
+/** Every stored blob, as bytes, for a vault export. */
+export async function allAssetBytes(refs: Iterable<string>): Promise<Map<string, Uint8Array>> {
+  const out = new Map<string, Uint8Array>();
+  for (const ref of refs) {
+    if (!ref.startsWith('asset:')) continue;
+    const blob = await inTx<Blob | undefined>('readonly', (store) => store.get(ref.slice(6)) as IDBRequest<Blob | undefined>);
+    if (blob) out.set(ref, new Uint8Array(await blob.arrayBuffer()));
+  }
+  return out;
+}

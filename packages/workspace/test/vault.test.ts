@@ -65,7 +65,7 @@ describe('the layout is a vault a person can read', () => {
     });
     await ws.save(id, doc);
     const [file] = exportVault(ws);
-    const body = file!.text.split('---\n')[2]!;
+    const body = file!.text!.split('---\n')[2]!;
     expect(body).toContain('Du texte **en gras**.');
     expect(body).not.toContain('{');
     expect(body).not.toContain('<');
@@ -161,7 +161,7 @@ describe('a vault reads back as the same workspace', () => {
     const after = exportVault(await roundTrip(ws));
     expect(after.map((f) => f.path)).toEqual(before.map((f) => f.path));
     // every non-blank line survives; only empty ones go
-    const lines = (text: string) => text.split('\n').filter((l) => l.trim());
+    const lines = (text: string | undefined) => (text ?? '').split('\n').filter((l) => l.trim());
     expect(lines(after[0]!.text)).toEqual(lines(before[0]!.text));
   });
 });
@@ -206,5 +206,61 @@ describe('a vault a person edited by hand', () => {
     const pages = importVault([file('Dossier/Une note.md', 'du texte')]);
     expect(pages).toHaveLength(1);
     expect(pages[0]!.props!['title']).toBe('Une note');
+  });
+});
+
+describe('binaries travel with the vault', () => {
+  const bytes = new Uint8Array([137, 80, 78, 71]); // a PNG signature
+  const assets = new Map([['asset:abc123', bytes]]);
+
+  /** A page holding an image that refers to a stored asset. */
+  async function pageWithImage(parentId?: string) {
+    const id = await ws.createPage({ parentId, title: parentId ? 'Enfant' : 'Album' });
+    const doc = ws.document(id)!;
+    doc.children!.push({ id: uuidv7(), type: 'image', version: 1, props: { src: 'asset:abc123' } });
+    await ws.save(id, doc);
+    return id;
+  }
+
+  it('the blob is written beside the prose', async () => {
+    await pageWithImage();
+    const files = exportVault(ws, { assets });
+    const asset = files.find((f) => f.path === 'assets/abc123');
+    expect(asset?.bytes).toEqual(bytes);
+  });
+
+  it('the markdown points at it with a relative path, not an opaque ref', async () => {
+    await pageWithImage();
+    const page = exportVault(ws, { assets }).find((f) => f.path.endsWith('.md'))!;
+    expect(page.text).toContain('assets/abc123');
+    expect(page.text).not.toContain('asset:');
+  });
+
+  it('a nested page reaches back up to the assets folder', async () => {
+    const parent = await ws.createPage({ title: 'Album' });
+    await pageWithImage(parent);
+    const child = exportVault(ws, { assets }).find((f) => f.path.includes('/'))!;
+    // one level down, so one level up: the vault stays self-contained if moved
+    expect(child.text).toContain('../assets/abc123');
+  });
+
+  it('the ref comes back on import', async () => {
+    await pageWithImage();
+    const pages = importVault(exportVault(ws, { assets }));
+    const image = (pages[0]!.children ?? []).find((b) => b.type === 'image');
+    expect(image!.props!['src']).toBe('asset:abc123');
+  });
+
+  it('a ref with no bytes is left alone rather than dropped', async () => {
+    await pageWithImage();
+    // no assets supplied: the block survives, the image is simply missing
+    const page = exportVault(ws).find((f) => f.path.endsWith('.md'))!;
+    expect(page.text).toContain('asset:abc123');
+    expect(exportVault(ws).some((f) => f.bytes)).toBe(false);
+  });
+
+  it('only the assets actually used are written', async () => {
+    await ws.createPage({ title: 'Sans image' });
+    expect(exportVault(ws, { assets }).some((f) => f.path.startsWith('assets/'))).toBe(false);
   });
 });
