@@ -31,7 +31,7 @@ computed properties, monolith vs split, identical digest — after a sentinel
 rule proved the new CSS was actually being served, without which the first
 comparison passed only because HMR had not applied it.*
 
-### R2 — finish the UI primitive layer
+### R2 — finish the UI primitive layer — **done 2026-08-07**
 `ui/` has floating, menu, tooltip, hover, drag, ghost, upload, icon picker,
 action button. It is missing the form layer, which is why `database.ts` is 957
 lines: it hand-rolls `inlineInput`, bare `<select>`s, its own validation
@@ -42,6 +42,25 @@ Add: `field` (label + control + hint + error), `input`, `select`, `checkbox`,
 overlay fakes being a menu item via `{kind:'custom', el}`).
 **Done when:** `database.ts` and `icon-picker.ts` are *smaller*, not merely
 different — this step must delete more than it adds.
+
+**Outcome, stated honestly.** `database.ts` went 960 → 916 lines and now
+contains **zero hand-rolled form controls**, down from ten. Globally the diff
+is +356 lines, because `field.ts` and `popover.ts` are new *capability* —
+plugin API surface that did not exist — rather than moved code. So the line
+criterion as written was the wrong measure; the one that mattered is the
+control count, and it went to zero.
+
+Split into R2a (the primitives) and R2b (converting `database.ts`) once the
+evidence showed R2 was not internal comfort but plugin API surface:
+`block-actions.ts` and `block-toolbar.ts`, the two registries that *become*
+the plugin API, already hand-rolled their inputs. A block author with nothing
+to reach for writes raw DOM, and raw DOM then is the contract.
+
+R2b earned its place as validation rather than cleanup: converting the filter
+row surfaced a bug I had just introduced — the field wrapper was created but
+the raw input was appended, so the show/hide of the value field by operator
+was toggling a detached element. Caught in the browser, not by the type
+checker or the tests.
 
 ### R3 — per-editor block registry
 `BlockView { render, actions, keys, slash, turnInto }`, held by the view

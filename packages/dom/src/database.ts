@@ -21,7 +21,18 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { collectionToCsv, csvToRows, safeName, viewToBase } from '@nbe/markdown/collections';
-import { createDragGhost, createMenu, draggable, ESCAPE_SELF_ATTR, type DragGhost, type MenuEntry } from './ui';
+import {
+  createCheckbox,
+  createDragGhost,
+  createMenu,
+  createSelect,
+  createTextInput,
+  draggable,
+  editInline,
+  pickFile,
+  type DragGhost,
+  type MenuEntry,
+} from './ui';
 import { renderBlock } from './render';
 
 export interface DatabaseData {
@@ -137,51 +148,6 @@ function btn(className: string, text: string, onClick: (e: MouseEvent) => void):
   return b;
 }
 
-function select(options: Array<{ value: string; label: string }>, value: string): HTMLSelectElement {
-  const s = document.createElement('select');
-  for (const o of options) {
-    const opt = document.createElement('option');
-    opt.value = o.value;
-    opt.textContent = o.label;
-    s.append(opt);
-  }
-  s.value = value;
-  return s;
-}
-
-/** Swap a cell's content for an input; commit on Enter/blur, cancel on Escape. */
-function inlineInput(cell: HTMLElement, initial: string, commit: (value: string) => void, inputType = 'text'): void {
-  const input = document.createElement('input');
-  input.type = inputType;
-  input.className = 'nbe-db-input';
-  // Escape here cancels the edit; without this the overlay stack would close
-  // the surrounding menu instead when the field sits inside one
-  input.setAttribute(ESCAPE_SELF_ATTR, '');
-  input.value = initial;
-  cell.replaceChildren(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = (save: boolean) => {
-    if (done) return;
-    done = true;
-    if (save) commit(input.value);
-    else cell.textContent = initial;
-  };
-  input.addEventListener('blur', () => finish(true));
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      finish(true);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      finish(false);
-      input.blur();
-    }
-    e.stopPropagation();
-  });
-}
-
 export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const host = view.options.database;
   const root = el('div', 'nbe-db');
@@ -211,7 +177,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const title = el('span', 'nbe-db-title', schema.name);
   title.title = 'Double-clic pour renommer';
   title.addEventListener('dblclick', () =>
-    inlineInput(title, schema.name, (v) => host.updateSchemaName?.(collectionId, v.trim() || schema.name)),
+    editInline(title, schema.name, (v) => host.updateSchemaName?.(collectionId, v.trim() || schema.name)),
   );
 
   /** First property a board can meaningfully group by. */
@@ -280,35 +246,29 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
 
     cfg.filters.forEach((filter, i) => {
       const row = el('div', 'nbe-db-filter');
-      const propSel = select(allColumns().map((c) => ({ value: c.id, label: c.name })), filter.propertyId);
-      const opSel = select(FILTER_OPS.map((o) => ({ value: o.op, label: o.label })), filter.op);
-      const valInput = document.createElement('input');
-      valInput.className = 'nbe-db-input';
-      valInput.placeholder = 'valeur';
-      valInput.value = String(filter.value ?? '');
-      const syncVis = () => {
-        valInput.style.display = FILTER_OPS.find((o) => o.op === opSel.value)?.needsValue ? '' : 'none';
-      };
-      syncVis();
+      const propSel = createSelect({ options: allColumns().map((c) => ({ value: c.id, label: c.name })), value: filter.propertyId }).input;
+      const opSel = createSelect({ options: FILTER_OPS.map((o) => ({ value: o.op, label: o.label })), value: filter.op }).input;
       const commit = () => {
         const next = [...cfg.filters];
-        next[i] = { propertyId: propSel.value, op: opSel.value as FilterOp, value: valInput.value };
+        next[i] = { propertyId: propSel.value, op: opSel.value as FilterOp, value: valField.value() };
         patchView({ filters: next });
       };
+      // the field owns Enter, blur and Escape; this row only says what to do
+      const valField = createTextInput({
+        value: String(filter.value ?? ''),
+        placeholder: 'valeur',
+        onCommit: commit,
+      });
+      const syncVis = () => {
+        valField.el.style.display = FILTER_OPS.find((o) => o.op === opSel.value)?.needsValue ? '' : 'none';
+      };
+      syncVis();
       propSel.addEventListener('change', commit);
       opSel.addEventListener('change', () => {
         syncVis();
         commit();
       });
-      valInput.addEventListener('keydown', (e) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          commit();
-        }
-      });
-      valInput.addEventListener('blur', commit);
-      row.append(propSel, opSel, valInput, btn('nbe-db-x', '✕', () => patchView({ filters: cfg.filters.filter((_, j) => j !== i) })));
+      row.append(propSel, opSel, valField.el, btn('nbe-db-x', '✕', () => patchView({ filters: cfg.filters.filter((_, j) => j !== i) })));
       entries.push({ kind: 'custom', el: row });
     });
 
@@ -390,11 +350,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       entries.push({
         label: 'Importer un CSV…',
         onSelect: () => {
-          const input = document.createElement('input');
-          input.type = 'file';
-          input.accept = '.csv,text/csv';
-          input.addEventListener('change', async () => {
-            const file = input.files?.[0];
+          void pickFile('.csv,text/csv').then(async (file) => {
             if (!file) return;
             const { rows: imported, unknownColumns } = csvToRows(await file.text(), schema);
             if (imported.length) host.importRows!(collectionId, imported);
@@ -402,7 +358,6 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
               view.announce(`Colonnes ignorées : ${unknownColumns.join(', ')}`);
             }
           });
-          input.click();
         },
       });
     }
@@ -413,18 +368,14 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const openPropertyMenu = (anchor: HTMLElement, prop: PropertyDef) => {
     const menu = createMenu({ className: 'nbe-db-menu' });
     const nameWrap = el('div', 'nbe-db-filter');
-    const nameInput = document.createElement('input');
-    nameInput.className = 'nbe-db-input';
-    nameInput.value = prop.name;
-    nameInput.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') {
-        e.preventDefault();
+    const nameField = createTextInput({
+      value: prop.name,
+      onCommit: (v) => {
         menu.close();
-        host.updateProperty(collectionId, { ...prop, name: nameInput.value.trim() || prop.name });
-      }
+        host.updateProperty(collectionId, { ...prop, name: v.trim() || prop.name });
+      },
     });
-    nameWrap.append(nameInput);
+    nameWrap.append(nameField.el);
     const entries: MenuEntry[] = [
       { kind: 'custom', el: nameWrap },
       { label: 'Trier ↑', onSelect: () => patchView({ sorts: [{ propertyId: prop.id, dir: 'asc' }] }) },
@@ -466,42 +417,47 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   /** Formula source editor with live parse feedback. */
   const formulaEditor = (prop: PropertyDef, menu: { close: () => void }): HTMLElement => {
     const wrap = el('div', 'nbe-db-formula');
-    const input = document.createElement('textarea');
-    input.className = 'nbe-db-formulainput';
-    input.rows = 2;
-    input.value = prop.formula ?? '';
-    input.placeholder = 'ex: prop("Prix") * prop("Quantité")';
     const status = el('div', 'nbe-db-formulastatus');
-    const validate = (): boolean => {
-      if (!input.value.trim()) {
-        status.textContent = '';
-        status.classList.remove('nbe-db-formulaerror');
-        return true;
-      }
+
+    /** Parse feedback: the error goes on the field, the success note beside it. */
+    const validate = (source: string): string | null => {
+      if (!source.trim()) return null;
       try {
-        parseFormula(input.value);
-        status.textContent = '✓ formule valide';
-        status.classList.remove('nbe-db-formulaerror');
-        return true;
+        parseFormula(source);
+        return null;
       } catch (err) {
-        status.textContent = err instanceof Error ? err.message : 'Formule invalide';
-        status.classList.add('nbe-db-formulaerror');
-        return false;
+        return err instanceof Error ? err.message : 'Formule invalide';
       }
     };
-    input.addEventListener('input', validate);
-    input.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (!validate()) return;
-        menu.close();
-        host.updateProperty(collectionId, { ...prop, formula: input.value });
-      }
+
+    const field = createTextInput({
+      multiline: true,
+      value: prop.formula ?? '',
+      placeholder: 'ex: prop("Prix") * prop("Quantité")',
+      className: 'nbe-db-formulafield',
+      onInput: (source) => {
+        const error = validate(source);
+        field.setError(error);
+        status.textContent = error || !source.trim() ? '' : '✓ formule valide';
+      },
+      // multiline fields do not commit on Enter, so the editor drives it
+      onCommit: (source) => validate(source) ?? undefined,
     });
-    validate();
+
+    field.input.addEventListener('keydown', (e) => {
+      const event = e as KeyboardEvent;
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      event.preventDefault();
+      const source = field.value();
+      const error = validate(source);
+      field.setError(error);
+      if (error) return;
+      menu.close();
+      host.updateProperty(collectionId, { ...prop, formula: source });
+    });
+
     const help = el('div', 'nbe-db-formulahelp', `Entrée pour valider · ${FORMULA_FUNCTION_NAMES.join(', ')}`);
-    wrap.append(input, status, help);
+    wrap.append(field.el, status, help);
     return wrap;
   };
 
@@ -569,20 +525,17 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       },
     }));
     const addWrap = el('div', 'nbe-db-filter');
-    const addInput = document.createElement('input');
-    addInput.className = 'nbe-db-input';
-    addInput.placeholder = '＋ nouvelle option…';
-    addInput.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      const value = addInput.value.trim();
-      if (!value) return;
-      menu.close();
-      host.updateProperty(collectionId, { ...prop, options: [...(prop.options ?? []), value] });
-      host.updateCell(collectionId, row.pageId, prop.id, multi ? [...selected, value] : value);
+    const addField = createTextInput({
+      placeholder: '＋ nouvelle option…',
+      onCommit: (raw) => {
+        const value = raw.trim();
+        if (!value) return;
+        menu.close();
+        host.updateProperty(collectionId, { ...prop, options: [...(prop.options ?? []), value] });
+        host.updateCell(collectionId, row.pageId, prop.id, multi ? [...selected, value] : value);
+      },
     });
-    addWrap.append(addInput);
+    addWrap.append(addField.el);
     entries.push({ kind: 'custom', el: addWrap });
     menu.update(entries);
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-start' });
@@ -621,20 +574,23 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     const value = row.properties[prop.id];
     switch (prop.type) {
       case 'checkbox': {
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = value === true;
-        cb.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, cb.checked));
-        cell.append(cb);
+        const cb = createCheckbox({
+          checked: value === true,
+          onChange: (checked) => host.updateCell(collectionId, row.pageId, prop.id, checked),
+        });
+        cell.append(cb.el);
         break;
       }
       case 'date': {
-        const d = document.createElement('input');
-        d.type = 'date'; // native picker (the ladder)
-        d.className = 'nbe-db-date';
-        d.value = String(value ?? '');
-        d.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, d.value));
-        cell.append(d);
+        // native picker (the ladder)
+        const d = createTextInput({
+          type: 'date',
+          value: String(value ?? ''),
+          className: 'nbe-db-date',
+          onCommit: (v) => host.updateCell(collectionId, row.pageId, prop.id, v),
+        });
+        d.input.addEventListener('change', () => host.updateCell(collectionId, row.pageId, prop.id, d.value()));
+        cell.append(d.el);
         break;
       }
       case 'select':
@@ -677,7 +633,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         }
         cell.classList.add('nbe-db-editable');
         cell.addEventListener('dblclick', () =>
-          inlineInput(cell, raw, (v) => host.updateCell(collectionId, row.pageId, prop.id, v)),
+          editInline(cell, raw, (v) => host.updateCell(collectionId, row.pageId, prop.id, v)),
         );
         break;
       }
@@ -685,7 +641,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         cell.textContent = formatValue(value, prop.type);
         cell.classList.add('nbe-db-editable');
         cell.addEventListener('click', () =>
-          inlineInput(
+          editInline(
             cell,
             String(value ?? ''),
             (v) =>
@@ -695,7 +651,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
                 prop.id,
                 prop.type === 'number' ? (v.trim() === '' ? '' : Number(v)) : v,
               ),
-            prop.type === 'number' ? 'number' : 'text',
+            { type: prop.type === 'number' ? 'number' : 'text' },
           ),
         );
       }
