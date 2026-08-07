@@ -2,7 +2,7 @@ import type { Block, BlockId } from '@nbe/core';
 import { cellPosition, deleteColumn, deleteRow, getBlock, insertColumn, insertRow } from '@nbe/core';
 import type { EditorView } from './view';
 import { createDropZone, fileToDataUrl, openIconPicker, type MenuEntry } from './ui';
-import { CALLOUT_PRESETS } from './callout';
+import { viewOf } from './block-view';
 
 /**
  * Per-block-type actions contributed to the block menu (the ⋮⋮ handle).
@@ -32,6 +32,12 @@ export function registerBlockActions(type: string, provider: BlockActionProvider
 }
 
 export function blockActionEntries(ctx: BlockActionContext): MenuEntry[] {
+  // a registered plugin owns its actions; the module registry is what the
+  // not-yet-extracted block types still use
+  const plugin = viewOf(ctx.view.plugins.get(ctx.block.type));
+  if (plugin?.actions) {
+    return plugin.actions({ ...ctx, setProps: (props) => setProps(ctx, props) });
+  }
   return providers.get(ctx.block.type)?.(ctx) ?? [];
 }
 
@@ -41,45 +47,6 @@ const setProps = (ctx: BlockActionContext, props: Record<string, unknown>) =>
   });
 
 // --- built-in providers -----------------------------------------------
-
-registerBlockActions('callout', (ctx) => [
-  {
-    label: "Changer l'icône",
-    icon: String(ctx.block.props['icon'] ?? '💡').slice(0, 2),
-    onSelect: () => {
-      ctx.close();
-      openIconPicker(() => ctx.anchor.getBoundingClientRect(), {
-        current: String(ctx.block.props['icon'] ?? ''),
-        storeImage: ctx.view.options.onStoreAsset,
-        // an explicit icon choice drops the preset label but keeps its tint
-        onPick: (icon) => setProps(ctx, { icon, variant: undefined }),
-        onRemove: () => setProps(ctx, { icon: undefined, variant: undefined }),
-      });
-    },
-  },
-  { kind: 'section', label: 'Type' },
-  ...CALLOUT_PRESETS.map((preset) => ({
-    label: preset.label,
-    icon: preset.icon,
-    hint: (ctx.block.props['variant'] ?? 'note') === preset.name ? '✓' : undefined,
-    onSelect: () =>
-      ctx.view.editor.dispatch(
-        (tx) => {
-          for (const id of ctx.ids) {
-            if (getBlock(ctx.view.editor.doc, id).type !== 'callout') continue;
-            tx.op({
-              type: 'update_block',
-              id,
-              patch: {
-                props: { variant: preset.name, icon: preset.icon, backgroundColor: preset.backgroundColor },
-              },
-            });
-          }
-        },
-        { origin: 'ui' },
-      ),
-  })),
-]);
 
 const LANGUAGES = ['plain', 'ts', 'js', 'json', 'html', 'css', 'python', 'rust', 'go', 'sql', 'bash', 'swift'];
 

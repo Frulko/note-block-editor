@@ -62,7 +62,7 @@ the raw input was appended, so the show/hide of the value field by operator
 was toggling a detached element. Caught in the browser, not by the type
 checker or the tests.
 
-### R3 — per-editor block registry
+### R3 — per-editor block registry — **in progress 2026-08-07**
 `BlockView { render, actions, keys, slash, turnInto }`, held by the view
 instance rather than in module-global `Map`s. Replaces `render.ts`'s switch,
 `block-actions.ts`/`block-toolbar.ts`'s import-time side effects, `slash.ts`'s
@@ -70,6 +70,24 @@ instance rather than in module-global `Map`s. Replaces `render.ts`'s switch,
 Built-ins move into `blocks/<type>.ts` modules and are re-exported as
 `starterBlocks`, so the default experience is unchanged and removable.
 **Done when:** two editors on one page can have different block sets.
+
+**Progress.** The contract is declared *whole* in `core/plugin.ts` — schema,
+view and every projection in one type — before any of it is wired, which is
+the guard against Lexical's three unsynchronised registries. `BlockView` in
+`dom/block-view.ts` refines the view half; `render` and `chrome` are separate
+so text-shaped blocks do not each re-implement the row-and-leaf walk.
+
+The callout is the first block extracted, and it now contributes its chrome,
+gutter actions, five slash entries and its turn-into target from one file.
+`render.ts`, `slash.ts`, `block-types.ts` and `block-actions.ts` no longer
+mention it. What still does: `input.ts` (the delegated icon-picker click),
+`clipboard.ts` (paste mapping), `schema.ts` (registration), and both
+projection packages — the last two are R5, and the first two are the next
+contribution points to add.
+
+Measured: from **14 files across 4 packages** down to **7**, of which two are
+stylesheets awaiting the `styles` contribution and two are the projections R5
+will take.
 
 ### R4 — features as an array
 `view.ts`'s 12 hardwired `attach*(view)` calls become

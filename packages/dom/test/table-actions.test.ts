@@ -4,7 +4,7 @@
 // selection is the table by the time the menu opens, so this covers the
 // lastTextCaret hand-off that makes "Supprimer la ligne" delete the right one.
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nbe/core';
+import { Editor, PluginRegistry } from '@nbe/core';
 import { cellAt, insertTable, tableRows, rowCells, plainText } from '@nbe/core';
 import { blockActionEntries } from '../src/block-actions';
 import type { EditorView } from '../src/view';
@@ -33,9 +33,17 @@ function setup() {
   return { editor, tableId };
 }
 
-/** A view stand-in: the provider only reads the editor and the last caret. */
+/**
+ * A view stand-in. It carries a real plugin registry because the action
+ * dispatch consults one — an empty registry is the honest stand-in for "no
+ * plugin owns this type", which is exactly the table's situation.
+ */
 const viewFor = (editor: Editor, caretBlockId: string | null) =>
-  ({ editor, lastTextCaret: caretBlockId ? { blockId: caretBlockId, offset: 0 } : null }) as unknown as EditorView;
+  ({
+    editor,
+    plugins: new PluginRegistry(),
+    lastTextCaret: caretBlockId ? { blockId: caretBlockId, offset: 0 } : null,
+  }) as unknown as EditorView;
 
 function entries(editor: Editor, tableId: string, caretBlockId: string | null) {
   return blockActionEntries({

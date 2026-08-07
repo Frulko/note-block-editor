@@ -2,6 +2,7 @@ import type { Block, BlockId } from '@nbe/core';
 import { childIndex, getBlock, insertTable, plainText, textLength, uuidv7 } from '@nbe/core';
 import type { EditorView } from './view';
 import { createMenu, type MenuEntry } from './ui';
+import { viewOf } from './block-view';
 
 interface SlashItem {
   label: string;
@@ -25,11 +26,6 @@ const ITEMS: SlashItem[] = [
   { label: 'Case à cocher', keywords: ['todo', 'check', 'tâche', 'task'], icon: '☑', action: { kind: 'block', type: 'to_do' } },
   { label: 'Toggle', keywords: ['toggle', 'dépliant', 'collapse'], icon: '▸', action: { kind: 'block', type: 'toggle' } },
   { label: 'Citation', keywords: ['quote', 'citation'], icon: '❝', action: { kind: 'block', type: 'quote' } },
-  { label: 'Callout', keywords: ['callout', 'encadré', 'note'], icon: '💡', action: { kind: 'block', type: 'callout', props: { variant: 'note', backgroundColor: 'gray' } } },
-  { label: 'Info', keywords: ['info', 'callout'], icon: 'ℹ️', action: { kind: 'block', type: 'callout', props: { variant: 'info', icon: 'ℹ️', backgroundColor: 'blue' } } },
-  { label: 'Attention', keywords: ['warning', 'attention', 'callout'], icon: '⚠️', action: { kind: 'block', type: 'callout', props: { variant: 'warning', icon: '⚠️', backgroundColor: 'yellow' } } },
-  { label: 'Succès', keywords: ['success', 'succès', 'callout', 'ok'], icon: '✅', action: { kind: 'block', type: 'callout', props: { variant: 'success', icon: '✅', backgroundColor: 'green' } } },
-  { label: 'Erreur', keywords: ['danger', 'erreur', 'error', 'callout'], icon: '🛑', action: { kind: 'block', type: 'callout', props: { variant: 'danger', icon: '🛑', backgroundColor: 'red' } } },
   { label: 'Code', keywords: ['code', 'snippet'], icon: '⌨', action: { kind: 'block', type: 'code' } },
   { label: 'Image', keywords: ['image', 'img', 'photo'], icon: '🖼', action: { kind: 'block', type: 'image' } },
   { label: 'Tableau', keywords: ['table', 'tableau', 'grille', 'grid'], icon: '▦', action: { kind: 'table' } },
@@ -38,9 +34,28 @@ const ITEMS: SlashItem[] = [
   { label: 'Base de données', keywords: ['database', 'table', 'bdd', 'db'], icon: '🗃', action: { kind: 'database' } },
 ];
 
-export function filterItems(query: string, hasPages: boolean, hasDb = hasPages): SlashItem[] {
+/** Built-in entries plus everything the registered plugins contribute. */
+export function slashItems(view: EditorView): SlashItem[] {
+  const contributed: SlashItem[] = [];
+  for (const plugin of view.plugins.all()) {
+    const declared = viewOf(plugin)?.slash;
+    if (!declared) continue;
+    for (const entry of Array.isArray(declared) ? declared : [declared]) {
+      if (entry.available?.(view) === false) continue;
+      contributed.push({
+        label: entry.label,
+        keywords: entry.keywords,
+        icon: entry.icon,
+        action: { kind: 'block', type: plugin.schema.type, props: entry.props },
+      });
+    }
+  }
+  return [...ITEMS, ...contributed];
+}
+
+export function filterItems(query: string, hasPages: boolean, hasDb = hasPages, items: SlashItem[] = ITEMS): SlashItem[] {
   const q = query.toLowerCase().trim();
-  return ITEMS.filter((item) => {
+  return items.filter((item) => {
     if (item.action.kind === 'page' && !hasPages) return false;
     if (item.action.kind === 'database' && !hasDb) return false;
     if (!q) return true;
@@ -71,7 +86,7 @@ export function attachSlashMenu(view: EditorView): () => void {
     blockId = id;
     triggerOffset = offset;
     open = true;
-    menu.update(toEntries(filterItems('', !!view.options.onCreatePage, !!view.options.database)));
+    menu.update(toEntries(filterItems('', !!view.options.onCreatePage, !!view.options.database, slashItems(view))));
     // live anchor: re-resolved on scroll/re-render, so it survives leaf replacement
     menu.open(() => view.leafEl(blockId)?.getBoundingClientRect() ?? null, {
       placement: 'bottom-start',
@@ -167,7 +182,7 @@ export function attachSlashMenu(view: EditorView): () => void {
     if (text[triggerOffset] !== '/') return menu.close();
     const query = text.slice(triggerOffset + 1, caret);
     if (query.length > 12) return menu.close();
-    menu.update(toEntries(filterItems(query, !!view.options.onCreatePage, !!view.options.database)));
+    menu.update(toEntries(filterItems(query, !!view.options.onCreatePage, !!view.options.database, slashItems(view))));
   };
 
   const unsubChange = editor.on((change) => {

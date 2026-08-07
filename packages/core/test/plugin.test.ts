@@ -36,7 +36,9 @@ describe('precedence', () => {
   });
 
   it('does not mistake a plain object for a ranked one', () => {
-    const value = { precedence: 'urgent', value: 'x' };
+    // an object that happens to have these keys but an unknown category is
+    // data, not a ranking — it must pass through untouched
+    const value = { precedence: 'urgent', value: 'x' } as unknown as string;
     expect(byPrecedence([value])).toEqual([value]);
   });
 });

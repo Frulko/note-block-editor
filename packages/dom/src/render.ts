@@ -1,8 +1,9 @@
 import type { Block, Run } from '@nbe/core';
 import { columnCount, getBlock } from '@nbe/core';
 import type { EditorView } from './view';
+import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
-import { createActionButton, createDropZone, fileToDataUrl } from './ui';
+import { createDropZone, fileToDataUrl } from './ui';
 import { backgroundColor, textColor } from './colors';
 
 function el(tag: string, className?: string): HTMLElement {
@@ -58,6 +59,10 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
   const block = getBlock(view.editor.doc, id);
   const spec = view.editor.schema.get(block.type);
   const root = el('div', `nbe-block nbe-t-${block.type}`);
+  // a plugin's own rendering wins over the built-in switch; the switch is what
+  // the remaining block types have not been extracted from yet
+  const plugin = viewOf(view.plugins.get(block.type));
+  const renderCtx: BlockRenderContext = { view, root, child: (childId) => renderBlock(view, childId) };
   root.dataset['blockId'] = block.id;
   const color = textColor(block.props['color']);
   if (color) root.style.color = color;
@@ -66,6 +71,8 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     root.style.background = background;
     root.classList.add('nbe-tinted');
   }
+
+  if (plugin?.render) return plugin.render(renderCtx, block);
 
   if (block.type === 'table') {
     // one CSS grid for the whole table: rows are `display: contents`, so every
@@ -187,30 +194,10 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       row.append(btn);
       break;
     }
-    case 'callout': {
-      // through the factory like every other action, so it can never ship
-      // without a tooltip and accessible name
-      const icon = createActionButton({
-        title: "Changer l'icône du callout",
-        className: 'nbe-callout-icon',
-        popover: true,
-        onClick: () => {}, // the delegated handler in input.ts opens the picker
-      });
-      const value = String(block.props['icon'] ?? '💡');
-      if (/^(data:|https?:|asset:)/.test(value)) {
-        const img = document.createElement('img');
-        img.className = 'nbe-callout-image';
-        const resolved = view.options.resolveAssetUrl?.(value) ?? value;
-        if (typeof resolved === 'string') img.src = resolved;
-        else void resolved.then((url) => (img.src = url));
-        icon.append(img);
-      } else {
-        icon.textContent = value;
-      }
-      row.append(icon);
-      break;
-    }
   }
+
+  const chrome = plugin?.chrome?.(renderCtx, block);
+  if (chrome) row.append(chrome);
 
   if (spec.inline) {
     row.append(renderLeaf(view, block));

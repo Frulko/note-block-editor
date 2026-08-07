@@ -20,7 +20,7 @@ import {
   type MenuEntry,
 } from "./ui";
 import { COLORS } from "./colors";
-import { isActiveTarget, TURN_INTO } from "./block-types";
+import { isActiveTarget, turnIntoTargets } from "./block-types";
 
 /**
  * Floating format toolbar on text selection (Medium / Notion). It never takes
@@ -220,7 +220,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
         const block = getBlock(editor.doc, r.startBlockId);
         openSubMenu(
           turnBtn!,
-          TURN_INTO.map((t) => ({
+          turnIntoTargets(view).map((t) => ({
             label: t.label,
             icon: t.icon,
             hint: isActiveTarget(t, block) ? "✓" : undefined,
@@ -271,7 +271,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     turnBtn!.style.display = showTurn ? "" : "none";
     turnSep!.style.display = showTurn ? "" : "none";
     if (showTurn) {
-      turnBtn!.textContent = `${TURN_INTO.find((t) => isActiveTarget(t, block))?.label ?? "Texte"} ▾`;
+      turnBtn!.textContent = `${turnIntoTargets(view).find((t) => isActiveTarget(t, block))?.label ?? "Texte"} ▾`;
     }
 
     for (const fmt of FORMATS) {

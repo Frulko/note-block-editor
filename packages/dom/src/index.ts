@@ -10,3 +10,15 @@ export { defaultRecognizers, textSelectRecognizer, blockClickRecognizer, rubberB
 export * from './ui';
 export { renderDatabase } from './database';
 export type { DatabaseHost, DatabaseData } from './database';
+export { viewOf, injectBlockStyles } from './block-view';
+export type {
+  BlockView,
+  DomBlockPlugin,
+  BlockRenderContext,
+  BlockActionContext,
+  BlockToolbarContext,
+  BlockToolbarButton,
+  SlashEntry,
+  TurnIntoEntry,
+  BlockKeyHandler,
+} from './block-view';

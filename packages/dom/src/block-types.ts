@@ -16,7 +16,6 @@ export const TURN_INTO: TurnIntoTarget[] = [
   { label: 'Case à cocher', icon: '☑', type: 'to_do' },
   { label: 'Toggle', icon: '▸', type: 'toggle' },
   { label: 'Citation', icon: '❝', type: 'quote' },
-  { label: 'Callout', icon: '💡', type: 'callout' },
   { label: 'Code', icon: '⌨', type: 'code' },
 ];
 
@@ -27,4 +26,27 @@ export function isActiveTarget(
   if (block.type !== target.type) return false;
   if (target.type !== 'heading') return true;
   return block.props['level'] === target.props?.['level'];
+}
+
+/**
+ * The built-in targets plus everything the registered plugins contribute.
+ * Same shape as the slash menu: the array literal is the default, plugins
+ * extend it, and nothing is privileged.
+ */
+export function turnIntoTargets(view: {
+  plugins: { all(): Array<{ schema: { type: string }; view?: unknown }> };
+}): TurnIntoTarget[] {
+  const contributed: TurnIntoTarget[] = [];
+  for (const plugin of view.plugins.all()) {
+    const declared = (plugin.view as { turnInto?: unknown } | undefined)?.turnInto;
+    if (!declared) continue;
+    for (const entry of (Array.isArray(declared) ? declared : [declared]) as Array<{
+      label: string;
+      icon: string;
+      props?: Record<string, unknown>;
+    }>) {
+      contributed.push({ label: entry.label, icon: entry.icon, type: plugin.schema.type, props: entry.props });
+    }
+  }
+  return [...TURN_INTO, ...contributed];
 }

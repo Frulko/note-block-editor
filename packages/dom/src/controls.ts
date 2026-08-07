@@ -30,7 +30,7 @@ import {
 type Edge = 'before' | 'after' | 'left' | 'right';
 
 import { COLORS } from './colors';
-import { isActiveTarget, TURN_INTO } from './block-types';
+import { isActiveTarget, turnIntoTargets } from './block-types';
 import { blockActionEntries } from './block-actions';
 import type { GestureRecognizer } from './gestures';
 
@@ -238,7 +238,7 @@ export function attachControls(view: EditorView): () => void {
 
     if (editor.schema.get(block.type).inline) {
       entries.push({ kind: 'section', label: 'Transformer en' });
-      for (const t of TURN_INTO) {
+      for (const t of turnIntoTargets(view)) {
         entries.push({
           label: t.label,
           icon: t.icon,

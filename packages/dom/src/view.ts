@@ -16,6 +16,9 @@ import { attachLinkHover } from './link-hover';
 import { perBlockTopology, type EditableTopology } from './topology';
 import { attachGestureRouter, type ActiveGesture, type GestureRecognizer } from './gestures';
 import { defaultRecognizers } from './recognizers';
+import { builtinBlocks } from './blocks';
+import { injectBlockStyles, viewOf, type DomBlockPlugin } from './block-view';
+import { PluginRegistry } from '@nbe/core';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -53,6 +56,12 @@ export interface EditorViewOptions {
    * press, or pass `[]` for an editor that handles none.
    */
   recognizers?: GestureRecognizer[];
+  /**
+   * Block plugins, replacing the closed dispatches. Defaults to the built-in
+   * set; not importing a plugin keeps it out of the bundle, which is the point
+   * of activation-by-import.
+   */
+  blocks?: DomBlockPlugin[];
 }
 
 export class EditorView {
@@ -73,6 +82,8 @@ export class EditorView {
    * so who wins a contested press is data rather than attach order.
    */
   readonly recognizers: GestureRecognizer[];
+  /** Per-editor, never module-global: two editors may have different sets. */
+  readonly plugins: PluginRegistry;
   /** Notified once a pointer gesture has fully settled. See `onGestureEnd`. */
   readonly gestureEndListeners = new Set<(name: string, committed: boolean) => void>();
   /**
@@ -89,6 +100,11 @@ export class EditorView {
     this.options = options;
     this.topology = options.topology ?? perBlockTopology;
     this.recognizers = [...(options.recognizers ?? defaultRecognizers)];
+    this.plugins = new PluginRegistry().registerAll(options.blocks ?? builtinBlocks);
+    for (const plugin of this.plugins.all()) {
+      const styles = viewOf(plugin)?.styles;
+      if (styles) injectBlockStyles(plugin.schema.type, styles);
+    }
     this.content = document.createElement('div');
     this.content.className = 'nbe-editor';
     if (options.padding?.top !== undefined) this.content.style.setProperty('--nbe-pad-top', options.padding.top);
