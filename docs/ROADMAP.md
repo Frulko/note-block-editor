@@ -479,8 +479,10 @@ framework, no runtime dependency at all):
   are ones `Map` already has, so `BlockStore` is satisfied structurally and all
   fifty-odd call sites are unchanged. A test drives a real editor against a
   non-`Map` store, because a seam nothing implements is a seam in name only.
-  Adoption comes next; adopting first would have produced something that syncs
-  and cannot be trusted. The ops stay a local format — they carry integer
+  ~~Adoption~~ — `packages/collab` (2026-08-07): a `LoroBlockStore` a real
+  editor runs on unchanged, with the tree owning structure and two peers
+  converging on a contested move. Text is still stored as a value, so
+  paragraph-level rather than character-level merging; `LoroText` is next. The ops stay a local format — they carry integer
   positions — and the wire format is Loro's own updates.
 - **Sync:** opaque update blobs over pluggable transports (Automerge-Repo
   pattern); default ~100-line self-hostable websocket relay; iroh for p2p

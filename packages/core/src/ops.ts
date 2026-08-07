@@ -79,7 +79,15 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       const oldIndex = oldParent.children.indexOf(op.id);
       const oldAfter = oldIndex > 0 ? oldParent.children[oldIndex - 1]! : null;
       oldParent.children.splice(oldIndex, 1);
-      const newParent = getBlock(doc, op.parentId);
+      /*
+       * The *same* object when the parent does not change. Two `getBlock`
+       * calls returned the same reference only because a `Map` hands out its
+       * own; a store that materialises blocks gave a second copy that had not
+       * seen the removal above, so reordering inside one parent listed the
+       * block twice. `get` is allowed to return a fresh object, and the
+       * reducer must not assume otherwise.
+       */
+      const newParent = op.parentId === block.parentId ? oldParent : getBlock(doc, op.parentId);
       const index = op.after === null ? 0 : newParent.children.indexOf(op.after) + 1;
       if (op.after !== null && index === 0) throw new Error(`move_block: after-sibling not found: ${op.after}`);
       newParent.children.splice(index, 0, op.id);

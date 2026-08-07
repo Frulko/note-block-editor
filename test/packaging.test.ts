@@ -29,6 +29,10 @@ describe('package layering', () => {
     },
   );
 
+  it('collab depends on core and the CRDT, nothing else', () => {
+    expect(deps('collab').sort()).toEqual(['@nbe/core', 'loro-crdt']);
+  });
+
   it('the cli depends on core, markdown and workspace — and no framework', () => {
     expect(deps('cli').sort()).toEqual(['@nbe/core', '@nbe/markdown', '@nbe/workspace']);
   });

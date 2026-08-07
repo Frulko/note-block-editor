@@ -120,6 +120,35 @@ was unsatisfiable. Loro's own capabilities were checked by running them
 (`LoroTree.move`, `configTextStyle`, update export/import all confirmed at
 version 1.8) rather than by reading, which is why nothing there surprised us.
 
+## Follow-up: the adapter, and a second identity assumption
+
+`packages/collab` (2026-08-07). The tree owns the structure and nothing else
+holds a copy: `get` derives `children` and `parentId` from `LoroTree`, `set`
+applies them to it, and only type/version/props/text are stored on the node.
+Storing structure in both places would be the same fact twice.
+
+A real editor runs against it unchanged — insert, type, move, delete, undo —
+and two peers exporting and importing each other's updates converge, including
+the case the movable tree was chosen for: both moving the same block to
+different parents yields one block in one place on both sides, not two.
+
+Building it found a second assumption of the same family as the write-back one.
+`move_block` called `getBlock` twice on the same parent when a block moves
+*within* it, and relied on both calls returning the same object — true for a
+`Map`, false for anything that materialises. The second copy had not seen the
+removal the first made, so reordering inside one parent listed the block twice.
+
+Both faults are the same shape: **the reducer assumed the store was a `Map`
+in ways the type could not express.** The interface said what the members were;
+it did not say that `get` may return a fresh object, or that mutations must be
+written back. Both are now stated on `BlockStore` and tested by driving the
+editor against a store that deliberately returns copies.
+
+Still missing: text is stored as a value, so two people typing in one paragraph
+conflict on the whole paragraph rather than merging. Mapping runs onto
+`LoroText` is the next step and a larger one, since `insert_text` carries an
+offset and offsets are what does not merge.
+
 ## Not evaluated here
 
 Performance, memory, and the WASM bundle's weight in the browser — all of

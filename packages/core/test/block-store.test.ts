@@ -114,6 +114,20 @@ describe('a store that hands out copies still sees every edit', () => {
     expect(getBlock(editor.doc, editor.doc.rootId).children).toEqual([a.id]);
   });
 
+  it('reordering inside one parent does not list the block twice', () => {
+    // two `getBlock` calls on the same parent are two different objects here,
+    // and the reducer used to rely on them being one
+    const editor = new Editor({ doc: docWith(copyingStore()) });
+    const a = paragraph(editor.doc.rootId);
+    const b = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => {
+      tx.op({ type: 'insert_block', block: a, index: 0 });
+      tx.op({ type: 'insert_block', block: b, index: 1 });
+    });
+    editor.dispatch((tx) => tx.op({ type: 'move_block', id: b.id, parentId: editor.doc.rootId, after: null }));
+    expect(getBlock(editor.doc, editor.doc.rootId).children).toEqual([b.id, a.id]);
+  });
+
   it('a type change reaches the block', () => {
     const editor = new Editor({ doc: docWith(copyingStore()) });
     const block = paragraph(editor.doc.rootId);
