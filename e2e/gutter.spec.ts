@@ -66,7 +66,22 @@ test.describe('the gutter belongs to the editor', () => {
     await page.waitForTimeout(150);
     const before = (await gutter(page))!;
 
-    await page.mouse.wheel(0, 300);
+    /*
+     * Scroll the container that actually scrolls, rather than dispatching a
+     * wheel. Measured: `mouse.wheel` moves `.page-scroll` by 300px on Chromium
+     * and moves nothing at all on WebKit — the gutter is `position: absolute`
+     * inside that container, so it travels with the content either way. The
+     * test is about the gutter tracking its block, not about wheel dispatch.
+     *
+     * An earlier attempt at this scrolled `.nbe-editor` with a fallback to the
+     * document, which is neither of the elements involved, and was flaky for
+     * that reason.
+     */
+    await page.evaluate(() => {
+      const scroller = document.querySelector('.page-scroll');
+      if (!scroller) throw new Error('.page-scroll introuvable — le démonstrateur a changé');
+      scroller.scrollTop += 300;
+    });
     await page.waitForTimeout(200);
     const after = (await gutter(page))!;
 

@@ -45,11 +45,26 @@ Established, in this order:
   while staying beside the same block at the same offset. So something moves
   it, and it is not any scroll this probe can see.
 
-The first job is therefore to find what actually moves the gutter on Chromium.
-Until that is known, any "fix" is a guess dressed as a repair — and one such
-guess has already been reverted here (it passed when the file ran alone and
-failed on both engines in the full parallel run, trading a known failure for a
-flaky one). **Verify anything in a full parallel run, never in isolation.**
+- **Then measured properly, and it is a product difference.** The scrolling
+  element is `DIV.page-scroll` — a demo container neither earlier probe checked.
+  On Chromium `mouse.wheel` moves it 300px; the gutter is `position: absolute`
+  *inside* it, so its `style.top` stays at `141px` while its viewport position
+  goes 218 → −82. It travels with the content, which is what the test means.
+- The test now scrolls `.page-scroll` directly, which is deterministic and
+  passes on Chromium in full runs. **On WebKit the gutter still does not move**
+  — 218 before and after — so the remaining failure is real: under WebKit the
+  gutter does not travel with the scrolled content.
+
+That is the open question, and it is now a product question rather than a
+harness one: why is an absolutely-positioned element inside a scrolled
+container not moving with it on WebKit? Suspect the portal
+(`ui/portal.ts` mounts floating chrome on `body`) and whether the gutter is
+actually inside `.page-scroll` there at all.
+
+**And the standing rule, learned twice here.** An earlier fix scrolled
+`.nbe-editor` with a fallback to the document — neither of the elements
+involved — and was flaky for that reason. **Verify anything in a full parallel
+run, never in isolation.**
 
 **And a lesson about diagnosing.** I first concluded the asset tests were
 hanging on a blocked `indexedDB.open` and wrote that here as fact. A three-line
