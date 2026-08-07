@@ -12,7 +12,9 @@ import svelte from '@astrojs/svelte';
  * static content, shipping no JavaScript unless an island asks for it.
  */
 export default defineConfig({
-  site: 'https://example.invalid',
+  site: 'https://frulko.github.io',
+  // GitHub Pages sert le site sous /note-block-editor/ ; en local, pas de base.
+  base: process.env.BASE_PATH,
   integrations: [mdx(), react(), vue(), svelte()],
   markdown: {
     shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, wrap: true },

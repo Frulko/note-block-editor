@@ -6,6 +6,7 @@ const pillars = [
   { t: 'Sept opérations', d: 'Tout changement passe par sept opérations inversibles. L\'annulation, la persistance et la sync future en découlent.' },
   { t: 'TypeScript vanilla', d: 'Le cœur ne connaît ni le DOM ni React. Les liaisons React, Vue et Svelte sont des montages minces.' },
 ];
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <Base title="nbe — un éditeur de blocs qui ne séquestre pas vos données">
   <div class="shell">
@@ -17,9 +18,9 @@ const pillars = [
         lisible le jour où vous arrêtez d'utiliser l'outil.
       </p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="/docs/getting-started/">Démarrer</a>
-        <a class="btn btn-ghost" href="/demo/">Voir la démo</a>
-        <a class="btn btn-ghost" href="/docs/why/">Pourquoi</a>
+        <a class="btn btn-primary" href={`${base}/docs/getting-started/`}>Démarrer</a>
+        <a class="btn btn-ghost" href={`${base}/demo/`}>Voir la démo</a>
+        <a class="btn btn-ghost" href={`${base}/docs/why/`}>Pourquoi</a>
       </div>
     </section>
 

@@ -3,24 +3,25 @@ import Base from './Base.astro';
 interface Props { title: string; description?: string; wide?: boolean }
 const { title, description, wide = false } = Astro.props;
 const path = Astro.url.pathname;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const sections = [
   { title: 'Découvrir', items: [
-    { href: '/docs/why/', label: 'Pourquoi cet éditeur' },
-    { href: '/docs/getting-started/', label: 'Démarrer' },
+    { href: `${base}/docs/why/`, label: 'Pourquoi cet éditeur' },
+    { href: `${base}/docs/getting-started/`, label: 'Démarrer' },
   ]},
   { title: 'Concepts', items: [
-    { href: '/docs/concepts/blocks/', label: 'Blocs et schéma' },
-    { href: '/docs/concepts/operations/', label: 'Opérations' },
-    { href: '/docs/concepts/projections/', label: 'Projections' },
+    { href: `${base}/docs/concepts/blocks/`, label: 'Blocs et schéma' },
+    { href: `${base}/docs/concepts/operations/`, label: 'Opérations' },
+    { href: `${base}/docs/concepts/projections/`, label: 'Projections' },
   ]},
   { title: 'Étendre', items: [
-    { href: '/docs/extending/plugins/', label: 'Plugins' },
+    { href: `${base}/docs/extending/plugins/`, label: 'Plugins' },
   ]},
   { title: 'Référence', items: [
-    { href: '/docs/api/', label: 'Vue d\'ensemble' },
-    { href: '/docs/api/configuration/', label: 'Configuration' },
-    { href: '/docs/api/theming/', label: 'Thème et CSS' },
-    { href: '/docs/api/plugins/', label: 'API des plugins' },
+    { href: `${base}/docs/api/`, label: 'Vue d\'ensemble' },
+    { href: `${base}/docs/api/configuration/`, label: 'Configuration' },
+    { href: `${base}/docs/api/theming/`, label: 'Thème et CSS' },
+    { href: `${base}/docs/api/plugins/`, label: 'API des plugins' },
   ]},
 ];
 ---

@@ -3,12 +3,13 @@ import '../styles/site.css';
 interface Props { title: string; description?: string }
 const { title, description = "Un éditeur de blocs en TypeScript vanilla, dont le stockage reste lisible sans l'outil." } = Astro.props;
 const path = Astro.url.pathname;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const nav = [
-  { href: '/docs/why/', label: 'Pourquoi' },
-  { href: '/docs/getting-started/', label: 'Démarrer' },
-  { href: '/docs/concepts/blocks/', label: 'Concepts' },
-  { href: '/integrations/', label: 'Intégrations' },
-  { href: '/demo/', label: 'Démo' },
+  { href: `${base}/docs/why/`, label: 'Pourquoi' },
+  { href: `${base}/docs/getting-started/`, label: 'Démarrer' },
+  { href: `${base}/docs/concepts/blocks/`, label: 'Concepts' },
+  { href: `${base}/integrations/`, label: 'Intégrations' },
+  { href: `${base}/demo/`, label: 'Démo' },
 ];
 ---
 <!doctype html>
@@ -22,7 +23,7 @@ const nav = [
   <body>
     <header class="site-header">
       <div class="shell">
-        <a class="brand" href="/"><span class="brand-mark"></span>nbe</a>
+        <a class="brand" href={`${base}/`}><span class="brand-mark"></span>nbe</a>
         <nav class="site-nav">
           {nav.map((i) => (
             <a href={i.href} aria-current={path.startsWith(i.href) ? 'page' : undefined}>{i.label}</a>
