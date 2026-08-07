@@ -80,6 +80,19 @@ function moveDownCell(view: EditorView, blockId: string): void {
   if (created) view.focusBlock(created.id, 0);
 }
 
+/**
+ * Escape is a chain, evaluated in this order, and each link consumes the key
+ * so the next never sees it:
+ *
+ *   1. the top overlay          (ui/overlay.ts, capture phase)
+ *   2. an active pointer gesture (gestures.ts, capture phase)
+ *   3. a block selection → cleared          ┐ here, in the bubble phase, on
+ *   4. a text selection  → block selection  ┘ the editor content
+ *
+ * The first two run in capture precisely so an open menu beats the editor:
+ * without that, Escape behind a menu would drop out of text mode instead of
+ * closing what the user was looking at.
+ */
 export function attachKeymap(view: EditorView): () => void {
   const editor = view.editor;
   const isInline = (b: { type: string }) => editor.schema.get(b.type).inline;
@@ -118,7 +131,11 @@ export function attachKeymap(view: EditorView): () => void {
         return;
       }
       case 'Escape':
+        // last link of the Escape chain: overlays and gestures already had
+        // their turn in the capture phase, so reaching here with a block
+        // selection means the user wants out of it
         e.preventDefault();
+        editor.setSelection(null, 'keyboard');
         return;
       case 'Backspace':
       case 'Delete':
@@ -227,6 +244,7 @@ export function attachKeymap(view: EditorView): () => void {
 
     switch (e.key) {
       case 'Escape': {
+        // text → block selection; a second press then clears it (above)
         if (caret) {
           e.preventDefault();
           editor.setSelection({ kind: 'block', anchor: caret.blockId, head: caret.blockId }, 'keyboard');

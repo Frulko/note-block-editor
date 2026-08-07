@@ -179,3 +179,80 @@ export function findScrollParent(from: Element): Element {
   }
   return document.scrollingElement ?? document.documentElement;
 }
+
+export interface DragMechanicsOptions {
+  thresholdPx?: number;
+  autoScrollEdge?: number;
+  scrollContainer?: () => Element | null;
+  /** Crossing the threshold. Return false to abandon the drag. */
+  onStart: (e: PointerEvent) => boolean | void;
+  onMove: (e: PointerEvent) => void;
+  onDrop: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * The two things a router-owned drag still needs: a movement threshold and
+ * edge auto-scroll.
+ *
+ * Everything else `draggable()` does — window-level listeners, Escape, blur,
+ * pointercancel, exception safety, teardown — the gesture router already
+ * provides, so a recognizer must not re-implement it. This is the shared
+ * remainder, extracted rather than copied.
+ */
+export function dragMechanics(
+  origin: { clientX: number; clientY: number },
+  opts: DragMechanicsOptions,
+): { move: (e: PointerEvent) => void; end: (committed: boolean) => void } {
+  const threshold = opts.thresholdPx ?? 4;
+  const edge = opts.autoScrollEdge ?? 90;
+  let active = false;
+  let abandoned = false;
+  let lastEvent: PointerEvent | null = null;
+  let scrollEl: Element | null = null;
+  let raf = 0;
+
+  const scrollLoop = () => {
+    if (!active) return;
+    if (scrollEl && lastEvent) {
+      const y = lastEvent.clientY;
+      const vh = window.innerHeight;
+      let scrolled = false;
+      if (y < edge) {
+        scrollEl.scrollTop -= (edge - y) / 6;
+        scrolled = true;
+      } else if (y > vh - edge) {
+        scrollEl.scrollTop += (y - (vh - edge)) / 6;
+        scrolled = true;
+      }
+      // keep the drop target glued to content scrolling under a still pointer
+      if (scrolled) opts.onMove(lastEvent);
+    }
+    raf = requestAnimationFrame(scrollLoop);
+  };
+
+  return {
+    move(e) {
+      if (abandoned) return;
+      if (!active) {
+        if (Math.hypot(e.clientX - origin.clientX, e.clientY - origin.clientY) <= threshold) return;
+        if (opts.onStart(e) === false) {
+          abandoned = true;
+          return;
+        }
+        active = true;
+        scrollEl = opts.scrollContainer?.() ?? null;
+        raf = requestAnimationFrame(scrollLoop);
+      }
+      lastEvent = e;
+      opts.onMove(e);
+    },
+    end(committed) {
+      cancelAnimationFrame(raf);
+      if (!active) return; // never crossed the threshold: a click, not a drag
+      active = false;
+      if (committed) opts.onDrop();
+      else opts.onCancel();
+    },
+  };
+}

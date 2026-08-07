@@ -21,6 +21,7 @@ import {
   createHoverZone,
   createMenu,
   draggable,
+  dragMechanics,
   findScrollParent,
   type DragGhost,
   type MenuEntry,
@@ -31,6 +32,7 @@ type Edge = 'before' | 'after' | 'left' | 'right';
 import { COLORS } from './colors';
 import { isActiveTarget, TURN_INTO } from './block-types';
 import { blockActionEntries } from './block-actions';
+import type { GestureRecognizer } from './gestures';
 
 export function attachControls(view: EditorView): () => void {
   const editor = view.editor;
@@ -302,7 +304,6 @@ export function attachControls(view: EditorView): () => void {
 
   // --- drag & drop (drag session primitive, ARCHITECTURE §7 / D8) ---
   let dragIds: BlockId[] = [];
-  let directDragId: BlockId | null = null;
   let drop: { targetId: BlockId; edge: Edge } | null = null;
 
   let ghost: DragGhost | null = null;
@@ -454,29 +455,42 @@ export function attachControls(view: EditorView): () => void {
    * selection — which is what makes a rubber-band selection immediately
    * reorderable without hunting for the handle.
    */
-  const unDirectDrag = draggable(view.content, {
-    scrollContainer: () => findScrollParent(view.content),
-    canStart: (e) => {
-      const target = e.target as HTMLElement | null;
-      if (!target || target.closest('[data-nbe-ui], input, textarea, select, a, button')) return false;
-      const blockEl = target.closest('.nbe-block') as HTMLElement | null;
-      const id = blockEl?.dataset['blockId'];
-      if (!id || !editor.doc.blocks.has(id)) return false;
-      const type = getBlock(editor.doc, id).type;
+  /**
+   * Direct drag contributed to the gesture router instead of a competing
+   * pointerdown listener on the content. It is the highest-precedence
+   * recognizer: a press that qualifies must not first be read as text
+   * selection, which is what decided it before, by attach order.
+   */
+  const blockDragRecognizer: GestureRecognizer = {
+    name: 'block-drag',
+    match(ctx) {
+      if (ctx.onChrome && !ctx.target.closest('.nbe-t-image, .nbe-t-link_to_page')) return false;
+      if (!ctx.blockId) return false;
+      const type = getBlock(editor.doc, ctx.blockId).type;
       if (!standalone(type)) return false;
       const sel = editor.selection;
-      const inSelection = sel?.kind === 'block' && selectedBlocks(editor.doc, sel).includes(id);
+      const inSelection = sel?.kind === 'block' && selectedBlocks(editor.doc, sel).includes(ctx.blockId);
       // void blocks have no caret to compete with, so they drag on contact;
       // everything else has to be selected first, or typing would move blocks
-      if (blockCategory(editor.schema, type) !== 'void' && !inSelection) return false;
-      directDragId = id;
-      return true;
+      return blockCategory(editor.schema, type) === 'void' || inSelection;
     },
-    onStart: (e) => beginDrag(e, dragTargets(directDragId)),
-    onMove: updateDrop,
-    onDrop: () => endDrag(true),
-    onCancel: () => endDrag(false),
-  });
+    start(ctx) {
+      const ids = dragTargets(ctx.blockId);
+      if (!ids.length) return null; // decline; a later recognizer may take it
+      ctx.event.preventDefault();
+      const mechanics = dragMechanics(ctx.event, {
+        scrollContainer: () => findScrollParent(view.content),
+        onStart: (e) => beginDrag(e, ids),
+        onMove: updateDrop,
+        onDrop: () => endDrag(true),
+        onCancel: () => endDrag(false),
+      });
+      return { mode: 'block', move: mechanics.move, end: mechanics.end };
+    },
+  };
+
+  // highest precedence: a qualifying press must not first read as text
+  view.recognizers.unshift(blockDragRecognizer);
 
   const unDrag = draggable(handleBtn, {
     onTap: () => toggleMenu(),
@@ -496,7 +510,8 @@ export function attachControls(view: EditorView): () => void {
     hover.destroy();
     menu.close();
     unDrag();
-    unDirectDrag();
+    const i = view.recognizers.indexOf(blockDragRecognizer);
+    if (i >= 0) view.recognizers.splice(i, 1);
     controls.remove();
     ghost?.destroy();
     guide.remove();

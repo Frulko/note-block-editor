@@ -14,7 +14,9 @@ function harness(recognizers: GestureRecognizer[]) {
   document.body.append(container);
   // no default recognizers: this harness is testing the router, not the set
   const view = new EditorView(container, new Editor({ doc: createDoc() }), { recognizers: [] });
-  const stop = attachGestureRouter(view, recognizers);
+  view.recognizers.length = 0; // drop anything features contributed
+  view.recognizers.push(...recognizers);
+  const stop = () => {};
   return {
     view,
     press: (init: PointerEventInit = {}) =>

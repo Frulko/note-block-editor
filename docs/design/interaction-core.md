@@ -176,23 +176,27 @@ top overlay → active gesture → block selection → text selection → nothin
    trailing click after a moved gesture is swallowed by a one-shot capture
    listener rather than a 300 ms window. Recognizers are a view option, so the
    arbitration order is data. 16 tests.
-4. **Next:** fold `controls.ts`'s direct block drag into the router as a
-   recognizer. It still listens for pointerdown on the content independently,
-   which is the last competing listener; today it is safe only because void
-   blocks are caught by the chrome guard and reach neither text nor click
-   routing. Until it moves, precedence between it and the router is still
-   attach order.
-5. **Next:** the Escape chain end to end. The stack owns the top level and the
-   router owns an active gesture, but `keymap.ts` still handles Escape for
-   selection modes without consulting either — correct today only because the
-   stack and router both consume the event in capture first.
+4. ~~Fold the direct block drag into the router.~~ **Done.** It was the last
+   competing listener on the content. `ui/drag.ts` gained `dragMechanics()` —
+   the threshold and edge auto-scroll a router-owned drag still needs, with
+   everything else (window listeners, Escape, blur, pointercancel, exception
+   safety) left to the router rather than re-implemented. `controls.ts` now
+   *contributes* its recognizer and the router reads the list at press time,
+   so precedence is data instead of attach order.
+5. ~~The Escape chain end to end.~~ **Done and documented at the point of
+   implementation.** It also closed a real gap: Escape on a block selection
+   did nothing at all, so the only way out was clicking. It now clears the
+   selection, making the chain walk all the way back to nothing.
 
 ## 5. What the numbers say
 
 | | before | after |
 |---|---|---|
-| pointer listeners on the content | 5, unarbitrated | 1 router + 1 legacy drag |
+| pointer listeners on the content | 5, unarbitrated | 1 router |
 | wall-clock coordination windows | 3 | 0 |
 | Escape handlers with no precedence | 8 | stack → router → keymap |
 | topologies the code admits | 1, hardcoded | 2, selectable |
 | tests on the interaction core | 0 | 51 |
+
+Escape now walks: top overlay → active gesture → block selection → text
+selection → nothing, each link consuming the key so the next never sees it.

@@ -68,6 +68,12 @@ export class EditorView {
    */
   gesture: ActiveGesture | null = null;
   /**
+   * Pointer gestures in precedence order. Features contribute to this list —
+   * `unshift` to outrank the defaults — and the router reads it at press time,
+   * so who wins a contested press is data rather than attach order.
+   */
+  readonly recognizers: GestureRecognizer[];
+  /**
    * Where the caret last was in text. Opening a menu or selecting a block
    * replaces the live selection, so anything that needs to act "where the user
    * was typing" — table row/column actions, for one — reads this instead.
@@ -80,6 +86,7 @@ export class EditorView {
     this.editor = editor;
     this.options = options;
     this.topology = options.topology ?? perBlockTopology;
+    this.recognizers = [...(options.recognizers ?? defaultRecognizers)];
     this.content = document.createElement('div');
     this.content.className = 'nbe-editor';
     if (options.padding?.top !== undefined) this.content.style.setProperty('--nbe-pad-top', options.padding.top);
@@ -99,7 +106,7 @@ export class EditorView {
     this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this));
     // one press, one owner — replaces the rubber band, cross-block selection
     // and block click-routing all listening for pointerdown independently
-    this.unbinders.push(attachGestureRouter(this, options.recognizers ?? defaultRecognizers));
+    this.unbinders.push(attachGestureRouter(this));
     this.unbinders.push(attachOutsidePressDeselect(this), attachDatabaseBlocks(this), attachSelectionToolbar(this));
     this.unbinders.push(attachBlockToolbar(this), attachLinkHover(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));

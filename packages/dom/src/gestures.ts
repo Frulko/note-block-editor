@@ -85,10 +85,7 @@ function suppressNextClick(): void {
   document.addEventListener('pointerdown', disarm, true);
 }
 
-export function attachGestureRouter(
-  view: EditorView,
-  recognizers: GestureRecognizer[],
-): () => void {
+export function attachGestureRouter(view: EditorView): () => void {
   let session: GestureSession | null = null;
 
   const finish = (committed: boolean) => {
@@ -146,7 +143,9 @@ export function attachGestureRouter(
       onChrome: !!target.closest?.(INTERACTIVE_CHROME),
     };
 
-    for (const recognizer of recognizers) {
+    // read lazily: a feature can contribute a recognizer after the router is
+    // attached, so precedence stops depending on module attach order
+    for (const recognizer of view.recognizers) {
       if (!recognizer.match(ctx)) continue;
       const started = recognizer.start(ctx);
       if (!started) continue; // declined; the next one may take it
