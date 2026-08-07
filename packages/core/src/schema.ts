@@ -1,3 +1,15 @@
+import type { Block } from './types';
+
+/**
+ * The declarative description of a block type.
+ *
+ * @remarks
+ * JSON-serializable apart from `migrations`, which is behaviour by necessity.
+ * Everything else can be shipped to a server or a native port and consumed
+ * without executing any JavaScript.
+ *
+ * @category Blocks
+ */
 export interface BlockSpec {
   type: string;
   version: number;
@@ -8,6 +20,40 @@ export interface BlockSpec {
   defaultProps?: Record<string, unknown>;
   /** Placeholder shown by the view when the block is empty and focused. */
   placeholder?: string;
+  /**
+   * One-step upgrades, keyed by the version each migrates *from*.
+   *
+   * @remarks
+   * `migrations[1]` turns a v1 block into a v2 block, and nothing else.
+   * Upgrading v1 to v4 runs three of these in order, so each step stays small
+   * and independently testable. A version with no entry is treated as a
+   * shape-preserving bump, which is the common case and does not deserve an
+   * identity function.
+   *
+   * @example
+   * ```ts
+   * { type: 'callout', version: 2, inline: true,
+   *   migrations: { 1: (b) => ({ ...b, props: { ...b.props, variant: 'note' } }) } }
+   * ```
+   */
+  migrations?: Record<number, (block: Block) => Block>;
+  /**
+   * Extra checks this block type wants at apply time.
+   *
+   * @remarks
+   * The built-in validation covers what the schema knows — inline versus void,
+   * versions, tree consistency. Anything that depends on *props* lives here,
+   * because `BlockSpec` deliberately has no prop type declaration and
+   * inventing one would be a large speculative surface.
+   *
+   * @returns One message per problem. Empty means valid.
+   *
+   * @example
+   * ```ts
+   * validate: (b) => (typeof b.props.level === 'number' ? [] : ['level must be a number'])
+   * ```
+   */
+  validate?: (block: Block) => string[];
 }
 
 /**

@@ -1,6 +1,7 @@
-import type { BlockId, Selection } from './types';
+import type { Block, BlockId, Selection } from './types';
 import type { Doc } from './doc';
 import { createDoc } from './doc';
+import { report, validateBlock, type ValidationMode } from './validate';
 import type { Op } from './ops';
 import { applyOp } from './ops';
 import type { Schema } from './schema';
@@ -66,9 +67,23 @@ export class Editor {
   private listeners = new Set<(change: Change) => void>();
   private selListeners = new Set<(sel: Selection, origin: string) => void>();
 
-  constructor(opts: { doc?: Doc; schema?: Schema } = {}) {
+  /**
+   * How invalid blocks are surfaced.
+   *
+   * @remarks
+   * `warn` by default rather than `throw`: a validation bug that takes down a
+   * user's editor mid-sentence is worse than the state it was guarding
+   * against, since the document is still in memory and still savable. Tests
+   * and CI set `throw`.
+   *
+   * @defaultValue 'warn'
+   */
+  validation: ValidationMode;
+
+  constructor(opts: { doc?: Doc; schema?: Schema; validation?: ValidationMode } = {}) {
     this.doc = opts.doc ?? createDoc();
     this.schema = opts.schema ?? baseSchema();
+    this.validation = opts.validation ?? 'warn';
   }
 
   on(listener: (change: Change) => void): () => void {
@@ -121,6 +136,16 @@ export class Editor {
         });
       }
       this.redoStack = [];
+    }
+
+    // per-block validation at apply: only the blocks this transaction touched,
+    // so the cost stays proportional to the edit rather than the document
+    if (this.validation !== 'off') {
+      const violations = [...tx.dirty]
+        .map((id) => this.doc.blocks.get(id))
+        .filter((b): b is Block => b !== undefined)
+        .flatMap((b) => validateBlock(this.schema, b, this.doc));
+      report(violations, this.validation);
     }
 
     this.emit({

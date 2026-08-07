@@ -96,9 +96,12 @@ describe('source layering', () => {
   });
 
   it('core touches no DOM globals (server/CLI/native portability)', () => {
+    // comments stripped for the same reason as the import check: prose ends a
+    // sentence with "the document." and that is not a DOM global
     for (const file of sourceFiles('core')) {
-      const src = readFileSync(file, 'utf8');
-      expect(src).not.toMatch(/\bdocument\.|\bwindow\.|HTMLElement/);
+      expect(stripComments(readFileSync(file, 'utf8'))).not.toMatch(
+        /\bdocument\.|\bwindow\.|HTMLElement/,
+      );
     }
   });
 });

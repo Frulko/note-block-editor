@@ -1,4 +1,6 @@
 import type { Block, BlockId } from './types';
+import type { Schema } from './schema';
+import { migrateJSON, type MigrationReport } from './migrate';
 import { uuidv7 } from './id';
 
 export interface Doc {
@@ -101,7 +103,25 @@ export function docToJSON(doc: Doc): BlockJSON {
   return blockToJSON(doc, doc.rootId);
 }
 
-export function docFromJSON(json: BlockJSON): Doc {
+/**
+ * Build a document from stored JSON, migrating it when given a schema.
+ *
+ * @param json - The stored tree.
+ * @param opts - Pass `schema` to run migrations at this boundary, and
+ * `onReport` to see what was upgraded, left unknown, or came from a newer
+ * build than this one.
+ *
+ * @category Blocks
+ */
+export function docFromJSON(
+  json: BlockJSON,
+  opts: { schema?: Schema; onReport?: (report: MigrationReport) => void } = {},
+): Doc {
+  if (opts.schema) {
+    const { json: upgraded, report } = migrateJSON(json, opts.schema);
+    opts.onReport?.(report);
+    json = upgraded;
+  }
   const blocks = new Map<BlockId, Block>();
   const add = (node: BlockJSON, parentId: BlockId | null) => {
     blocks.set(node.id, {
