@@ -554,9 +554,23 @@ phase begins:
    pipe table; `<table>` and aligned TSV paste build a real table.
    **Still open:** cell-range selection as a third selection kind, column
    resize handles, and cell merging — none block the block itself.
-4. **Unicode correctness.** Grapheme clusters, surrogate pairs, ZWJ emoji,
-   NFC/NFD, bidi — how splits/marks/selection avoid bisecting a perceived
-   character despite UTF-16 offsets.
+4. **Unicode correctness.** *Resolved 2026-08-07.* Offsets stay UTF-16 code
+   units — that is what the DOM speaks, and §2.2 is unchanged — but every edit
+   that *moves* or *bounds* one now works in perceived characters
+   (`core/src/grapheme.ts`, over `Intl.Segmenter`, which implements UAX #29 so
+   nobody maintains that table by hand; engines without it fall back to the old
+   surrogate-pair behaviour rather than breaking). Backspace and Delete step one
+   cluster, so a family emoji leaves in one press instead of coming apart into
+   its people; `marksAt` reads the preceding *character*, so typing after an
+   emoji keeps its formatting; and `resolveTextRange` snaps a range **outward**
+   onto cluster boundaries, so a range that landed mid-character — from a
+   paste, a restored caret bookmark, or a browser-reported selection — grows to
+   cover the whole character rather than splitting it. Outward and never
+   inward, because growing keeps every character the user meant while shrinking
+   would silently drop one. **Not addressed:** bidi caret movement, which the
+   browser owns inside a leaf (§5.1), and normalisation between NFC and NFD,
+   which is a storage-policy question rather than an editing one.
+
 5. **Markdown parser/serializer engineering.** remark/mdast vs markdown-it vs
    custom; deterministic diff-stable serialization; ID-preserving re-import.
 6. **Editor test automation.** Simulating IME composition/clipboard/drag in CI

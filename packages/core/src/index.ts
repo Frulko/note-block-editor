@@ -19,3 +19,12 @@ export * from './table';
 export * from './migrate';
 export * from './validate';
 export * from './plugin';
+export { singleBlockRange } from './commands';
+export {
+  GRAPHEME_AWARE,
+  graphemeBoundaries,
+  graphemeLength,
+  nextGrapheme,
+  prevGrapheme,
+  snapGrapheme,
+} from './grapheme';

@@ -464,7 +464,7 @@ Before the phase that needs them (owner: whoever starts the phase):
 | Storage runtime (browser FS/OPFS vs Tauri vs CLI) | Phase 1 persistence | AQ#1 |
 | Markdown parser stack + diff-stable serialization | Spike B | AQ#5 |
 | IME/clipboard/drag simulation in CI | Phase 0–1 | AQ#6 |
-| Unicode grapheme handling at boundaries | Phase 1 | AQ#4 |
+| ~~Unicode grapheme handling at boundaries~~ | shipped 2026-08-07 | AQ#4 |
 | Asset pipeline | Phase 4 | AQ#2 |
 | Table block design | ~~post-v1~~ shipped 2026-08-06 | AQ#3 |
 | Touch interaction design | Phase 5 | AQ#7 |

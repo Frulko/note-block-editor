@@ -23,16 +23,24 @@ import {
 import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
 import { syncCaretFromDom } from './caret';
+import { nextGrapheme } from '@nbe/core';
 import { dismissedBy, openIconPicker } from './ui';
 
+/**
+ * The selected range when it lies in one block.
+ *
+ * @remarks
+ * Delegates to `resolveTextRange` rather than recomputing min/max, because
+ * that is where a range is put in document order *and* snapped off any
+ * character it would otherwise bisect (AQ#4). Doing the arithmetic again here
+ * meant the two disagreed: formatting over a range starting mid-emoji covered
+ * the whole emoji, while typing over the same range left half a surrogate
+ * behind.
+ */
 function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: number } | null {
-  const sel = view.editor.selection;
-  if (sel?.kind !== 'text' || sel.anchor.blockId !== sel.head.blockId) return null;
-  return {
-    id: sel.anchor.blockId,
-    from: Math.min(sel.anchor.offset, sel.head.offset),
-    to: Math.max(sel.anchor.offset, sel.head.offset),
-  };
+  const range = resolveTextRange(view.editor);
+  if (!range || !range.single) return null;
+  return { id: range.startBlockId, from: range.startOffset, to: range.endOffset };
 }
 
 function handleInsertText(view: EditorView, data: string): void {
@@ -79,10 +87,10 @@ function handleDeleteForward(view: EditorView): void {
     mergeForward(editor);
     return;
   }
-  const code = plain.charCodeAt(at.from);
-  const step = code >= 0xd800 && code <= 0xdbff && at.from + 2 <= plain.length ? 2 : 1;
+  // one press, one perceived character — the same rule as Backspace (AQ#4)
+  const end = nextGrapheme(plain, at.from);
   editor.dispatch(
-    (tx) => tx.op({ type: 'delete_text', id: at.id, from: at.from, to: at.from + step }),
+    (tx) => tx.op({ type: 'delete_text', id: at.id, from: at.from, to: end }),
     { origin: 'input', selection: textCaret(at.id, at.from), coalesce: `typing:${at.id}` },
   );
 }

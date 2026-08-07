@@ -1,4 +1,5 @@
 import type { Mark, Run } from './types';
+import { prevGrapheme } from './grapheme';
 
 export function textLength(runs: Run[] | undefined): number {
   if (!runs) return 0;
@@ -76,9 +77,17 @@ export function hasMark(runs: Run[], from: number, to: number, type: string): bo
   return slice.every((r) => (r.marks ?? []).some((m) => m.type === type));
 }
 
-/** Marks at the caret: those of the character before `offset` (Notion behavior). */
+/**
+ * Marks at the caret: those of the character before `offset` (Notion behavior).
+ *
+ * @remarks
+ * The character, not the code unit. Stepping back one unit from after an emoji
+ * lands inside it, and a slice that starts mid-surrogate carries no run at all
+ * — so typing after an emoji lost whatever formatting it had.
+ */
 export function marksAt(runs: Run[] | undefined, offset: number): Mark[] | undefined {
   if (!runs || offset === 0) return undefined;
-  const slice = sliceRuns(runs, offset - 1, offset);
+  const text = runs.map((r) => r.text).join('');
+  const slice = sliceRuns(runs, prevGrapheme(text, offset), offset);
   return slice[0]?.marks;
 }
