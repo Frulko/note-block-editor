@@ -31,6 +31,10 @@
     "./database": {
       "types": "./src/database.ts",
       "default": "./src/database.ts"
+    },
+    "./csv": {
+      "types": "./src/csv.ts",
+      "default": "./src/csv.ts"
     }
   },
   "dependencies": {

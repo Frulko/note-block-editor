@@ -3,6 +3,7 @@ import { enhancedToBlocks, isEnhancedMarkdown } from './enhanced';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import { SUB_PAGE } from './index';
 import { collectionFromRows, type ImportedCollection } from './collection';
+import { parseCsv } from './csv';
 import type { VaultFile } from './vault';
 
 /**
@@ -102,37 +103,6 @@ function promoteCallouts(blocks: BlockJSON[]): void {
     }
     if (block.children) promoteCallouts(block.children);
   }
-}
-
-/** Split one CSV line, honouring quoted fields with embedded commas. */
-function splitCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let current = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
-    if (quoted) {
-      if (ch === '"' && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else if (ch === '"') quoted = false;
-      else current += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ',') {
-      cells.push(current);
-      current = '';
-    } else current += ch;
-  }
-  cells.push(current);
-  return cells;
-}
-
-/** Every non-blank CSV line, split into cells. */
-function parseCsv(text: string): string[][] {
-  return text
-    .split(/\r?\n/)
-    .filter((line) => line.trim())
-    .map(splitCsvLine);
 }
 
 /**

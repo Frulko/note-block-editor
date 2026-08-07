@@ -602,8 +602,26 @@ phase begins:
    painted cross-block highlight (see question 9), and Android's own
    text-selection chrome. Emulation gets the events right and the engine wrong.
 
-8. **Database evaluation engine.** Formula language, filter/sort/group
-   evaluation, incremental rollup/relation recompute, CSV dialects.
+8. **Database evaluation engine.** *Resolved 2026-08-07 — and most of it was
+   already there.* The formula language (parser, evaluator, functions,
+   dependency extraction) and the evaluation of relations and rollups live in
+   `core/src/{formula,db}.ts`; `computeRow` resolves computed columns *before*
+   filters, sorts and grouping run, so a formula or a rollup can be filtered
+   and sorted on like any other column, and a formula that references another
+   formula is ordered by dependency with a cycle returning null rather than
+   hanging. What was actually missing was the reading half: a CSV parser that
+   knew only the comma, and that split lines before looking at quotes. A
+   spreadsheet on a French, German or Spanish system writes **semicolons**,
+   because those locales use the comma as a decimal separator — such a file
+   imported as one silent column. And a quoted field may contain a newline,
+   which Notion writes, so any multi-line cell shifted every column after it.
+   `workspace/src/csv.ts` scans characters instead of lines, guesses the
+   delimiter by *consistency* rather than frequency, and handles BOM and CRLF.
+   **Not built, deliberately:** incremental recompute. `evaluateView`
+   recalculates the whole collection per render, which is milliseconds at the
+   size a person's database reaches; the fix when it stops being so is to cache
+   per row against a dependency set, not to make the computation partial.
+
 9. **Whether the accessibility gap forces single-host** (opened 2026-08-07 by
    D3's falsification, narrowed the same day). The default is settled:
    **per-block ships**, because the reason to abandon it — no cross-block

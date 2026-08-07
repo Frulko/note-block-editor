@@ -5,7 +5,9 @@
  *   are workspace-level records owned by the host
  * - rows are ordinary pages whose props carry { collectionId, properties }
  * This module is the pure evaluation engine; rendering lives in @nbe/dom and
- * storage in the host. Formulas/relations/rollups are AQ#8 (later slice).
+ * storage in the host. Formulas, relations and rollups are evaluated here:
+ * `computeRow` resolves them before any filter, sort or grouping runs, so a
+ * computed column behaves like any other (AQ#8).
  */
 
 export type PropertyType =

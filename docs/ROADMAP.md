@@ -492,6 +492,6 @@ Before the phase that needs them (owner: whoever starts the phase):
 | Asset pipeline | Phase 4 | AQ#2 |
 | Table block design | ~~post-v1~~ shipped 2026-08-06 | AQ#3 |
 | Touch interaction design | Phase 5 | AQ#7 |
-| Formula/eval engine | Phase 3 | AQ#8 |
+| ~~Formula/eval engine~~ | shipped; CSV dialects 2026-08-07 | AQ#8 |
 
 (AQ# = open questions in ARCHITECTURE.md §12.)
