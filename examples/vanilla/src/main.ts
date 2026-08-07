@@ -7,6 +7,8 @@ import { attachInspector } from './inspector';
 import { resolveAsset, storeAsset, releaseAssetUrls } from './assets';
 import { createDatabaseHost } from './dbhost';
 import { Workspace as PageTree, pageTitle } from '@nbe/workspace';
+import { exportVault } from '@nbe/workspace/vault';
+import { download, zip } from './zip';
 import {
   createPage,
   loadWorkspace,
@@ -340,6 +342,16 @@ document.getElementById('new-page')!.addEventListener('click', () => {
   const page = createPage(ws, '');
   saveWorkspace(ws);
   openPage(page.id);
+});
+/*
+ * "Delete the app, read the files" (§10) as something a visitor can actually
+ * do: the workspace leaves as a folder of Markdown that opens as an Obsidian
+ * vault. A zip rather than the File System Access API, which is Chromium-only
+ * — the artifact is the deliverable, writing it to a directory is phase 4b.
+ */
+document.getElementById('export-vault')!.addEventListener('click', async () => {
+  await tree.load();
+  download(zip(exportVault(tree)), 'workspace-markdown.zip');
 });
 document.getElementById('reset')!.addEventListener('click', () => {
   if (confirm('Réinitialiser la démo ? Toutes les pages seront perdues.')) resetWorkspace();

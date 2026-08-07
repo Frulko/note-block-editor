@@ -219,6 +219,9 @@ importers:
       '@nbe/core':
         specifier: workspace:*
         version: link:../core
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
 
   site:
     dependencies:

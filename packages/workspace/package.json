@@ -11,9 +11,14 @@
     "./idb": {
       "types": "./src/idb.ts",
       "default": "./src/idb.ts"
+    },
+    "./vault": {
+      "types": "./src/vault.ts",
+      "default": "./src/vault.ts"
     }
   },
   "dependencies": {
-    "@nbe/core": "workspace:*"
+    "@nbe/core": "workspace:*",
+    "@nbe/markdown": "workspace:*"
   }
 }

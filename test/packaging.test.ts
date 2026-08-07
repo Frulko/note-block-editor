@@ -22,12 +22,16 @@ describe('package layering', () => {
     expect(deps('core')).toEqual([]);
   });
 
-  it.each(['markdown', 'static-renderer', 'workspace'])(
+  it.each(['markdown', 'static-renderer'])(
     'projection package %s depends on core only, never on dom',
     (name) => {
       expect(deps(name)).toEqual(['@nbe/core']);
     },
   );
+
+  it('workspace depends on core and markdown (the vault is a markdown projection)', () => {
+    expect(deps('workspace').sort()).toEqual(['@nbe/core', '@nbe/markdown']);
+  });
 
   it('dom depends only on core and markdown (clipboard needs the md projection)', () => {
     expect(deps('dom').sort()).toEqual(['@nbe/core', '@nbe/markdown']);
