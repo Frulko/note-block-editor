@@ -39,6 +39,19 @@
 > physical non-US layouts. That is an engine-behaviour gap, not a protocol gap
 > (AQ#6).
 >
+> **External evidence on D1, 2026-08-07 — read this before touching the
+> editing host.** Notion tried per-block `contenteditable` and abandoned it in
+> January 2021 for "roadblocks on iOS and Android"; AFFiNE kept it and has
+> exactly that class of bug open today (Android deletion duplicating text,
+> Samsung keyboard, Chinese IME). This does not falsify D1 — the evidence is
+> second-hand and predates `plaintext-only` and the Custom Highlight API, both
+> load-bearing here — but it **flips the burden of proof**: per-block is now
+> the option that owes evidence, and only real Android/iOS hardware can supply
+> it. Affordable because `singleHostTopology` already ships beside it and the
+> same suites run against both. See
+> `docs/research/per-block-contenteditable-evidence.md`. AQ#6 is no longer a
+> residual; it is the decisive question.
+>
 > **And one thing got worse, not better:** the browser harness falsified D3.
 > Cross-block text selection does not work under the shipped per-block
 > topology — measured, not inferred. See D3 and open question 9.
