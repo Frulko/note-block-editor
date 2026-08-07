@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { uuidv7, type BlockJSON } from '@nbe/core';
-import { SUB_PAGE, Workspace, memoryStorage, newPage, pageTitle } from '../src/index';
+import { SUB_PAGE, Workspace, memoryStorage, newPage, pageTitle, referencedAssets } from '../src/index';
 
 /**
  * ROADMAP phase 4 — the notes app.
@@ -326,5 +326,62 @@ describe('titles', () => {
   it('fall back to the title prop, then to a placeholder', () => {
     expect(pageTitle({ id: 'x', type: 'page', version: 1, props: { title: 'Prop' } })).toBe('Prop');
     expect(pageTitle({ id: 'x', type: 'page', version: 1 })).toBe('Sans titre');
+  });
+});
+
+describe('finding the assets a workspace still uses', () => {
+  const withProps = (props: Record<string, unknown>): BlockJSON => ({
+    id: uuidv7(),
+    type: 'page',
+    version: 1,
+    children: [{ id: uuidv7(), type: 'image', version: 1, props }],
+  });
+
+  it('finds a reference in any prop, not just the ones we thought of', () => {
+    expect(referencedAssets([withProps({ src: 'asset:abc' })])).toEqual(new Set(['asset:abc']));
+    // a prop no block type uses today still counts, which is the point
+    expect(referencedAssets([withProps({ poster: 'asset:xyz' })])).toEqual(new Set(['asset:xyz']));
+  });
+
+  it('looks inside nested props and arrays', () => {
+    const page = withProps({ gallery: [{ src: 'asset:one' }, { src: 'asset:two' }] });
+    expect(referencedAssets([page])).toEqual(new Set(['asset:one', 'asset:two']));
+  });
+
+  it('finds one in a mark attribute', () => {
+    const page: BlockJSON = {
+      id: uuidv7(),
+      type: 'page',
+      version: 1,
+      children: [
+        {
+          id: uuidv7(),
+          type: 'paragraph',
+          version: 1,
+          text: [{ text: 'voir', marks: [{ type: 'link', attrs: { href: 'asset:pdf' } }] }],
+        },
+      ],
+    };
+    expect(referencedAssets([page])).toEqual(new Set(['asset:pdf']));
+  });
+
+  it('descends into children', () => {
+    const page: BlockJSON = {
+      id: uuidv7(),
+      type: 'page',
+      version: 1,
+      children: [
+        { id: uuidv7(), type: 'toggle', version: 1, children: [{ id: uuidv7(), type: 'image', version: 1, props: { src: 'asset:deep' } }] },
+      ],
+    };
+    expect(referencedAssets([page])).toEqual(new Set(['asset:deep']));
+  });
+
+  it('ignores ordinary URLs, which are not ours to collect', () => {
+    expect(referencedAssets([withProps({ src: 'https://example.com/a.png' })]).size).toBe(0);
+  });
+
+  it('an empty workspace references nothing', () => {
+    expect(referencedAssets([])).toEqual(new Set());
   });
 });

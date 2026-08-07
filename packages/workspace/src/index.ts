@@ -93,6 +93,42 @@ function* mentioned(block: BlockJSON): Generator<string> {
   }
 }
 
+/**
+ * Every asset a set of pages refers to.
+ *
+ * @remarks
+ * Binary content is stored by content hash and referred to by an opaque
+ * `asset:<hash>` string (AQ#2), which can appear in any block prop — an
+ * image's `src`, a file block's target, a callout's custom icon — and in a
+ * mark's attributes. So this looks at *values*, not at a list of the props
+ * that are allowed to hold one. A block type added later needs no change here,
+ * and forgetting to update a list is how a garbage collector deletes something
+ * that was in use.
+ *
+ * This is the mark half of a mark-and-sweep. The sweep belongs to whatever
+ * owns the blobs, and the reason it is not reference counting is written in
+ * the demo's asset store: counts drift under undo, multiple tabs and crashes,
+ * and a wrong count deletes a file someone still has on screen.
+ *
+ * @category Storage
+ */
+export function referencedAssets(pages: Iterable<BlockJSON>): Set<string> {
+  const found = new Set<string>();
+  const take = (value: unknown): void => {
+    if (typeof value === 'string') {
+      if (value.startsWith('asset:')) found.add(value);
+    } else if (Array.isArray(value)) value.forEach(take);
+    else if (value && typeof value === 'object') Object.values(value).forEach(take);
+  };
+  for (const page of pages) {
+    for (const block of walk(page)) {
+      if (block.props) take(block.props);
+      for (const run of block.text ?? []) for (const mark of run.marks ?? []) take(mark.attrs);
+    }
+  }
+  return found;
+}
+
 /** A page's display title: what a reader would call it. */
 export function pageTitle(page: BlockJSON): string {
   for (const child of page.children ?? []) {

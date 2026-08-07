@@ -517,8 +517,21 @@ phase begins:
 1. **Storage runtime/platform.** Browser (OPFS/File System Access) vs
    Tauri/Electron vs CLI; atomic temp+rename writes, debounced saves, crash
    safety, watcher-based conflict handling.
-2. **Binary asset pipeline.** Where blobs live across L0/L1/L2, content-hash
-   dedup, reference counting/GC on delete+undo, sync later.
+2. **Binary asset pipeline.** *Resolved 2026-08-07 for the browser runtime.*
+   Blobs live in a content-addressed store and the document holds an opaque
+   `asset:<hash>` ref, so dedup is free and the model never carries bytes.
+   Collection is **mark-and-sweep, never reference counting** — counts drift
+   under undo, multiple tabs and crashes, and a wrong count deletes an image
+   someone still has on screen. `referencedAssets` in `@nbe/workspace` is the
+   mark and looks at prop *values* rather than a list of props allowed to hold
+   one, so a block type added later needs no change and cannot be forgotten.
+   The sweep runs **once at load**, which is the safety argument rather than an
+   implementation detail: an undone deletion restores its blocks, so a blob is
+   only garbage while nothing can bring a reference back, and the undo history
+   lives in memory and dies with the page. **Still open:** a second tab does
+   have a history, so sweeping can strand its undo — the answer is single-writer
+   election, which belongs with phase 4b's real storage. And where blobs sit in
+   an L1 vault export (an `assets/` folder beside the Markdown) is unresolved.
 3. **The simple table block.** *Resolved 2026-08-06 and shipped.* Cells are
    ordinary blocks (`table` / `table_row` / `table_cell`), so no new op types
    were needed — a column insert is a transaction of per-row `insert_block`,

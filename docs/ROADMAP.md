@@ -402,8 +402,9 @@ them directly. Two writers, never at once.
   ids preserved, folder tree, relative links, emoji callouts, CSV databases as
   tables. Fixtures are constructed from the documented shape, not a real
   export — see `docs/TESTING.md`.
-- Binary asset pipeline (open question #2); `asset:<hash>` refs already ship.
-  Reference counting and GC on delete+undo are what remain.
+- ~~Binary asset pipeline (AQ#2)~~ — shipped 2026-08-07 for the browser:
+  mark-and-sweep at load, no reference counts. Open: multi-tab undo, and where
+  blobs live inside an exported vault.
 - Notion *Enhanced Markdown* export, which is a different shape again.
 - Databases as four records rather than a flat table on import (§2.5).
 

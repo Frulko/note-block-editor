@@ -1,10 +1,24 @@
 /**
  * Demo asset store: IndexedDB blobs keyed by content hash (dedup for free),
  * exposed to the editor as opaque `asset:<hash>` refs (ARCHITECTURE AQ#2).
- * ponytail: no GC yet — orphaned blobs accumulate until phase 4. When it comes,
- * it is a mark-and-sweep with a grace period, never reference counting:
- * refcounts drift under undo, multi-tab and crashes, and the grace period is
- * what makes undo-after-delete safe (docs/research/browser-storage.md §4).
+ * Collection is a mark-and-sweep, never reference counting: counts drift under
+ * undo, multiple tabs and crashes, and a wrong count deletes an image someone
+ * still has on screen. `referencedAssets` in `@nbe/workspace` is the mark;
+ * {@link sweepAssets} is the sweep.
+ *
+ * **It runs once, at load, and that timing is the whole safety argument.** An
+ * undone deletion brings its blocks back, so a blob is only garbage while
+ * nothing can restore a reference to it — and the undo history lives in memory
+ * and dies with the page. At load there is no history in this tab, so anything
+ * unreferenced is unreachable rather than merely unused. No grace period, no
+ * timestamps, no counts to keep honest.
+ *
+ * Known limit, stated rather than papered over: another tab open on the same
+ * workspace *does* have a history, and sweeping here can strand its undo. The
+ * images it currently shows survive — their object URLs are already resolved —
+ * but undoing a deletion in that tab afterwards yields a broken image. The
+ * multi-tab answer is a single-writer election, which belongs with phase 4b's
+ * real storage rather than in a demo.
  */
 
 const DB_NAME = 'nbe-assets';
@@ -75,4 +89,18 @@ export async function resolveAsset(src: string): Promise<string> {
   const url = URL.createObjectURL(blob);
   urlCache.set(src, url);
   return url;
+}
+
+/**
+ * Delete every stored blob that `referenced` does not mention.
+ *
+ * @param referenced - Opaque `asset:<hash>` refs still reachable from the
+ * workspace, from `referencedAssets` in `@nbe/workspace`.
+ * @returns How many blobs were freed, so a caller can say so.
+ */
+export async function sweepAssets(referenced: Set<string>): Promise<number> {
+  const keys = await inTx<IDBValidKey[]>('readonly', (store) => store.getAllKeys());
+  const orphans = keys.filter((key) => !referenced.has(`asset:${String(key)}`));
+  for (const key of orphans) await inTx('readwrite', (store) => store.delete(key));
+  return orphans.length;
 }

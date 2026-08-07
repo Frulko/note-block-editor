@@ -4,9 +4,9 @@ import { callout } from '@nbe/blocks-callout/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
-import { resolveAsset, storeAsset, releaseAssetUrls } from './assets';
+import { resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
 import { createDatabaseHost } from './dbhost';
-import { Workspace as PageTree, pageTitle } from '@nbe/workspace';
+import { Workspace as PageTree, pageTitle, referencedAssets } from '@nbe/workspace';
 import { exportVault, importVault } from '@nbe/workspace/vault';
 import { importNotion } from '@nbe/workspace/notion';
 import { download, unzip, zip } from './zip';
@@ -479,6 +479,18 @@ for (const tab of document.querySelectorAll<HTMLButtonElement>('.tabs button')) 
 }
 
 openPage(ws.openId);
+
+/*
+ * Collect orphaned blobs, once, now (AQ#2). At load this tab has no undo
+ * history, so an unreferenced asset is unreachable rather than merely unused —
+ * which is what makes deleting it safe without reference counts. Guarded on a
+ * non-empty workspace: a failed load must never look like "nothing is used".
+ */
+if (ws.pages.length) {
+  void sweepAssets(referencedAssets(ws.pages)).then((freed) => {
+    if (freed) console.info(`[demo] ${freed} fichier(s) orphelin(s) supprimé(s)`);
+  });
+}
 
 // blobs stay pinned in memory until their object URLs are released
 window.addEventListener('pagehide', releaseAssetUrls);
