@@ -10,16 +10,16 @@ export interface TurnIntoTarget {
 
 /** Built per view: labels are per view. */
 const builtinTurnInto = (labels: EditorLabels): TurnIntoTarget[] => [
-  { label: labels.text, icon: '¶', type: 'paragraph' },
+  { label: labels.text, icon: 'pilcrow', type: 'paragraph' },
   { label: labels.heading1, icon: 'H1', type: 'heading', props: { level: 1 } },
   { label: labels.heading2, icon: 'H2', type: 'heading', props: { level: 2 } },
   { label: labels.heading3, icon: 'H3', type: 'heading', props: { level: 3 } },
   { label: labels.bulletedList, icon: '•', type: 'bulleted_list_item' },
   { label: labels.numberedList, icon: '1.', type: 'numbered_list_item' },
-  { label: labels.todo, icon: '☑', type: 'to_do' },
-  { label: labels.toggle, icon: '▸', type: 'toggle' },
-  { label: labels.quote, icon: '❝', type: 'quote' },
-  { label: labels.code, icon: '⌨', type: 'code' },
+  { label: labels.todo, icon: 'square-check', type: 'to_do' },
+  { label: labels.toggle, icon: 'chevron-right', type: 'toggle' },
+  { label: labels.quote, icon: 'quote', type: 'quote' },
+  { label: labels.code, icon: 'code', type: 'code' },
 ];
 
 export function isActiveTarget(

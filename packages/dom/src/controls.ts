@@ -263,7 +263,7 @@ export function attachControls(view: EditorView): () => void {
         entries.push({
           label: t.label,
           icon: t.icon,
-          hint: isActiveTarget(t, block) ? '✓' : undefined,
+          hintIcon: isActiveTarget(t, block) ? 'check' : undefined,
           onSelect: () => {
             for (const id of ids) turnInto(editor, id, t.type, t.props);
             view.announce(format(labels.turnedInto, { type: t.label }));

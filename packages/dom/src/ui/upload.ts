@@ -1,3 +1,4 @@
+import { icon } from './icons';
 /**
  * File intake primitives shared by every block that accepts media.
  * Kept dependency-free: a File becomes either a base64 data URL (works with
@@ -56,7 +57,9 @@ export function createDropZone(options: DropZoneOptions): HTMLElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'nbe-dropzone-btn';
-  button.textContent = `${options.icon ?? '📁'} ${options.label}`;
+  // drawn, then labelled: the icon is decorative and the label carries meaning
+  // drawn, then labelled: the icon is decorative and the label carries meaning
+  button.append(icon(options.icon ?? 'image', { size: 16 }), options.label);
   button.addEventListener('click', async () => {
     const file = await pickFile(options.accept ?? 'image/*');
     if (file) options.onFile(file);

@@ -226,7 +226,7 @@ export function openIconPicker(
     body.replaceChildren();
     const zone = createDropZone({
       label: 'Choisir une image',
-      icon: '🖼️',
+      icon: 'image',
       urlPlaceholder: 'ou colle une URL, puis Entrée',
       onFile: async (file) => {
         const src = options.storeImage ? await options.storeImage(file) : await fileToDataUrl(file);

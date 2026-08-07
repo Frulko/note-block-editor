@@ -57,7 +57,7 @@ registerBlockActions('code', (ctx) => {
   { kind: 'section', label: labels.language },
   ...LANGUAGES.map((language) => ({
     label: language,
-    hint: (ctx.block.props['language'] ?? 'plain') === language ? '✓' : undefined,
+    hintIcon: (ctx.block.props['language'] ?? 'plain') === language ? 'check' : undefined,
     onSelect: () => setProps(ctx, { language }),
   })),
   ];
@@ -67,7 +67,7 @@ registerBlockActions('image', (ctx) => {
   const labels = ctx.view.labels;
   const zone = createDropZone({
     label: labels.replaceImage,
-    icon: '🖼️',
+    icon: 'image',
     onFile: async (file) => {
       const store = ctx.view.options.onStoreAsset;
       setProps(ctx, { src: store ? await store(file) : await fileToDataUrl(file) });
@@ -109,7 +109,7 @@ registerBlockActions('table', (ctx) => {
     { kind: 'section', label: labels.table },
     {
       label: labels.headerRow,
-      hint: ctx.block.props['headerRow'] !== false ? '✓' : undefined,
+      hintIcon: ctx.block.props['headerRow'] !== false ? 'check' : undefined,
       onSelect: () => setProps(ctx, { headerRow: ctx.block.props['headerRow'] === false }),
     },
   ];

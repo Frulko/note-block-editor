@@ -318,9 +318,9 @@ export const defaultLabels: EditorLabels = {
   blockMoved: 'Bloc déplacé',
   columnsCreated: 'Colonnes créées',
 
-  dbUnavailable: '🗃️ Base de données indisponible',
+  dbUnavailable: 'Base de données indisponible',
   dbProperties: 'Propriétés',
-  dbNewProperty: '＋ Nouvelle propriété',
+  dbNewProperty: 'Nouvelle propriété',
   dbDeleteProperty: 'Supprimer la propriété',
   dbPickGrouping: 'Choisis une propriété de groupement pour le board.',
   dbNeedsRelation: 'Crée d’abord une propriété Relation',

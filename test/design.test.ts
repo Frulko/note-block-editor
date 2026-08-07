@@ -106,3 +106,39 @@ describe('type is set from the charter, not per file', () => {
     expect(tokens).not.toMatch(/@import|fonts\.googleapis|@font-face/);
   });
 });
+
+describe('the interface draws its icons', () => {
+  /** Every source file in the DOM package, recursively. */
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      return entry.name.endsWith('.ts') ? [path] : [];
+    });
+  }
+
+  /**
+   * The emoji palette is the one place emoji belong.
+   *
+   * @remarks
+   * It offers them to the *user*, for their own page and callout icons. That is
+   * content, not chrome, and removing it would take a feature away rather than
+   * improve a design.
+   */
+  const CONTENT_NOT_CHROME = /ui[/\\]icon-picker\.ts$/;
+
+  const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{FF0B}]/u;
+
+  it('uses Lucide, not emoji, everywhere it speaks for itself', () => {
+    const offenders: string[] = [];
+    for (const file of sources(join(__dirname, '..', 'packages', 'dom', 'src'))) {
+      if (CONTENT_NOT_CHROME.test(file)) continue;
+      for (const line of readFileSync(file, 'utf8').split('\n')) {
+        if (EMOJI.test(line)) offenders.push(`${file.split('/src/')[1]}: ${line.trim().slice(0, 70)}`);
+      }
+    }
+    // an emoji is a font glyph: it arrives in the platform's style, changes
+    // shape per OS, ignores currentColor, and will not align to a baseline
+    expect(offenders).toEqual([]);
+  });
+});

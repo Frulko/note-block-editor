@@ -379,3 +379,43 @@ textarea.nbe-input {
   max-width: min(340px, calc(100vw - 24px));
   box-sizing: border-box;
 }
+
+/* ==========================================================================
+   Icons (ui/icon.ts). Lucide strokes, sized in em so an icon tracks the type
+   around it, and `currentColor` so it inherits state — hover, disabled and the
+   inverted toolbar all work without a rule each.
+   ========================================================================== */
+
+.nbe-icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  /* optical centring against a lowercase x-height, which baseline alignment
+     misses: an icon sits a touch high next to text without this */
+  vertical-align: -0.145em;
+  stroke-width: 1.75;
+}
+
+/* a letterform standing in for an icon (H1, ¶, 1.) — see ui/icon.ts */
+.nbe-menu-icon.nbe-icon-glyph {
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+  color: var(--nbe-text-light);
+}
+
+/* buttons and rows that mix an icon with a label */
+.nbe-menu-item,
+.nbe-dropzone-btn,
+.nbe-db-newrow,
+.nbe-page-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+/* the state marker sits at the row's end and never takes the label's space */
+.nbe-menu-mark {
+  display: inline-flex;
+  align-items: center;
+  color: var(--nbe-accent);
+}

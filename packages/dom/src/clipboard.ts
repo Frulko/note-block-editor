@@ -115,7 +115,10 @@ function blocksToHtml(blocks: BlockJSON[]): string {
       case 'numbered_list_item':
         return `<ol><li>${inner}${kids}</li></ol>`;
       case 'to_do':
-        return `<ul><li>${b.props?.['checked'] ? '☑' : '☐'} ${inner}${kids}</li></ul>`;
+        // a real input, not a glyph: every target app renders it natively and
+        // the ones that parse HTML back read the state rather than a character
+        const box = `<input type="checkbox" disabled${b.props?.['checked'] ? ' checked' : ''}> `;
+        return `<ul><li>${box}${inner}${kids}</li></ul>`;
       case 'quote':
       case 'callout':
         return `<blockquote>${inner}${kids}</blockquote>`;

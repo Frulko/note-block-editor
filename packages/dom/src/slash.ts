@@ -19,21 +19,21 @@ interface SlashItem {
 
 /** Built per view: labels are per view. Blocks contribute their own on top. */
 const builtinItems = (labels: EditorLabels): SlashItem[] => [
-  { label: labels.text, keywords: ['text', 'p'], icon: '¶', action: { kind: 'block', type: 'paragraph' } },
+  { label: labels.text, keywords: ['text', 'p'], icon: 'pilcrow', action: { kind: 'block', type: 'paragraph' } },
   { label: labels.heading1, keywords: ['h1', 'heading'], icon: 'H1', action: { kind: 'block', type: 'heading', props: { level: 1 } } },
   { label: labels.heading2, keywords: ['h2', 'heading'], icon: 'H2', action: { kind: 'block', type: 'heading', props: { level: 2 } } },
   { label: labels.heading3, keywords: ['h3', 'heading'], icon: 'H3', action: { kind: 'block', type: 'heading', props: { level: 3 } } },
   { label: labels.bulletedList, keywords: ['bullet', 'ul'], icon: '•', action: { kind: 'block', type: 'bulleted_list_item' } },
   { label: labels.numberedList, keywords: ['number', 'ol'], icon: '1.', action: { kind: 'block', type: 'numbered_list_item' } },
-  { label: labels.todo, keywords: ['todo', 'check', 'task'], icon: '☑', action: { kind: 'block', type: 'to_do' } },
-  { label: labels.toggle, keywords: ['toggle', 'collapse'], icon: '▸', action: { kind: 'block', type: 'toggle' } },
-  { label: labels.quote, keywords: ['quote'], icon: '❝', action: { kind: 'block', type: 'quote' } },
-  { label: labels.code, keywords: ['code', 'snippet'], icon: '⌨', action: { kind: 'block', type: 'code' } },
-  { label: labels.image, keywords: ['image', 'img', 'photo'], icon: '🖼', action: { kind: 'block', type: 'image' } },
-  { label: labels.table, keywords: ['table', 'grid'], icon: '▦', action: { kind: 'table' } },
+  { label: labels.todo, keywords: ['todo', 'check', 'task'], icon: 'square-check', action: { kind: 'block', type: 'to_do' } },
+  { label: labels.toggle, keywords: ['toggle', 'collapse'], icon: 'chevron-right', action: { kind: 'block', type: 'toggle' } },
+  { label: labels.quote, keywords: ['quote'], icon: 'quote', action: { kind: 'block', type: 'quote' } },
+  { label: labels.code, keywords: ['code', 'snippet'], icon: 'code', action: { kind: 'block', type: 'code' } },
+  { label: labels.image, keywords: ['image', 'img', 'photo'], icon: 'image', action: { kind: 'block', type: 'image' } },
+  { label: labels.table, keywords: ['table', 'grid'], icon: 'table', action: { kind: 'table' } },
   { label: labels.divider, keywords: ['divider', 'hr'], icon: '—', action: { kind: 'divider' } },
-  { label: labels.page, keywords: ['page', 'subpage'], icon: '📄', action: { kind: 'page' } },
-  { label: labels.database, keywords: ['database', 'db'], icon: '🗃', action: { kind: 'database' } },
+  { label: labels.page, keywords: ['page', 'subpage'], icon: 'file-text', action: { kind: 'page' } },
+  { label: labels.database, keywords: ['database', 'db'], icon: 'database', action: { kind: 'database' } },
 ];
 
 /** Built-in entries plus everything the registered plugins contribute. */

@@ -52,7 +52,7 @@ export function attachMentions(view: EditorView): () => void {
     maxQuery: 48,
     enabled: () => !!view.options.onSearchPages,
     items: (query) => view.options.onSearchPages?.(query) ?? [],
-    entry: (c) => ({ label: c.title, icon: c.icon ?? '📄' }),
+    entry: (c) => ({ label: c.title, icon: c.icon ?? 'file-text' }),
     select: (candidate, blockId: BlockId, [from, to]) => {
       const runs = mentionRuns(candidate);
       const length = runs.reduce((n, r) => n + r.text.length, 0);

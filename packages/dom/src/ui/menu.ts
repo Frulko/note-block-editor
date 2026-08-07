@@ -1,13 +1,23 @@
 import { pushOverlay } from './overlay';
 import { autoUpdate, positionFloating, type AnchorRect, type PositionOptions } from './position';
 import { mountPortal } from './portal';
+import { setIcon } from './icons';
 
 export interface MenuItem {
   kind?: 'item';
   label: string;
   icon?: string;
-  /** Right-aligned hint (keyboard shortcut, checkmark…). */
+  /** Right-aligned hint text, such as a keyboard shortcut. */
   hint?: string;
+  /**
+   * Right-aligned icon, for state rather than for a shortcut.
+   *
+   * @remarks
+   * Separate from {@link MenuItem.hint} rather than resolving one string two
+   * ways: a shortcut is text and a checkmark is a picture, and a hint that
+   * happened to read `x` or `check` would silently become the wrong one.
+   */
+  hintIcon?: string;
   onSelect: () => void;
 }
 
@@ -88,13 +98,19 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
         btn.className = 'nbe-menu-item' + (i === active ? ' nbe-active' : '');
         btn.setAttribute('role', 'menuitem');
         if (entry.icon) {
-          const icon = document.createElement('span');
-          icon.className = 'nbe-menu-icon';
-          icon.textContent = entry.icon;
-          btn.append(icon);
+          const slot = document.createElement('span');
+          slot.className = 'nbe-menu-icon';
+          // a Lucide name draws; anything else is a letterform and stays text
+          setIcon(slot, entry.icon);
+          btn.append(slot);
         }
         btn.append(entry.label);
-        if (entry.hint) {
+        if (entry.hintIcon) {
+          const mark = document.createElement('span');
+          mark.className = 'nbe-menu-hint nbe-menu-mark';
+          setIcon(mark, entry.hintIcon, 14);
+          btn.append(mark);
+        } else if (entry.hint) {
           const hint = document.createElement('span');
           hint.className = 'nbe-menu-hint';
           hint.textContent = entry.hint;

@@ -213,7 +213,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
           turnIntoTargets(view).map((t) => ({
             label: t.label,
             icon: t.icon,
-            hint: isActiveTarget(t, block) ? "✓" : undefined,
+            hintIcon: isActiveTarget(t, block) ? "check" : undefined,
             onSelect: () => turnInto(editor, block.id, t.type, t.props),
           })),
         );
@@ -230,7 +230,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     }
 
     linkBtn = button(
-      "🔗",
+      "link",
       "Lien · ⌘K",
       () => {
         const r = range();

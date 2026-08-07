@@ -92,7 +92,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
         menu.update(
           ALIGNMENTS.map((a) => ({
             label: a.label,
-            hint: align === a.value ? '✓' : undefined,
+            hintIcon: align === a.value ? 'check' : undefined,
             onSelect: () => setProps({ align: a.value }),
           })),
         );
@@ -107,7 +107,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
         menu.update(
           [50, 75, 100].map((w) => ({
             label: `${w} %`,
-            hint: width === w ? '✓' : undefined,
+            hintIcon: width === w ? 'check' : undefined,
             onSelect: () => setProps({ width: w }),
           })),
         );

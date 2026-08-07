@@ -3,7 +3,7 @@ import { columnCount, getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
-import { createDropZone, fileToDataUrl } from './ui';
+import { createDropZone, fileToDataUrl, icon } from './ui';
 import { backgroundColor, textColor } from './colors';
 
 function el(tag: string, className?: string): HTMLElement {
@@ -150,7 +150,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       root.append(
         createDropZone({
           label: 'Choisir une image',
-          icon: '🖼️',
+          icon: 'image',
           onFile: async (file) => {
             const store = view.options.onStoreAsset;
             setSrc(store ? await store(file) : await fileToDataUrl(file));
@@ -171,7 +171,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     root.setAttribute('contenteditable', 'false');
     const row = el('div', 'nbe-row nbe-page-link');
     // a sub-page is where the child page lives; a link only points at one
-    row.append(block.type === 'sub_page' ? '📄 ' : '🔗 ');
+    row.append(icon(block.type === 'sub_page' ? 'file-text' : 'link', { size: 15 }));
     const title = el('span', 'nbe-page-link-title');
     title.textContent = String(block.props['title'] ?? '') || 'Page sans titre';
     row.append(title);

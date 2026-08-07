@@ -31,8 +31,7 @@ import {
   editInline,
   pickFile,
   type DragGhost,
-  type MenuEntry,
-} from './ui';
+  type MenuEntry, icon } from './ui';
 import { renderBlock } from './render';
 
 // the contract lives in core (§2.5): the editor consumes it, and an
@@ -52,7 +51,7 @@ const FILTER_OPS: Array<{ op: FilterOp; label: string; needsValue: boolean }> = 
 const LAYOUTS: Array<{ layout: ViewLayout; label: string; icon: string }> = [
   { layout: 'table', label: 'Table', icon: '▤' },
   { layout: 'board', label: 'Board', icon: '▥' },
-  { layout: 'list', label: 'Liste', icon: '☰' },
+  { layout: 'list', label: 'Liste', icon: 'list' },
   { layout: 'gallery', label: 'Galerie', icon: '▦' },
 ];
 
@@ -119,6 +118,19 @@ function el(tag: string, className?: string, text?: string): HTMLElement {
   return e;
 }
 
+/** A button whose label is preceded by a drawn icon. */
+function iconBtn(
+  className: string,
+  name: string,
+  text: string,
+  onClick: (e: MouseEvent) => void,
+): HTMLButtonElement {
+  const b = btn(className, '', onClick);
+  b.append(icon(name, { size: 15 }));
+  if (text) b.append(text);
+  return b;
+}
+
 function btn(className: string, text: string, onClick: (e: MouseEvent) => void): HTMLButtonElement {
   const b = el('button', className, text) as HTMLButtonElement;
   b.type = 'button';
@@ -134,7 +146,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const collectionId = String(block.props['collectionId'] ?? '');
   const data = host?.get(collectionId);
   if (!host || !data) {
-    root.append(el('div', 'nbe-db-missing', '🗃️ Base de données indisponible'));
+    root.append(el('div', 'nbe-db-missing', 'Base de données indisponible'));
     return root;
   }
   const { schema, view: cfg } = data;
@@ -198,7 +210,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         const name = allColumns().find((c) => c.id === sort.propertyId)?.name ?? sort.propertyId;
         entries.push({
           label: `${i + 1}. ${name} ${sort.dir === 'asc' ? '↑' : '↓'}`,
-          hint: '✕',
+          hintIcon: 'x',
           onSelect: () => patchView({ sorts: cfg.sorts.filter((_, j) => j !== i) }),
         });
       });
@@ -246,12 +258,12 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         syncVis();
         commit();
       });
-      row.append(propSel, opSel, valField.el, btn('nbe-db-x', '✕', () => patchView({ filters: cfg.filters.filter((_, j) => j !== i) })));
+      row.append(propSel, opSel, valField.el, iconBtn('nbe-db-x', 'x', '', () => patchView({ filters: cfg.filters.filter((_, j) => j !== i) })));
       entries.push({ kind: 'custom', el: row });
     });
 
     entries.push({
-      label: '＋ Ajouter un filtre',
+      label: 'Ajouter un filtre',
       onSelect: () =>
         patchView({
           filters: [...cfg.filters, { propertyId: allColumns()[0]!.id, op: 'contains', value: '' }],
@@ -265,11 +277,11 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const openGroupMenu = (anchor: HTMLElement) => {
     const menu = createMenu({ className: 'nbe-db-menu' });
     const entries: MenuEntry[] = [
-      { label: 'Aucun groupe', hint: cfg.groupBy ? undefined : '✓', onSelect: () => patchView({ groupBy: undefined }) },
+      { label: 'Aucun groupe', hintIcon: cfg.groupBy ? undefined : 'check', onSelect: () => patchView({ groupBy: undefined }) },
       { kind: 'section', label: 'Grouper par' },
       ...allColumns().map((c) => ({
         label: c.name,
-        hint: cfg.groupBy === c.id ? '✓' : undefined,
+        hintIcon: cfg.groupBy === c.id ? 'check' : undefined,
         onSelect: () => patchView({ groupBy: c.id }),
       })),
     ];
@@ -290,7 +302,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
             hidden: hidden.has(p.id) ? [...hidden].filter((id) => id !== p.id) : [...hidden, p.id],
           }),
       })),
-      { label: '＋ Nouvelle propriété', onSelect: () => host.addProperty(collectionId) },
+      { label: 'Nouvelle propriété', icon: 'plus', onSelect: () => host.addProperty(collectionId) },
     ];
     menu.update(entries);
     menu.open(() => anchor.getBoundingClientRect(), { placement: 'bottom-end' });
@@ -371,7 +383,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         if (c.id === collectionId) continue; // self-relations need a UI of their own
         entries.push({
           label: c.name,
-          hint: prop.relation?.collectionId === c.id ? '✓' : undefined,
+          hintIcon: prop.relation?.collectionId === c.id ? 'check' : undefined,
           onSelect: () => host.updateProperty(collectionId, { ...prop, relation: { collectionId: c.id } }),
         });
       }
@@ -382,7 +394,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       { kind: 'section', label: 'Type' },
       ...PROPERTY_TYPES.map((t) => ({
         label: t.label,
-        hint: prop.type === t.type ? '✓' : undefined,
+        hintIcon: prop.type === t.type ? 'check' : undefined,
         onSelect: () => host.updateProperty(collectionId, { ...prop, type: t.type }),
       })),
       { kind: 'section', label: ' ' },
@@ -416,7 +428,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       onInput: (source) => {
         const error = validate(source);
         field.setError(error);
-        status.textContent = error || !source.trim() ? '' : '✓ formule valide';
+        status.textContent = error || !source.trim() ? '' : 'Formule valide';
       },
       // multiline fields do not commit on Enter, so the editor drives it
       onCommit: (source) => validate(source) ?? undefined,
@@ -452,7 +464,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     for (const rel of relations) {
       out.push({
         label: rel.name,
-        hint: config?.relationPropertyId === rel.id ? '✓' : undefined,
+        hintIcon: config?.relationPropertyId === rel.id ? 'check' : undefined,
         onSelect: () =>
           host.updateProperty(collectionId, {
             ...prop,
@@ -465,7 +477,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       for (const target of [{ id: 'title', name: 'Titre' }, ...(targetSchema?.properties ?? [])]) {
         out.push({
           label: target.name,
-          hint: config.targetPropertyId === target.id ? '✓' : undefined,
+          hintIcon: config.targetPropertyId === target.id ? 'check' : undefined,
           onSelect: () =>
             host.updateProperty(collectionId, { ...prop, rollup: { ...config, targetPropertyId: target.id } }),
         });
@@ -474,7 +486,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       for (const r of ROLLUP_FNS) {
         out.push({
           label: r.label,
-          hint: config.fn === r.fn ? '✓' : undefined,
+          hintIcon: config.fn === r.fn ? 'check' : undefined,
           onSelect: () => host.updateProperty(collectionId, { ...prop, rollup: { ...config, fn: r.fn } }),
         });
       }
@@ -490,7 +502,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       : new Set(currentRaw !== undefined && currentRaw !== '' ? [String(currentRaw)] : []);
     const entries: MenuEntry[] = (prop.options ?? []).map((opt) => ({
       label: opt,
-      hint: selected.has(opt) ? '✓' : undefined,
+      hintIcon: selected.has(opt) ? 'check' : undefined,
       onSelect: () => {
         if (multi) {
           const next = new Set(selected);
@@ -504,7 +516,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     }));
     const addWrap = el('div', 'nbe-db-filter');
     const addField = createTextInput({
-      placeholder: '＋ nouvelle option…',
+      placeholder: 'Nouvelle option…',
       onCommit: (raw) => {
         const value = raw.trim();
         if (!value) return;
@@ -533,7 +545,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       targetRows.length
         ? targetRows.map((target) => ({
             label: target.title || 'Sans titre',
-            hint: selected.has(target.pageId) ? '✓' : undefined,
+            hintIcon: selected.has(target.pageId) ? 'check' : undefined,
             onSelect: () => {
               const next = new Set(selected);
               if (next.has(target.pageId)) next.delete(target.pageId);
@@ -641,7 +653,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   const tableRow = (row: RowData): HTMLElement => {
     const tr = el('div', 'nbe-db-row');
     const titleCell = el('div', 'nbe-db-cell nbe-db-titlecol nbe-db-titlecell');
-    titleCell.append('📄 ', row.title || 'Sans titre');
+    titleCell.append(icon('file-text', { size: 15 }), row.title || 'Sans titre');
     titleCell.addEventListener('click', () => host.openRow(row.pageId));
     tr.append(titleCell);
     for (const prop of columns) tr.append(renderCell(row, prop));
@@ -666,7 +678,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       cell.addEventListener('click', () => openPropertyMenu(cell, prop));
       head.append(cell);
     }
-    head.append(btn('nbe-db-cell nbe-db-addprop', '＋', () => host.addProperty(collectionId)));
+    head.append(iconBtn('nbe-db-cell nbe-db-addprop', 'plus', '', () => host.addProperty(collectionId)));
     return head;
   };
 
@@ -680,14 +692,14 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
         table.append(header);
         paginate(table, group.rows, pageKey('table', group.key), tableRow);
         table.append(
-          btn('nbe-db-newrow', '＋ Nouveau', () =>
+          iconBtn('nbe-db-newrow', 'plus', 'Nouveau', () =>
             host.addRow(collectionId, groupProperties(group)),
           ),
         );
       }
     } else {
       paginate(table, rows, pageKey('table'), tableRow);
-      table.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
+      table.append(iconBtn('nbe-db-newrow', 'plus', 'Nouveau', () => host.addRow(collectionId)));
     }
     return table;
   };
@@ -718,7 +730,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       const body = el('div', 'nbe-db-colbody');
       for (const row of group.rows) body.append(rowCard(row, { drag: true }));
       col.append(body);
-      col.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId, groupProperties(group))));
+      col.append(iconBtn('nbe-db-newrow', 'plus', 'Nouveau', () => host.addRow(collectionId, groupProperties(group))));
       board.append(col);
     }
     return board;
@@ -818,7 +830,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     const listItem = (row: RowData): HTMLElement => {
       const item = el('div', 'nbe-db-listitem');
       const label = el('span', 'nbe-db-listtitle');
-      label.append('📄 ', row.title || 'Sans titre');
+      label.append(icon('file-text', { size: 15 }), row.title || 'Sans titre');
       label.addEventListener('click', () => host.openRow(row.pageId));
       item.append(label);
       for (const prop of columns) {
@@ -837,7 +849,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
     } else {
       paginate(list, rows, pageKey('list'), listItem);
     }
-    list.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
+    list.append(iconBtn('nbe-db-newrow', 'plus', 'Nouveau', () => host.addRow(collectionId)));
     return list;
   };
 
@@ -864,7 +876,7 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
       wrap.append(g);
       paginate(g, rows, pageKey('gallery'), card);
     }
-    wrap.append(btn('nbe-db-newrow', '＋ Nouveau', () => host.addRow(collectionId)));
+    wrap.append(iconBtn('nbe-db-newrow', 'plus', 'Nouveau', () => host.addRow(collectionId)));
     return wrap;
   };
 

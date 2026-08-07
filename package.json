@@ -18,14 +18,15 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "happy-dom": "^20.11.1",
+    "lucide-static": "^1.30.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "svelte": "^5.56.8",
+    "tsx": "^4.20.6",
     "typedoc": "^0.28.20",
     "typedoc-plugin-missing-exports": "^4.1.4",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0",
-    "vue": "^3.5.41",
-    "tsx": "^4.20.6"
+    "vue": "^3.5.41"
   }
 }
