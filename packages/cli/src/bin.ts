@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { join } from 'node:path';
 import { blocksToMarkdown } from '@nbe/markdown';
 import { checkReadable, importDirectory, openWorkspace, writeVault } from './index';
 import { watchVault } from './watch';
 import { WorkspaceIndex } from './index-db';
 import { LockedError, withLock } from './lock';
 import { startRelay } from './relay';
+import { startNode } from './node';
 
 /**
  * `nbe` — a workspace on the command line.
@@ -33,6 +35,7 @@ const USAGE = `nbe — un espace de travail en Markdown
   nbe watch                 reprend les modifications faites dans un autre éditeur
   nbe check                 vérifie que tout est lisible sans cet outil
   nbe relay [--port <n>]    relais de synchronisation entre pairs
+  nbe serve [--port <n>]    nœud permanent : relaie *et* conserve les documents
 
   --root <dossier>          l'espace de travail (défaut : le dossier courant)
 `;
@@ -177,6 +180,23 @@ async function main(argv: string[]): Promise<number> {
         onChange: (room, peers) => process.stdout.write(`${room} : ${peers} pair(s)\n`),
       });
       process.stdout.write(`relais sur ws://localhost:${relay.port} — Ctrl+C pour arrêter\n`);
+      await new Promise(() => {});
+      return 0;
+    }
+
+    case 'serve': {
+      /*
+       * The difference from `relay` in one line: this one is also a peer, so a
+       * client that connects to a room nobody else is in still gets the
+       * document. That is what makes it useful on a NAS.
+       */
+      const node = await startNode({
+        port: Number(flags['port'] ?? 8787),
+        dir: join(root, '.nbe', 'rooms'),
+        onChange: (room, peers) => process.stdout.write(`${room} : ${peers} pair(s)\n`),
+        onSave: (room, bytes) => process.stdout.write(`${room} : ${bytes} o enregistrés\n`),
+      });
+      process.stdout.write(`nœud sur ws://localhost:${node.port} — Ctrl+C pour arrêter\n`);
       await new Promise(() => {});
       return 0;
     }

@@ -16,7 +16,8 @@
     "@nbe/core": "workspace:*",
     "@nbe/markdown": "workspace:*",
     "@nbe/workspace": "workspace:*",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@nbe/collab": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.5.13",
