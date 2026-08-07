@@ -442,7 +442,7 @@ Where the research notes conflicted, resolved here:
 |---|----------|----------|-----|
 | D1 | Per-block contenteditable vs single editable root | **Per-block `plaintext-only` leaves** + document-level selection model from day one; confirmed by Phase 0 spike (Android IME, screen readers, cross-block selection) | Notion's actual production DOM; BlockSuite chose it greenfield; single-root means matching PM's decade of monthly reconciler workarounds. Notion's 5-year retrofit pain came from the missing selection *model*, which we build up front |
 | D2 | Build on ProseMirror vs from scratch | **From scratch, vanilla TS** — adopting PM's *ideas* (invertible ops, schema-at-apply, command chains) without the dependency | The project's raison d'être; per-block topology confines browser warfare to one leaf module instead of a document-wide reconciler, which is what makes from-scratch tractable; skipping PM's global position system removes its dominant complexity |
-| D3 | Cross-block text selection | **Shipped: we drive the gesture, the browser paints the range** (`cross-block-selection.ts`). Full analysis in `docs/research/cross-block-selection.md` | The browser refuses to *create* a cross-host range from a gesture but happily *holds* one: `setBaseAndExtent` across leaves paints natively, measured in our editor. So we compute caret positions during the drag ourselves. Chosen over Gutenberg's container-`contentEditable` toggle (which needs every key blocked while on, plus a focus-restoration dance) and over a CSS Custom Highlight overlay (which paints pixels but is not a *selection*, so clipboard, IME and AT would all need re-implementing). **Known risk:** synthetic pointer handling is unreliable for iOS touch selection — Gutenberg hit this twice — so touch is expected to fall back to block selection until the device matrix says otherwise. Notion, for reference, uses a permanently editable page root; Gutenberg tried that in July 2026 and reverted it in August |
+| D3 | Cross-block text selection | **Falsified 2026-08-07 — see below.** The shipped implementation (`recognizers.ts`, `setBaseAndExtent` across leaves) does not produce a spanning selection under the per-block topology | **Measured, in Chromium 150 headed and 151 headless, by `e2e/selection-topology.spec.ts`:** a selection is clamped to the editing host it starts in. This holds for `setBaseAndExtent` *and* `addRange`, for `plaintext-only` *and* `contenteditable=true`, with or without focusing the host first. The same range spans freely when the leaves are not editable, and when a single editable root holds them — so the constraint is the **editing-host boundary**, not the DOM structure. The earlier note in `docs/research/cross-block-selection.md` recorded the opposite as measured; either the behaviour changed or the original measurement was wrong, and the current fact is what governs. **Consequence:** cross-block text selection does not work under D1's per-block topology, and `singleHostTopology` (shipped, `topology.ts`) is not a hypothetical alternative but the only configuration in which it works. Which of the two becomes the default is an open decision, recorded in §12 |
 | D4 | Inline text representation | **Flat runs with mark sets**, no offset spans, no HTML strings | Offset spans contradict the no-persisted-integers rule; runs are Santos-proof, CRDT-ready, AttributedString-friendly |
 | D5 | Flat map vs nested tree | **Both: flat `Map` at runtime, nested JSON per page at rest** | Not a real conflict — same model, two serializations; each optimal for its medium |
 | D6 | Block ID format | **UUIDv7** | Time-ordered (SQLite index locality) yet still non-semantic/non-positional; creation time is not position |
@@ -482,3 +482,23 @@ phase begins:
    selection handles, virtual-keyboard occlusion (visualViewport), long-press.
 8. **Database evaluation engine.** Formula language, filter/sort/group
    evaluation, incremental rollup/relation recompute, CSV dialects.
+9. **Which editable topology ships by default** (opened 2026-08-07 by D3's
+   falsification). The two are already implemented and interchangeable
+   (`topology.ts`), and the same selection suite runs against both, so this is
+   a measurement rather than a rewrite — which is exactly why the topology was
+   made swappable. The trade is now concrete rather than theoretical:
+
+   - **Per-block (`perBlockTopology`, current default).** The browser
+     physically cannot inject rich markup into `plaintext-only`, browser
+     warfare stays quarantined per leaf, and complex widgets sit outside any
+     editable root. **Costs cross-block text selection**, which is a headline
+     editing behaviour.
+   - **Single-host (`singleHostTopology`).** Cross-block selection, copy,
+     find-on-page and screen-reader traversal all work natively. **Costs** a
+     permanently editable container the browser will restructure, which is the
+     decade of reconciler workarounds D2 was avoiding — and Gutenberg tried it
+     in July 2026 and reverted in August.
+
+   Notion, for reference, uses a permanently editable page root. Deciding this
+   needs the Phase 0 spike D1 always called for, which is now cheap: the
+   IME/screen-reader matrix in `docs/TESTING.md`, run against both topologies.

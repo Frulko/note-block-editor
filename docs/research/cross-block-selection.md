@@ -1,3 +1,17 @@
+> **Correction, 2026-08-07.** The central claim below — that a DOM Range may
+> span several `contenteditable` hosts and the browser paints it — **does not
+> hold in Chromium 150 or 151.** Measured with a real browser harness
+> (`e2e/selection-topology.spec.ts`): the selection is clamped to the editing
+> host it starts in, for `setBaseAndExtent` and `addRange` alike, for
+> `plaintext-only` and `true` alike, focused or not. The same range spans when
+> the hosts are not editable, and when one editable root holds them.
+>
+> Either the behaviour changed since this note was written, or the original
+> measurement was mistaken. The note is kept because its analysis of the
+> *alternatives* — Gutenberg's container toggle, the CSS Custom Highlight
+> overlay — remains accurate and is now more relevant, not less. See D3 and
+> open question 9 in `docs/ARCHITECTURE.md`.
+
 # Cross-block text selection with per-block contenteditable
 
 Research + measurements, August 2026. This note exists because it is the one

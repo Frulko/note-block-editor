@@ -6,3 +6,5 @@ site/dist
 site/.astro
 
 site/.data
+test-results
+playwright-report

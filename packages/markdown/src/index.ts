@@ -17,8 +17,22 @@ function escapeMd(s: string): string {
   return s.replace(/[\\`*_~[\]]/g, (c) => '\\' + c);
 }
 
+/**
+ * Serialize inline runs to markdown.
+ *
+ * @remarks
+ * A newline inside inline text is a Shift+Enter line break, which is content.
+ * A bare newline in markdown is a *soft* break that renderers collapse to a
+ * space, so emitting one loses the break — the parser would read it back as
+ * a space. CommonMark's hard break (a trailing backslash) is what survives.
+ *
+ * @category Projections
+ */
 export function runsToMarkdown(runs: Run[] | undefined): string {
-  return (runs ?? []).map(runToMarkdown).join('');
+  return (runs ?? [])
+    .map(runToMarkdown)
+    .join('')
+    .replace(/\n/g, '\\\n');
 }
 
 function runToMarkdown(run: Run): string {
@@ -170,6 +184,11 @@ export function blocksToMarkdown(blocks: BlockJSON[], opts: MarkdownOptions = {}
   return out;
 }
 
+/** Re-indent the continuation lines a hard break produced. */
+function indented(pad: string, text: string): string {
+  return pad + text.split('\n').join(`\n${pad}`);
+}
+
 function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}): string[] {
   // a plugin's projection wins over the built-in switch; the switch is what
   // the block types not yet extracted still use
@@ -189,20 +208,20 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}): s
 
   switch (b.type) {
     case 'paragraph':
-      return [pad + text, ...kids()];
+      return [indented(pad, text), ...kids()];
     case 'heading': {
       const level = Math.min(3, Math.max(1, Number(p['level'] ?? 1)));
       return [pad + '#'.repeat(level) + ' ' + text, ...kids()];
     }
     case 'bulleted_list_item':
-      return [pad + '- ' + text, ...kids()];
+      return [indented(pad, '- ' + text), ...kids()];
     case 'numbered_list_item':
-      return [pad + '1. ' + text, ...kids()]; // always "1.": renderers renumber
+      return [indented(pad, '1. ' + text), ...kids()]; // always "1.": renderers renumber
     case 'to_do':
-      return [pad + (p['checked'] === true ? '- [x] ' : '- [ ] ') + text, ...kids()];
+      return [indented(pad, (p['checked'] === true ? '- [x] ' : '- [ ] ') + text), ...kids()];
     case 'toggle':
       // documented loss: toggle-ness is lost — serialized as a plain list item with indented children
-      return [pad + '- ' + text, ...kids()];
+      return [indented(pad, '- ' + text), ...kids()];
     case 'quote':
       return [pad + '> ' + text, ...quotedKids()];
     case 'callout': {
@@ -349,6 +368,42 @@ function splitRow(line: string): string[] {
   if (cells[0]!.trim() === '') cells.shift();
   if (cells.length && cells[cells.length - 1]!.trim() === '') cells.pop();
   return cells.map((c) => c.trim());
+}
+
+
+/**
+ * Every line pattern that begins a block other than a paragraph.
+ *
+ * @remarks
+ * Paragraph accumulation has to stop when the next line is something else,
+ * which means this list must stay in step with the checks in `parseLevel`.
+ * The guard against drift is a test that feeds a paragraph followed by each
+ * construct in turn and asserts two blocks come back — adding a construct
+ * without adding it here fails there.
+ */
+const CONSTRUCT_STARTS: RegExp[] = [
+  /^```/, // fenced code
+  /^-{3,}\s*$/, // divider
+  /^!\[.*?\]\(.*?\)\s*$/, // lone image
+  /^\[\[.+?\]\]\s*$/, // lone wikilink
+  /^#{1,6}\s+/, // heading
+  /^>\s?/, // quote or callout
+  /^[-*] \[[ xX]\]\s?/, // to-do
+  /^[-*]\s+/, // bulleted item
+  /^\d+\.\s+/, // numbered item
+];
+
+function startsConstruct(
+  line: string,
+  lines: string[],
+  pos: number,
+  level: number,
+  rules: Array<{ type: string; rule: MarkdownRule }>,
+): boolean {
+  if (rules.some(({ rule }) => rule.match.test(line))) return true;
+  if (CONSTRUCT_STARTS.some((re) => re.test(line))) return true;
+  // a pipe row is only a table when the next line is the delimiter
+  return line.includes('|') && pos + 1 < lines.length && isDelimiterRow(stripLevels(lines[pos + 1]!, level));
 }
 
 function parseLevel(
@@ -511,9 +566,34 @@ function parseLevel(
       continue;
     }
 
-    // paragraph (each plain line is its own block)
-    out.push(mk('paragraph', {}, markdownToRuns(content)));
-    pos++;
+    /*
+     * Paragraph: consecutive non-blank lines form ONE block, per CommonMark.
+     * Treating each line as its own block — which this did — turns a
+     * hand-wrapped paragraph into a pile of paragraphs and makes the round
+     * trip unstable, which contradicts D7's two-way promise.
+     *
+     * Two kinds of line ending, and the difference is the whole subtlety:
+     *   - a *soft* break (a bare newline) is not content. CommonMark renders
+     *     it as a space, so source wrapping is normalised away. That is a
+     *     documented, deliberate loss: how a file happens to be wrapped is
+     *     presentation of the source, not of the document.
+     *   - a *hard* break (a trailing backslash, or two trailing spaces)
+     *     is content, and becomes the `\n` our model uses for Shift+Enter.
+     */
+    const paragraph: string[] = [];
+    let hard: boolean[] = [];
+    while (pos < lines.length) {
+      const line = indentLevel(lines[pos]!) > level ? lines[pos]!.trimStart() : stripLevels(lines[pos]!, level);
+      if (line.trim() === '') break;
+      // any construct starts a new block: stop and let the outer loop see it
+      if (pos > 0 && paragraph.length && startsConstruct(line, lines, pos, level, rules)) break;
+      const isHard = /(\\|\s{2,})$/.test(line);
+      paragraph.push(line.replace(/(\\|\s+)$/, ''));
+      hard.push(isHard);
+      pos++;
+    }
+    const text = paragraph.reduce((acc, line, i) => (i === 0 ? line : acc + (hard[i - 1] ? '\n' : ' ') + line), '');
+    out.push(mk('paragraph', {}, markdownToRuns(text)));
   }
   return [out, pos];
 }
