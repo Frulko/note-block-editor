@@ -538,6 +538,16 @@ framework, no runtime dependency at all):
   `loro-swift` when it is needed. That needs an application project and a
   device, not a package.
 - ~~**Obsidian:** decide plugin vs standalone app once L1 vaults are stable.~~
+  **Revised the same day: both.** The survey
+  (`docs/research/competitive-landscape.md`) found the gap is *Notion-grade
+  WYSIWYG editing over plain Markdown files*, and Obsidian structurally cannot
+  cross it — Live Preview is CodeMirror 6, and its own forum documents the
+  seams. Meanwhile Bases is closing the *database* half of our wedge from the
+  file side. So the plugin ships **the editor alone** — no comments, no
+  presence, no CRDT, no `.nbe/` — which dissolves the objection below, since
+  an editor-only plugin edits one file in place and claims authority over
+  nothing. It must not grow a workspace; the moment it wants sub-pages or
+  cross-file undo, that user wants the app.
   **Decided** (`docs/research/obsidian.md`): standalone app, with the vault as
   the interoperability surface. A plugin would invert §10 — Markdown becomes
   canonical and L0 a cache of it — and block ids, D7's loss and the invertible

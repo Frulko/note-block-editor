@@ -97,3 +97,57 @@ not a test.
 Someone wants our *editing experience* inside Obsidian specifically — that is
 the one requirement this recommendation does not serve, and it would be a
 custom view type over files Obsidian's own editor could no longer open.
+
+---
+
+## Revision, 2026-08-07 — the recommendation above was too narrow
+
+Written the same day, after the competitive survey
+(`competitive-landscape.md`) and after the project owner reframed the plugin's
+scope. Both changed the answer, and the earlier reasoning was not wrong so much
+as aimed at a question nobody asked.
+
+**What I got wrong.** The objection above is entirely about *authority*: a
+plugin would make Markdown canonical and demote L0 to a cache of it. That
+objection holds only for a plugin that owns a **workspace** — sub-pages,
+backlinks, databases, undo across pages. The owner's actual brief is narrower
+and it dissolves the problem:
+
+> just the editor. No comments, no real-time, no sync.
+
+An editor-only plugin edits **one file at a time, in place**. It does not need
+a canonical L0 for a workspace, because it is not managing a workspace. §10's
+authority flow is untouched, because nothing is claiming authority over
+anything but the buffer currently open. What I argued against was a product
+nobody proposed.
+
+**And the survey says this is the sharpest move available, not a concession.**
+The gap it found is that *no editor has Notion-grade WYSIWYG editing over plain
+Markdown files*. Obsidian is on the wrong side of it and structurally cannot
+cross: Live Preview is CodeMirror 6, its own forum documents the seams — raw
+tables, unrendered footnotes, maths broken in callouts, selection breaking at
+links — and plugin authors report they have neither access to the built-in
+editor extensions nor a way to extend the parser.
+
+Meanwhile Obsidian Bases (2025) is attacking the *database* gap from the
+file-over-app side, free, and rated 5/5 by its own community. So the half of
+our wedge that Obsidian is closing is databases, and the half it cannot close
+is the editor.
+
+Putting our editor inside Obsidian is therefore aimed at exactly the thing
+Obsidian cannot fix and we already have. It reaches an audience that has
+already chosen file-over-app, needs no sync story, no account, and no server —
+and it is the cheapest possible distribution of the one asset the survey says
+is genuinely scarce.
+
+**Revised recommendation.** Both, and they are not in tension:
+
+1. **The standalone app** stays the product, for the reasons above — L0
+   canonical, workspace, databases, sync.
+2. **The Obsidian plugin ships the editor alone**, mounted as a view over a
+   vault file. No comments, no presence, no CRDT, no `.nbe/`. When it saves, it
+   writes Markdown, because in that context Markdown *is* the document.
+
+The constraint to hold: the plugin must not grow a workspace. The moment it
+wants sub-pages, backlinks or undo across files, the original objection comes
+back in full, and the answer is to point that user at the app.
