@@ -47,7 +47,9 @@ async function plantOrphan(page: import('@playwright/test').Page, key: string) {
       request.onblocked = () => reject(new Error('IndexedDB bloqué : une connexion est encore ouverte'));
     });
     await new Promise<void>((resolve) => {
-      const request = db.transaction('blobs', 'readwrite').objectStore('blobs').put(new Blob(['x']), hash);
+      // bytes, not a Blob: WebKit's IndexedDB refuses a Blob value, which is
+      // what the app itself had to stop storing
+      const request = db.transaction('blobs', 'readwrite').objectStore('blobs').put(new Uint8Array([120]).buffer, hash);
       request.onsuccess = () => resolve();
     });
   }, key);

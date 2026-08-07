@@ -62,11 +62,33 @@ function inTx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRe
   );
 }
 
+/**
+ * Store the bytes, not the `Blob`.
+ *
+ * @remarks
+ * WebKit's IndexedDB refuses a `Blob` value — measured on Safari's engine, where
+ * `put(new Blob(…))` errors while `getAllKeys` on the same store succeeds. Every
+ * image would therefore have failed to persist on Safari and on all of iOS,
+ * silently, because the write error was never surfaced. Found by running the
+ * browser suite on WebKit for the first time, which is what that run was for.
+ *
+ * An `ArrayBuffer` is stored instead: universally supported, and the `Blob` is
+ * reconstructed on read where the type matters anyway. The hash is unchanged,
+ * so nothing already written needs migrating — and {@link resolveAsset} accepts
+ * either shape, so a store written by an older build still reads.
+ */
 export async function storeAsset(blob: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  const bytes = await blob.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
   const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
-  await inTx('readwrite', (store) => store.put(blob, hash));
+  await inTx('readwrite', (store) => store.put(bytes, hash));
   return `asset:${hash}`;
+}
+
+/** A stored value as a `Blob`, whichever shape it was written in. */
+function asBlob(value: Blob | ArrayBuffer | undefined): Blob | undefined {
+  if (!value) return undefined;
+  return value instanceof Blob ? value : new Blob([value]);
 }
 
 const urlCache = new Map<string, string>();
@@ -84,7 +106,11 @@ export async function resolveAsset(src: string): Promise<string> {
   if (!src.startsWith('asset:')) return src;
   const cached = urlCache.get(src);
   if (cached) return cached;
-  const blob = await inTx<Blob | undefined>('readonly', (store) => store.get(src.slice(6)) as IDBRequest<Blob | undefined>);
+  const stored = await inTx<Blob | ArrayBuffer | undefined>(
+    'readonly',
+    (store) => store.get(src.slice(6)) as IDBRequest<Blob | ArrayBuffer | undefined>,
+  );
+  const blob = asBlob(stored);
   if (!blob) return '';
   const url = URL.createObjectURL(blob);
   urlCache.set(src, url);
@@ -110,7 +136,11 @@ export async function allAssetBytes(refs: Iterable<string>): Promise<Map<string,
   const out = new Map<string, Uint8Array>();
   for (const ref of refs) {
     if (!ref.startsWith('asset:')) continue;
-    const blob = await inTx<Blob | undefined>('readonly', (store) => store.get(ref.slice(6)) as IDBRequest<Blob | undefined>);
+    const stored = await inTx<Blob | ArrayBuffer | undefined>(
+      'readonly',
+      (store) => store.get(ref.slice(6)) as IDBRequest<Blob | ArrayBuffer | undefined>,
+    );
+    const blob = asBlob(stored);
     if (blob) out.set(ref, new Uint8Array(await blob.arrayBuffer()));
   }
   return out;

@@ -156,3 +156,18 @@ import and mirror-state recovery against a real filesystem, using the same
 **Deliberately skipped:** OPFS for L0, SQLite in the browser, refcounted
 assets, Storage Buckets, and a CRDT before Phase 5. Each is added when a
 measurement demands it, not a roadmap.
+
+
+## Caveat found 2026-08-08: WebKit will not store a `Blob`
+
+This note calls IndexedDB the browser's L0 and stands by that — but the *value
+types* are not uniform. WebKit's IndexedDB refuses a `Blob`: `put(new Blob(…))`
+errors while reads on the same store succeed, so the failure is silent unless
+the write's error is handled.
+
+The demo's asset store hit exactly this, and every image would have failed to
+persist on Safari and on all of iOS. Store an `ArrayBuffer` and rebuild the
+`Blob` on read.
+
+Found by running the browser suite on WebKit for the first time, which is a
+better argument for cross-engine testing than any of the reasoning in this file.

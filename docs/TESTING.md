@@ -231,7 +231,13 @@ half-fix is worse than a known gap:
    passed when the file ran alone and failed on *both* engines in the full
    parallel run, so it traded a known failure for a flaky one, which is worse.
    Whatever replaces it has to be verified in a full run, not in isolation.
-2. **`assets.spec.ts` ×2 — the helper hangs on `indexedDB.open`.** Investigated
+2. ~~**`assets.spec.ts` ×2**~~ — **fixed, and it was the product, not the
+   harness.** My first diagnosis (a blocked `open`) was wrong: a probe showed
+   `open` succeeding on WebKit and the *write* failing. See the Blob note
+   above. The `open` hardening is kept anyway — forcing a version asks for an
+   upgrade that blocks while the app holds its connection, and `onblocked` was
+   unhandled. Superseded diagnosis, left here because being wrong in a
+   recoverable way is worth recording: Investigated
    one level: the helper forced version `1`, which requests an upgrade whenever
    the app already opened the database at a higher one, and an upgrade blocks
    while the app holds its connection. `onblocked` was unhandled, so the promise
