@@ -19,9 +19,29 @@
 > **Shipped since:** simple table (2026-08-06, AQ#3 resolved) minus cell-range
 > selection, column resize and cell merging; Word mso-list paragraphs now parse
 > as real list items (nesting still flattened, recorded in the fixtures).
-> **Still open:** real-device IME/screen-reader matrix — protocol written in
-> `docs/TESTING.md`, needs hardware (AQ#6); native-feel cross-block text
-> selection (block-escalation shipped per D3).
+>
+> **Phase 1 closed 2026-08-07.** The three items whose scope said done and
+> whose code said otherwise are now done: versioned schema migrations, per-block
+> validation at apply, and inline mentions. Mentions are the third construct
+> §2.4 keeps apart — a rich-text span that resolves the **live** title, so a
+> rename propagates to every sentence, with the stored text as the fallback for
+> an unloaded workspace or a static export. They export as `[[wikilinks]]` and
+> re-import as mentions, and the `@` trigger shares one mechanism with the
+> slash menu rather than duplicating it.
+>
+> **Still open, and honestly:** the real-device IME/screen-reader matrix. The
+> part CI *can* cover now does: `e2e/ime.spec.ts` drives Chromium's genuine
+> composition pipeline through CDP `Input.imeSetComposition`, so §5.1's
+> ironclad rule — never mutate the DOM mid-composition — is under test without
+> hardware, along with undo not splitting a composition and surrogate pairs
+> surviving Backspace. What remains needs devices and cannot be simulated:
+> Android GBoard (which actively lies about `beforeinput`), iOS Safari, and
+> physical non-US layouts. That is an engine-behaviour gap, not a protocol gap
+> (AQ#6).
+>
+> **And one thing got worse, not better:** the browser harness falsified D3.
+> Cross-block text selection does not work under the shipped per-block
+> topology — measured, not inferred. See D3 and open question 9.
 >
 > **Phase 3 slice 1 (2026-08-06) — databases, started BEFORE Phase 2 by
 > decision.** Shipped: the four record kinds (database view block in the core

@@ -39,6 +39,7 @@ export {
   gesturesFeature,
   outsidePressFeature,
   slashMenuFeature,
+  mentionsFeature,
   gutterFeature,
   clipboardFeature,
   formatToolbarFeature,
@@ -47,5 +48,9 @@ export {
   databaseFeature,
 } from './features';
 export type { EditorFeature } from './features';
+export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
+export type { MentionCandidate } from './mention';
+export { attachTriggerMenu } from './trigger-menu';
+export type { TriggerMenuOptions } from './trigger-menu';
 export { defaultLabels, resolveLabels } from './labels';
 export type { EditorLabels } from './labels';

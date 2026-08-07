@@ -12,9 +12,10 @@ function el(tag: string, className?: string): HTMLElement {
   return e;
 }
 
-function renderRun(run: Run): Node {
+function renderRun(view: EditorView, run: Run): Node {
   if (!run.marks?.length) return document.createTextNode(run.text);
   const link = run.marks.find((m) => m.type === 'link');
+  const mention = run.marks.find((m) => m.type === 'mention');
   const span = link ? (el('a') as HTMLAnchorElement) : el('span');
   if (link) (span as HTMLAnchorElement).href = String(link.attrs?.['href'] ?? '#');
   span.className = run.marks.map((m) => `nbe-m-${m.type}`).join(' ');
@@ -22,6 +23,20 @@ function renderRun(run: Run): Node {
   if (color) (span as HTMLElement).style.color = color;
   const highlight = backgroundColor(run.marks.find((m) => m.type === 'background')?.attrs?.['color']);
   if (highlight) (span as HTMLElement).style.background = highlight;
+  /*
+   * A mention resolves its title at render time, so renaming a page updates
+   * every sentence that mentions it. The stored text is the fallback for when
+   * the host cannot resolve — an unloaded workspace, a deleted page, a static
+   * export — so it degrades to readable text rather than to nothing.
+   */
+  if (mention) {
+    const pageId = String(mention.attrs?.['pageId'] ?? '');
+    const live = view.options.resolvePageTitle?.(pageId);
+    span.textContent = live ?? run.text;
+    span.dataset['pageId'] = pageId;
+    if (live === null) span.classList.add('nbe-m-mention-missing');
+    return span;
+  }
   span.textContent = run.text;
   return span;
 }
@@ -41,7 +56,7 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
     // paragraphs: caret-only placeholder (Notion); other types: always when empty
     if (block.type !== 'paragraph') leaf.dataset['phAlways'] = '';
   }
-  for (const run of block.text ?? []) leaf.append(renderRun(run));
+  for (const run of block.text ?? []) leaf.append(renderRun(view, run));
   return leaf;
 }
 

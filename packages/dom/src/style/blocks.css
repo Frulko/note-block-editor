@@ -317,3 +317,31 @@ a.nbe-m-link:hover {
   margin-left: -6px;
   margin-right: -6px;
 }
+
+/* --- inline mention ------------------------------------------------------
+   A live reference inside a sentence: it follows a rename, so it is styled as
+   a reference rather than as text that happens to be blue. */
+
+.nbe-m-mention {
+  color: var(--nbe-text);
+  background: var(--nbe-hover);
+  border-radius: 3px;
+  padding: 0 3px;
+  cursor: pointer;
+  box-decoration-break: clone;
+  transition: background var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-m-mention:hover {
+  background: var(--nbe-hover-strong);
+}
+.nbe-m-mention::before {
+  content: '@';
+  color: var(--nbe-text-faint);
+  margin-right: 1px;
+}
+/* the page is gone: still readable, visibly unresolved */
+.nbe-m-mention-missing {
+  color: var(--nbe-text-light);
+  text-decoration: line-through;
+  text-decoration-color: var(--nbe-border-strong);
+}

@@ -51,6 +51,15 @@ function runToMarkdown(run: Run): string {
   }
   const link = marks.find((m) => m.type === 'link');
   if (link) s = `[${s}](${String(link.attrs?.['href'] ?? '')})`;
+  /*
+   * A mention becomes a wikilink, which is what makes it survive an export:
+   * `[[Title]]` is meaningful in Obsidian and readable everywhere else. The
+   * page id is lost — wikilinks resolve by title — and that is the documented
+   * trade. Re-import matches the title back to a page, which is exactly how
+   * Obsidian itself behaves when a note is renamed.
+   */
+  const mention = marks.find((m) => m.type === 'mention');
+  if (mention) s = `[[${run.text}]]`;
   return s;
 }
 
@@ -103,6 +112,18 @@ function parseInline(text: string, marks: Mark[]): Run[] {
       buf += ch;
       i++;
       continue;
+    }
+
+    // inline wikilink → mention. Checked before the link rule, since `[[` also
+    // starts `[`, and a lone wikilink on its own line is handled as a block.
+    if (ch === '[' && text[i + 1] === '[') {
+      const wm = /^\[\[([^\]]+)\]\]/.exec(text.slice(i));
+      if (wm) {
+        flush();
+        runs.push({ text: wm[1]!, marks: [...marks.map((m) => ({ ...m })), { type: 'mention' }] });
+        i += wm[0].length;
+        continue;
+      }
     }
 
     // link

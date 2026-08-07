@@ -122,6 +122,19 @@ function openPage(pageId: string): void {
     // activation is an import plus an array entry
     blocks: [callout],
     onOpenPage: (id) => openPage(id),
+    // @ mentions: the workspace is the page store, so it answers both hooks
+    onSearchPages: (query) => {
+      const q = query.toLowerCase().trim();
+      return ws.pages
+        .filter((p) => !p.props?.['collectionId'])
+        .map((p) => ({ pageId: p.id, title: pageTitle(p) || 'Sans titre' }))
+        .filter((c) => !q || c.title.toLowerCase().includes(q))
+        .slice(0, 8);
+    },
+    resolvePageTitle: (id) => {
+      const page = ws.pages.find((p) => p.id === id);
+      return page ? pageTitle(page) || 'Sans titre' : null;
+    },
     onCreatePage: () => {
       const created = createPage(ws, '');
       saveWorkspace(ws);

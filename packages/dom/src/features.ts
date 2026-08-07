@@ -3,6 +3,7 @@ import { attachInput } from './input';
 import { attachKeymap } from './keymap';
 import { attachSelectionSync } from './selection';
 import { attachSlashMenu } from './slash';
+import { attachMentions } from './mention';
 import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
 import { attachGestureRouter } from './gestures';
@@ -48,6 +49,8 @@ export const gesturesFeature = feature('gestures', attachGestureRouter);
 export const outsidePressFeature = feature('outside-press', attachOutsidePressDeselect);
 /** `/` opens the block menu. */
 export const slashMenuFeature = feature('slash-menu', attachSlashMenu);
+/** `@` opens the page-mention picker. Inert without an `onSearchPages` host. */
+export const mentionsFeature = feature('mentions', attachMentions);
 /** The hover gutter: the + button, the ⋮⋮ handle, its menu, and drag & drop. */
 export const gutterFeature = feature('gutter', attachControls);
 /** Copy, cut and the full paste pipeline. */
@@ -86,6 +89,7 @@ export const defaultFeatures: EditorFeature[] = [
   gesturesFeature,
   outsidePressFeature,
   slashMenuFeature,
+  mentionsFeature,
   gutterFeature,
   clipboardFeature,
   formatToolbarFeature,

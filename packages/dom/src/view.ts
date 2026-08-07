@@ -27,6 +27,25 @@ import { PluginRegistry } from '@nbe/core';
 export interface EditorViewOptions {
   /** Follow a page link. The editor never routes; the host decides. */
   onOpenPage?: (pageId: string) => void;
+  /**
+   * Candidates for the `@` mention picker.
+   *
+   * @remarks
+   * Without it the `@` trigger stays inert, because an autocomplete with
+   * nothing to complete is worse than no autocomplete.
+   *
+   * @param query - What the user has typed after the `@`.
+   */
+  onSearchPages?: (query: string) => Array<{ pageId: string; title: string; icon?: string }>;
+  /**
+   * The current title of a mentioned page.
+   *
+   * @remarks
+   * Called at render time so a rename propagates to every mention. Return
+   * `null` for a page that no longer exists — the mention then shows its
+   * stored text, marked as unresolved, instead of disappearing.
+   */
+  resolvePageTitle?: (pageId: string) => string | null;
   /** Create a page in the host workspace (slash menu "Page" item). */
   onCreatePage?: () => { pageId: string; title: string } | null;
   /**
