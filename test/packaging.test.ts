@@ -29,6 +29,10 @@ describe('package layering', () => {
     },
   );
 
+  it('the cli depends on core, markdown and workspace — and no framework', () => {
+    expect(deps('cli').sort()).toEqual(['@nbe/core', '@nbe/markdown', '@nbe/workspace']);
+  });
+
   it('workspace depends on core and markdown (the vault is a markdown projection)', () => {
     expect(deps('workspace').sort()).toEqual(['@nbe/core', '@nbe/markdown']);
   });

@@ -151,6 +151,18 @@ importers:
         specifier: workspace:*
         version: link:../dom
 
+  packages/cli:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
+      '@nbe/workspace':
+        specifier: workspace:*
+        version: link:../workspace
+
   packages/core: {}
 
   packages/dom:
