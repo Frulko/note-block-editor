@@ -56,7 +56,7 @@
   cursor: pointer;
   padding: 0;
   position: relative;
-  transition: background 120ms ease-in, border-color 120ms ease-in;
+  transition: background var(--nbe-normal) var(--nbe-ease), border-color var(--nbe-normal) var(--nbe-ease);
 }
 .nbe-checked > .nbe-row > .nbe-checkbox {
   background: var(--nbe-accent);
@@ -76,7 +76,7 @@
 .nbe-checked > .nbe-row > .nbe-leaf {
   text-decoration: line-through;
   color: var(--nbe-text-light);
-  transition: color 200ms ease-out;
+  transition: color var(--nbe-slow) var(--nbe-ease);
 }
 
 .nbe-toggle-arrow {
@@ -89,7 +89,7 @@
   font-size: 0.7em;
   color: var(--nbe-text);
   border-radius: 4px;
-  transition: transform 200ms ease-out, background 100ms ease-in;
+  transition: transform var(--nbe-slow) var(--nbe-ease), background var(--nbe-fast) var(--nbe-ease);
   padding: 0;
 }
 .nbe-toggle-arrow:hover {
@@ -213,7 +213,7 @@
   padding: 0;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-callout-icon:hover {
   background: var(--nbe-hover-strong);
@@ -256,7 +256,7 @@
 .nbe-t-link_to_page {
   cursor: pointer;
   border-radius: 4px;
-  transition: background 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-t-link_to_page:hover {
   background: var(--nbe-hover);
@@ -297,7 +297,7 @@ a.nbe-m-link {
   color: inherit;
   text-decoration: underline;
   text-decoration-color: rgb(var(--nbe-ink) / 0.4);
-  transition: text-decoration-color 100ms ease-in;
+  transition: text-decoration-color var(--nbe-fast) var(--nbe-ease);
   cursor: pointer;
 }
 a.nbe-m-link:hover {

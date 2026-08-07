@@ -13,7 +13,7 @@
   border: 1px dashed rgb(var(--nbe-ink) / 0.18);
   border-radius: 5px;
   padding: 8px 10px;
-  transition: background 120ms ease-out, border-color 120ms ease-out;
+  transition: background var(--nbe-normal) var(--nbe-ease), border-color var(--nbe-normal) var(--nbe-ease);
 }
 .nbe-dropzone-active {
   background: rgb(var(--nbe-accent-rgb) / 0.08);
@@ -28,7 +28,7 @@
   padding: 4px 10px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-dropzone-btn:hover {
   background: rgb(var(--nbe-ink) / 0.05);
@@ -112,7 +112,7 @@
   border-radius: 4px;
   padding: 4px 0;
   cursor: pointer;
-  transition: background 80ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-iconpicker-emoji:hover {
   background: var(--nbe-border);
@@ -159,17 +159,26 @@
   box-shadow: var(--nbe-shadow);
   padding: 6px 4px;
   font-size: 14px;
-  animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
+  animation: nbe-menu-in var(--nbe-normal) var(--nbe-enter);
 }
 @keyframes nbe-menu-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(-4px) scale(0.96);
   }
   to {
     opacity: 1;
     transform: none;
   }
+}
+
+/* A popover should look placed, not faded in — so it scales from the edge it
+   is anchored to. Without an origin it grows from its own middle, which reads
+   as the panel arriving from nowhere rather than out of the control. */
+.nbe-menu,
+.nbe-block-menu,
+.nbe-seltoolbar {
+  transform-origin: top center;
 }
 .nbe-block-menu {
   max-height: 420px;
@@ -226,7 +235,7 @@
   background: var(--nbe-surface);
   font-size: 13px;
   cursor: pointer;
-  transition: background 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-swatch:hover {
   border-color: rgb(var(--nbe-ink) / 0.4);
@@ -250,7 +259,7 @@
   padding: 5px 8px;
   pointer-events: none;
   max-width: 220px;
-  animation: nbe-fade-in 120ms ease-out;
+  animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
 }
 
 /* --- form controls -------------------------------------------------------
@@ -418,4 +427,69 @@ textarea.nbe-input {
   display: inline-flex;
   align-items: center;
   color: var(--nbe-accent);
+}
+
+/* ==========================================================================
+   States. The parts of the charter a static screenshot never shows.
+   ========================================================================== */
+
+/*
+ * A visible keyboard focus ring, on the controls that can take focus.
+ *
+ * `:focus-visible` rather than `:focus`, so a mouse click does not leave a ring
+ * behind — that is the browser's own heuristic for "this person is navigating
+ * by keyboard", and it is better than any we would write. Two layers: the
+ * surface-coloured ring separates the accent from whatever sits underneath, so
+ * the indicator survives on a coloured callout or a selected row.
+ */
+.nbe-menu-item:focus-visible,
+.nbe-ctrl-btn:focus-visible,
+.nbe-seltoolbar-btn:focus-visible,
+.nbe-dropzone-btn:focus-visible,
+.nbe-db-newrow:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--nbe-surface),
+    0 0 0 4px var(--nbe-accent);
+}
+
+/*
+ * Press feedback. A control that moves under the finger confirms the press
+ * before the result arrives, which is the whole of what makes an interface feel
+ * responsive on a slow action — and it costs one transform.
+ */
+.nbe-ctrl-btn,
+.nbe-seltoolbar-btn,
+.nbe-dropzone-btn {
+  transition:
+    background var(--nbe-fast) var(--nbe-ease),
+    color var(--nbe-fast) var(--nbe-ease),
+    transform var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-ctrl-btn:active,
+.nbe-seltoolbar-btn:active,
+.nbe-dropzone-btn:active {
+  transform: scale(0.94);
+}
+
+/*
+ * The drop guide's head dot pops once, when the guide first appears.
+ *
+ * The line itself already eases between positions and must keep doing so; this
+ * animates only the dot, so a guide that is *moving* does not re-announce
+ * itself on every frame while a guide that has just *appeared* does.
+ */
+.nbe-drop-guide::before {
+  animation: nbe-pop-in var(--nbe-fast) var(--nbe-enter);
+}
+
+@keyframes nbe-pop-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }

@@ -37,7 +37,7 @@
   border-radius: 4px;
   padding: 3px 8px;
   cursor: pointer;
-  transition: background 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-db-tool:hover {
   background: var(--nbe-hover-strong);
@@ -74,7 +74,7 @@
 }
 .nbe-db-headcell {
   cursor: pointer;
-  transition: background 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-db-headcell:hover {
   background: rgb(var(--nbe-ink) / 0.05);
@@ -193,7 +193,7 @@
   border-radius: 4px;
   padding: 3px 8px;
   cursor: pointer;
-  transition: background 100ms ease-in, color 100ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-db-layout:hover {
   background: var(--nbe-hover);
@@ -245,7 +245,7 @@
   background: var(--nbe-surface-sunken);
   border-radius: 6px;
   padding: 6px;
-  transition: background 120ms ease-out;
+  transition: background var(--nbe-normal) var(--nbe-ease);
 }
 .nbe-db-coltarget {
   background: rgb(var(--nbe-accent-rgb) / 0.1);
@@ -271,7 +271,7 @@
     rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
   padding: 8px 10px;
   cursor: grab;
-  transition: box-shadow 120ms ease-out, opacity 120ms ease-out;
+  transition: box-shadow var(--nbe-normal) var(--nbe-ease), opacity var(--nbe-normal) var(--nbe-ease);
 }
 .nbe-db-card:hover {
   box-shadow:

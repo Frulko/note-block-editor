@@ -111,7 +111,7 @@
   display: flex;
   gap: 0;
   z-index: 50;
-  animation: nbe-fade-in 120ms ease-out;
+  animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
 }
 @keyframes nbe-fade-in {
   from {
@@ -220,7 +220,7 @@
   /* position eases, size snaps: animating width/height too made the line morph
      through fat intermediate rectangles when it flipped between horizontal
      (reorder) and vertical (column) */
-  transition: top 70ms ease-out, left 70ms ease-out;
+  transition: top var(--nbe-fast) var(--nbe-ease), left var(--nbe-fast) var(--nbe-ease);
 }
 /* the head dot, which is what makes a 2px line read as an insertion point */
 .nbe-drop-guide::before {
@@ -251,7 +251,7 @@
   border-radius: var(--nbe-radius-lg);
   padding: 3px;
   box-shadow: rgb(var(--nbe-shadow-rgb) / 0.1) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.2) 0 3px 8px;
-  animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
+  animation: nbe-menu-in var(--nbe-normal) var(--nbe-enter);
   user-select: none;
 }
 .nbe-seltoolbar-btn {
@@ -265,7 +265,7 @@
   padding: 4px 6px;
   cursor: pointer;
   line-height: 1.2;
-  transition: background 90ms ease-in, color 90ms ease-in;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-seltoolbar-btn:hover {
   background: var(--nbe-inverse-hover);

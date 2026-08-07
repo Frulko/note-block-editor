@@ -142,3 +142,44 @@ describe('the interface draws its icons', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('motion speaks one language', () => {
+  const SHEETS = readdirSync(STYLE_DIR).filter((name) => name.endsWith('.css') && name !== 'tokens.css');
+
+  /** Every `transition:` / `animation:` declaration outside the token file. */
+  function declarations(): Array<{ file: string; decl: string }> {
+    return SHEETS.flatMap((file) =>
+      [...readFileSync(join(STYLE_DIR, file), 'utf8').matchAll(/(?:transition|animation)\s*:[^;]+;/g)].map(
+        (match) => ({ file, decl: match[0].replace(/\s+/g, ' ') }),
+      ),
+    );
+  }
+
+  it('states no duration of its own', () => {
+    // three durations exist, in the charter. A fourth invented at a call site
+    // is how an interface ends up feeling like several interfaces
+    const offenders = declarations().filter(({ decl }) => /\b\d+m?s\b/.test(decl));
+    expect(offenders.map((o) => `${o.file}: ${o.decl}`)).toEqual([]);
+  });
+
+  it('states no easing of its own', () => {
+    const offenders = declarations().filter(({ decl }) =>
+      /(?<![-\w])(ease|ease-in|ease-out|ease-in-out|linear|cubic-bezier)(?![-\w])/.test(decl),
+    );
+    expect(offenders.map((o) => `${o.file}: ${o.decl}`)).toEqual([]);
+  });
+
+  it('reserves the overshoot curve for transforms', () => {
+    // `--nbe-enter` overshoots past its end value. On opacity that would exceed
+    // 1 and clamp — motion that costs a curve and shows nothing.
+    const css = SHEETS.map((file) => readFileSync(join(STYLE_DIR, file), 'utf8')).join('\n');
+    const animated = new Set(
+      [...css.matchAll(/animation:\s*([\w-]+)[^;]*var\(--nbe-enter\)/g)].map((match) => match[1]!),
+    );
+    for (const name of animated) {
+      const frames = new RegExp(`@keyframes ${name}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(css);
+      expect(frames, `${name} should be defined in these sheets`).toBeTruthy();
+      expect(frames![1], `${name} overshoots, so it must move something`).toMatch(/transform/);
+    }
+  });
+});
