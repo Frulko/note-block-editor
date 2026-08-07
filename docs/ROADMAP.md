@@ -349,15 +349,117 @@ document layer noticing. Nothing shipped in Phase 3 blocks either.
 > - **Phase 5 — native + collab**, unchanged, with iOS now a client of the
 >   Phase 4 app model.
 
-## Phase 4 — Storage & interop (file-over-app, fully honored)
+## Phase 4 — The notes app
 
-- Full L1 vault projection: Obsidian-flavored markdown per page, one .md per
-  database row + `.base` view files + rows.csv
-- Watcher-based external-edit import (Obsidian/vim round-trip), atomic writes,
-  crash safety (open question #1)
-- Binary asset pipeline (open question #2)
-- Notion importers: ZIP export and Enhanced Markdown
-- The acceptance test becomes CI: delete the app, read the files
+**Slice 1 shipped 2026-08-07: the page tree.**
+
+`packages/workspace` (deps: core only, zero DOM) is the application layer that
+did not exist — the demo's workspace was `pages: BlockJSON[]`, a flat array.
+
+The design decision, forced by three commitments that had to hold together:
+§2.2 stores one JSON tree *per page*, §2.4 keeps sub-page / link-to-page /
+mention distinct, and §10 says the derived index holds **zero unique
+information**. So the parent's document carries a `sub_page` block naming its
+child, and the tree is *computed* from those blocks. Nothing about the
+hierarchy is stored beside the documents; delete the index, scan again, get
+the same tree. That is also what makes "delete the app, read the files"
+reachable rather than aspirational.
+
+Shipped in the slice:
+
+- `Workspace`: derived tree, `path` breadcrumbs, create / move / rename /
+  delete with subtree cascade, accent-insensitive search, backlinks that name
+  their kind (sub-page, link, mention). 34 unit tests, including a corrupt
+  store — double claims, cycles and self-references all still yield a forest.
+- `WorkspaceStorage`: the seam, four methods, one page at a time — the
+  granularity a file backend needs to write atomically. `memoryStorage` is the
+  reference implementation; `@nbe/workspace/idb` is the browser one.
+- `sub_page` in the core schema, with DOM and markdown projections. The
+  markdown projection is a *documented* loss (D7): both reference kinds become
+  `[[wikilink]]`, since in a vault the hierarchy is the folder layout — which
+  is phase 4b's job.
+- The demo's sidebar is a real tree, and its page array is exposed as a
+  `WorkspaceStorage`, so the workspace operates on it in place rather than
+  becoming a second source of truth.
+
+One seam the wiring exposed and settled: a sub-page is a *block*, so when its
+parent is the page being edited it must be created by a transaction — the
+editor owns that document and writing underneath it is simply overwritten by
+the next persist. Closed parents have no such owner, so the workspace writes
+them directly. Two writers, never at once.
+
+**Remaining in phase 4:**
+
+- Navigation: breadcrumbs in the app, and moving a page by dragging it in the
+  sidebar (the block drag primitives are already there).
+- Search UI over `Workspace.search`, and a backlinks panel over
+  `Workspace.backlinks`.
+- ~~Migrate persistence to IndexedDB~~ — shipped 2026-08-07, with a migration
+  from the localStorage-era workspace.
+- ~~Export a workspace as an L1 vault artifact~~ — shipped 2026-08-07
+  (`@nbe/workspace/vault`), downloadable as a ZIP, re-importable.
+- ~~Notion importer~~ — shipped 2026-08-07 (`@nbe/workspace/notion`): filename
+  ids preserved, folder tree, relative links, emoji callouts, CSV databases as
+  tables. Fixtures are constructed from the documented shape, not a real
+  export — see `docs/TESTING.md`.
+- ~~Binary asset pipeline (AQ#2)~~ — shipped 2026-08-07 for the browser:
+  mark-and-sweep at load, no reference counts; blobs travel with a vault export
+  in an `assets/` folder and come back on import. Open: multi-tab undo.
+
+- ~~Notion *Enhanced Markdown*~~ — shipped 2026-08-07
+  (`@nbe/workspace/enhanced`): callouts, toggles, columns, page references and
+  inline mentions read back as blocks. The flavour is detected from the body,
+  so nobody picks an import mode they cannot see.
+- ~~Databases as §2.5's four records~~ — shipped 2026-08-07
+  (`@nbe/workspace/collection`): a CSV yields a schema, a view, rows as pages
+  and a view block. Types are inferred only when *every* value in a column
+  fits, and the schema is marked `inferred` so an app can say where they came
+  from rather than presenting a guess as a declaration.
+
+**Phase 4 is complete.** The notes app exists: a derived page tree, navigation,
+search, backlinks, a storage seam with an IndexedDB adapter, a Markdown vault
+that leaves and comes back, Notion import in both flavours, and binaries that
+are collected and that travel.
+
+What is deliberately *not* in it, and why: writing files to a directory needs a
+runtime with files (4b), multi-tab safety needs single-writer election (4b),
+and a relation or rollup cannot be recovered from a CSV that never encoded one
+— Notion does not encode views or formulas in Markdown either.
+- Notion *Enhanced Markdown* export, which is a different shape again.
+- Databases as four records rather than a flat table on import (§2.5).
+
+## Phase 4b — File backends
+
+**Shipped 2026-08-07 as `@nbe/cli`** (deps: core, markdown, workspace — no
+framework, no runtime dependency at all):
+
+- ~~One JSON per page, atomic temp+rename writes~~ (AQ#1). A reader sees the
+  old page or the new one, never a truncated one. A page id that would escape
+  its directory is refused rather than sanitised.
+- ~~The directory mirror~~ — rebuilt, never patched, so a renamed page leaves
+  no stale second copy for the next import to read as a second page.
+- ~~Watcher-based external-edit import~~ — polling on content hashes rather
+  than `fs.watch`, which differs per platform and reports one save as between
+  one and four events. Moving a file into a folder re-parents the page, which
+  is the point. An import never writes the vault back while someone is editing
+  it, and a vanished file is reported rather than deleting its page.
+- ~~SQLite as the L2 index~~ — WAL, FTS5, a links table. Node ships SQLite with
+  FTS5 compiled in (checked, not assumed), so this needs no dependency. It is
+  rebuilt before every query: derived data over a person's notes costs
+  milliseconds, and a stale answer costs more.
+- ~~The acceptance test in CI~~ — `nbe check` reports *what* is unreadable: a
+  page with no file, a file with no id in its frontmatter, a file smuggling the
+  model back as JSON or HTML, an asset referenced but not written.
+
+- ~~Single-writer election~~ — an exclusive-create lock file with a pid and a
+  heartbeat. Stale locks need *both* signals to agree (the process is gone and
+  the heartbeat stopped), because never stealing means a crash locks the
+  workspace forever and stealing eagerly means two writers each believing they
+  are alone. Readers never take it: a read sees the old page or the new one,
+  and failing `nbe ls` because a watcher runs would be a worse tool. A busy
+  workspace exits 3, not 2 — it is a normal outcome a script can retry on.
+
+**Remaining in 4b:** a desktop shell (Tauri/Electron) around the same adapters.
 
 ## Phase 5 — Collaboration, native, ecosystem (the long game)
 
@@ -386,7 +488,7 @@ Before the phase that needs them (owner: whoever starts the phase):
 | Storage runtime (browser FS/OPFS vs Tauri vs CLI) | Phase 1 persistence | AQ#1 |
 | Markdown parser stack + diff-stable serialization | Spike B | AQ#5 |
 | IME/clipboard/drag simulation in CI | Phase 0–1 | AQ#6 |
-| Unicode grapheme handling at boundaries | Phase 1 | AQ#4 |
+| ~~Unicode grapheme handling at boundaries~~ | shipped 2026-08-07 | AQ#4 |
 | Asset pipeline | Phase 4 | AQ#2 |
 | Table block design | ~~post-v1~~ shipped 2026-08-06 | AQ#3 |
 | Touch interaction design | Phase 5 | AQ#7 |

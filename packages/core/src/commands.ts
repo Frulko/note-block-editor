@@ -1,7 +1,8 @@
 import type { Block, BlockId, BlockSelection, Run, Selection } from './types';
+import { prevGrapheme, snapGrapheme } from './grapheme';
 import { isCollapsed, textCaret } from './types';
 import { ancestors, childIndex, getBlock, previousInlineBlock, visibleBlocks, type Doc } from './doc';
-import { sliceRuns, textLength } from './richtext';
+import { plainText, sliceRuns, textLength } from './richtext';
 import { hasMark } from './richtext';
 import { uuidv7 } from './id';
 import type { Editor, Tx } from './editor';
@@ -150,16 +151,16 @@ export function turnInto(
 
 /** Toggle a mark over the current text selection (single block for now). */
 export function toggleMark(editor: Editor, markType: string, attrs?: Record<string, unknown>): boolean {
-  const sel = editor.selection;
-  if (sel?.kind !== 'text' || sel.anchor.blockId !== sel.head.blockId) return false;
-  const from = Math.min(sel.anchor.offset, sel.head.offset);
-  const to = Math.max(sel.anchor.offset, sel.head.offset);
+  const at = singleBlockRange(editor);
+  if (!at) return false;
+  const { from, to } = at;
   if (from === to) return false;
-  const block = getBlock(editor.doc, sel.anchor.blockId);
+  const block = getBlock(editor.doc, at.id);
   const add = !hasMark(block.text ?? [], from, to, markType);
   editor.dispatch(
     (tx) => tx.op({ type: 'format_text', id: block.id, from, to, mark: { type: markType, attrs }, add }),
-    { origin: 'format', selection: sel },
+    // the snapped range, so the selection matches what was actually formatted
+    { origin: 'format', selection: { kind: 'text', anchor: { blockId: at.id, offset: from }, head: { blockId: at.id, offset: to } } },
   );
   return true;
 }
@@ -221,8 +222,17 @@ export function resolveTextRange(editor: Editor, sel: Selection = editor.selecti
   const doc = editor.doc;
   if (!doc.blocks.has(sel.anchor.blockId) || !doc.blocks.has(sel.head.blockId)) return null;
   if (sel.anchor.blockId === sel.head.blockId) {
-    const from = Math.min(sel.anchor.offset, sel.head.offset);
-    const to = Math.max(sel.anchor.offset, sel.head.offset);
+    const text = plainText(getBlock(doc, sel.anchor.blockId).text);
+    /*
+     * Snapping outward, never inward: an endpoint that landed mid-cluster — a
+     * paste, a caret bookmark restored after the text moved, a range the
+     * browser reported — would otherwise have half a character deleted or
+     * formatted, and no later edit puts the halves back. Growing the range
+     * keeps every character the user meant; shrinking it would silently drop
+     * one.
+     */
+    const from = snapGrapheme(text, Math.min(sel.anchor.offset, sel.head.offset), 'back');
+    const to = snapGrapheme(text, Math.max(sel.anchor.offset, sel.head.offset), 'forward');
     return {
       blocks: [sel.anchor.blockId],
       startBlockId: sel.anchor.blockId,
@@ -249,6 +259,26 @@ export function resolveTextRange(editor: Editor, sel: Selection = editor.selecti
     endOffset: end.offset,
     single: false,
   };
+}
+
+/**
+ * The selected range when it lies in a single block, in document order and
+ * snapped off any character it would bisect.
+ *
+ * @remarks
+ * Exists because this arithmetic was written out five separate times —
+ * `toggleMark`, `insertText`, `deleteBackward`, the clipboard's inline paste
+ * and the keymap's select-all — and they drifted the moment `resolveTextRange`
+ * learned to snap. Formatting a range starting mid-emoji covered the whole
+ * emoji while typing over the same range left half a surrogate behind.
+ */
+export function singleBlockRange(
+  editor: Editor,
+  sel: Selection = editor.selection,
+): { id: BlockId; from: number; to: number } | null {
+  const range = resolveTextRange(editor, sel);
+  if (!range || !range.single) return null;
+  return { id: range.startBlockId, from: range.startOffset, to: range.endOffset };
 }
 
 /** The covered [from, to) inside one block of a resolved range. */
@@ -605,11 +635,9 @@ export function applyDividerAutoformat(editor: Editor, id: BlockId): void {
 
 /** Insert a plain-text run at the caret, replacing any selected range first. */
 export function insertText(editor: Editor, data: string, marks?: Run['marks']): boolean {
-  const sel = editor.selection;
-  if (sel?.kind !== 'text' || sel.anchor.blockId !== sel.head.blockId) return false;
-  const id = sel.anchor.blockId;
-  const from = Math.min(sel.anchor.offset, sel.head.offset);
-  const to = Math.max(sel.anchor.offset, sel.head.offset);
+  const at = singleBlockRange(editor);
+  if (!at) return false;
+  const { id, from, to } = at;
   editor.dispatch(
     (tx) => {
       if (from < to) tx.op({ type: 'delete_text', id, from, to });
@@ -620,13 +648,11 @@ export function insertText(editor: Editor, data: string, marks?: Run['marks']): 
   return true;
 }
 
-/** Delete the selected range, or one code point backward from the caret. */
+/** Delete the selected range, or one perceived character backward. */
 export function deleteBackward(editor: Editor): boolean {
-  const sel = editor.selection;
-  if (sel?.kind !== 'text' || sel.anchor.blockId !== sel.head.blockId) return false;
-  const id = sel.anchor.blockId;
-  const from = Math.min(sel.anchor.offset, sel.head.offset);
-  const to = Math.max(sel.anchor.offset, sel.head.offset);
+  const at = singleBlockRange(editor);
+  if (!at) return false;
+  const { id, from, to } = at;
   if (from !== to) {
     editor.dispatch((tx) => tx.op({ type: 'delete_text', id, from, to }), {
       origin: 'input',
@@ -637,12 +663,12 @@ export function deleteBackward(editor: Editor): boolean {
   if (from === 0) return false; // caller falls through to mergeBackward
   const block = getBlock(editor.doc, id);
   const plain = (block.text ?? []).map((r) => r.text).join('');
-  // ponytail: code-point-aware only; grapheme clusters (ZWJ emoji) take several presses — AQ#4
-  const prevCode = plain.charCodeAt(from - 1);
-  const step = from >= 2 && prevCode >= 0xdc00 && prevCode <= 0xdfff ? 2 : 1;
-  editor.dispatch((tx) => tx.op({ type: 'delete_text', id, from: from - step, to: from }), {
+  // one press, one perceived character: a family emoji is eight code units and
+  // used to come apart into visible debris on the way out (AQ#4)
+  const start = prevGrapheme(plain, from);
+  editor.dispatch((tx) => tx.op({ type: 'delete_text', id, from: start, to: from }), {
     origin: 'input',
-    selection: textCaret(id, from - step),
+    selection: textCaret(id, start),
     coalesce: `typing:${id}`,
   });
   return true;

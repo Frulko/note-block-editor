@@ -14,14 +14,15 @@ import {
   outdent,
   previousInlineBlock,
   selectedBlocks,
+  singleBlockRange,
   splitBlock,
   tableCells,
   tableRows,
   textCaret,
   textLength,
   toggleMarkRange,
-  visibleBlocks,
   type BlockSelection,
+  visibleBlocks,
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { leafOf } from './selection';
@@ -205,8 +206,9 @@ export function attachKeymap(view: EditorView): () => void {
         e.preventDefault();
         const block = getBlock(editor.doc, sel.anchor.blockId);
         const len = textLength(block.text);
-        const from = Math.min(sel.anchor.offset, sel.head.offset);
-        const to = Math.max(sel.anchor.offset, sel.head.offset);
+        const at = singleBlockRange(editor);
+        const from = at?.from ?? 0;
+        const to = at?.to ?? len;
         if (from === 0 && to === len) {
           editor.setSelection({ kind: 'block', anchor: block.id, head: block.id }, 'keyboard');
         } else {

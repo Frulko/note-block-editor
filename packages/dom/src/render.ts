@@ -49,8 +49,12 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
   // view is read-only, in which case no leaf is editable and no caret appears
   if (!view.readOnly) view.topology.prepareLeaf(leaf, block.id);
   leaf.dataset['gramm'] = 'false'; // Grammarly-class extension opt-out (best effort)
+  // the spec's placeholder lives in core, which has no language: it is the
+  // fallback for a type the labels do not name, never the translation
   const placeholder =
-    block.type === 'paragraph' ? view.labels.emptyParagraph : (spec.placeholder ?? '');
+    block.type === 'paragraph'
+      ? view.labels.emptyParagraph
+      : (view.labels.placeholders[block.type] ?? spec.placeholder ?? '');
   if (placeholder) {
     leaf.dataset['placeholder'] = placeholder;
     // paragraphs: caret-only placeholder (Notion); other types: always when empty
@@ -163,10 +167,11 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     return root;
   }
 
-  if (block.type === 'link_to_page') {
+  if (block.type === 'link_to_page' || block.type === 'sub_page') {
     root.setAttribute('contenteditable', 'false');
     const row = el('div', 'nbe-row nbe-page-link');
-    row.append('📄 ');
+    // a sub-page is where the child page lives; a link only points at one
+    row.append(block.type === 'sub_page' ? '📄 ' : '🔗 ');
     const title = el('span', 'nbe-page-link-title');
     title.textContent = String(block.props['title'] ?? '') || 'Page sans titre';
     row.append(title);

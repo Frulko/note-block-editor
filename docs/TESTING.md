@@ -132,6 +132,26 @@ What still needs hands, on top of the matrix below:
    The token scope reaches them through one marker class now; a portal that
    forgot it will look plausible in light mode and wrong in dark.
 
+## Notion import — the fixtures are second-hand
+
+`packages/workspace/src/notion.ts` reads a Notion Markdown export. Its rules
+come from the export shape documented in `docs/research/notion-editor.md` —
+`Title <32 hex>.md` filenames, the title repeated as a heading, relative
+URL-encoded links, emoji blockquotes for callouts, databases as separate CSVs.
+
+The fixtures in `packages/workspace/test/notion.test.ts` are **constructed from
+that description, not captured from a real export**, which needs a Notion
+account this project does not have. So the parsing is exercised; the shape is
+taken on the research note's word.
+
+What a person with an account should check, once:
+
+1. Run a real export of a workspace with sub-pages, a database, a toggle and a
+   callout. Import it. Compare page count, titles and hierarchy.
+2. Confirm the filename id really is the page id — re-export after an edit and
+   re-import; pages must update, not duplicate.
+3. Note what arrives wrong and add it as a fixture before fixing it.
+
 ## Regression checklist per run
 
 - [ ] All IME scenarios on devices 4–10
@@ -140,6 +160,7 @@ What still needs hands, on top of the matrix below:
 - [ ] Paste from Word + Google Docs on devices 1–2 (fixtures cover parsing;
       this verifies the clipboard formats actually arriving)
 - [ ] Drag/selection touch + dark-mode passes (section above)
+- [ ] A real Notion export imported at least once per release
 - [ ] Results recorded below
 
 ## Results log

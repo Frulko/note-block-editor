@@ -95,6 +95,16 @@ export interface EditorLabels {
   // --- placeholders ---
   /** Placeholder in an empty focused paragraph. */
   emptyParagraph: string;
+  /**
+   * Placeholder shown in an empty block, by block type.
+   *
+   * @remarks
+   * A block spec may declare its own `placeholder`, but a spec lives in core,
+   * which has no notion of language — so a schema string is a fallback, not a
+   * translation. Anything here wins. A type with no entry and no spec
+   * placeholder simply shows nothing.
+   */
+  placeholders: Record<string, string>;
   /** Stand-in for a page or row with no title yet. */
   untitled: string;
 
@@ -264,6 +274,16 @@ export const defaultLabels: EditorLabels = {
   database: 'Base de données',
 
   emptyParagraph: 'Écris quelque chose…',
+  placeholders: {
+    heading: 'Titre',
+    bulleted_list_item: 'Élément',
+    numbered_list_item: 'Élément',
+    to_do: 'À faire',
+    toggle: 'Bascule',
+    quote: 'Citation',
+    code: 'Code',
+    callout: 'Encadré',
+  },
   untitled: 'Sans titre',
 
   blockDuplicated: 'Bloc dupliqué',
@@ -329,7 +349,14 @@ export const defaultLabels: EditorLabels = {
  * @category Configuration
  */
 export function resolveLabels(overrides?: Partial<EditorLabels>): EditorLabels {
-  return overrides ? { ...defaultLabels, ...overrides } : defaultLabels;
+  if (!overrides) return defaultLabels;
+  return {
+    ...defaultLabels,
+    ...overrides,
+    // `placeholders` is the one nested key, and a shallow spread would make
+    // translating a single block type blank every other one
+    placeholders: { ...defaultLabels.placeholders, ...overrides.placeholders },
+  };
 }
 
 /**

@@ -29,6 +29,14 @@ describe('package layering', () => {
     },
   );
 
+  it('the cli depends on core, markdown and workspace — and no framework', () => {
+    expect(deps('cli').sort()).toEqual(['@nbe/core', '@nbe/markdown', '@nbe/workspace']);
+  });
+
+  it('workspace depends on core and markdown (the vault is a markdown projection)', () => {
+    expect(deps('workspace').sort()).toEqual(['@nbe/core', '@nbe/markdown']);
+  });
+
   it('dom depends only on core and markdown (clipboard needs the md projection)', () => {
     expect(deps('dom').sort()).toEqual(['@nbe/core', '@nbe/markdown']);
   });
@@ -89,7 +97,7 @@ describe('source layering', () => {
     }
   });
 
-  it.each(['markdown', 'static-renderer'])('%s never imports @nbe/dom', (name) => {
+  it.each(['markdown', 'static-renderer', 'workspace'])('%s never imports @nbe/dom', (name) => {
     for (const file of sourceFiles(name)) {
       expect(importsOf(readFileSync(file, 'utf8'))).not.toContain('@nbe/dom');
     }

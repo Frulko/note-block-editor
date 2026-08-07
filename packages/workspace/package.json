@@ -1,0 +1,36 @@
+{
+  "name": "@nbe/workspace",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./idb": {
+      "types": "./src/idb.ts",
+      "default": "./src/idb.ts"
+    },
+    "./vault": {
+      "types": "./src/vault.ts",
+      "default": "./src/vault.ts"
+    },
+    "./notion": {
+      "types": "./src/notion.ts",
+      "default": "./src/notion.ts"
+    },
+    "./enhanced": {
+      "types": "./src/enhanced.ts",
+      "default": "./src/enhanced.ts"
+    },
+    "./collection": {
+      "types": "./src/collection.ts",
+      "default": "./src/collection.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*",
+    "@nbe/markdown": "workspace:*"
+  }
+}

@@ -236,3 +236,165 @@ body {
   font-weight: 600;
   margin-right: 6px;
 }
+
+/* phase 4: the sidebar is a tree, so each row can spawn a sub-page */
+.page-add {
+  margin-inline-start: auto;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--muted, #8a8a8a);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.page-item:hover .page-add,
+.page-add:focus-visible {
+  opacity: 1;
+}
+.page-add:hover {
+  background: rgb(0 0 0 / 0.07);
+}
+
+/* --- phase 4: navigation ------------------------------------------------- */
+
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: rgb(0 0 0 / 0.04);
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.search:focus {
+  outline: none;
+  border-color: rgb(35 131 226 / 0.5);
+  background: transparent;
+}
+
+/* :not([hidden]) because an author `display` beats the UA sheet's
+   `[hidden] { display: none }`, so the panel would never actually hide */
+.results:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.result:hover {
+  background: rgb(0 0 0 / 0.05);
+}
+.result-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.result-snippet {
+  font-size: 12px;
+  color: var(--muted, #8a8a8a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.no-results {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--muted, #8a8a8a);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 24px 0;
+  font-size: 13px;
+  color: var(--muted, #8a8a8a);
+  /* the breadcrumb is chrome around the page, not part of it */
+  max-width: 756px;
+  margin-inline: auto;
+}
+.crumbs:empty {
+  display: none;
+}
+.crumb {
+  padding: 2px 4px;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.crumb:hover {
+  background: rgb(0 0 0 / 0.06);
+  color: inherit;
+}
+.crumb.current {
+  color: var(--text, #37352f);
+  font-weight: 500;
+  cursor: default;
+}
+
+.backlinks {
+  max-width: 756px;
+  margin: 0 auto 48px;
+  padding: 16px 24px;
+  border-top: 1px solid rgb(0 0 0 / 0.08);
+}
+.backlinks h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #8a8a8a);
+}
+.backlink {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+}
+.backlink-kind {
+  color: var(--muted, #8a8a8a);
+  font-size: 12px;
+}
+.backlink-page {
+  padding: 2px 4px;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgb(0 0 0 / 0.2);
+}
+.backlink-page:hover {
+  background: rgb(0 0 0 / 0.06);
+}
+
+/* dragging a page onto another re-parents it */
+.page-dragging,
+.page-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.page-item.page-drop {
+  outline: 2px solid rgb(35 131 226 / 0.8);
+  outline-offset: -2px;
+  background: rgb(35 131 226 / 0.1);
+}

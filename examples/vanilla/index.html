@@ -20,11 +20,18 @@
             <span>Pages</span>
             <button id="new-page" title="Nouvelle page">＋</button>
           </div>
+          <input id="search" class="search" type="search" placeholder="Rechercher…" autocomplete="off" />
           <div id="pages"></div>
+          <div id="results" class="results" hidden></div>
+          <button id="export-vault" class="reset-btn">Exporter en Markdown</button>
+          <button id="import-vault" class="reset-btn">Importer un .zip</button>
+          <input id="import-file" type="file" accept=".zip" hidden />
           <button id="reset" class="reset-btn">Réinitialiser la démo</button>
         </nav>
         <div class="page-scroll">
+          <nav id="crumbs" class="crumbs" aria-label="Fil d'Ariane"></nav>
           <div class="page" id="editor"></div>
+          <section id="backlinks" class="backlinks" hidden></section>
         </div>
         <aside class="inspector">
           <nav class="tabs">

@@ -1,0 +1,231 @@
+import { test, expect } from './fixtures';
+
+/**
+ * ROADMAP phase 4 — the notes app, seen from the app.
+ *
+ * @remarks
+ * `packages/workspace` proves the model headlessly. This proves the wiring:
+ * that the sidebar shows a real tree, that a sub-page is created by the right
+ * writer, and that the tree survives a reload — which it can only do if it is
+ * genuinely derived from the documents, since nothing else is persisted.
+ */
+
+/** Sidebar rows as `depth:title`, depth read from the indent the tree applies. */
+async function rows(page: import('@playwright/test').Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('.page-item')].map((el) => {
+      const indent = parseInt((el as HTMLElement).style.paddingInlineStart || '8', 10);
+      const label = el.querySelector('.page-item-label')?.textContent ?? '';
+      return `${(indent - 8) / 14}:${label.replace(/^\S+\s/, '')}`;
+    }),
+  );
+}
+
+/** Add a sub-page under the row at `index`. */
+async function addChild(page: import('@playwright/test').Page, index: number) {
+  const row = page.locator('.page-item').nth(index);
+  await row.hover();
+  await row.locator('.page-add').click();
+  await page.waitForTimeout(400);
+}
+
+test.describe('the sidebar is a page tree', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(250);
+  });
+
+  test('a fresh workspace has one root page', async ({ page }) => {
+    expect(await rows(page)).toEqual(["0:L'éditeur de blocs"]);
+  });
+
+  test('adding a sub-page nests it under its parent', async ({ page }) => {
+    await addChild(page, 0);
+    const after = await rows(page);
+    expect(after).toHaveLength(2);
+    expect(after[0]!.startsWith('0:')).toBe(true);
+    expect(after[1]!.startsWith('1:')).toBe(true);
+  });
+
+  test('the parent shows it has children', async ({ page }) => {
+    await addChild(page, 0);
+    const label = await page.locator('.page-item-label').first().textContent();
+    expect(label).toContain('📂');
+  });
+
+  test('it nests to a third level', async ({ page }) => {
+    await addChild(page, 0);
+    await addChild(page, 1);
+    const after = await rows(page);
+    expect(after.map((r) => r.split(':')[0])).toEqual(['0', '1', '2']);
+  });
+
+  test('the sub-page is a block in the parent document, not a stored field', async ({ page }) => {
+    await addChild(page, 0);
+    const parentBlocks = await page.evaluate(async () => {
+      const db: IDBDatabase = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('nbe-demo-workspace', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const pages: Array<{ children?: Array<{ type: string }> }> = await new Promise((resolve) => {
+        const request = db.transaction('pages').objectStore('pages').getAll();
+        request.onsuccess = () => resolve(request.result);
+      });
+      // the parent is the page that has a child reference; find it by shape
+      return pages.flatMap((p) => (p.children ?? []).map((b) => b.type));
+    });
+    // this is the invariant the whole model rests on: the tree is derived from
+    // these blocks, so a workspace with no index still has a tree
+    expect(parentBlocks).toContain('sub_page');
+  });
+
+  test('the tree survives a reload, because nothing else stores it', async ({ page }) => {
+    await addChild(page, 0);
+    const before = await rows(page);
+    await page.reload();
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(300);
+    expect(await rows(page)).toEqual(before);
+  });
+
+  test('opening a sub-page keeps the tree visible', async ({ page, editor }) => {
+    await addChild(page, 0);
+    await page.locator('.page-item').nth(1).click();
+    await page.waitForTimeout(300);
+    expect(await rows(page)).toHaveLength(2);
+    expect(await page.locator('.page-item.active').count()).toBe(1);
+    expect(editor.errors()).toEqual([]);
+  });
+});
+
+/**
+ * Navigation over the same derived model: where am I, what points here, and
+ * finding a page without knowing where it lives.
+ */
+test.describe('navigating the workspace', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(250);
+  });
+
+  test('the breadcrumb shows the path to the open page', async ({ page }) => {
+    await addChild(page, 0);
+    await page.waitForTimeout(200);
+    const crumbs = await page.locator('#crumbs .crumb').allTextContents();
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0]).toBe("L'éditeur de blocs");
+    await expect(page.locator('#crumbs .crumb.current')).toHaveCount(1);
+  });
+
+  test('a breadcrumb link opens its page', async ({ page }) => {
+    await addChild(page, 0);
+    await page.locator('#crumbs .crumb').first().click();
+    await page.waitForTimeout(300);
+    expect(await page.locator('#crumbs .crumb').allTextContents()).toEqual(["L'éditeur de blocs"]);
+  });
+
+  test('a sub-page lists its parent as a backlink, and says why', async ({ page }) => {
+    await addChild(page, 0);
+    await page.waitForTimeout(200);
+    await expect(page.locator('#backlinks')).toBeVisible();
+    expect(await page.locator('.backlink-kind').first().textContent()).toBe('sous-page de');
+    expect(await page.locator('.backlink-page').first().textContent()).toBe("L'éditeur de blocs");
+  });
+
+  test('a page with nothing pointing at it shows no panel', async ({ page }) => {
+    await expect(page.locator('#backlinks')).toBeHidden();
+  });
+
+  test('search finds a page by its content and replaces the tree', async ({ page }) => {
+    await page.locator('#search').fill('invertibles');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#pages')).toBeHidden();
+    const results = page.locator('.result');
+    await expect(results).toHaveCount(1);
+    expect(await results.first().locator('.result-snippet').textContent()).toContain('invertibles');
+  });
+
+  test('search ignores accents, and says so when it finds nothing', async ({ page }) => {
+    await page.locator('#search').fill('EDITEUR');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.result')).toHaveCount(1);
+    await page.locator('#search').fill('zzzzz introuvable');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.no-results')).toBeVisible();
+  });
+
+  test('Escape clears the search and brings the tree back', async ({ page }) => {
+    await page.locator('#search').fill('invertibles');
+    await page.waitForTimeout(200);
+    await page.locator('#search').press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#pages')).toBeVisible();
+    await expect(page.locator('#results')).toBeHidden();
+  });
+
+  test('choosing a result opens that page', async ({ page, editor }) => {
+    await addChild(page, 0);
+    await page.locator('#search').fill('invertibles');
+    await page.waitForTimeout(200);
+    await page.locator('.result').first().click();
+    await page.waitForTimeout(300);
+    expect(await page.locator('#search').inputValue()).toBe('');
+    expect(await page.locator('#crumbs .crumb').allTextContents()).toEqual(["L'éditeur de blocs"]);
+    expect(editor.errors()).toEqual([]);
+  });
+});
+
+/** Drag a sidebar row onto another, the way a mouse does. */
+async function dragPageOnto(page: import('@playwright/test').Page, from: number, to: number) {
+  const a = (await page.locator('.page-item').nth(from).boundingBox())!;
+  const b = (await page.locator('.page-item').nth(to).boundingBox())!;
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+}
+
+test.describe('moving a page by dragging it', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(250);
+    // a second root to move around
+    await page.locator('#new-page').click();
+    await page.waitForTimeout(400);
+  });
+
+  test('dropping one page on another nests it', async ({ page }) => {
+    expect((await rows(page)).map((r) => r.split(':')[0])).toEqual(['0', '0']);
+    await dragPageOnto(page, 1, 0);
+    expect((await rows(page)).map((r) => r.split(':')[0])).toEqual(['0', '1']);
+  });
+
+  test('the move is written to the parent document, so it survives a reload', async ({ page }) => {
+    await dragPageOnto(page, 1, 0);
+    const before = await rows(page);
+    await page.reload();
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(300);
+    expect(await rows(page)).toEqual(before);
+  });
+
+  test('a page cannot be dropped into its own subtree', async ({ page }) => {
+    await dragPageOnto(page, 1, 0);
+    const nested = await rows(page);
+    // now drag the parent onto its own child: the model must refuse
+    await dragPageOnto(page, 0, 1);
+    expect(await rows(page)).toEqual(nested);
+  });
+
+  test('a click still opens the page rather than starting a drag', async ({ page }) => {
+    await page.locator('.page-item').nth(1).click();
+    await page.waitForTimeout(300);
+    expect((await rows(page)).map((r) => r.split(':')[0])).toEqual(['0', '0']);
+    await expect(page.locator('.page-item.active')).toHaveCount(1);
+  });
+});

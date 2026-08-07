@@ -1,0 +1,20 @@
+{
+  "name": "@nbe/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "nbe": "./src/bin.ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*",
+    "@nbe/markdown": "workspace:*",
+    "@nbe/workspace": "workspace:*"
+  }
+}

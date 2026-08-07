@@ -8,10 +8,11 @@ import {
   rangeInBlock,
   resolveTextRange,
   selectedBlocks,
+  singleBlockRange,
   sliceRuns,
   textCaret,
-  toggleMarkRange,
   textLength,
+  toggleMarkRange,
   uuidv7,
 } from '@nbe/core';
 import { blocksToMarkdown, markdownToBlocks, runsToMarkdown } from '@nbe/markdown';
@@ -358,9 +359,9 @@ function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean):
   // inline paste of a single text fragment at a caret
   if (inline && blocks.length === 1 && sel?.kind === 'text' && sel.anchor.blockId === sel.head.blockId) {
     const runs = blocks[0]!.text ?? [];
-    const id = sel.anchor.blockId;
-    const from = Math.min(sel.anchor.offset, sel.head.offset);
-    const to = Math.max(sel.anchor.offset, sel.head.offset);
+    const at = singleBlockRange(editor);
+    if (!at) return;
+    const { id, from, to } = at;
     editor.dispatch(
       (tx) => {
         if (from < to) tx.op({ type: 'delete_text', id, from, to });

@@ -425,8 +425,11 @@ react|vue|svelte   thin mounts: lifecycle + reactive projection
                    asserted in CI; a third dep means the feature belongs
                    one layer down.
 
-markdown, sqlite, static-renderer   depend on core ONLY, never dom
-                                    (preserves server/CLI/Swift/Obsidian paths).
+markdown, workspace, static-renderer   depend on core ONLY, never dom
+                                       (preserves server/CLI/Swift/Obsidian paths).
+workspace   the notes app's model: a page tree derived from sub_page blocks,
+            search, backlinks, and the WorkspaceStorage seam (memory here,
+            /idb in the browser, files on a backend). Zero DOM.
 blocks-*    schema entry (deps: core) + /dom renderer entry (deps: dom)
             split via subpath exports.
 collab      (phase 5) CRDT behind the same store interface, optional peer.
@@ -487,9 +490,18 @@ text editor shows every page, row, view definition, and asset. Content that
 exists only in the derived index — whatever that runtime's index happens to be
 — or only inside a binary blob, is a bug.
 
-Interop targets: Obsidian vaults (L1 *is* one), Notion ZIP import (UUID
-filenames, CSV databases, flattened toggles), Notion Enhanced Markdown, Djot
-`{attr}` syntax borrowed now to keep that export trivial.
+Interop targets, all shipped 2026-08-07 in `@nbe/workspace`: Obsidian vaults
+(L1 *is* one — `/vault` exports and re-imports one, assets included), Notion
+ZIP import (`/notion`: UUID filenames become page ids, folders become the
+tree, CSV databases become collections), and Notion Enhanced Markdown
+(`/enhanced`: `<callout>`, `<details>`, `<columns>`, page and mention tags).
+Djot `{attr}` syntax is borrowed to keep that export trivial.
+
+Two honest limits carried by the importers rather than hidden: their fixtures
+are written from the *documented* shape of each format, not captured from a
+real Notion workspace (`docs/TESTING.md` says what to check once), and a CSV
+cannot yield a relation, a rollup or a formula because it never encoded one —
+Notion does not put views or formulas in Markdown either.
 
 ## 11. Decisions
 
@@ -511,11 +523,33 @@ Where the research notes conflicted, resolved here:
 From the adversarial completeness review — each needs a design pass before its
 phase begins:
 
-1. **Storage runtime/platform.** Browser (OPFS/File System Access) vs
-   Tauri/Electron vs CLI; atomic temp+rename writes, debounced saves, crash
-   safety, watcher-based conflict handling.
-2. **Binary asset pipeline.** Where blobs live across L0/L1/L2, content-hash
-   dedup, reference counting/GC on delete+undo, sync later.
+1. **Storage runtime/platform.** *Resolved 2026-08-07 for two runtimes.* The
+   browser writes pages to IndexedDB (`@nbe/workspace/idb`); a machine writes
+   one JSON per page with atomic temp+rename (`@nbe/cli`), so a crash leaves
+   the old page or the new one and never a truncated one. External edits are
+   picked up by polling content hashes, not `fs.watch`, whose behaviour differs
+   per platform and per editor. Concurrent writers are
+   excluded by a lock file (exclusive create, pid plus heartbeat); a stale lock
+   is reclaimed only when the process is gone *and* the heartbeat stopped, so a
+   crash cannot lock a workspace forever and a recycled pid cannot be mistaken
+   for an abandoned one. **Still open:** a desktop shell.
+2. **Binary asset pipeline.** *Resolved 2026-08-07 for the browser runtime.*
+   Blobs live in a content-addressed store and the document holds an opaque
+   `asset:<hash>` ref, so dedup is free and the model never carries bytes.
+   Collection is **mark-and-sweep, never reference counting** — counts drift
+   under undo, multiple tabs and crashes, and a wrong count deletes an image
+   someone still has on screen. `referencedAssets` in `@nbe/workspace` is the
+   mark and looks at prop *values* rather than a list of props allowed to hold
+   one, so a block type added later needs no change and cannot be forgotten.
+   The sweep runs **once at load**, which is the safety argument rather than an
+   implementation detail: an undone deletion restores its blocks, so a blob is
+   only garbage while nothing can bring a reference back, and the undo history
+   lives in memory and dies with the page. **Still open:** a second tab does
+   have a history, so sweeping can strand its undo — the answer is single-writer
+   election, which belongs with phase 4b's real storage. Blobs sit in an
+   `assets/` folder beside the Markdown, and a page refers to one by a path
+   relative to its own depth, so a vault stays self-contained wherever it is
+   moved; the import restores the opaque ref.
 3. **The simple table block.** *Resolved 2026-08-06 and shipped.* Cells are
    ordinary blocks (`table` / `table_row` / `table_cell`), so no new op types
    were needed — a column insert is a transaction of per-row `insert_block`,
@@ -527,9 +561,23 @@ phase begins:
    pipe table; `<table>` and aligned TSV paste build a real table.
    **Still open:** cell-range selection as a third selection kind, column
    resize handles, and cell merging — none block the block itself.
-4. **Unicode correctness.** Grapheme clusters, surrogate pairs, ZWJ emoji,
-   NFC/NFD, bidi — how splits/marks/selection avoid bisecting a perceived
-   character despite UTF-16 offsets.
+4. **Unicode correctness.** *Resolved 2026-08-07.* Offsets stay UTF-16 code
+   units — that is what the DOM speaks, and §2.2 is unchanged — but every edit
+   that *moves* or *bounds* one now works in perceived characters
+   (`core/src/grapheme.ts`, over `Intl.Segmenter`, which implements UAX #29 so
+   nobody maintains that table by hand; engines without it fall back to the old
+   surrogate-pair behaviour rather than breaking). Backspace and Delete step one
+   cluster, so a family emoji leaves in one press instead of coming apart into
+   its people; `marksAt` reads the preceding *character*, so typing after an
+   emoji keeps its formatting; and `resolveTextRange` snaps a range **outward**
+   onto cluster boundaries, so a range that landed mid-character — from a
+   paste, a restored caret bookmark, or a browser-reported selection — grows to
+   cover the whole character rather than splitting it. Outward and never
+   inward, because growing keeps every character the user meant while shrinking
+   would silently drop one. **Not addressed:** bidi caret movement, which the
+   browser owns inside a leaf (§5.1), and normalisation between NFC and NFD,
+   which is a storage-policy question rather than an editing one.
+
 5. **Markdown parser/serializer engineering.** remark/mdast vs markdown-it vs
    custom; deterministic diff-stable serialization; ID-preserving re-import.
 6. **Editor test automation.** Simulating IME composition/clipboard/drag in CI
