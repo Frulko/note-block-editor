@@ -12,20 +12,47 @@
 
 use tauri_plugin_fs::FsExt;
 
-/// Grant access to a vault folder *and everything under it*.
+/// Grant access to a vault folder and the directories the app writes in it.
 ///
-/// The folder picker already adds the chosen path to the filesystem scope —
-/// but only that path. A workspace keeps its canonical documents in `.nbe/`,
-/// one level down, so every read and write there was denied and the app simply
-/// did nothing. Granting recursively is the fix, and it is the backend's job:
-/// deciding what a window may touch is not application logic.
+/// The folder picker adds the chosen path to the filesystem scope — but only
+/// that path, so `.nbe/` one level down was denied and the app did nothing.
+/// Granting recursively should cover it, and did not: reported as
+/// `forbidden path: …/.nbe … for allow-exists`. So each directory the app
+/// actually uses is granted by name as well, rather than trusting one glob to
+/// mean what it looks like it means.
 ///
-/// `persisted-scope` then remembers this across restarts.
+/// Deciding what a window may touch is the backend's job, not application
+/// logic. `persisted-scope` remembers this across restarts.
+///
+/// Fails with the paths that are still refused, so a failure that survives
+/// this carries the evidence rather than prompting another guess.
 #[tauri::command]
 fn allow_vault(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    app.fs_scope()
-        .allow_directory(&path, true)
-        .map_err(|error| format!("accès refusé à {path} : {error}"))
+    let scope = app.fs_scope();
+    let root = std::path::Path::new(&path);
+    let wanted = [root.to_path_buf(), root.join(".nbe"), root.join("pages")];
+
+    for directory in &wanted {
+        // it has to exist before the scope can be asked about it
+        let _ = std::fs::create_dir_all(directory);
+        scope
+            .allow_directory(directory, true)
+            .map_err(|error| format!("accès refusé à {} : {error}", directory.display()))?;
+    }
+
+    // verify rather than assume: `allow_directory` returning Ok has not meant
+    // the path is reachable, which is how `.nbe` stayed forbidden
+    let refused: Vec<String> = wanted
+        .iter()
+        .filter(|directory| !scope.is_allowed(directory))
+        .map(|directory| directory.display().to_string())
+        .collect();
+
+    if refused.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("toujours hors portée après autorisation : {}", refused.join(", ")))
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
