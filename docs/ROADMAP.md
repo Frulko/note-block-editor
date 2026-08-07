@@ -292,6 +292,43 @@ document layer noticing. Nothing shipped in Phase 3 blocks either.
   search, backlinks, materialized views) on a backend — derived, rebuildable,
   single writer
 
+> **Phase 4 reframed (2026-08-07), by the project owner.** Phase 4 as written
+> below conflated two different things under "storage": a **notes
+> application** and a **file backend**. They are not the same layer, and the
+> tree does not need the second.
+>
+> A workspace tree is *data*. Nesting pages, moving them, linking them,
+> searching them — none of that requires the File System Access API, and
+> nothing about it is blocked by Safari and Firefox refusing that API. Files
+> are what a *backend* produces: desktop, server, CLI. So the question I raised
+> — "do we build the Chromium directory mirror or wait for a desktop runtime?"
+> — dissolves, because neither is on the critical path.
+>
+> What exists today is the **embeddable editor**. What Phase 4 actually
+> introduces is the **notes app** on top of it: the page tree, navigation,
+> search, and the host implementations the editor already asks for
+> (`DatabaseHost`, the page hooks). That app is what then leads to the iOS
+> app — a native client of the same model rather than a port of the DOM layer
+> — and to file storage, as one adapter among several.
+>
+> The evidence that this is the missing layer, not a relabelling: the demo's
+> workspace is `pages: BlockJSON[]`, a **flat array**. There is no page tree in
+> this project at all. Everything Phase 4 listed — vault projection, external
+> edits, importers, the acceptance test — is app-level; the only editor-level
+> piece is the `asset:<hash>` reference convention, which already shipped.
+>
+> Restructured accordingly:
+>
+> - **Phase 4 — the notes app.** Workspace model with a real page tree,
+>   navigation, search, backlinks, the storage adapter seam (browser: IndexedDB),
+>   import/export of a vault as an *artifact*. No File System API required.
+> - **Phase 4b — file backends.** Desktop/CLI runtime where files are real
+>   everywhere, the directory mirror, watcher-based external edits, the
+>   "delete the app, read the files" acceptance test as CI. Optionally the
+>   Chromium mirror as a cheap rehearsal.
+> - **Phase 5 — native + collab**, unchanged, with iOS now a client of the
+>   Phase 4 app model.
+
 ## Phase 4 — Storage & interop (file-over-app, fully honored)
 
 - Full L1 vault projection: Obsidian-flavored markdown per page, one .md per
