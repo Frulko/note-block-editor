@@ -3,7 +3,7 @@
 // contradicts D7's two-way promise. These pin the corrected contract.
 import { describe, expect, it } from 'vitest';
 import { blocksToMarkdown, markdownToBlocks } from '../src/index';
-import { plainText } from '@nbe/core';
+import { plainText, type Run } from '@nbe/core';
 
 const parse = (md: string) => markdownToBlocks(md);
 const text = (md: string) => parse(md).map((b) => plainText(b.text));
@@ -157,5 +157,66 @@ describe('the markdown file stays readable', () => {
   it('numbers nested runs independently of their parent', () => {
     const out = blocksToMarkdown(parse('1. one\n    1. a\n    2. b\n2. two'));
     expect(out.split('\n').map((l) => l.trim())).toEqual(['1. one', '1. a', '2. b', '2. two']);
+  });
+});
+
+// A mark that spans a formatting change used to close at the inner mark's
+// boundary and immediately reopen — `~~a *b*~~` came out `~~a ~~~~*b*~~`,
+// which then re-parsed as literal tildes. Found by the round-trip test on
+// docs/ROADMAP.md, 2026-08-07.
+describe('a mark spans the runs that share it', () => {
+  const md = (runs: Run[]) => blocksToMarkdown([{ id: 'x', type: 'paragraph', version: 1, text: runs }]);
+
+  it('does not close and reopen around an inner mark', () => {
+    expect(
+      md([
+        { text: 'Notion ', marks: [{ type: 'strike' }] },
+        { text: 'Enhanced', marks: [{ type: 'strike' }, { type: 'italic' }] },
+      ]),
+    ).toBe('~~Notion *Enhanced*~~');
+  });
+
+  it('round-trips that text unchanged', () => {
+    const source = '~~Notion *Enhanced Markdown*~~ — expédié';
+    const once = blocksToMarkdown(parse(source));
+    expect(blocksToMarkdown(parse(once))).toBe(once);
+    expect(once).not.toContain('~~~~');
+  });
+
+  it('closes a mark where it genuinely ends', () => {
+    expect(
+      md([
+        { text: 'gras', marks: [{ type: 'bold' }] },
+        { text: ' normal' },
+      ]),
+    ).toBe('**gras** normal');
+  });
+
+  it('keeps two separate marks separate, rather than merging them', () => {
+    expect(
+      md([
+        { text: 'un', marks: [{ type: 'bold' }] },
+        { text: ' et ' },
+        { text: 'deux', marks: [{ type: 'bold' }] },
+      ]),
+    ).toBe('**un** et **deux**');
+  });
+
+  it('does not merge links that point at different places', () => {
+    const out = md([
+      { text: 'a', marks: [{ type: 'link', attrs: { href: 'x' } }] },
+      { text: 'b', marks: [{ type: 'link', attrs: { href: 'y' } }] },
+    ]);
+    expect(out).toBe('[a](x)[b](y)');
+  });
+
+  it('nests three marks without duplicating any of them', () => {
+    const out = md([
+      { text: 'a ', marks: [{ type: 'bold' }] },
+      { text: 'b ', marks: [{ type: 'bold' }, { type: 'italic' }] },
+      { text: 'c', marks: [{ type: 'bold' }, { type: 'italic' }, { type: 'strike' }] },
+    ]);
+    expect(out).toBe('**a *b ~~c~~***');
+    expect(blocksToMarkdown(parse(out))).toBe(out);
   });
 });

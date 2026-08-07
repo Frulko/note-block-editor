@@ -28,29 +28,79 @@ function escapeMd(s: string): string {
  *
  * @category Projections
  */
+/**
+ * Serialize rich text.
+ *
+ * @remarks
+ * Runs that share a mark are merged before anything is emitted. Without that,
+ * `~~Notion *Enhanced Markdown*~~` came back as
+ * `~~Notion ~~~~*Enhanced Markdown*~~` — the strike closed at the italic's
+ * boundary and immediately reopened, which then re-parsed as literal tildes.
+ * Any mark that spans a formatting change had the same fault; a heading in
+ * `docs/ROADMAP.md` is what finally exposed it, through the round-trip test.
+ *
+ * The merge is per *mark*, not per run: a run is a storage detail, and where a
+ * mark starts and stops is the only thing Markdown can express.
+ */
 export function runsToMarkdown(runs: Run[] | undefined): string {
-  return (runs ?? [])
-    .map(runToMarkdown)
-    .join('')
-    .replace(/\n/g, '\\\n');
+  return emitRuns(runs ?? []).replace(/\n/g, '\\\n');
 }
 
-function runToMarkdown(run: Run): string {
-  const marks = run.marks ?? [];
-  const has = (t: string) => marks.some((m) => m.type === t);
-  let s: string;
-  if (has('code')) {
-    // ponytail: code content emitted raw; a backtick inside a code run breaks — use runs without backticks in code
-    s = '`' + run.text + '`';
-  } else {
-    s = escapeMd(run.text);
-    if (has('bold')) s = `**${s}**`;
-    if (has('italic')) s = `*${s}*`;
-    if (has('strike')) s = `~~${s}~~`;
-    if (has('underline')) s = `<u>${s}</u>`; // no markdown equivalent
+/** The mark types that wrap text, in the order they nest. */
+const WRAPPERS: Array<{ type: string; open: string; close: string }> = [
+  { type: 'strike', open: '~~', close: '~~' },
+  { type: 'bold', open: '**', close: '**' },
+  { type: 'italic', open: '*', close: '*' },
+  { type: 'underline', open: '<u>', close: '</u>' }, // no markdown equivalent
+];
+
+/** True when both runs carry the same mark of this type, with the same attrs. */
+function sameMark(a: Run, b: Run, type: string): boolean {
+  const find = (run: Run) => (run.marks ?? []).find((m) => m.type === type);
+  const one = find(a);
+  const two = find(b);
+  if (!one || !two) return false;
+  return JSON.stringify(one.attrs ?? {}) === JSON.stringify(two.attrs ?? {});
+}
+
+function emitRuns(runs: Run[]): string {
+  let out = '';
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i]!;
+    const marks = run.marks ?? [];
+    const has = (type: string) => marks.some((m) => m.type === type);
+
+    // code, mentions and links are atomic: they wrap one run and nothing else
+    if (has('code') || has('mention') || has('link')) {
+      out += atomicRun(run);
+      continue;
+    }
+
+    // the outermost wrapper this run has that the next runs also share
+    const wrapper = WRAPPERS.find((w) => has(w.type));
+    if (!wrapper) {
+      out += escapeMd(run.text);
+      continue;
+    }
+
+    let end = i;
+    while (end + 1 < runs.length && sameMark(run, runs[end + 1]!, wrapper.type)) end++;
+    // strip the mark we are about to emit, and recurse on what is left
+    const inner = runs.slice(i, end + 1).map((r) => ({
+      ...r,
+      marks: (r.marks ?? []).filter((m) => m.type !== wrapper.type),
+    }));
+    out += wrapper.open + emitRuns(inner) + wrapper.close;
+    i = end;
   }
-  const link = marks.find((m) => m.type === 'link');
-  if (link) s = `[${s}](${String(link.attrs?.['href'] ?? '')})`;
+  return out;
+}
+
+/** A run whose mark cannot span its neighbours. */
+function atomicRun(run: Run): string {
+  const marks = run.marks ?? [];
+  const has = (type: string) => marks.some((m) => m.type === type);
+
   /*
    * A mention becomes a wikilink, which is what makes it survive an export:
    * `[[Title]]` is meaningful in Obsidian and readable everywhere else. The
@@ -58,8 +108,20 @@ function runToMarkdown(run: Run): string {
    * trade. Re-import matches the title back to a page, which is exactly how
    * Obsidian itself behaves when a note is renamed.
    */
-  const mention = marks.find((m) => m.type === 'mention');
-  if (mention) s = `[[${run.text}]]`;
+  if (has('mention')) return `[[${run.text}]]`;
+
+  let s: string;
+  if (has('code')) {
+    // ponytail: code content emitted raw; a backtick inside a code run breaks — use runs without backticks in code
+    s = '`' + run.text + '`';
+  } else {
+    s = escapeMd(run.text);
+    for (const wrapper of [...WRAPPERS].reverse()) {
+      if (has(wrapper.type)) s = wrapper.open + s + wrapper.close;
+    }
+  }
+  const link = marks.find((m) => m.type === 'link');
+  if (link) s = `[${s}](${String(link.attrs?.['href'] ?? '')})`;
   return s;
 }
 
