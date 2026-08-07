@@ -97,6 +97,9 @@ importers:
 
   examples/vanilla:
     dependencies:
+      '@nbe/blocks-callout':
+        specifier: workspace:*
+        version: link:../../packages/blocks-callout
       '@nbe/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -133,6 +136,15 @@ importers:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@26.1.2)(lightningcss@1.33.0)(yaml@2.9.0)
 
+  packages/blocks-callout:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/dom':
+        specifier: workspace:*
+        version: link:../dom
+
   packages/core: {}
 
   packages/dom:
@@ -149,6 +161,10 @@ importers:
       '@nbe/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@nbe/blocks-callout':
+        specifier: workspace:*
+        version: link:../blocks-callout
 
   packages/react:
     dependencies:

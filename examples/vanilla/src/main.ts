@@ -1,5 +1,6 @@
 import { docFromJSON, docToJSON, Editor, uuidv7, type BlockJSON, type Run } from '@nbe/core';
 import { EditorView } from '@nbe/dom';
+import { callout } from '@nbe/blocks-callout/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
@@ -118,6 +119,8 @@ function openPage(pageId: string): void {
   detachInspector?.();
   editor = new Editor({ doc: docFromJSON(page) });
   view = new EditorView(editorEl, editor, {
+    // activation is an import plus an array entry
+    blocks: [callout],
     onOpenPage: (id) => openPage(id),
     onCreatePage: () => {
       const created = createPage(ws, '');

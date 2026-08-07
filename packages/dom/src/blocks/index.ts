@@ -1,15 +1,21 @@
 import type { DomBlockPlugin } from '../block-view';
-import { calloutPlugin } from './callout';
 
 /**
- * The built-in set, as a plain array literal.
+ * No built-in block plugins ship from `@nbe/dom`.
  *
- * Deliberately *not* a barrel that imports everything and disables at runtime:
- * that is Tiptap's `StarterKit`, where `configure({ heading: false })` turns a
- * block off but leaves its code in the bundle. Ergonomics and tree-shaking are
- * in direct conflict there, and the kit wins. An array a host can copy and
- * edit keeps day-one ergonomics and stays actually removable on day two.
+ * Deliberately empty rather than a barrel of everything: Tiptap's `StarterKit`
+ * statically imports about twenty extensions, so `configure({ heading: false })`
+ * turns a block off and leaves its code in the bundle. Ergonomics and
+ * tree-shaking are in direct conflict there and the kit wins.
+ *
+ * A host composes the array it wants:
+ *
+ * ```ts
+ * import { callout } from '@nbe/blocks-callout/dom'
+ * new EditorView(el, editor, { blocks: [callout] })
+ * ```
+ *
+ * The block types still built into the view's switch are not plugins yet;
+ * they need no registration.
  */
-export const builtinBlocks: DomBlockPlugin[] = [calloutPlugin];
-
-export { calloutPlugin };
+export const builtinBlocks: DomBlockPlugin[] = [];

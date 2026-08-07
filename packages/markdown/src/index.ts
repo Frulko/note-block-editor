@@ -5,7 +5,7 @@
  * @module @nbe/markdown
  */
 
-import type { BlockJSON, Mark, Run } from '@nbe/core';
+import type { Block, BlockJSON, Mark, MarkdownRule, PluginRegistry, Run } from '@nbe/core';
 import { uuidv7 } from '@nbe/core';
 
 // ---------------------------------------------------------------------------
@@ -134,8 +134,32 @@ function parseInline(text: string, marks: Mark[]): Run[] {
 
 const LIST_TYPES = new Set(['bulleted_list_item', 'numbered_list_item', 'to_do', 'toggle']);
 
-export function blocksToMarkdown(blocks: BlockJSON[]): string {
-  const groups = blocks.map((b) => ({ lines: renderBlock(b, 0), list: LIST_TYPES.has(b.type) }));
+/**
+ * Options carried through a whole serialization or parse.
+ *
+ * @remarks
+ * `plugins` is passed per call rather than held in a module registry, for the
+ * same reason the editor's registry is per instance: two documents in one
+ * process may legitimately use different block sets, and a module-level map
+ * makes that impossible.
+ *
+ * @category Projections
+ */
+export interface MarkdownOptions {
+  /** Block plugins whose markdown projections should be consulted first. */
+  plugins?: PluginRegistry;
+}
+
+/**
+ * Serialize blocks to markdown.
+ *
+ * @param blocks - Top-level blocks, in document order.
+ * @param opts - Plugin projections to consult before the built-in handling.
+ *
+ * @category Projections
+ */
+export function blocksToMarkdown(blocks: BlockJSON[], opts: MarkdownOptions = {}): string {
+  const groups = blocks.map((b) => ({ lines: renderBlock(b, 0, opts), list: LIST_TYPES.has(b.type) }));
   let out = '';
   groups.forEach((g, idx) => {
     if (g.lines.length === 0) return;
@@ -146,13 +170,22 @@ export function blocksToMarkdown(blocks: BlockJSON[]): string {
   return out;
 }
 
-function renderBlock(b: BlockJSON, depth: number): string[] {
+function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}): string[] {
+  // a plugin's projection wins over the built-in switch; the switch is what
+  // the block types not yet extracted still use
+  const projection = opts.plugins?.get(b.type)?.markdown;
+  if (projection) {
+    return projection.toMarkdown(b as unknown as Block, {
+      depth,
+      child: (child) => renderBlock(child as unknown as BlockJSON, 0, opts),
+    });
+  }
   const pad = '    '.repeat(depth);
   const p = b.props ?? {};
   const text = runsToMarkdown(b.text);
-  const kids = () => (b.children ?? []).flatMap((c) => renderBlock(c, depth + 1));
+  const kids = () => (b.children ?? []).flatMap((c) => renderBlock(c, depth + 1, opts));
   // quote/callout children are rendered un-indented then '> '-prefixed
-  const quotedKids = () => (b.children ?? []).flatMap((c) => renderBlock(c, 0)).map((l) => pad + '> ' + l);
+  const quotedKids = () => (b.children ?? []).flatMap((c) => renderBlock(c, 0, opts)).map((l) => pad + '> ' + l);
 
   switch (b.type) {
     case 'paragraph':
@@ -224,9 +257,26 @@ function renderBlock(b: BlockJSON, depth: number): string[] {
 // Markdown → blocks (line-based, line = block, like Notion paste)
 // ---------------------------------------------------------------------------
 
-export function markdownToBlocks(text: string): BlockJSON[] {
-  const [blocks] = parseLevel(text.split(/\r?\n/), 0, 0);
+/**
+ * Parse markdown into blocks.
+ *
+ * @param text - Markdown source.
+ * @param opts - Plugin projections whose `fromMarkdown` rules are tried first.
+ *
+ * @category Projections
+ */
+export function markdownToBlocks(text: string, opts: MarkdownOptions = {}): BlockJSON[] {
+  const [blocks] = parseLevel(text.split(/\r?\n/), 0, 0, opts);
   return blocks;
+}
+
+/** Every contributed rule, flattened once per parse. */
+function contributedRules(opts: MarkdownOptions): Array<{ type: string; rule: MarkdownRule }> {
+  const out: Array<{ type: string; rule: MarkdownRule }> = [];
+  for (const plugin of opts.plugins?.all() ?? []) {
+    for (const rule of plugin.markdown?.fromMarkdown ?? []) out.push({ type: plugin.schema.type, rule });
+  }
+  return out;
 }
 
 function mk(type: string, props: Record<string, unknown>, text?: Run[], children?: BlockJSON[]): BlockJSON {
@@ -301,8 +351,14 @@ function splitRow(line: string): string[] {
   return cells.map((c) => c.trim());
 }
 
-function parseLevel(lines: string[], pos: number, level: number): [BlockJSON[], number] {
+function parseLevel(
+  lines: string[],
+  pos: number,
+  level: number,
+  opts: MarkdownOptions = {},
+): [BlockJSON[], number] {
   const out: BlockJSON[] = [];
+  const rules = contributedRules(opts);
   while (pos < lines.length) {
     const raw = lines[pos]!;
     if (raw.trim() === '') {
@@ -314,6 +370,20 @@ function parseLevel(lines: string[], pos: number, level: number): [BlockJSON[], 
     // orphan deeper indentation (not under a list item): clamp to this level
     const content = ind > level ? raw.trimStart() : stripLevels(raw, level);
     let m: RegExpExecArray | null;
+
+    // contributed rules first: a plugin owns its own syntax
+    let claimed = false;
+    for (const { rule } of rules) {
+      if (!rule.match.test(content)) continue;
+      const parsed = rule.parse(lines.map((l) => stripLevels(l, level)), pos);
+      if (!parsed) continue;
+      const block = parsed.block as unknown as BlockJSON;
+      out.push({ ...block, id: block.id || uuidv7() });
+      pos += parsed.consumed;
+      claimed = true;
+      break;
+    }
+    if (claimed) continue;
 
     // code fence
     if ((m = /^```(.*)$/.exec(content))) {
@@ -433,7 +503,7 @@ function parseLevel(lines: string[], pos: number, level: number): [BlockJSON[], 
       let j = pos;
       while (j < lines.length && lines[j]!.trim() === '') j++;
       if (j < lines.length && indentLevel(lines[j]!) > level) {
-        const [children, next] = parseLevel(lines, j, level + 1);
+        const [children, next] = parseLevel(lines, j, level + 1, opts);
         if (children.length) item.children = children;
         pos = next;
       }

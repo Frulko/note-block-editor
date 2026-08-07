@@ -70,9 +70,18 @@ describe('source layering', () => {
     return walk(dir);
   };
 
-  /** Real import/export specifiers only — prose mentioning a package is fine. */
+  /**
+   * Real import/export specifiers only.
+   *
+   * Comments are stripped first, which is not fussiness: a doc `@example`
+   * showing how to import the package would otherwise read as the package
+   * importing itself, and an example that cannot show an import is useless.
+   */
+  const stripComments = (source: string): string =>
+    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
   const importsOf = (source: string): string[] =>
-    [...source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!);
+    [...stripComments(source).matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!);
 
   it('core never imports a sibling package', () => {
     for (const file of sourceFiles('core')) {

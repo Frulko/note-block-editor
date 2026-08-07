@@ -1,5 +1,5 @@
 {
-  "name": "@nbe/markdown",
+  "name": "@nbe/blocks-callout",
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
@@ -8,15 +8,18 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./collections": {
-      "types": "./src/collections.ts",
-      "default": "./src/collections.ts"
+    "./dom": {
+      "types": "./src/dom.ts",
+      "default": "./src/dom.ts"
     }
   },
   "dependencies": {
     "@nbe/core": "workspace:*"
   },
-  "devDependencies": {
-    "@nbe/blocks-callout": "workspace:*"
+  "peerDependencies": {
+    "@nbe/dom": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@nbe/dom": { "optional": true }
   }
 }

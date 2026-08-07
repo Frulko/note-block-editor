@@ -96,7 +96,7 @@ signature already matches; this is mostly moving a line. No priority system,
 no contention story — deliberately, until something forces one.
 **Done when:** an editor built without the slash menu does not ship it.
 
-### R5 — projections as contributions
+### R5 — projections as contributions — **done 2026-08-07**
 `BlockProjection { toMarkdown, fromMarkdown, toStaticHtml, fromClipboardHtml }`
 so a block can reach markdown and the static renderer without those packages
 importing `dom`. Unknown types keep their existing honest fallback
@@ -104,11 +104,26 @@ importing `dom`. Unknown types keep their existing honest fallback
 **Done when:** a block type unknown to the projections round-trips lossily and
 *visibly*, and a plugin can make it lossless without touching those packages.
 
-### R6 — extract one real plugin package
+### R6 — extract one real plugin package — **done 2026-08-07**
 `@nbe/blocks-callout` with the §9 subpath split: schema entry (deps `core`),
 `/dom` entry (deps `dom`), `/markdown` entry (deps `markdown`). One package,
 to prove the seams are real. Not a family of them.
 **Done when:** removing it from the array removes it from the bundle.
+
+**Outcome.** `@nbe/blocks-callout` ships with the §9 split: the main entry
+carries the schema and both projections and depends on `core` alone, while
+`/dom` adds the view and takes `@nbe/dom` as an *optional peer*. That is what
+lets `@nbe/markdown` consume the block without ever importing the editor —
+the layering CI enforces, now exercised by a real package rather than asserted.
+
+`@nbe/dom` ships **no** built-in block plugins: `builtinBlocks` is empty, and
+the demo composes `blocks: [callout]` itself. Activation is genuinely an
+import plus an array entry.
+
+R5 and R6 turned out to be one step, not two: wiring the markdown projection
+required the block's DOM-free half to exist as its own module, which is R6.
+Trying to do R5 first would have meant either markdown importing dom, or a
+temporary shim.
 
 **Explicitly not in this track:** a plugin distribution story (registry,
 versioning, sandboxing), a priority/event-bus system, or any rewrite of
