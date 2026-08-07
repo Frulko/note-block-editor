@@ -293,8 +293,8 @@ export class EditorView {
         // same text but foreign markup (highlight spans, style attributes):
         // the model re-render is the canonical cleanup
         this.withObserverPaused(() => {
-          const fresh = renderBlock(this, id);
-          this.blockEl(id)?.replaceWith(fresh);
+          const current = this.blockEl(id);
+          if (current?.isConnected) current.replaceWith(renderBlock(this, id));
         });
         this.syncDomSelection();
       }
@@ -341,9 +341,18 @@ export class EditorView {
       if (id === doc.rootId) {
         this.renderAll();
       } else {
-        const old = this.blockEl(id);
-        if (old) this.withObserverPaused(() => old.replaceWith(renderBlock(this, id)));
-        else this.renderAll(); // ponytail: lost track — full re-render is always correct
+        /*
+         * Looked up *inside* the paused block, not before it. Another writer —
+         * a database view re-rendering itself on a host change — can replace
+         * the same element for the same edit, and a node captured a moment
+         * earlier is then detached: `replaceWith` throws `NotFoundError`, once
+         * per edit. Found by `e2e/database.spec.ts`.
+         */
+        this.withObserverPaused(() => {
+          const old = this.blockEl(id);
+          if (old?.isConnected) old.replaceWith(renderBlock(this, id));
+          else this.renderAll(); // lost track — a full re-render is always correct
+        });
       }
     }
     // only re-assert the DOM caret when the transaction moved the selection —

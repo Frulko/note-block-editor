@@ -881,14 +881,40 @@ export function renderDatabase(view: EditorView, block: Block): HTMLElement {
   return root;
 }
 
-/** Re-render database blocks when the host data changes. */
+/**
+ * Re-render database blocks when the host data changes.
+ *
+ * @remarks
+ * Deferred to a microtask, and that is the fix rather than a smoothing.
+ * Committing a cell notifies the host, which re-renders the block — and
+ * removing the block blurs the input inside it, whose blur handler commits
+ * again and notifies again, *from inside the first re-render*. The outer call
+ * then finishes against a node the inner one already replaced, and
+ * `replaceWith` throws `NotFoundError: the node to be removed is no longer a
+ * child of this node`, once per edit.
+ *
+ * Checking `isConnected` first does not help: the node is valid when checked
+ * and invalidated during the call. Not re-entering is what actually holds, and
+ * it coalesces a burst of changes into one render as a side benefit.
+ *
+ * Found by `e2e/database.spec.ts`, which is why that file exists.
+ */
 export function attachDatabaseBlocks(view: EditorView): () => void {
   const host = view.options.database;
   if (!host) return () => {};
+
+  let scheduled = false;
   return host.onChange(() => {
-    for (const eln of view.content.querySelectorAll<HTMLElement>('.nbe-block.nbe-t-database')) {
-      const id = eln.dataset['blockId'];
-      if (id && view.editor.doc.blocks.has(id)) eln.replaceWith(renderBlock(view, id));
-    }
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      for (const eln of view.content.querySelectorAll<HTMLElement>('.nbe-block.nbe-t-database')) {
+        const id = eln.dataset['blockId'];
+        if (id && eln.isConnected && view.editor.doc.blocks.has(id)) {
+          eln.replaceWith(renderBlock(view, id));
+        }
+      }
+    });
   });
 }
