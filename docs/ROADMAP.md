@@ -583,6 +583,13 @@ framework, no runtime dependency at all):
   to need Xcode at all — `NSTextView` instantiates headlessly and `insertText`
   is the same entry point the input system uses, so the binding is under test
   even though the input stack is not.
+  ~~The document~~ — `DocumentEditor`, the same day: a stack of those surfaces
+  over the CRDT, where a keystroke becomes a `LoroText.update` — a diff, not a
+  replacement, so two people typing in one sentence merge. Tested end to end
+  without a window: type in Swift, another replica sees it, and a *TypeScript*
+  peer reads the result and merges its own edit into it
+  (`collab/test/swift-interop.test.ts`). The three clients now demonstrably
+  share one document.
   **Remaining:** IME composition, the software keyboard, and touch selection.
   Those come from a real input stack and no headless test substitutes for them
   — they are the device matrix, and they are precisely where the D1 evidence

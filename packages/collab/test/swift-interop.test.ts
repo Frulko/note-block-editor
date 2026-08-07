@@ -69,3 +69,40 @@ describe('Swift is a peer, not a viewer', () => {
     expect(texts(swift)).toContain('écrit par Swift');
   });
 });
+
+describe('a keystroke typed in Swift', () => {
+  const TYPED = join(__dirname, '..', '..', '..', 'native', 'swift', 'Tests', 'NbeModelTests', 'swift-typed.loro');
+
+  it('arrives here as an edit, not as a replacement', () => {
+    expect(existsSync(TYPED), 'run `swift test` in native/swift to produce it').toBe(true);
+    const store = new LoroBlockStore();
+    store.import(readFileSync(TYPED));
+
+    /*
+     * The text was "bonjour" and someone typed into the middle of it through
+     * an NSTextView. What arrives is the merged text — and it arrives because
+     * the Swift side wrote through `LoroText.update`, which diffs. Had it
+     * replaced the container, this would still read correctly and would
+     * conflict with any concurrent edit, so the value here is the *shape* of
+     * what crossed, and the Swift suite asserts that directly.
+     */
+    expect(texts(store)).toEqual(['bonjour tapé dans Swift']);
+  });
+
+  it('and an edit made here merges into it', async () => {
+    const swift = new LoroBlockStore();
+    swift.import(readFileSync(TYPED));
+    const web = new LoroBlockStore();
+    web.import(readFileSync(TYPED));
+
+    const [left, right] = loopback();
+    connect(swift, left);
+    connect(web, right);
+
+    const paragraph = [...web.values()].find((block) => block.type === 'paragraph')!;
+    web.set(paragraph.id, { ...paragraph, text: [{ text: 'bonjour tapé dans Swift, puis ici' }] });
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(texts(swift)).toEqual(['bonjour tapé dans Swift, puis ici']);
+  });
+});

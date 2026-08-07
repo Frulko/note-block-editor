@@ -24,7 +24,7 @@ let package = Package(
     targets: [
         .target(name: "NbeModel"),
         .target(name: "NbeSync", dependencies: [.product(name: "Loro", package: "loro-swift"), "NbeModel"]),
-        .target(name: "NbeEditorKit", dependencies: ["NbeModel"]),
+        .target(name: "NbeEditorKit", dependencies: ["NbeModel", "NbeSync"]),
         .testTarget(
             name: "NbeModelTests",
             dependencies: ["NbeModel", "NbeSync", "NbeEditorKit"],
