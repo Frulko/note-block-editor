@@ -21,12 +21,15 @@ const editor = new Editor({ blocks: [starterBlocks, callout] })
 Each step lands green (231 tests today) and is independently revertable. Steps
 are ordered so the risky ones inherit a cleaner base, not the reverse.
 
-### R1 — partition the stylesheet *(mechanical, no TypeScript change)*
+### R1 — partition the stylesheet — **done 2026-08-07** *(mechanical)*
 1628 lines in one file, split by ownership into `reset / tokens / blocks /
 chrome / ui`, re-exported by today's `@nbe/dom/style.css` so no consumer
 changes. Prerequisite for a block plugin owning its own look.
 **Done when:** the import path is unchanged and the rendered pixels are
-identical.
+identical. *Verified by measurement, not inspection: 109 elements × 38
+computed properties, monolith vs split, identical digest — after a sentinel
+rule proved the new CSS was actually being served, without which the first
+comparison passed only because HMR had not applied it.*
 
 ### R2 — finish the UI primitive layer
 `ui/` has floating, menu, tooltip, hover, drag, ghost, upload, icon picker,
@@ -125,6 +128,6 @@ the 14-file measurement makes it the binding constraint on the ecosystem —
 and because Phase 4's vault projection will add a *fourth* projection, which
 is far cheaper to add to a contribution API than to a fifth closed switch.
 
-Order: **R1 → R2 → (S scaffold) → R3 → R4 → R5 → (S reference) → R6**, with
+Order: **~~R1~~ → R2 → ~~(S scaffold)~~ → R3 → R4 → R5 → (S reference) → R6**, with
 Phase 4 starting once the API is stable enough that a storage backend is a
 feature plugin rather than another hardwired `attach*`.

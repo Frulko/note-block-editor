@@ -64,6 +64,20 @@
 > activation is an import plus an array entry, and not importing a block keeps
 > it out of the bundle.
 
+> **Interaction core rebuilt (2026-08-07).** The cornerstone — text selection,
+> caret, keyboard, rubber band, block reordering, overlay dismissal — was six
+> systems negotiating by accident. Measured: five unarbitrated pointer
+> listeners on one surface, three wall-clock coordination windows (500/300/400
+> ms), eight Escape handlers with no precedence, the per-block
+> `contenteditable` decision hardcoded into `leafOf()`, and zero tests.
+> Rebuilt on three primitives — an overlay stack, an `EditableTopology`, and a
+> gesture router — leaving 1 listener, 0 timing windows, 0 unordered Escape
+> handlers, 2 selectable topologies and 51 tests. **D1's unspiked alternative
+> is now a config change**: `singleHostTopology` ships beside the per-block
+> one and the same selection suite runs against both, so the A/B the roadmap
+> wanted is finally cheap. Design and measurements:
+> `docs/design/interaction-core.md`.
+
 > **Presentation site (2026-08-07).** Astro, in `site/`. Chosen over TanStack
 > Start because it renders React, Vue and Svelte islands natively on one page,
 > which is what documenting three framework bindings actually requires — the
