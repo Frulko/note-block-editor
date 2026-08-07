@@ -105,6 +105,15 @@ export function attachGestureRouter(view: EditorView): () => void {
       // a throwing recognizer must not leave the page in gesture state
       console.error('[nbe] gesture end failed', err);
     }
+    // anything that must wait for a gesture to settle listens here instead of
+    // guessing with a timeout — the floating format toolbar is the reason
+    for (const cb of [...view.gestureEndListeners]) {
+      try {
+        cb(active?.name ?? '', committed);
+      } catch (err) {
+        console.error('[nbe] gesture end listener failed', err);
+      }
+    }
   };
 
   const onMove = (e: PointerEvent) => {

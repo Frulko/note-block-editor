@@ -305,12 +305,17 @@ export function attachSelectionToolbar(view: EditorView): () => void {
 
   const update = () => {
     if (suppressed) return;
+    // never float over a selection still being dragged: the router says when
+    // one is in flight, which is what the old mouseup + setTimeout(0) guessed
+    if (view.gesture) return hide();
     if (range()) show();
     else hide();
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && visible && !suppressed) hide();
+    // Escape is not handled here: the keymap escalates a text selection to a
+    // block selection, and this bar hides because there is no range left. One
+    // link in the chain, not a competing handler.
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && range()) {
       e.preventDefault();
       const r = range()!;
@@ -323,9 +328,8 @@ export function attachSelectionToolbar(view: EditorView): () => void {
 
   const unsubSelection = editor.onSelection(() => update());
   const unsubChange = editor.on(() => update());
-  // mouse-driven selections settle on mouseup; selectionchange fires mid-drag
-  const onMouseUp = () => setTimeout(update, 0);
-  document.addEventListener("mouseup", onMouseUp);
+  // mouse-driven selections settle when the gesture ends, not on a timer
+  const unsubGesture = view.onGestureEnd(() => update());
   document.addEventListener("scroll", update, { capture: true, passive: true });
   window.addEventListener("resize", update);
   view.content.addEventListener("keydown", onKeyDown);
@@ -333,7 +337,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
   return () => {
     unsubSelection();
     unsubChange();
-    document.removeEventListener("mouseup", onMouseUp);
+    unsubGesture();
     document.removeEventListener("scroll", update, { capture: true });
     window.removeEventListener("resize", update);
     view.content.removeEventListener("keydown", onKeyDown);

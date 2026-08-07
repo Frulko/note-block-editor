@@ -73,6 +73,8 @@ export class EditorView {
    * so who wins a contested press is data rather than attach order.
    */
   readonly recognizers: GestureRecognizer[];
+  /** Notified once a pointer gesture has fully settled. See `onGestureEnd`. */
+  readonly gestureEndListeners = new Set<(name: string, committed: boolean) => void>();
   /**
    * Where the caret last was in text. Opening a menu or selecting a block
    * replaces the live selection, so anything that needs to act "where the user
@@ -178,6 +180,12 @@ export class EditorView {
   destroy(): void {
     for (const un of this.unbinders) un();
     this.content.remove();
+  }
+
+  /** Run `cb` after every pointer gesture settles. Returns an unsubscribe. */
+  onGestureEnd(cb: (name: string, committed: boolean) => void): () => void {
+    this.gestureEndListeners.add(cb);
+    return () => this.gestureEndListeners.delete(cb);
   }
 
   blockEl(id: string): HTMLElement | null {

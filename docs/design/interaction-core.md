@@ -194,9 +194,22 @@ top overlay → active gesture → block selection → text selection → nothin
 |---|---|---|
 | pointer listeners on the content | 5, unarbitrated | 1 router |
 | wall-clock coordination windows | 3 | 0 |
-| Escape handlers with no precedence | 8 | stack → router → keymap |
+| Escape handlers with no precedence | 8 | 0 |
 | topologies the code admits | 1, hardcoded | 2, selectable |
 | tests on the interaction core | 0 | 51 |
 
 Escape now walks: top overlay → active gesture → block selection → text
 selection → nothing, each link consuming the key so the next never sees it.
+
+Seven `Escape` sites remain, but none of them compete: four are the chain
+links above, and three are local — the handle drag's own session, the link
+card's input, and the database's inline edit (which declares
+`data-nbe-escape-self` so the stack yields to it).
+
+6. ~~The floating format toolbar.~~ **Done.** It had the same two faults the
+   router was built to remove: a `mouseup` listener with `setTimeout(update, 0)`
+   to guess when a mouse selection had settled, and its own `Escape` handler
+   outside the chain. It now hides while `view.gesture` is in flight and
+   updates on `view.onGestureEnd`, and it no longer touches Escape — the keymap
+   escalates the text selection to a block selection, and the bar disappears
+   because there is no range left. A consequence, not a second handler.
