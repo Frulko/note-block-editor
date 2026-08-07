@@ -1,0 +1,401 @@
+/* ==========================================================================
+   The database views (table/board/list/gallery). A feature's own stylesheet,
+   sitting here until the feature becomes a plugin.
+   ========================================================================== */
+
+/* --- database (table view) --- */
+
+.nbe-db {
+  margin: 6px 0;
+  font-size: 14px;
+}
+.nbe-db-missing {
+  color: var(--nbe-text-light);
+  background: rgb(var(--nbe-ink-warm) / 0.1);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.nbe-db-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 6px;
+}
+.nbe-db-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.nbe-db-spacer {
+  flex: 1;
+}
+.nbe-db-tool {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: var(--nbe-text-light);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-db-tool:hover {
+  background: var(--nbe-hover-strong);
+}
+.nbe-db-table {
+  border-top: 1px solid rgb(var(--nbe-ink) / 0.12);
+  overflow-x: auto;
+}
+.nbe-db-row {
+  display: flex;
+  border-bottom: 1px solid var(--nbe-border);
+  min-height: 33px;
+}
+.nbe-db-cell {
+  flex: 1;
+  min-width: 110px;
+  padding: 6px 8px;
+  border-right: 1px solid var(--nbe-hover);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nbe-db-titlecol {
+  flex: 1.6;
+  min-width: 160px;
+}
+.nbe-db-head .nbe-db-cell {
+  color: var(--nbe-text-light);
+  font-size: 13px;
+  user-select: none;
+}
+.nbe-db-headcell {
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-db-headcell:hover {
+  background: rgb(var(--nbe-ink) / 0.05);
+}
+.nbe-db-titlecell {
+  cursor: pointer;
+  font-weight: 500;
+}
+.nbe-db-titlecell:hover {
+  background: rgb(var(--nbe-ink) / 0.05);
+}
+.nbe-db-editable {
+  cursor: text;
+}
+.nbe-db-editable:hover {
+  background: rgb(var(--nbe-ink) / 0.04);
+}
+.nbe-db-addprop,
+.nbe-db-rowmenu {
+  flex: 0 0 32px;
+  min-width: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--nbe-text-light);
+  font: inherit;
+  justify-content: center;
+}
+.nbe-db-addprop:hover,
+.nbe-db-rowmenu:hover {
+  background: var(--nbe-hover);
+}
+.nbe-db-newrow {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--nbe-text-light);
+  padding: 7px 8px;
+  cursor: pointer;
+}
+.nbe-db-newrow:hover {
+  background: rgb(var(--nbe-ink) / 0.04);
+}
+.nbe-db-input {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid rgb(var(--nbe-accent-rgb) / 0.4);
+  border-radius: 3px;
+  padding: 2px 5px;
+  outline: none;
+  width: 100%;
+  min-width: 60px;
+}
+.nbe-db-date {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.nbe-db-selectbtn {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: rgb(var(--nbe-ink-warm) / 0.15);
+  border-radius: 3px;
+  padding: 1px 8px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nbe-db-filter {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+}
+.nbe-db-filter select {
+  font: inherit;
+  font-size: 13px;
+  max-width: 110px;
+}
+.nbe-db-filtermenu {
+  min-width: 340px;
+  max-width: 400px;
+}
+.nbe-db-x {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--nbe-text-light);
+  font-size: 12px;
+  padding: 0 4px;
+}
+.nbe-db-x:hover {
+  color: var(--nbe-danger);
+}
+
+/* layout switcher */
+.nbe-db-layouts {
+  display: flex;
+  gap: 2px;
+  margin-left: 10px;
+}
+.nbe-db-layout {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--nbe-text-light);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 100ms ease-in, color 100ms ease-in;
+}
+.nbe-db-layout:hover {
+  background: var(--nbe-hover);
+}
+.nbe-db-layout.nbe-active {
+  background: var(--nbe-border);
+  color: var(--nbe-text);
+  font-weight: 500;
+}
+.nbe-db-tool.nbe-active {
+  color: var(--nbe-accent);
+}
+.nbe-db-empty {
+  padding: 10px 8px;
+  color: var(--nbe-text-light);
+  font-size: 13px;
+}
+
+/* groups */
+.nbe-db-groupheader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 6px;
+  border-bottom: 1px solid var(--nbe-border);
+}
+.nbe-db-grouplabel {
+  font-weight: 600;
+  font-size: 13px;
+}
+.nbe-db-groupcount {
+  font-size: 12px;
+  color: var(--nbe-text-light);
+  background: rgb(var(--nbe-ink-warm) / 0.15);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+
+/* board */
+.nbe-db-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  align-items: flex-start;
+}
+.nbe-db-col {
+  flex: 0 0 240px;
+  background: var(--nbe-surface-sunken);
+  border-radius: 6px;
+  padding: 6px;
+  transition: background 120ms ease-out;
+}
+.nbe-db-coltarget {
+  background: rgb(var(--nbe-accent-rgb) / 0.1);
+  outline: 2px solid rgb(var(--nbe-accent-rgb) / 0.35);
+}
+.nbe-db-colhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 8px;
+}
+.nbe-db-colbody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 12px;
+}
+.nbe-db-card {
+  background: var(--nbe-surface);
+  border-radius: 5px;
+  box-shadow:
+    rgb(var(--nbe-shadow-rgb) / 0.04) 0 0 0 1px,
+    rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
+  padding: 8px 10px;
+  cursor: grab;
+  transition: box-shadow 120ms ease-out, opacity 120ms ease-out;
+}
+.nbe-db-card:hover {
+  box-shadow:
+    rgb(var(--nbe-shadow-rgb) / 0.08) 0 0 0 1px,
+    rgb(var(--nbe-shadow-rgb) / 0.06) 0 3px 6px;
+}
+.nbe-db-dragging {
+  opacity: 0.45;
+}
+.nbe-db-cardtitle {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.nbe-db-cardprop {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--nbe-text-light);
+}
+.nbe-db-cardpropname::after {
+  content: ':';
+}
+
+/* gallery — the board's card in a responsive grid, with an image strip */
+.nbe-db-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 10px 0;
+}
+.nbe-db-gallery .nbe-db-card {
+  cursor: pointer; /* gallery cards open, they don't drag between groups */
+  padding: 0 0 8px;
+  overflow: hidden;
+}
+.nbe-db-gallery .nbe-db-cardtitle,
+.nbe-db-gallery .nbe-db-cardprop {
+  padding: 0 10px;
+}
+.nbe-db-gallery .nbe-db-cardtitle {
+  margin-top: 8px;
+}
+.nbe-db-cardcover {
+  aspect-ratio: 3 / 2;
+  background: var(--nbe-hover);
+}
+.nbe-db-cardcover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* no image property to draw from: a flat tint reads as "no cover", not broken */
+.nbe-db-cardcover-empty {
+  aspect-ratio: 5 / 2;
+}
+
+/* list */
+.nbe-db-list {
+  border-top: 1px solid rgb(var(--nbe-ink) / 0.12);
+}
+.nbe-db-listitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--nbe-hover);
+}
+.nbe-db-listtitle {
+  font-weight: 500;
+  cursor: pointer;
+}
+.nbe-db-listtitle:hover {
+  text-decoration: underline;
+}
+.nbe-db-listprop {
+  font-size: 12px;
+  color: var(--nbe-text-light);
+  background: rgb(var(--nbe-ink-warm) / 0.12);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+/* computed + formula editing */
+.nbe-db-computed {
+  color: var(--nbe-text-light);
+  font-variant-numeric: tabular-nums;
+  background: rgb(var(--nbe-ink-warm) / 0.05);
+}
+.nbe-db-formula {
+  padding: 6px 8px;
+}
+.nbe-db-formulainput {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: 4px;
+  padding: 5px 6px;
+  outline: none;
+  resize: vertical;
+}
+.nbe-db-formulainput:focus {
+  border-color: var(--nbe-accent);
+}
+.nbe-db-formulastatus {
+  font-size: 11px;
+  color: var(--nbe-success);
+  padding: 3px 1px 0;
+  min-height: 14px;
+}
+.nbe-db-formulaerror {
+  color: var(--nbe-danger);
+}
+.nbe-db-formulahelp {
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgb(var(--nbe-ink) / 0.4);
+  padding-top: 3px;
+}
+
+.nbe-db-url {
+  color: var(--nbe-accent);
+  text-decoration: none;
+}
+.nbe-db-url:hover {
+  text-decoration: underline;
+}

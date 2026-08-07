@@ -1,0 +1,297 @@
+/* ==========================================================================
+   Editor chrome — hover gutter, drop guides, selection overlays, floating
+   toolbars, drag ghost. Attached to an editor, owned by no block.
+   ========================================================================== */
+
+/* --- block selection --- */
+
+.nbe-selected {
+  background: var(--nbe-accent-soft);
+}
+.nbe-blocksel ::selection {
+  background: transparent;
+}
+.nbe-editor:focus {
+  outline: none;
+}
+
+/* --- per-block floating toolbar --- */
+
+.nbe-blocktoolbar {
+  position: absolute;
+  z-index: 110;
+  display: flex;
+  gap: 1px;
+  background: var(--nbe-surface);
+  border-radius: var(--nbe-radius);
+  padding: 3px;
+  box-shadow: var(--nbe-shadow-sm), rgb(var(--nbe-shadow-rgb) / 0.08) 0 3px 8px;
+  animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
+}
+.nbe-blocktoolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--nbe-radius-sm);
+  color: var(--nbe-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-blocktoolbar-btn:hover {
+  background: var(--nbe-hover);
+  color: var(--nbe-text);
+}
+.nbe-blocktoolbar-btn.nbe-active {
+  color: var(--nbe-accent);
+}
+.nbe-blocktoolbar-menu {
+  min-width: 200px;
+}
+
+/* --- link hover card --- */
+
+.nbe-linkcard {
+  position: absolute;
+  z-index: 115;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--nbe-surface);
+  border-radius: var(--nbe-radius);
+  padding: 4px 5px;
+  box-shadow: var(--nbe-shadow-sm), rgb(var(--nbe-shadow-rgb) / 0.08) 0 3px 8px;
+  font-size: 13px;
+  max-width: 380px;
+  animation: nbe-fade-in var(--nbe-normal) var(--nbe-ease);
+}
+.nbe-linkcard-url {
+  color: var(--nbe-accent);
+  text-decoration: none;
+  padding: 2px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.nbe-linkcard-url:hover {
+  text-decoration: underline;
+}
+.nbe-linkcard-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--nbe-radius-sm);
+  color: var(--nbe-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-linkcard-btn:hover {
+  background: var(--nbe-hover);
+  color: var(--nbe-text);
+}
+.nbe-linkcard-form {
+  padding: 2px;
+  min-width: 260px;
+}
+
+/* --- hover controls --- */
+
+.nbe-controls {
+  position: absolute;
+  display: flex;
+  gap: 0;
+  z-index: 50;
+  animation: nbe-fade-in 120ms ease-out;
+}
+@keyframes nbe-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.nbe-ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--nbe-radius);
+  color: var(--nbe-text-faint);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-ctrl-btn:hover {
+  background: var(--nbe-hover-strong);
+  color: var(--nbe-text-muted);
+}
+.nbe-handle {
+  cursor: grab;
+}
+.nbe-icon {
+  display: block;
+  flex-shrink: 0;
+}
+.nbe-drag-active,
+.nbe-drag-active * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+.nbe-controls.nbe-ctrl-hidden {
+  visibility: hidden;
+}
+
+/* --- drag ghost + drop guide --- */
+
+.nbe-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 200;
+  pointer-events: none;
+  max-width: 480px;
+  opacity: 0.85;
+  filter: drop-shadow(rgb(var(--nbe-shadow-rgb) / 0.16) 0 6px 14px);
+  will-change: transform;
+}
+.nbe-ghost-layer {
+  background: var(--nbe-surface);
+  border-radius: 4px;
+  padding: 2px 6px;
+  overflow: hidden;
+  max-height: 90px;
+}
+.nbe-ghost-layer + .nbe-ghost-layer {
+  margin-top: -60%;
+  opacity: 0.5;
+  transform: rotate(-1.5deg);
+}
+.nbe-ghost-layer + .nbe-ghost-layer + .nbe-ghost-layer {
+  opacity: 0.3;
+  transform: rotate(2deg);
+}
+.nbe-ghost-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  background: var(--nbe-accent, var(--nbe-accent));
+  color: var(--nbe-surface);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 7px;
+  box-shadow: 0 0 0 2px var(--nbe-surface);
+}
+.nbe-drag-source {
+  opacity: 0.4;
+}
+.nbe-drop-guide {
+  position: absolute;
+  z-index: 150;
+  display: none;
+  background: var(--nbe-accent, rgb(var(--nbe-accent-rgb)));
+  border-radius: 2px;
+  pointer-events: none;
+  transition: top 60ms linear, left 60ms linear, width 60ms linear, height 60ms linear;
+}
+/* a side drop creates columns — show the band it would occupy, not a hairline */
+.nbe-drop-guide.nbe-guide-side {
+  background: rgb(var(--nbe-accent-rgb) / 0.16);
+  border: 2px solid var(--nbe-accent, rgb(var(--nbe-accent-rgb)));
+  border-radius: var(--nbe-radius);
+}
+
+/* --- selection toolbar --- */
+
+.nbe-seltoolbar {
+  position: absolute;
+  z-index: 120;
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  background: var(--nbe-inverse-surface);
+  border-radius: var(--nbe-radius-lg);
+  padding: 3px;
+  box-shadow: rgb(var(--nbe-shadow-rgb) / 0.1) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.2) 0 3px 8px;
+  animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
+  user-select: none;
+}
+.nbe-seltoolbar-btn {
+  font: inherit;
+  font-size: 14px;
+  min-width: 26px;
+  border: none;
+  background: transparent;
+  color: var(--nbe-inverse-text);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background 90ms ease-in, color 90ms ease-in;
+}
+.nbe-seltoolbar-btn:hover {
+  background: var(--nbe-inverse-hover);
+}
+.nbe-seltoolbar-btn.nbe-active {
+  color: var(--nbe-inverse-accent);
+}
+.nbe-seltoolbar-turn {
+  font-size: 13px;
+  white-space: nowrap;
+  padding: 4px 8px;
+}
+.nbe-fmt-bold {
+  font-weight: 700;
+}
+.nbe-fmt-italic {
+  font-style: italic;
+  font-family: Georgia, serif;
+  padding: 4px 10px;
+}
+.nbe-fmt-underline {
+  text-decoration: underline;
+}
+.nbe-fmt-strike {
+  text-decoration: line-through;
+}
+.nbe-fmt-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.nbe-seltoolbar-sep {
+  width: 1px;
+  background: var(--nbe-inverse-hover);
+  margin: 3px 2px;
+}
+.nbe-seltoolbar-linkform {
+  padding: 6px 8px;
+  min-width: 220px;
+}
+.nbe-seltoolbar-menu {
+  min-width: 240px;
+}
+
+/* --- rubber-band selection --- */
+
+.nbe-rubberband {
+  position: fixed;
+  z-index: 40;
+  background: rgb(var(--nbe-accent-rgb) / 0.08);
+  border: 1px solid rgb(var(--nbe-accent-rgb) / 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}

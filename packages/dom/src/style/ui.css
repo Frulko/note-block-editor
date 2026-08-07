@@ -1,0 +1,254 @@
+/* ==========================================================================
+   The UI primitive layer that dom/src/ui/ renders: menus, popovers, tooltips,
+   the drop zone, the icon picker. Reusable and block-agnostic.
+   ========================================================================== */
+
+/* --- drop zone (shared by image blocks and the icon picker) --- */
+
+.nbe-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgb(var(--nbe-ink-warm) / 0.08);
+  border: 1px dashed rgb(var(--nbe-ink) / 0.18);
+  border-radius: 5px;
+  padding: 8px 10px;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+.nbe-dropzone-active {
+  background: rgb(var(--nbe-accent-rgb) / 0.08);
+  border-color: rgb(var(--nbe-accent-rgb) / 0.5);
+}
+.nbe-dropzone-btn {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--nbe-border-strong);
+  background: var(--nbe-surface);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 100ms ease-in;
+}
+.nbe-dropzone-btn:hover {
+  background: rgb(var(--nbe-ink) / 0.05);
+}
+.nbe-dropzone-url {
+  font: inherit;
+  font-size: 13px;
+  flex: 1;
+  min-width: 80px;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--nbe-text);
+}
+
+/* --- icon picker --- */
+
+.nbe-iconpicker {
+  width: 300px;
+  max-width: 300px;
+  padding: 0;
+  overflow: hidden;
+}
+.nbe-iconpicker-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--nbe-border);
+}
+.nbe-iconpicker-tab {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: rgb(var(--nbe-ink) / 0.6);
+  padding: 4px 9px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+.nbe-iconpicker-tab.nbe-active {
+  background: rgb(var(--nbe-ink) / 0.07);
+  color: rgb(var(--nbe-ink));
+  font-weight: 500;
+}
+.nbe-iconpicker-body {
+  padding: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.nbe-iconpicker-search {
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: 4px;
+  padding: 5px 8px;
+  outline: none;
+  margin-bottom: 6px;
+}
+.nbe-iconpicker-search:focus {
+  border-color: var(--nbe-accent, var(--nbe-accent));
+}
+.nbe-iconpicker-grouplabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgb(var(--nbe-ink) / 0.45);
+  padding: 6px 2px 3px;
+}
+.nbe-iconpicker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+.nbe-iconpicker-emoji {
+  font-size: 18px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: background 80ms ease-in;
+}
+.nbe-iconpicker-emoji:hover {
+  background: var(--nbe-border);
+}
+.nbe-iconpicker-emoji.nbe-active {
+  background: rgb(var(--nbe-accent-rgb) / 0.16);
+}
+.nbe-iconpicker-empty,
+.nbe-iconpicker-hint {
+  font-size: 11px;
+  color: rgb(var(--nbe-ink) / 0.45);
+  padding: 8px 2px 2px;
+  line-height: 1.4;
+}
+.nbe-iconpicker-remove {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  border-top: 1px solid var(--nbe-border);
+  background: transparent;
+  color: rgb(var(--nbe-ink) / 0.6);
+  padding: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+.nbe-iconpicker-remove:hover {
+  background: rgb(var(--nbe-danger-rgb) / 0.07);
+  color: var(--nbe-danger);
+}
+
+/* --- menus (slash + block) --- */
+
+.nbe-menu {
+  position: absolute;
+  z-index: 100;
+  min-width: 240px;
+  max-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--nbe-surface);
+  border-radius: 8px;
+  box-shadow: var(--nbe-shadow);
+  padding: 6px 4px;
+  font-size: 14px;
+  animation: nbe-menu-in var(--nbe-normal) var(--nbe-ease);
+}
+@keyframes nbe-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.nbe-block-menu {
+  max-height: 420px;
+}
+.nbe-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--nbe-text, rgb(var(--nbe-ink)));
+  border-radius: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.nbe-menu-item:hover,
+.nbe-menu-item.nbe-active {
+  background: var(--nbe-hover-strong);
+}
+.nbe-menu-icon {
+  width: 22px;
+  text-align: center;
+  font-size: 13px;
+  color: rgb(var(--nbe-ink) / 0.6);
+  flex-shrink: 0;
+}
+.nbe-menu-hint {
+  margin-left: auto;
+  color: rgb(var(--nbe-ink) / 0.4);
+  font-size: 12px;
+}
+.nbe-menu-section {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgb(var(--nbe-ink) / 0.5);
+  user-select: none;
+}
+.nbe-menu-swatches {
+  display: flex;
+  gap: 4px;
+  padding: 2px 8px 6px;
+}
+.nbe-swatch {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: 4px;
+  background: var(--nbe-surface);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-swatch:hover {
+  border-color: rgb(var(--nbe-ink) / 0.4);
+}
+.nbe-swatch.nbe-active {
+  outline: 2px solid var(--nbe-accent, var(--nbe-accent));
+  outline-offset: 1px;
+}
+
+/* --- tooltip --- */
+
+.nbe-tooltip {
+  position: absolute;
+  z-index: 300;
+  background: var(--nbe-inverse-surface);
+  color: var(--nbe-inverse-text);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-line;
+  border-radius: 6px;
+  padding: 5px 8px;
+  pointer-events: none;
+  max-width: 220px;
+  animation: nbe-fade-in 120ms ease-out;
+}

@@ -1,0 +1,319 @@
+/* ==========================================================================
+   Per block type. Everything in this file is a candidate to move into its own
+   block plugin; this file emptying itself is the test of whether the extraction
+   is real (docs/design/plugin-refactor-plan.md, R3/R6).
+   ========================================================================== */
+
+/* --- block types --- */
+
+.nbe-t-heading .nbe-leaf {
+  font-weight: 600;
+}
+.nbe-h1 {
+  font-size: 1.875em;
+  line-height: 1.3;
+  margin-top: 1.1em;
+}
+.nbe-h2 {
+  font-size: 1.5em;
+  line-height: 1.3;
+  margin-top: 0.9em;
+}
+.nbe-h3 {
+  font-size: 1.25em;
+  line-height: 1.3;
+  margin-top: 0.7em;
+}
+.nbe-h1:first-child,
+.nbe-h2:first-child,
+.nbe-h3:first-child {
+  margin-top: 0;
+}
+
+.nbe-gutter {
+  width: 24px;
+  flex-shrink: 0;
+  text-align: center;
+  user-select: none;
+}
+.nbe-bullet {
+  font-size: 1.1em;
+}
+.nbe-number {
+  font-variant-numeric: tabular-nums;
+  padding-right: 4px;
+}
+
+.nbe-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 4px 8px 0 2px;
+  flex-shrink: 0;
+  appearance: none;
+  border: 1.4px solid var(--nbe-text);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: background 120ms ease-in, border-color 120ms ease-in;
+}
+.nbe-checked > .nbe-row > .nbe-checkbox {
+  background: var(--nbe-accent);
+  border-color: var(--nbe-accent);
+}
+.nbe-checked > .nbe-row > .nbe-checkbox::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--nbe-on-accent);
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+.nbe-checked > .nbe-row > .nbe-leaf {
+  text-decoration: line-through;
+  color: var(--nbe-text-light);
+  transition: color 200ms ease-out;
+}
+
+.nbe-toggle-arrow {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.7em;
+  color: var(--nbe-text);
+  border-radius: 4px;
+  transition: transform 200ms ease-out, background 100ms ease-in;
+  padding: 0;
+}
+.nbe-toggle-arrow:hover {
+  background: var(--nbe-hover-strong);
+}
+.nbe-toggle-arrow.nbe-open {
+  transform: rotate(90deg);
+}
+
+.nbe-t-quote {
+  border-left: 3px solid currentColor;
+  padding-left: 14px;
+  margin: 4px 0;
+}
+
+.nbe-t-code {
+  background: var(--nbe-code-bg);
+  border-radius: 4px;
+  padding: 16px;
+  margin: 4px 0;
+}
+.nbe-t-code .nbe-leaf {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+.nbe-t-divider {
+  padding: 6px 2px;
+  cursor: default;
+}
+.nbe-divider-line {
+  width: 100%;
+  border-top: 1px solid var(--nbe-border-strong);
+}
+
+.nbe-children {
+  margin-left: 24px;
+}
+
+/* --- columns --- */
+
+.nbe-t-column_list {
+  display: flex;
+  gap: 24px;
+  padding: 3px 0;
+}
+.nbe-t-column {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+}
+
+/* --- table --- */
+
+.nbe-t-table {
+  display: grid;
+  /* grid-template-columns comes from render.ts (columnWidths or equal fractions) */
+  margin: 4px 0;
+  overflow-x: auto;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: 3px;
+  /* cell borders are drawn on the top/left edges only, so the outer border
+     stays single-width instead of doubling up */
+  border-right: 0;
+  border-bottom: 0;
+}
+/* rows are transparent to the grid: their cells become the grid items */
+.nbe-t-table_row {
+  display: contents;
+}
+.nbe-t-table_cell {
+  min-width: 0;
+  padding: 6px 9px;
+  border-right: 1px solid var(--nbe-border-strong);
+  border-bottom: 1px solid var(--nbe-border-strong);
+}
+.nbe-t-table_cell .nbe-leaf {
+  min-height: 1.5em;
+}
+/* the first row is the header when headerRow is on */
+.nbe-table-header > .nbe-t-table_row:first-child > .nbe-t-table_cell {
+  background: var(--nbe-hover);
+  font-weight: 500;
+}
+
+/* void blocks (no caret to place) are grabbed, not edited */
+.nbe-t-image,
+.nbe-t-divider,
+.nbe-t-link_to_page {
+  cursor: grab;
+}
+.nbe-selected {
+  cursor: grab;
+}
+.nbe-drag-active .nbe-t-image,
+.nbe-drag-active .nbe-selected {
+  cursor: grabbing;
+}
+
+/* --- callout --- */
+
+.nbe-t-callout {
+  /* the default tint is the palette's gray, so it follows the theme like any
+     tint the user picks instead of staying light on a dark page */
+  background: var(--nbe-color-gray-bg);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 4px 0;
+}
+.nbe-callout-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  user-select: none;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 100ms ease-in;
+}
+.nbe-callout-icon:hover {
+  background: var(--nbe-hover-strong);
+}
+.nbe-callout-image {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+  margin: 0 auto;
+}
+
+/* --- image --- */
+
+.nbe-figure {
+  margin: 0;
+  max-width: 100%;
+}
+.nbe-align-center .nbe-figure {
+  margin-inline: auto;
+}
+.nbe-align-right .nbe-figure {
+  margin-inline-start: auto;
+}
+.nbe-image {
+  max-width: 100%;
+  width: 100%;
+  border-radius: var(--nbe-radius);
+  display: block;
+}
+.nbe-figcaption {
+  font-size: 13px;
+  color: var(--nbe-text-light);
+  padding: 5px 2px 0;
+}
+
+/* --- page link --- */
+
+.nbe-t-link_to_page {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 100ms ease-in;
+}
+.nbe-t-link_to_page:hover {
+  background: var(--nbe-hover);
+}
+.nbe-page-link-title {
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--nbe-ink) / 0.25);
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+/* --- inline marks --- */
+
+.nbe-m-bold {
+  font-weight: 600;
+}
+.nbe-m-italic {
+  font-style: italic;
+}
+.nbe-m-underline {
+  text-decoration: underline;
+}
+.nbe-m-strike {
+  text-decoration: line-through;
+}
+.nbe-m-underline.nbe-m-strike {
+  text-decoration: underline line-through;
+}
+.nbe-m-code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--nbe-code-bg);
+  color: var(--nbe-code-text);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+}
+a.nbe-m-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--nbe-ink) / 0.4);
+  transition: text-decoration-color 100ms ease-in;
+  cursor: pointer;
+}
+a.nbe-m-link:hover {
+  text-decoration-color: var(--nbe-text);
+}
+
+/* --- block tint --- */
+
+.nbe-tinted {
+  border-radius: 4px;
+}
+/* breathing room only for blocks with no geometry of their own — tinting must
+   never move content, and callout/code/quote already carry their own padding */
+.nbe-tinted:not(.nbe-t-callout, .nbe-t-code, .nbe-t-quote) {
+  padding-left: 6px;
+  padding-right: 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+}
