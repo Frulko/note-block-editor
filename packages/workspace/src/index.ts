@@ -152,6 +152,28 @@ export function newPage(title = ''): BlockJSON {
   };
 }
 
+/**
+ * A tree of pages over a storage adapter.
+ *
+ * @remarks
+ * The notes application's model. Load it, and the tree is derived from the
+ * `sub_page` blocks inside each page — nothing about the hierarchy is stored
+ * beside the documents, so a workspace rebuilt from a folder of files is the
+ * same workspace.
+ *
+ * @example
+ * ```ts
+ * import { Workspace, memoryStorage } from '@nbe/workspace'
+ *
+ * const workspace = new Workspace(memoryStorage())
+ * await workspace.load()
+ * const projects = await workspace.createPage({ title: 'Projets' })
+ * await workspace.createPage({ parentId: projects, title: 'Éditeur' })
+ * workspace.node(projects)?.children // → [the child's id]
+ * ```
+ *
+ * @category Workspace
+ */
 export class Workspace {
   private docs = new Map<string, BlockJSON>();
   private nodes = new Map<string, PageNode>();

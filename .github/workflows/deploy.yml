@@ -3,6 +3,9 @@ name: CI & Deploy site
 on:
   push:
     branches: [main]
+  # every branch and every proposal is checked, not only what already landed:
+  # a gate that runs after merging is a report, not a gate
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -25,7 +28,20 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
       - run: pnpm test
+      # the editor's own faults have all been invisible to the model — a
+      # painted-transparent drop indicator, a dead block-mode key contract —
+      # so the browser suite is a gate rather than something run by hand
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - name: Upload failing browser traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
       - run: pnpm docs:api
       - run: pnpm --filter site build
         env:
@@ -36,6 +52,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

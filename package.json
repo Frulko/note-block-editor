@@ -25,6 +25,7 @@
     "typedoc-plugin-missing-exports": "^4.1.4",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0",
-    "vue": "^3.5.41"
+    "vue": "^3.5.41",
+    "tsx": "^4.20.6"
   }
 }

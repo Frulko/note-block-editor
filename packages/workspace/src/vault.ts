@@ -186,7 +186,7 @@ function stemOf(path: string): string {
  * this format exists to allow.
  *
  * @returns Page documents, each carrying `sub_page` blocks for its children —
- * ready to hand to a {@link WorkspaceStorage} one at a time.
+ * ready to hand to a `WorkspaceStorage` one at a time.
  */
 export function importVault(files: VaultFile[]): BlockJSON[] {
   const markdown = files.filter((f) => /\.md$/i.test(f.path) && typeof f.text === 'string');

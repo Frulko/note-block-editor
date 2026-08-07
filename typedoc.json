@@ -4,7 +4,14 @@
     "packages/core/src/index.ts",
     "packages/dom/src/index.ts",
     "packages/markdown/src/index.ts",
-    "packages/static-renderer/src/index.ts"
+    "packages/static-renderer/src/index.ts",
+    "packages/workspace/src/index.ts",
+    "packages/workspace/src/storage.ts",
+    "packages/workspace/src/vault.ts",
+    "packages/workspace/src/notion.ts",
+    "packages/workspace/src/enhanced.ts",
+    "packages/workspace/src/collection.ts",
+    "packages/cli/src/index.ts"
   ],
   "entryPointStrategy": "resolve",
   "tsconfig": "./tsconfig.json",

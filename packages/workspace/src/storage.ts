@@ -16,7 +16,7 @@ import type { BlockJSON } from '@nbe/core';
  * atomically at all without rewriting every page on every keystroke.
  *
  * There is deliberately no `query`, no `search`, no `listChildren`. Those are
- * derived (§10 L2) and live in {@link Workspace}, so a new adapter is four
+ * derived (§10 L2) and live in `Workspace`, so a new adapter is four
  * methods rather than a database.
  *
  * @category Storage

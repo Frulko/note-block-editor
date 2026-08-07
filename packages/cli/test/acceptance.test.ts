@@ -30,7 +30,7 @@ afterEach(() => {
 /** Run the CLI the way a user would, and return its output. */
 function nbe(...args: string[]): { code: number; out: string; err: string } {
   try {
-    const out = execFileSync('npx', ['tsx', join(import.meta.dirname, '..', 'src', 'bin.ts'), '--root', root, ...args], {
+    const out = execFileSync('pnpm', ['exec', 'tsx', join(import.meta.dirname, '..', 'src', 'bin.ts'), '--root', root, ...args], {
       encoding: 'utf8',
       stdio: 'pipe',
     });
