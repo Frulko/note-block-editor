@@ -83,6 +83,27 @@
 > which is what documenting three framework bindings actually requires — the
 > alternative turns two of the three integrations into screenshots.
 
+> **Storage research done, AQ#1 resolved for the browser (2026-08-07).**
+> `docs/research/browser-storage.md`. IndexedDB is the browser's L0 — the only
+> universally available store that is transactional, which is the browser's
+> temp+rename for free. OPFS is the large-binary tier and the future home of a
+> WASM-SQLite L2, not L0. **File System Access cannot be the storage promise**:
+> Firefox's standards position is "we consider this harmful", WebKit's is
+> "oppose", closed 2023 — stated positions, not backlog. On Safari and Firefox,
+> and so on all of iOS, "your files in a folder" is a download button, and the
+> product copy must say so.
+>
+> The precedent that settles it: **Logseq split its project over this
+> question** — the file-as-truth product was forked, master is now a database
+> with markdown as a derived mirror. Notion's web client converged
+> independently on the same stack, after concurrent multi-tab writes corrupted
+> its database in production. Two teams tried files-as-truth first and both
+> arrived at the L0/L1 split this project already chose.
+>
+> AQ#2 resolves the same way for both runtimes: **mark-and-sweep with a grace
+> period, never reference counting** — refcounts drift under undo, multi-tab
+> and crashes, and the grace period is what makes undo-after-delete safe.
+
 Phases are sequential gates, not a calendar. Each phase ends with something
 usable; nothing in a later phase is allowed to require rewriting an earlier
 one — that's what the "cheap now, priceless later" invariants below are for.

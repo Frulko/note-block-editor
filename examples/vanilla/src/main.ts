@@ -3,7 +3,7 @@ import { EditorView } from '@nbe/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
-import { resolveAsset, storeAsset } from './assets';
+import { resolveAsset, storeAsset, releaseAssetUrls } from './assets';
 import { createDatabaseHost } from './dbhost';
 import {
   backlinkCounts,
@@ -168,3 +168,6 @@ for (const tab of document.querySelectorAll<HTMLButtonElement>('.tabs button')) 
 }
 
 openPage(ws.openId);
+
+// blobs stay pinned in memory until their object URLs are released
+window.addEventListener('pagehide', releaseAssetUrls);
