@@ -569,11 +569,19 @@ framework, no runtime dependency at all):
   than twice by one: Swift reads TypeScript's fixture, TypeScript reads Swift's,
   and a document written in Swift merges with an edit made in TypeScript over a
   transport.
-  **Remaining:** the editor itself — per-block TextKit 2 views, SwiftUI chrome.
-  That needs an application project and a device, not a package, and it is the
-  one item on this roadmap that no amount of work on this machine can finish.
-  Everything beneath it — the model, the format, the merge — is now verified,
-  so what is left is the input surface and nothing else.
+  ~~The layer beneath the views~~ — `NbeEditorKit`, 2026-08-08. Reading order,
+  UTF-16 ↔ grapheme offset conversion, and runs ↔ attributed text, all tested.
+  The parity test against `core/src/grapheme.ts` earned its place immediately:
+  the Swift snap always rounded forward, where TypeScript rounds *back at the
+  start of a range and forward at its end* so a snap only ever grows it. Two
+  peers would have disagreed about what was selected.
+  **Remaining:** the views themselves — per-block TextKit 2, SwiftUI chrome.
+  That needs an application project and a device, and it is the one item here
+  that no work on this machine can finish, because its entire value is whether
+  IME composition, selection and the software keyboard behave — which is
+  precisely where the D1 evidence says this architecture fails. Building it
+  blind would be shipping the one part that cannot be checked. Everything
+  beneath it is verified in both implementations.
 - ~~**Obsidian:** decide plugin vs standalone app once L1 vaults are stable.~~
   **Revised the same day: both.** The survey
   (`docs/research/competitive-landscape.md`) found the gap is *Notion-grade
