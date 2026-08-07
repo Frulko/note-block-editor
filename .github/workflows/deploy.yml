@@ -35,6 +35,16 @@ jobs:
       # so the browser suite is a gate rather than something run by hand
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
+      # The alternative editable boundary, kept alive rather than claimed.
+      # External evidence says per-block contenteditable is what Notion left
+      # over iOS and Android roadblocks (docs/research/…-evidence.md), so
+      # `singleHostTopology` is the escape hatch — and an escape hatch nobody
+      # runs is a story, not a hatch. It had never been run end to end; the
+      # first run found twelve failures. Reported, not gating, until the
+      # remaining nine are closed.
+      - name: Browser suite under the single-host topology (informational)
+        continue-on-error: true
+        run: TOPOLOGY=single-host pnpm e2e
       - name: Upload failing browser traces
         if: failure()
         uses: actions/upload-artifact@v4
