@@ -27,10 +27,23 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'pnpm --filter demo-vanilla dev --port 5173',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  /*
+   * Two demos, two servers. The collaborative one is a separate app because it
+   * demonstrates something the single-player demo must not grow — two peers in
+   * one page — and a spec that has to reach it needs it running.
+   */
+  webServer: [
+    {
+      command: 'pnpm --filter demo-vanilla dev --port 5173',
+      url: 'http://localhost:5173',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
+      command: 'pnpm --filter demo-collab dev --port 5174',
+      url: 'http://localhost:5174',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+  ],
 });

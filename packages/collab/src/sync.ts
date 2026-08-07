@@ -162,3 +162,29 @@ export function loopback(): [Transport, Transport] {
 
   return [make(0), make(1)];
 }
+
+/**
+ * Redraw when someone else edits.
+ *
+ * @remarks
+ * A local edit goes through the editor, which tells its view. A **remote** one
+ * arrives by importing bytes straight into the store, so the editor never hears
+ * about it and the view keeps painting the document as it was. Everything
+ * converges correctly and the screen quietly lies — the worst failure of the
+ * two, because it looks like it works.
+ *
+ * Takes a callback rather than a view: this package depends on `core` and the
+ * CRDT and nothing else, which is a CI-enforced invariant. The caller passes
+ * `() => view.renderAll()`.
+ *
+ * @param redraw - Called after each change that did not originate here.
+ * @returns A function that stops listening.
+ */
+export function redrawOnRemote(doc: LoroBlockStore['doc'], redraw: () => void): () => void {
+  return doc.subscribe((event) => {
+    // `local` is this peer's own edit, already on screen; `checkout` is history
+    // reading the past, which must not repaint the present
+    if (event.by === 'local' || event.by === 'checkout') return;
+    redraw();
+  });
+}

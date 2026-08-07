@@ -493,3 +493,41 @@ textarea.nbe-input {
     opacity: 1;
   }
 }
+
+/* ==========================================================================
+   Other people (remote-carets.ts).
+
+   The layer sits outside the editing surface on purpose: an element inside a
+   contenteditable becomes part of the text, and a person could put their cursor
+   inside someone else's name badge.
+   ========================================================================== */
+
+.nbe-peers {
+  position: absolute;
+  z-index: 120;
+  pointer-events: none;
+}
+
+.nbe-peer-caret {
+  position: absolute;
+  width: 2px;
+  border-radius: 1px;
+  /* a remote caret must not blink: two carets blinking out of phase is the
+     fastest way to make a document feel broken */
+  animation: nbe-fade-in var(--nbe-fast) var(--nbe-ease);
+}
+
+.nbe-peer-name {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: -1px;
+  padding: 1px 5px;
+  border-radius: var(--nbe-radius-sm) var(--nbe-radius-sm) var(--nbe-radius-sm) 0;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #fff;
+  /* the label is a hint, not a participant in the reading order */
+  opacity: 0.92;
+}
