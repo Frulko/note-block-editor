@@ -144,7 +144,13 @@ export class LoroBlockStore implements BlockStore {
     else if (data.get('text') !== undefined) data.delete('text');
 
     this.applyParent(node, block.parentId);
-    this.applyChildren(node, block.children);
+    this.applyChildren(node, block.children ?? []);
+    /*
+     * Loro batches until a commit, and the change subscription only fires on
+     * one. Without this the document is correct locally and nothing is ever
+     * sent — sync appeared to work on connect and then went quiet.
+     */
+    this.doc.commit();
   }
 
   /** The node for `id`, created under `parentId` if it is not there yet. */
@@ -203,6 +209,7 @@ export class LoroBlockStore implements BlockStore {
     if (!node) return false;
     this.tree.delete(node.id);
     this.index.delete(id);
+    this.doc.commit();
     return true;
   }
 

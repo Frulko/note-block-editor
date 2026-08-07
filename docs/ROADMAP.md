@@ -484,9 +484,19 @@ framework, no runtime dependency at all):
   converging on a contested move. Text is a `LoroText` container, so two
   people editing one paragraph merge rather than one edit disappearing. The ops stay a local format — they carry integer
   positions — and the wire format is Loro's own updates.
-- **Sync:** opaque update blobs over pluggable transports (Automerge-Repo
-  pattern); default ~100-line self-hostable websocket relay; iroh for p2p
-  native later; presence on a separate ephemeral channel; ACL outside the CRDT
+- **Sync: the transport-agnostic half shipped 2026-08-07** (`collab/src/sync.ts`).
+  A `Transport` is two methods — send and receive opaque blobs — so the same
+  document syncs over a websocket, a peer-to-peer link, or a loopback without
+  knowing which. The protocol is one byte and two message kinds: a peer
+  announces its version vector and the other replies with exactly what is
+  missing (104 bytes against a 372-byte snapshot on the measured sample, and
+  that ratio grows with history). Local changes are distinguished from imported
+  ones so an update is not echoed back and forth.
+  **Remaining:** the concrete websocket relay (needs a server-side WebSocket,
+  which Node does not provide — a dependency decision), iroh for p2p on native,
+  and presence on a separate ephemeral channel. ACL stays outside the CRDT: it
+  merges whatever it is handed, so a peer that should not have written must be
+  stopped before the blob arrives.
 - **Native Swift editor:** same JSON schema + registry, per-block TextKit 2
   views, SwiftUI chrome, loro-swift when collab lands (Craft proves the
   category)
