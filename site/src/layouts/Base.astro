@@ -1,0 +1,38 @@
+---
+import '../styles/site.css';
+interface Props { title: string; description?: string }
+const { title, description = "Un éditeur de blocs en TypeScript vanilla, dont le stockage reste lisible sans l'outil." } = Astro.props;
+const path = Astro.url.pathname;
+const nav = [
+  { href: '/docs/why/', label: 'Pourquoi' },
+  { href: '/docs/getting-started/', label: 'Démarrer' },
+  { href: '/docs/concepts/blocks/', label: 'Concepts' },
+  { href: '/integrations/', label: 'Intégrations' },
+  { href: '/demo/', label: 'Démo' },
+];
+---
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell">
+        <a class="brand" href="/"><span class="brand-mark"></span>nbe</a>
+        <nav class="site-nav">
+          {nav.map((i) => (
+            <a href={i.href} aria-current={path.startsWith(i.href) ? 'page' : undefined}>{i.label}</a>
+          ))}
+        </nav>
+      </div>
+    </header>
+    <main><slot /></main>
+    <footer class="site-footer">
+      <div class="shell">Éditeur de blocs — schéma intermédiaire, stockage lisible sans l'outil.</div>
+    </footer>
+  </body>
+</html>

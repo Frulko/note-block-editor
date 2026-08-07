@@ -1,0 +1,48 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+const shape = `interface Block {
+  id: BlockId;          // UUIDv7 — triable par date de création
+  type: string;         // 'paragraph', 'heading', 'table_cell', le vôtre…
+  version: number;      // versionné par type, pour les migrations
+  props: Record<string, unknown>;
+  text?: Run[];         // texte enrichi, seulement pour les blocs "inline"
+  children: BlockId[];
+  parentId: BlockId | null;
+}`;
+const spec = `s.register({
+  type: 'callout',
+  version: 1,
+  inline: true,                      // porte du texte enrichi
+  defaultProps: { icon: '💡' },
+  placeholder: 'Écris quelque chose…',
+});`;
+---
+<Docs title="Blocs et schéma">
+  <p>
+    À l'exécution, le document est une <strong>carte plate</strong>
+    <code>Map&lt;BlockId, Block&gt;</code> plus des références d'enfants ; au
+    repos, c'est un arbre JSON imbriqué. La carte plate rend les recherches et
+    les modifications en O(1) ; l'arbre rend le fichier lisible par un humain.
+  </p>
+  <pre><code class="language-ts">{shape}</code></pre>
+
+  <h2>Le registre de schéma</h2>
+  <p>
+    Un type de bloc est déclaré par une spécification sérialisable en JSON.
+    C'est délibéré : le rendu statique et un futur portage Swift consomment la
+    même déclaration sans exécuter le moindre comportement JavaScript.
+  </p>
+  <pre><code class="language-ts">{spec}</code></pre>
+
+  <h2>Trois catégories</h2>
+  <ul>
+    <li><strong>text</strong> — porte du texte, donc un caret : paragraphe, titre, élément de liste.</li>
+    <li><strong>void</strong> — pas de texte à éditer : image, séparateur, lien de page. On l'attrape, on ne l'édite pas.</li>
+    <li><strong>layout</strong> — de la structure : colonnes, lignes de tableau, la racine. Jamais une cible de glisser-déposer en soi.</li>
+  </ul>
+  <p>
+    Cette catégorie n'est pas cosmétique : elle décide si un clic place un
+    caret ou sélectionne le bloc, et si un pointeur qui descend démarre une
+    sélection de texte ou un déplacement.
+  </p>
+</Docs>

@@ -74,6 +74,15 @@ to prove the seams are real. Not a family of them.
 versioning, sandboxing), a priority/event-bus system, or any rewrite of
 `core` — the op layer is already type-agnostic.
 
+### R7 — make the three bindings agree on their options
+Found while building the site's integration page: `@nbe/react`'s `BlockEditor`
+*spreads* `EditorViewOptions` as props, `@nbe/vue`'s nests them under an
+`options` prop, and `@nbe/svelte`'s action takes them in its argument object.
+Three shapes for one contract. The bindings are supposed to be
+interchangeable thin mounts, and the docs cannot state one rule.
+**Done when:** the same option object works in all three, and the site's three
+integration snippets differ only where the framework's idiom genuinely differs.
+
 ## Track S — presentation site
 
 **Astro**, decided rather than deferred: it renders React, Vue *and* Svelte

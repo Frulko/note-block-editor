@@ -1,0 +1,336 @@
+/* ==========================================================================
+   The site's design system. It mirrors the editor's own token strategy on
+   purpose — base channels plus derived tokens, one dark-mode remap — so the
+   documentation and the product it documents cannot drift apart visually.
+   ========================================================================== */
+
+:root {
+  --ink: 23 23 23;
+  --surface: 255 255 255;
+  --accent-rgb: 35 131 226;
+
+  --text: rgb(var(--ink));
+  --text-muted: rgb(var(--ink) / 0.62);
+  --text-faint: rgb(var(--ink) / 0.42);
+  --bg: rgb(var(--surface));
+  --bg-sunken: rgb(var(--ink) / 0.03);
+  --bg-raised: rgb(var(--surface));
+  --border: rgb(var(--ink) / 0.1);
+  --border-strong: rgb(var(--ink) / 0.18);
+  --accent: rgb(var(--accent-rgb));
+  --accent-soft: rgb(var(--accent-rgb) / 0.1);
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgb(var(--ink) / 0.04), 0 8px 24px rgb(var(--ink) / 0.06);
+
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --measure: 68ch;
+  --sidebar: 250px;
+  --gutter: clamp(1rem, 4vw, 3rem);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: 245 245 245;
+    --surface: 17 17 17;
+    --accent-rgb: 94 150 255;
+    --bg-sunken: rgb(var(--ink) / 0.045);
+    --bg-raised: rgb(var(--ink) / 0.04);
+    --border: rgb(var(--ink) / 0.13);
+    --border-strong: rgb(var(--ink) / 0.22);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.45);
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+a:hover {
+  text-decoration-color: var(--accent);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 640;
+  margin: 2.2rem 0 0.7rem;
+  scroll-margin-top: 5rem;
+}
+h1 {
+  font-size: clamp(2rem, 5vw, 2.9rem);
+  margin-top: 0;
+}
+h2 {
+  font-size: 1.5rem;
+}
+h3 {
+  font-size: 1.15rem;
+}
+
+p,
+ul,
+ol {
+  margin: 0 0 1rem;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  background: var(--bg-sunken);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+}
+pre {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Shiki emits both themes; show the one that matches. */
+html:not([data-theme='dark']) .astro-code.github-dark,
+html:not([data-theme='dark']) .astro-code.github-dark span {
+  display: none;
+}
+
+/* --- layout ------------------------------------------------------------ */
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgb(var(--surface) / 0.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.site-header .shell {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 60px;
+}
+.brand {
+  font-weight: 660;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(140deg, var(--accent), rgb(var(--accent-rgb) / 0.55));
+  flex: none;
+}
+.site-nav {
+  display: flex;
+  gap: 1.1rem;
+  margin-left: auto;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
+.site-nav a {
+  text-decoration: none;
+}
+.site-nav a[aria-current='page'] {
+  color: var(--text);
+  font-weight: 550;
+}
+
+.docs {
+  display: grid;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: start;
+  padding: 2.5rem 0 6rem;
+}
+@media (max-width: 860px) {
+  .docs {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+.docs-nav {
+  position: sticky;
+  top: 84px;
+  font-size: 0.9rem;
+}
+.docs-nav h4 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 1.4rem 0 0.4rem;
+}
+.docs-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.docs-nav a {
+  display: block;
+  padding: 0.25rem 0.6rem;
+  margin-left: -0.6rem;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+.docs-nav a:hover {
+  background: var(--bg-sunken);
+  color: var(--text);
+}
+.docs-nav a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 550;
+}
+.prose {
+  max-width: var(--measure);
+}
+
+/* --- home -------------------------------------------------------------- */
+
+.hero {
+  padding: 5rem 0 3rem;
+  max-width: 46rem;
+}
+.hero p.lede {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+.cta-row {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1.15rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 550;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-ghost {
+  border-color: var(--border-strong);
+}
+.btn-ghost:hover {
+  background: var(--bg-sunken);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  padding: 2rem 0 5rem;
+}
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.2rem 1.3rem;
+  background: var(--bg-raised);
+}
+.card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+.card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+/* --- callouts inside docs ---------------------------------------------- */
+
+.note {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.85rem 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 1.4rem 0;
+}
+.note > :last-child {
+  margin-bottom: 0;
+}
+
+/* --- demo frame -------------------------------------------------------- */
+
+.demo-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+  margin: 1.5rem 0;
+}
+.demo-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  background: var(--bg-sunken);
+}
+.demo-body {
+  min-height: 240px;
+  max-height: 460px;
+  overflow: auto;
+}
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem 0 3rem;
+  color: var(--text-faint);
+  font-size: 0.88rem;
+}

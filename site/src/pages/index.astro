@@ -1,0 +1,32 @@
+---
+import Base from '../layouts/Base.astro';
+const pillars = [
+  { t: 'Un schéma intermédiaire', d: "Le document est une donnée, pas du HTML. Le DOM n'est qu'une projection jetable — jamais la source de vérité." },
+  { t: 'Lisible sans l\'outil', d: 'Markdown, CSV, SQLite. Supprimez l\'éditeur, vos fichiers restent ouvrables et modifiables ailleurs.' },
+  { t: 'Sept opérations', d: 'Tout changement passe par sept opérations inversibles. L\'annulation, la persistance et la sync future en découlent.' },
+  { t: 'TypeScript vanilla', d: 'Le cœur ne connaît ni le DOM ni React. Les liaisons React, Vue et Svelte sont des montages minces.' },
+];
+---
+<Base title="nbe — un éditeur de blocs qui ne séquestre pas vos données">
+  <div class="shell">
+    <section class="hero">
+      <h1>Un éditeur de blocs dont vous gardez les données.</h1>
+      <p class="lede">
+        Le confort d'édition de Notion, en TypeScript vanilla, avec un schéma
+        intermédiaire entre l'éditeur et le rendu — et un stockage qui reste
+        lisible le jour où vous arrêtez d'utiliser l'outil.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/docs/getting-started/">Démarrer</a>
+        <a class="btn btn-ghost" href="/demo/">Voir la démo</a>
+        <a class="btn btn-ghost" href="/docs/why/">Pourquoi</a>
+      </div>
+    </section>
+
+    <section class="cards">
+      {pillars.map((p) => (
+        <div class="card"><h3>{p.t}</h3><p>{p.d}</p></div>
+      ))}
+    </section>
+  </div>
+</Base>

@@ -1,0 +1,40 @@
+---
+import Base from '../layouts/Base.astro';
+import '@nbe/dom/style.css';
+import ReactDemo from '../components/demos/ReactDemo.tsx';
+import VueDemo from '../components/demos/VueDemo.vue';
+import SvelteDemo from '../components/demos/SvelteDemo.svelte';
+---
+<Base title="Intégrations — nbe">
+  <div class="shell" style="padding-top:2.5rem;padding-bottom:5rem;">
+    <div class="prose">
+      <h1>Intégrations</h1>
+      <p>
+        Les trois liaisons montent le même éditeur. Elles ne contiennent
+        aucune logique d'édition — uniquement le cycle de vie, la projection
+        d'état et l'hébergement de la vue DOM.
+      </p>
+      <p>
+        Les trois éditeurs ci-dessous tournent réellement sur cette page, dans
+        leur framework respectif. C'est la raison pour laquelle ce site est
+        construit avec Astro plutôt qu'avec un framework applicatif React :
+        seules des îles permettent de les faire cohabiter honnêtement.
+      </p>
+    </div>
+
+    <div class="demo-frame">
+      <div class="demo-bar">@nbe/react</div>
+      <div class="demo-body"><ReactDemo client:visible /></div>
+    </div>
+
+    <div class="demo-frame">
+      <div class="demo-bar">@nbe/vue</div>
+      <div class="demo-body"><VueDemo client:visible /></div>
+    </div>
+
+    <div class="demo-frame">
+      <div class="demo-bar">@nbe/svelte</div>
+      <div class="demo-body"><SvelteDemo client:visible /></div>
+    </div>
+  </div>
+</Base>

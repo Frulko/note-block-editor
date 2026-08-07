@@ -1,0 +1,74 @@
+---
+import Docs from '../../layouts/Docs.astro';
+const vanilla = `import { Editor, createDoc } from '@nbe/core';
+import { EditorView } from '@nbe/dom';
+import '@nbe/dom/style.css';
+
+const editor = new Editor({ doc: createDoc() });
+const view = new EditorView(document.getElementById('app')!, editor);
+
+// tout changement passe par ici
+editor.on((change) => console.log(change.ops));`;
+
+const react = `import { BlockEditor } from '@nbe/react';
+import '@nbe/dom/style.css';
+
+export function App() {
+  return <BlockEditor onChange={(doc) => save(doc)} />;
+}`;
+
+const vue = `<script setup lang="ts">
+import { BlockEditor } from '@nbe/vue';
+import '@nbe/dom/style.css';
+<\/script>
+
+<template>
+  <BlockEditor @change="save" />
+</template>`;
+
+const svelte = `<script lang="ts">
+  import { blockEditor } from '@nbe/svelte';
+  import '@nbe/dom/style.css';
+<\/script>
+
+<div use:blockEditor={{ onChange: save }}></div>`;
+---
+<Docs title="Démarrer">
+  <p>
+    L'éditeur se monte dans un élément et prend la main dessus. Le document est
+    <em>non contrôlé</em> par conception : reconstruire la vue à chaque rendu
+    détruirait le caret et l'historique, donc le contenu initial est lu une
+    seule fois au montage et l'éditeur en est ensuite propriétaire.
+  </p>
+
+  <h2>Vanilla</h2>
+  <p>Le chemin de référence : les liaisons de frameworks font exactement ceci.</p>
+  <pre><code class="language-ts">{vanilla}</code></pre>
+
+  <h2>React</h2>
+  <pre><code class="language-tsx">{react}</code></pre>
+  <p>
+    Le hook <code>useEditor()</code> est disponible si vous voulez fournir le
+    conteneur vous-même ; il renvoie <code>{'{ editor, ref }'}</code>.
+  </p>
+
+  <h2>Vue</h2>
+  <pre><code class="language-vue">{vue}</code></pre>
+
+  <h2>Svelte</h2>
+  <p>
+    La liaison Svelte est une <em>action</em>, pas un composant : c'est la forme
+    idiomatique pour un élément dont un tiers possède le contenu.
+  </p>
+  <pre><code class="language-svelte">{svelte}</code></pre>
+
+  <div class="note">
+    <p>
+      Les trois liaisons ont exactement deux dépendances,
+      <code>@nbe/core</code> et <code>@nbe/dom</code>, le framework restant une
+      dépendance de pair. C'est vérifié en intégration continue : une troisième
+      dépendance signifierait que la fonctionnalité appartient à la couche du
+      dessous.
+    </p>
+  </div>
+</Docs>

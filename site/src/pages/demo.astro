@@ -1,0 +1,21 @@
+---
+import Base from '../layouts/Base.astro';
+import '@nbe/dom/style.css';
+import ReactDemo from '../components/demos/ReactDemo.tsx';
+---
+<Base title="Démo — nbe">
+  <div class="shell" style="padding-top:2.5rem;padding-bottom:5rem;">
+    <div class="prose">
+      <h1>Démo</h1>
+      <p>
+        Un éditeur complet. Tapez <code>/</code> pour le menu de blocs, survolez
+        un bloc pour la poignée, glissez-la sur le bord droit d'un autre bloc
+        pour créer des colonnes.
+      </p>
+    </div>
+    <div class="demo-frame" style="max-height:none;">
+      <div class="demo-bar">éditeur</div>
+      <div class="demo-body" style="max-height:70vh;"><ReactDemo client:load /></div>
+    </div>
+  </div>
+</Base>

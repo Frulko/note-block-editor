@@ -1,0 +1,38 @@
+---
+import Base from './Base.astro';
+interface Props { title: string; description?: string }
+const { title, description } = Astro.props;
+const path = Astro.url.pathname;
+const sections = [
+  { title: 'Découvrir', items: [
+    { href: '/docs/why/', label: 'Pourquoi cet éditeur' },
+    { href: '/docs/getting-started/', label: 'Démarrer' },
+  ]},
+  { title: 'Concepts', items: [
+    { href: '/docs/concepts/blocks/', label: 'Blocs et schéma' },
+    { href: '/docs/concepts/operations/', label: 'Opérations' },
+    { href: '/docs/concepts/projections/', label: 'Projections' },
+  ]},
+  { title: 'Étendre', items: [
+    { href: '/docs/extending/plugins/', label: 'Plugins' },
+  ]},
+];
+---
+<Base title={`${title} — nbe`} description={description}>
+  <div class="shell docs">
+    <aside class="docs-nav">
+      {sections.map((s) => (
+        <>
+          <h4>{s.title}</h4>
+          <ul>{s.items.map((i) => (
+            <li><a href={i.href} aria-current={path === i.href ? 'page' : undefined}>{i.label}</a></li>
+          ))}</ul>
+        </>
+      ))}
+    </aside>
+    <article class="prose">
+      <h1>{title}</h1>
+      <slot />
+    </article>
+  </div>
+</Base>

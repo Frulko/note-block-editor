@@ -1,0 +1,38 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+const ops = `insert_block | delete_block | move_block | update_block
+insert_text  | delete_text  | format_text`;
+const tx = `editor.dispatch((tx) => {
+  tx.op({ type: 'update_block', id, patch: { props: { checked: true } } });
+}, { origin: 'ui' });
+
+editor.undo();  // l'inverse a été calculé au moment de l'application`;
+---
+<Docs title="Opérations et transactions">
+  <p>
+    Il y a exactement sept opérations, et l'ensemble est fermé. Aucune
+    fonctionnalité n'a le droit d'en ajouter une huitième : un tableau, des
+    colonnes, un collage de dix blocs sont tous des <em>transactions</em>
+    composées de ces sept-là.
+  </p>
+  <pre><code>{ops}</code></pre>
+
+  <h2>Pourquoi c'est fermé</h2>
+  <p>
+    Chaque opération sait produire son inverse. L'annulation n'est donc pas une
+    fonctionnalité écrite à part, c'est une conséquence — et il en va de même
+    pour la persistance incrémentale, le journal des transactions, et la
+    synchronisation collaborative prévue plus tard. Une huitième opération
+    signifierait écrire son inverse, sa sérialisation et sa fusion : le coût
+    réel d'un raccourci apparent.
+  </p>
+  <pre><code class="language-ts">{tx}</code></pre>
+
+  <div class="note">
+    <p>
+      Corollaire concret : insérer un tableau 3×3 crée treize blocs en une
+      seule transaction, donc une seule annulation. C'est ce que l'utilisateur
+      attend, et personne n'a eu à l'implémenter.
+    </p>
+  </div>
+</Docs>

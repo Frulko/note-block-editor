@@ -1,0 +1,32 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+---
+<Docs title="Projections">
+  <p>
+    Un document se projette vers plusieurs sorties, et aucune n'est privilégiée.
+    C'est la différence structurelle avec un éditeur dont la sortie est le HTML.
+  </p>
+  <table>
+    <thead><tr><th>Projection</th><th>Paquet</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td>DOM d'édition</td><td><code>@nbe/dom</code></td><td>la surface éditable</td></tr>
+      <tr><td>Markdown</td><td><code>@nbe/markdown</code></td><td>le stockage lisible, aller-retour</td></tr>
+      <tr><td>HTML statique</td><td><code>@nbe/static-renderer</code></td><td>export et rendu serveur, sans DOM</td></tr>
+      <tr><td>CSV / .base</td><td><code>@nbe/markdown</code></td><td>les collections</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <code>@nbe/markdown</code> et <code>@nbe/static-renderer</code> ne dépendent
+    que de <code>@nbe/core</code>, jamais de <code>@nbe/dom</code> — vérifié en
+    intégration continue. C'est ce qui garde ouverts les chemins serveur, CLI,
+    Swift et Obsidian.
+  </p>
+  <div class="note">
+    <p>
+      Un bloc inconnu d'une projection ne disparaît jamais en silence : il
+      ressort en marqueur <code>&lt;!-- nbe:type --&gt;</code>. Perte assumée
+      et visible, plutôt qu'une perte discrète — c'est la seule défaillance que
+      ce projet existe pour empêcher.
+    </p>
+  </div>
+</Docs>

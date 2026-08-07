@@ -1,0 +1,65 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+const target = `import { Editor } from '@nbe/core';
+import { starterBlocks } from '@nbe/blocks';
+import { callout } from '@nbe/blocks-callout';
+
+const editor = new Editor({ blocks: [starterBlocks, callout] });`;
+---
+<Docs title="Plugins">
+  <div class="note">
+    <p>
+      <strong>En cours de conception, pas encore livré.</strong> Cette page
+      décrit la cible et le chemin pour y aller ; l'API n'existe pas encore.
+      Ajouter un type de bloc aujourd'hui demande de modifier
+      <strong>14 fichiers dans 4 paquets</strong>. C'est ce chiffre, mesuré,
+      qui justifie le chantier.
+    </p>
+  </div>
+
+  <h2>La cible</h2>
+  <p>
+    Activer une fonctionnalité doit être un import et une entrée de tableau —
+    et ne pas importer un bloc doit le sortir du bundle.
+  </p>
+  <pre><code class="language-ts">{target}</code></pre>
+
+  <h2>Pourquoi ce n'est pas exactement Tiptap</h2>
+  <p>
+    Tiptap a une seule sortie : le HTML, via <code>renderHTML</code>. Nous en
+    avons trois, plus le collage. Un bloc qui s'affiche dans l'éditeur mais ne
+    sait pas se sérialiser en markdown casse silencieusement la promesse
+    « lisible sans l'outil » — c'est-à-dire la seule défaillance que ce projet
+    existe pour empêcher.
+  </p>
+  <p>
+    Un plugin de bloc est donc un <strong>manifeste réparti sur plusieurs
+    points d'entrée</strong> : la déclaration de schéma ne dépend que de
+    <code>core</code>, le rendu de <code>dom</code>, la projection de
+    <code>markdown</code>. La déclaration reste sérialisable en JSON, séparée
+    du comportement, parce que le rendu statique et un futur portage Swift la
+    consomment sans exécuter de JavaScript.
+  </p>
+
+  <h2>Ce qui ne sera délibérément pas fourni</h2>
+  <ul>
+    <li>
+      Pas d'équivalent d'<code>addProseMirrorPlugins</code> avant longtemps :
+      Tiptap en a besoin parce que ProseMirror possède la vue. Ici la vue est
+      la nôtre, et une trappe donnant un accès DOM brut deviendrait aussitôt
+      l'API que tout le monde utilise — le moteur de rendu ne pourrait plus
+      jamais changer.
+    </li>
+    <li>Pas de système de priorités ni de bus d'événements tant que rien ne l'impose.</li>
+    <li>
+      Pas d'histoire de distribution (registre, versions, bac à sable) : cela
+      n'a de sens qu'avec un second auteur.
+    </li>
+  </ul>
+
+  <p>
+    Le détail complet — la recherche, la mesure et le plan par étapes — est
+    dans le dépôt, sous <code>docs/research/plugin-architecture.md</code> et
+    <code>docs/design/plugin-refactor-plan.md</code>.
+  </p>
+</Docs>

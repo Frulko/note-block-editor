@@ -1,0 +1,39 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+<Docs title="Pourquoi cet éditeur">
+  <p>
+    La plupart des éditeurs riches vous rendent du HTML. Le HTML est un format
+    de <em>présentation</em> : il décrit à quoi ressemble un document, pas ce
+    qu'il est. Dès que vous voulez interroger vos contenus, les rendre
+    ailleurs, ou les relire dans dix ans, cette confusion vous coûte.
+  </p>
+  <h2>Le schéma intermédiaire</h2>
+  <p>
+    Ici le document est une structure de données : un bloc a un
+    <code>type</code>, des <code>props</code>, éventuellement du texte enrichi
+    et des enfants. Le DOM est une projection de cette structure, reconstruite
+    à volonté et jamais consultée comme source de vérité — à une exception
+    documentée près, le caret, que seul le navigateur connaît vraiment.
+  </p>
+  <div class="note">
+    <p>
+      Cette séparation est ce qui rend possible le rendu statique sans instance
+      d'éditeur, la projection markdown, un futur éditeur natif Swift sur le
+      même schéma, et la synchronisation collaborative — sans réécrire l'éditeur.
+    </p>
+  </div>
+  <h2>Le stockage vous appartient</h2>
+  <p>
+    Un document se projette en markdown lisible, une base en CSV, l'index en
+    SQLite dérivé et reconstructible. Le test d'acceptation est brutal et
+    volontairement simple : <strong>supprimez l'application, vos fichiers
+    doivent rester utilisables</strong>.
+  </p>
+  <h2>Ce que ce n'est pas</h2>
+  <ul>
+    <li>Pas un framework d'édition générique : le jeu de blocs est ouvert, le modèle ne l'est pas.</li>
+    <li>Pas un service : aucune dépendance réseau, aucun compte, aucun cloud.</li>
+    <li>Pas un clone de Notion : les bases de données existent, mais l'objectif est l'éditeur.</li>
+  </ul>
+</Docs>
