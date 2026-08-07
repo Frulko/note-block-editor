@@ -1,0 +1,71 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+const css = `/* n'importe où après la feuille de l'éditeur */
+.nbe-editor {
+  --nbe-accent-rgb: 220 38 38;   /* canal, pas couleur : les alphas suivent */
+  --nbe-radius: 2px;
+  --nbe-max-width: 900px;
+}`;
+const js = `new EditorView(el, editor, {
+  theme: { '--nbe-accent-rgb': '220 38 38', '--nbe-radius': '2px' },
+});`;
+const dark = `<html data-nbe-theme="dark">`;
+---
+<Docs title="Thème et CSS" wide>
+  <p>
+    Chaque couleur de la feuille de style se résout depuis <strong>six canaux
+    de base</strong> plus la palette de blocs nommée. Il n'y a aucune couleur
+    codée en dur ailleurs — c'est vérifiable, et c'est ce qui rend un thème
+    possible en surchargeant une poignée de valeurs plutôt qu'en réécrivant des
+    règles.
+  </p>
+
+  <h2 id="canaux">Les canaux</h2>
+  <div class="api-scroll">
+    <table class="api-table">
+      <thead><tr><th style="width:26%">Variable</th><th style="width:20%">Défaut clair</th><th>Rôle</th></tr></thead>
+      <tbody>
+        <tr><td><code class="api-name">--nbe-ink</code></td><td><code>55 53 47</code></td><td>L'encre. Un triplet RVB sans <code>rgb()</code>, pour que les alphas dérivés fonctionnent.</td></tr>
+        <tr><td><code class="api-name">--nbe-ink-warm</code></td><td><code>135 131 120</code></td><td>Le gris chaud des fonds de code et des teintes.</td></tr>
+        <tr><td><code class="api-name">--nbe-accent-rgb</code></td><td><code>35 131 226</code></td><td>L'accent : sélection, focus, liens.</td></tr>
+        <tr><td><code class="api-name">--nbe-danger-rgb</code></td><td><code>212 76 71</code></td><td>Erreurs et actions destructives.</td></tr>
+        <tr><td><code class="api-name">--nbe-shadow-rgb</code></td><td><code>15 15 15</code></td><td>La base des ombres.</td></tr>
+        <tr><td><code class="api-name">--nbe-surface</code></td><td><code>#fff</code></td><td>La page. Seul canal qui est une couleur complète.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <p>
+      Les canaux sont des <strong>triplets</strong> et non des couleurs, parce
+      que la feuille les consomme en <code>rgb(var(--nbe-ink) / 0.06)</code>.
+      Changer <code>--nbe-ink</code> repeint les quelque vingt alphas dérivés
+      d'un coup ; passer une couleur complète les casserait tous.
+    </p>
+  </div>
+
+  <h2 id="surcharge">Surcharger</h2>
+  <p>En CSS, si votre thème est statique :</p>
+  <pre><code class="language-css">{css}</code></pre>
+  <p>Ou depuis JavaScript, si votre thème est dynamique :</p>
+  <pre><code class="language-ts">{js}</code></pre>
+
+  <h2 id="sombre">Mode sombre</h2>
+  <p>
+    Le mode sombre remappe ces canaux et rien d'autre : aucune règle n'est
+    dupliquée. Il suit la préférence système par défaut. Une application qui a
+    son propre sélecteur pose l'attribut, sur l'éditeur ou sur
+    <code>&lt;html&gt;</code> — cette seconde forme est ce qui atteint les
+    menus et infobulles sortis dans le <code>body</code>.
+  </p>
+  <pre><code class="language-html">{dark}</code></pre>
+
+  <h2 id="palette">La palette de blocs</h2>
+  <p>
+    Les couleurs qu'un utilisateur applique à un bloc sont persistées
+    <strong>par nom</strong>, jamais en CSS brut. Le paquet DOM les résout en
+    <code>var(--nbe-color-&lt;nom&gt;-text)</code> et
+    <code>var(--nbe-color-&lt;nom&gt;-bg)</code>, pour les dix noms de la
+    palette. Un thème les remappe donc aussi, sans qu'aucun document ne soit
+    réécrit.
+  </p>
+</Docs>

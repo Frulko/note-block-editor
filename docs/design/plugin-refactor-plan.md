@@ -89,7 +89,7 @@ Measured: from **14 files across 4 packages** down to **7**, of which two are
 stylesheets awaiting the `styles` contribution and two are the projections R5
 will take.
 
-### R4 — features as an array
+### R4 — features as an array — **done 2026-08-07**
 `view.ts`'s 12 hardwired `attach*(view)` calls become
 `features: [slashMenu, dragAndDrop, …]` with today's list as the default. The
 signature already matches; this is mostly moving a line. No priority system,

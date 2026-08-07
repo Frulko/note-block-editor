@@ -1,0 +1,67 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+import OptionsTable from '../../../components/api/OptionsTable.astro';
+import { options } from '../../../lib/api';
+const viewOptions = options('@nbe/dom', 'EditorViewOptions');
+const labels = options('@nbe/dom', 'EditorLabels');
+const mount = `import { Editor, createDoc } from '@nbe/core';
+import { EditorView, defaultFeatures, minimalFeatures } from '@nbe/dom';
+import { callout } from '@nbe/blocks-callout/dom';
+import '@nbe/dom/style.css';
+
+const editor = new Editor({ doc: createDoc() });
+
+const view = new EditorView(container, editor, {
+  // quels blocs existent
+  blocks: [callout],
+  // quels comportements sont attachés
+  features: defaultFeatures.filter((f) => f.name !== 'slash-menu'),
+  // affichage
+  readOnly: false,
+  spellcheck: true,
+  maxWidth: '720px',
+  padding: { top: '32px', x: '24px' },
+  // apparence
+  theme: { '--nbe-accent-rgb': '220 38 38', '--nbe-radius': '2px' },
+  // langue
+  labels: { bold: 'Bold', italic: 'Italic' },
+});
+
+view.destroy();`;
+const viewer = `// un lecteur : rend le document, n'attache rien, aucun caret
+new EditorView(el, editor, { readOnly: true });
+
+// un champ de commentaire : édition sans chrome
+new EditorView(el, editor, { features: minimalFeatures });`;
+---
+<Docs title="Configuration" wide>
+  <p>
+    Tout ce qui suit se règle au montage. Trois principes gouvernent cette
+    surface : <strong>ce que vous n'importez pas n'est pas dans votre
+    bundle</strong>, <strong>l'ordre d'un tableau est la précédence</strong>, et
+    <strong>rien n'est privilégié</strong> — le jeu par défaut est un tableau
+    littéral que vous pouvez copier et modifier.
+  </p>
+
+  <h2 id="instanciation">Instanciation</h2>
+  <pre><code class="language-ts">{mount}</code></pre>
+  <p>
+    Le document est <em>non contrôlé</em> : reconstruire la vue à chaque rendu
+    détruirait le caret et l'historique. <code>destroy()</code> détache toutes
+    les fonctionnalités et retire l'élément.
+  </p>
+
+  <h2 id="recettes">Deux recettes</h2>
+  <pre><code class="language-ts">{viewer}</code></pre>
+
+  <h2 id="editorviewoptions"><code>EditorViewOptions</code></h2>
+  <OptionsTable entries={viewOptions} />
+
+  <h2 id="editorlabels"><code>EditorLabels</code></h2>
+  <p>
+    Les valeurs par défaut sont en français, parce que c'est la langue dans
+    laquelle l'éditeur a été écrit — rien dans l'architecture ne la privilégie.
+    Un dictionnaire partiel suffit : il est fusionné par-dessus les défauts.
+  </p>
+  <OptionsTable entries={labels} />
+</Docs>

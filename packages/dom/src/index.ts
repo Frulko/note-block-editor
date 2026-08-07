@@ -29,3 +29,23 @@ export type {
   TurnIntoEntry,
   BlockKeyHandler,
 } from './block-view';
+export {
+  defaultFeatures,
+  minimalFeatures,
+  readOnlyFeatures,
+  inputFeature,
+  keymapFeature,
+  selectionSyncFeature,
+  gesturesFeature,
+  outsidePressFeature,
+  slashMenuFeature,
+  gutterFeature,
+  clipboardFeature,
+  formatToolbarFeature,
+  blockToolbarFeature,
+  linkHoverFeature,
+  databaseFeature,
+} from './features';
+export type { EditorFeature } from './features';
+export { defaultLabels, resolveLabels } from './labels';
+export type { EditorLabels } from './labels';

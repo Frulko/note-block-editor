@@ -1,26 +1,31 @@
 import type { Change, Editor, Point, Selection } from '@nbe/core';
 import { ancestors, getBlock, selectedBlocks, textCaret } from '@nbe/core';
 import { renderBlock } from './render';
-import { attachSelectionSync, leafOf, modelPointToDom } from './selection';
-import { attachInput, reconcileLeaf } from './input';
+import { leafOf, modelPointToDom } from './selection';
+import { reconcileLeaf } from './input';
 import { plainText } from '@nbe/core';
-import { attachKeymap } from './keymap';
-import { attachSlashMenu } from './slash';
-import { attachControls } from './controls';
-import { attachClipboard } from './clipboard';
-import { attachOutsidePressDeselect, domTextSelection } from './caret';
-import { attachDatabaseBlocks } from './database';
-import { attachSelectionToolbar } from './selection-toolbar';
-import { attachBlockToolbar } from './block-toolbar';
-import { attachLinkHover } from './link-hover';
+import { domTextSelection } from './caret';
 import { perBlockTopology, type EditableTopology } from './topology';
-import { attachGestureRouter, type ActiveGesture, type GestureRecognizer } from './gestures';
+import type { ActiveGesture, GestureRecognizer } from './gestures';
 import { defaultRecognizers } from './recognizers';
+import { defaultFeatures, type EditorFeature } from './features';
+import { resolveLabels, type EditorLabels } from './labels';
 import { builtinBlocks } from './blocks';
 import { injectBlockStyles, viewOf, type DomBlockPlugin } from './block-view';
 import { PluginRegistry } from '@nbe/core';
 
+/**
+ * Everything a host can change when mounting an editor.
+ *
+ * @remarks
+ * Three principles govern this surface: what you do not import is not in your
+ * bundle, an array's order *is* its precedence, and nothing is privileged —
+ * every default is a plain array literal you can copy and edit.
+ *
+ * @category Configuration
+ */
 export interface EditorViewOptions {
+  /** Follow a page link. The editor never routes; the host decides. */
   onOpenPage?: (pageId: string) => void;
   /** Create a page in the host workspace (slash menu "Page" item). */
   onCreatePage?: () => { pageId: string; title: string } | null;
@@ -62,6 +67,56 @@ export interface EditorViewOptions {
    * of activation-by-import.
    */
   blocks?: DomBlockPlugin[];
+  /**
+   * Behaviour attached to the mounted view, in registration order.
+   *
+   * @remarks
+   * Defaults to {@link defaultFeatures}. Pass {@link minimalFeatures} for a
+   * comment box, `[]` for a viewer, or a filtered copy to drop one thing.
+   * What you leave out is not in your bundle.
+   *
+   * @example
+   * ```ts
+   * features: defaultFeatures.filter((f) => f.name !== 'slash-menu')
+   * ```
+   */
+  features?: EditorFeature[];
+  /**
+   * Render the document without making it editable.
+   *
+   * @remarks
+   * Drops `contenteditable` and the tab stop, so no caret ever appears — which
+   * is the difference between a viewer and an editor that silently ignores
+   * keystrokes. Combine with `features: []` to attach nothing at all.
+   *
+   * @defaultValue false
+   */
+  readOnly?: boolean;
+  /**
+   * Ask the browser to spell-check the editable surface.
+   *
+   * @defaultValue false
+   */
+  spellcheck?: boolean;
+  /**
+   * Every string the editor puts on screen. Merged over the French defaults,
+   * so a partial dictionary is fine.
+   */
+  labels?: Partial<EditorLabels>;
+  /**
+   * CSS custom properties set on the editor root, overriding the token layer.
+   *
+   * @remarks
+   * The stylesheet resolves every colour from about a dozen base channels
+   * plus the named block palette, so a theme is a handful of values rather
+   * than a rule override. Keys may be written with or without the `--` prefix.
+   *
+   * @example
+   * ```ts
+   * theme: { '--nbe-accent-rgb': '220 38 38', '--nbe-radius': '2px' }
+   * ```
+   */
+  theme?: Record<string, string>;
 }
 
 export class EditorView {
@@ -84,6 +139,10 @@ export class EditorView {
   readonly recognizers: GestureRecognizer[];
   /** Per-editor, never module-global: two editors may have different sets. */
   readonly plugins: PluginRegistry;
+  /** Resolved on-screen strings: the defaults with `options.labels` merged in. */
+  readonly labels: EditorLabels;
+  /** True when the view was mounted read-only. */
+  readonly readOnly: boolean;
   /** Notified once a pointer gesture has fully settled. See `onGestureEnd`. */
   readonly gestureEndListeners = new Set<(name: string, committed: boolean) => void>();
   /**
@@ -101,6 +160,8 @@ export class EditorView {
     this.topology = options.topology ?? perBlockTopology;
     this.recognizers = [...(options.recognizers ?? defaultRecognizers)];
     this.plugins = new PluginRegistry().registerAll(options.blocks ?? builtinBlocks);
+    this.labels = resolveLabels(options.labels);
+    this.readOnly = options.readOnly === true;
     for (const plugin of this.plugins.all()) {
       const styles = viewOf(plugin)?.styles;
       if (styles) injectBlockStyles(plugin.schema.type, styles);
@@ -116,17 +177,24 @@ export class EditorView {
     this.content.setAttribute('role', 'textbox');
     this.content.setAttribute('aria-multiline', 'true');
     this.content.dataset['topology'] = this.topology.name;
-    this.topology.prepareRoot(this.content);
+    this.content.spellcheck = options.spellcheck === true;
+    if (this.readOnly) {
+      this.content.dataset['readonly'] = '';
+      this.content.removeAttribute('tabindex');
+      this.content.removeAttribute('contenteditable');
+    } else {
+      this.topology.prepareRoot(this.content);
+    }
+    for (const [key, value] of Object.entries(options.theme ?? {})) {
+      this.content.style.setProperty(key.startsWith('--') ? key : `--${key}`, value);
+    }
     container.append(this.content);
 
     this.renderAll();
-    this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
-    this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this));
-    // one press, one owner — replaces the rubber band, cross-block selection
-    // and block click-routing all listening for pointerdown independently
-    this.unbinders.push(attachGestureRouter(this));
-    this.unbinders.push(attachOutsidePressDeselect(this), attachDatabaseBlocks(this), attachSelectionToolbar(this));
-    this.unbinders.push(attachBlockToolbar(this), attachLinkHover(this));
+    // features are data: what a host leaves out is not attached and not bundled
+    for (const f of options.features ?? (this.readOnly ? [] : defaultFeatures)) {
+      this.unbinders.push(f.attach(this));
+    }
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 

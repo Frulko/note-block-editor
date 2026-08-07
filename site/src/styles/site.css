@@ -230,6 +230,16 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
 .prose {
   max-width: var(--measure);
 }
+/* reference tables need more room than a comfortable reading measure; the
+   prose inside them stays readable because the cells are narrow */
+.prose-wide {
+  max-width: 74rem;
+}
+.prose-wide > p,
+.prose-wide > ul,
+.prose-wide > ol {
+  max-width: var(--measure);
+}
 
 /* --- home -------------------------------------------------------------- */
 
@@ -347,7 +357,8 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
-  min-width: 40rem;
+  min-width: 46rem;
+  table-layout: fixed;
 }
 .api-table th {
   text-align: left;
@@ -385,7 +396,11 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   background: none;
   padding: 0;
   color: var(--text-muted);
-  word-break: break-word;
+  /* break at word boundaries, never mid-identifier: DomBlockPlugin[] rendered
+     one character per line before this */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
 }
 .api-default {
   background: none;

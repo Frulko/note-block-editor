@@ -30,8 +30,9 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
   const spec = view.editor.schema.get(block.type);
   const leaf = el('div', 'nbe-leaf');
   leaf.dataset['blockId'] = block.id;
-  // editability is the topology's call, not the renderer's
-  view.topology.prepareLeaf(leaf, block.id);
+  // editability is the topology's call, not the renderer's — unless the whole
+  // view is read-only, in which case no leaf is editable and no caret appears
+  if (!view.readOnly) view.topology.prepareLeaf(leaf, block.id);
   leaf.dataset['gramm'] = 'false'; // Grammarly-class extension opt-out (best effort)
   const placeholder =
     block.type === 'paragraph' ? 'Écris quelque chose…' : (spec.placeholder ?? '');

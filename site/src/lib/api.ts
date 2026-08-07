@@ -51,19 +51,22 @@ const KIND = {
   TypeAlias: 2097152,
 } as const;
 
-let cached: Reflection | null | undefined;
-
+/**
+ * Re-read per call rather than cached.
+ *
+ * A module-level cache means `pnpm docs:api` has no visible effect until the
+ * dev server restarts — a stale-data footgun for the sake of parsing 157 kB a
+ * dozen times during a build, which costs nothing.
+ */
 function load(): Reflection | null {
-  if (cached !== undefined) return cached;
   try {
     // resolved from the site root rather than import.meta.url: this module is
     // bundled at build time, so a URL relative to it no longer points at .data
-    cached = JSON.parse(readFileSync(resolve(process.cwd(), '.data/api.json'), 'utf8')) as Reflection;
+    return JSON.parse(readFileSync(resolve(process.cwd(), '.data/api.json'), 'utf8')) as Reflection;
   } catch {
     console.warn('[api] site/.data/api.json absent — lance `pnpm docs:api`. La référence sera vide.');
-    cached = null;
+    return null;
   }
-  return cached;
 }
 
 const textOf = (parts: Array<{ text: string }> | undefined): string =>
