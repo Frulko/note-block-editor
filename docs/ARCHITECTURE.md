@@ -528,9 +528,11 @@ phase begins:
    one JSON per page with atomic temp+rename (`@nbe/cli`), so a crash leaves
    the old page or the new one and never a truncated one. External edits are
    picked up by polling content hashes, not `fs.watch`, whose behaviour differs
-   per platform and per editor. **Still open:** a desktop shell, and
-   single-writer election — two processes can still race on the rename, which
-   is last-writer-wins rather than a guarantee.
+   per platform and per editor. Concurrent writers are
+   excluded by a lock file (exclusive create, pid plus heartbeat); a stale lock
+   is reclaimed only when the process is gone *and* the heartbeat stopped, so a
+   crash cannot lock a workspace forever and a recycled pid cannot be mistaken
+   for an abandoned one. **Still open:** a desktop shell.
 2. **Binary asset pipeline.** *Resolved 2026-08-07 for the browser runtime.*
    Blobs live in a content-addressed store and the document holds an opaque
    `asset:<hash>` ref, so dedup is free and the model never carries bytes.

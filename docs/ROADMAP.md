@@ -451,9 +451,15 @@ framework, no runtime dependency at all):
   page with no file, a file with no id in its frontmatter, a file smuggling the
   model back as JSON or HTML, an asset referenced but not written.
 
-**Remaining in 4b:** a desktop shell (Tauri/Electron) around the same
-adapters, and single-writer election — the rename race is last-writer-wins
-today, which is the assumption §10 states rather than a guarantee it makes.
+- ~~Single-writer election~~ — an exclusive-create lock file with a pid and a
+  heartbeat. Stale locks need *both* signals to agree (the process is gone and
+  the heartbeat stopped), because never stealing means a crash locks the
+  workspace forever and stealing eagerly means two writers each believing they
+  are alone. Readers never take it: a read sees the old page or the new one,
+  and failing `nbe ls` because a watcher runs would be a worse tool. A busy
+  workspace exits 3, not 2 — it is a normal outcome a script can retry on.
+
+**Remaining in 4b:** a desktop shell (Tauri/Electron) around the same adapters.
 
 ## Phase 5 — Collaboration, native, ecosystem (the long game)
 

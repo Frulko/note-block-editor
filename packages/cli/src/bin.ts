@@ -3,6 +3,7 @@ import { blocksToMarkdown } from '@nbe/markdown';
 import { checkReadable, importDirectory, openWorkspace, writeVault } from './index';
 import { watchVault } from './watch';
 import { WorkspaceIndex } from './index-db';
+import { LockedError, withLock } from './lock';
 
 /**
  * `nbe` — a workspace on the command line.
@@ -62,6 +63,15 @@ async function main(argv: string[]): Promise<number> {
 
   const workspace = await openWorkspace(root);
 
+  /*
+   * Only writers take the lock. A read has nothing to lose to a concurrent
+   * write — it sees the old page or the new one, never a torn one — and making
+   * `nbe ls` fail because a watcher is running would be a worse tool.
+   */
+  const WRITES = new Set(['new', 'import', 'sync', 'watch']);
+  const guarded = <T>(run: () => Promise<T> | T): Promise<T> =>
+    WRITES.has(command) ? withLock(root, run) : Promise.resolve(run());
+
   switch (command) {
     case 'ls': {
       const line = (id: string, depth: number): void => {
@@ -77,10 +87,12 @@ async function main(argv: string[]): Promise<number> {
     case 'new': {
       const title = positional.join(' ');
       if (!title) return fail('nbe new <titre>');
-      const id = await workspace.createPage({ title, parentId: flags['parent'] ?? null });
-      writeVault(workspace, root);
-      process.stdout.write(`${id}\n`);
-      return 0;
+      return guarded(async () => {
+        const id = await workspace.createPage({ title, parentId: flags['parent'] ?? null });
+        writeVault(workspace, root);
+        process.stdout.write(`${id}\n`);
+        return 0;
+      });
     }
 
     case 'cat': {
@@ -124,21 +136,26 @@ async function main(argv: string[]): Promise<number> {
     }
 
     case 'sync': {
-      const written = writeVault(workspace, root);
-      process.stdout.write(`${written.length} fichier(s) écrit(s)\n`);
-      return 0;
+      return guarded(() => {
+        const written = writeVault(workspace, root);
+        process.stdout.write(`${written.length} fichier(s) écrit(s)\n`);
+        return 0;
+      });
     }
 
     case 'import': {
       const from = positional[0];
       if (!from) return fail('nbe import <dossier>');
-      const count = await importDirectory(workspace, from);
-      writeVault(workspace, root);
-      process.stdout.write(`${count} page(s) importée(s)\n`);
-      return 0;
+      return guarded(async () => {
+        const count = await importDirectory(workspace, from);
+        writeVault(workspace, root);
+        process.stdout.write(`${count} page(s) importée(s)\n`);
+        return 0;
+      });
     }
 
     case 'watch': {
+      return guarded(async () => {
       process.stdout.write(`surveillance de ${root}/vault — Ctrl+C pour arrêter\n`);
       watchVault(workspace, root, {
         onImport: (paths, pages) =>
@@ -149,6 +166,7 @@ async function main(argv: string[]): Promise<number> {
       // the watcher unrefs its timer, so hold the process open deliberately
       await new Promise(() => {});
       return 0;
+      });
     }
 
     case 'check': {
@@ -173,6 +191,12 @@ function fail(message: string): number {
 main(process.argv.slice(2)).then(
   (code) => process.exit(code),
   (err: unknown) => {
+    // a busy workspace is a normal outcome, not a crash: say so and exit 3 so
+    // a script can retry rather than treating it as a broken command
+    if (err instanceof LockedError) {
+      process.stderr.write(`${err.message}\n`);
+      process.exit(3);
+    }
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(2);
   },

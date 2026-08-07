@@ -235,3 +235,38 @@ describe('search and backlinks from the command line', () => {
     expect(nbe('search', 'lundi').out).toBe(before);
   });
 });
+
+describe('two writers do not race', () => {
+  it('a second writer is refused while the first holds the workspace', () => {
+    // a lock left by a live process: this one
+    mkdirSync(join(root, '.nbe'), { recursive: true });
+    writeFileSync(join(root, '.nbe', 'lock'), JSON.stringify({ pid: process.pid, at: Date.now() }), 'utf8');
+
+    const refused = nbe('new', 'Pendant ce temps');
+    // exit 3, not 2: being busy is a normal outcome a script can retry on
+    expect(refused.code).toBe(3);
+    expect(refused.err).toContain('utilisé par le processus');
+  });
+
+  it('reading is never blocked by a writer', () => {
+    rmSync(join(root, '.nbe', 'lock'), { force: true });
+    nbe('new', 'Une page');
+    mkdirSync(join(root, '.nbe'), { recursive: true });
+    writeFileSync(join(root, '.nbe', 'lock'), JSON.stringify({ pid: process.pid, at: Date.now() }), 'utf8');
+
+    // ls sees the old page or the new one, never a torn one — no reason to fail
+    expect(nbe('ls').code).toBe(0);
+    expect(nbe('ls').out).toContain('Une page');
+  });
+
+  it('a crashed writer does not lock the workspace forever', () => {
+    rmSync(join(root, '.nbe', 'lock'), { force: true });
+    mkdirSync(join(root, '.nbe'), { recursive: true });
+    writeFileSync(
+      join(root, '.nbe', 'lock'),
+      JSON.stringify({ pid: 0x7ffffffe, at: Date.now() - 60_000 }),
+      'utf8',
+    );
+    expect(nbe('new', 'Après le crash').code).toBe(0);
+  });
+});
