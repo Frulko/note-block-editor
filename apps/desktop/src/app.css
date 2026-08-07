@@ -307,3 +307,11 @@ body {
   max-width: 60ch;
   cursor: pointer;
 }
+
+/* Sync state, in the sidebar footer beside the Markdown button. */
+.relay-state {
+  display: block;
+  padding: 4px 2px 0;
+  font-size: 11px;
+  color: var(--nbe-text-light, rgb(0 0 0 / 0.45));
+}

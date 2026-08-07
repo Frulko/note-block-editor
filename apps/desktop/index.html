@@ -12,13 +12,15 @@
           <button id="pick-vault" class="vault-name" title="Changer de dossier">
             <span id="vault-label">Aucun dossier</span>
           </button>
-          <button id="new-page" title="Nouvelle page">＋</button>
+          <button id="new-page" title="Nouvelle page" aria-label="Nouvelle page">+</button>
         </header>
         <input id="search" class="search" type="search" placeholder="Rechercher…" autocomplete="off" />
         <nav id="pages" class="pages"></nav>
         <div id="results" class="results" hidden></div>
         <footer class="vault-actions">
           <button id="sync">Régénérer le Markdown</button>
+          <button id="relay">Synchronisation…</button>
+          <span id="relay-state" class="relay-state"></span>
         </footer>
       </aside>
 

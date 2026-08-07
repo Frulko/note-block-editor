@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { docFromJSON, docToJSON, Editor, type BlockJSON } from '@nbe/core';
-import { LoroBlockStore, seedFromJSON } from '@nbe/collab';
+import { LoroBlockStore, connect, connectToRelay, redrawOnRemote, seedFromJSON } from '@nbe/collab';
 import { EditorView } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { Workspace, pageTitle } from '@nbe/workspace';
@@ -347,6 +347,62 @@ function persistSoon(): void {
 
 /** The CRDT document currently open, so it can be snapshotted on save. */
 let liveStore: LoroBlockStore | null = null;
+/** Stops syncing the open page. Replaced on every navigation. */
+let stopSync: (() => void) | null = null;
+
+/**
+ * Where to sync, if anywhere.
+ *
+ * @remarks
+ * In `localStorage` rather than in the vault: it is a property of *this
+ * machine*, not of the notes. Putting it in the folder would sync a server
+ * address to every device that opened it, which is both surprising and the
+ * beginning of a way to redirect someone else's document.
+ */
+const RELAY_KEY = 'carnet.relay';
+
+const relayUrl = (): string | null => localStorage.getItem(RELAY_KEY);
+
+/**
+ * Join the room for the open page.
+ *
+ * @remarks
+ * One room per page, named by its id — page ids are UUIDv7 and already unique,
+ * and syncing a whole workspace as one document would make every peer download
+ * every page to read one.
+ *
+ * Failure here is never fatal. The document is on disk and the editor works;
+ * a relay that is down means "not syncing right now", which is exactly what
+ * offline-first is supposed to survive.
+ */
+function joinRoom(pageId: string, store: LoroBlockStore): void {
+  stopSync?.();
+  stopSync = null;
+  const url = relayUrl();
+  if (!url) return void showRelayState();
+
+  try {
+    const stop = connect(store, connectToRelay(url, pageId));
+    const stopRedraw = redrawOnRemote(store.doc, () => {
+      // a remote edit never passes through this editor, so nothing repaints it
+      view?.renderAll();
+      persistSoon();
+    });
+    stopSync = () => {
+      stopRedraw();
+      stop();
+    };
+    showRelayState(`Synchronisé — ${new URL(url).host}`);
+  } catch (error) {
+    console.error('[carnet] synchronisation impossible', error);
+    showRelayState('Synchronisation indisponible');
+  }
+}
+
+function showRelayState(text?: string): void {
+  const node = document.getElementById('relay-state');
+  if (node) node.textContent = text ?? (relayUrl() ? 'Connexion…' : 'Hors ligne');
+}
 
 async function persistNow(): Promise<void> {
   if (!dirty || !workspace || !editor || !openId) return;
@@ -399,6 +455,7 @@ async function openPage(pageId: string): Promise<void> {
   else seedFromJSON(store, document_);
   editor = new Editor({ doc: { blocks: store, rootId: document_.id } });
   liveStore = store;
+  joinRoom(pageId, store);
   view = new EditorView(editorEl, editor, {
     blocks: [callout],
     database: database ?? undefined,
@@ -460,6 +517,23 @@ el('new-page').addEventListener('click', guard('Nouvelle page', async () => {
   await render();
   await openPage(id);
 }));
+el('relay').addEventListener('click', () => {
+  /*
+   * A prompt, not a settings panel. One field with no other settings beside it
+   * does not need a panel, and inventing one now would be a screen to maintain
+   * before there is anything to put on it.
+   */
+  const current = relayUrl() ?? '';
+  const next = prompt('Adresse du nœud de synchronisation (vide pour arrêter)', current);
+  if (next === null) return;
+  if (next.trim()) localStorage.setItem(RELAY_KEY, next.trim());
+  else localStorage.removeItem(RELAY_KEY);
+
+  // rejoin with the new address, or stop
+  if (openId && liveStore) joinRoom(openId, liveStore);
+  else showRelayState();
+});
+
 el('sync').addEventListener('click', guard('Régénération du Markdown', async () => {
   await persistNow();
   await syncVault();

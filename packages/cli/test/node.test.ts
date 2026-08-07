@@ -145,3 +145,45 @@ describe('a node keeps what a relay would drop', () => {
     expect(readdirSync(dir)).toContain('..%2F..%2Fevade.loro');
   });
 });
+
+describe('a desktop-shaped client and a web-shaped one meet at the node', () => {
+  it('a snapshot saved by one, reopened, converges with a fresh peer', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'nbe-node-'));
+    running = await startNode({ dir, saveDebounceMs: 50 });
+    const url = `ws://localhost:${running.port}`;
+
+    /*
+     * The desktop app's model: a document is built once, persisted as a
+     * snapshot, and *reopened from that snapshot* rather than rebuilt from its
+     * JSON — which is what `packages/collab/test/seeding.test.ts` shows is the
+     * only shape that converges.
+     */
+    const first = new LoroBlockStore();
+    const rootId = uuidv7();
+    first.set(rootId, { id: rootId, type: 'page', version: 1, props: {}, children: [], parentId: null });
+    const editor = new Editor({ doc: { blocks: first, rootId } });
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block: paragraph(rootId, 'écrit sur le bureau'), index: 0 }));
+    const saved = first.doc.export({ mode: 'snapshot' });
+
+    // the app is closed and reopened: same document, new process
+    const reopened = new LoroBlockStore();
+    reopened.import(saved);
+    const stopDesktop = connect(reopened, connectToRelay(url, 'une-page'));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // and a browser joins the same page, holding nothing
+    const web = new LoroBlockStore();
+    connect(web, connectToRelay(url, 'une-page'));
+
+    await until(() => texts(web).includes('écrit sur le bureau'));
+    expect(texts(web)).toEqual(['écrit sur le bureau']);
+
+    // an edit from the browser reaches the reopened desktop document
+    const webEditor = new Editor({ doc: { blocks: web, rootId } });
+    webEditor.dispatch((tx) => tx.op({ type: 'insert_block', block: paragraph(rootId, 'ajouté au navigateur'), index: 1 }));
+
+    await until(() => texts(reopened).includes('ajouté au navigateur'));
+    expect(texts(reopened).sort()).toEqual(['ajouté au navigateur', 'écrit sur le bureau'].sort());
+    stopDesktop();
+  });
+});
