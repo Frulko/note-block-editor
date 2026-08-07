@@ -253,9 +253,11 @@ describe('markdownToBlocks', () => {
     expect(new Set(blocks.map((x) => x.id)).size).toBe(blocks.length);
   });
 
-  it('treats consecutive plain lines as separate paragraphs', () => {
-    const blocks = markdownToBlocks('line one\nline two');
-    expect(stripIds(blocks)).toEqual([
+  it('joins consecutive plain lines into one paragraph; a blank line splits', () => {
+    expect(stripIds(markdownToBlocks('line one\nline two'))).toEqual([
+      { type: 'paragraph', version: 1, text: [{ text: 'line one line two' }] },
+    ]);
+    expect(stripIds(markdownToBlocks('line one\n\nline two'))).toEqual([
       { type: 'paragraph', version: 1, text: [{ text: 'line one' }] },
       { type: 'paragraph', version: 1, text: [{ text: 'line two' }] },
     ]);
