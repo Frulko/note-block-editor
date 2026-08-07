@@ -263,3 +263,119 @@ on the API surface. Its *API reference and integration snippets* do. So the
 site starts now and its reference section is written last — after the plugin
 API settles — rather than the site waiting or the reference being written
 twice.
+
+---
+
+# Addendum — evidence from the field (2026-08-07)
+
+A survey of Tiptap, ProseMirror, Lexical, CodeMirror 6, BlockNote, Slate and
+Plate, with issue trackers and maintainer statements as sources. Three of its
+findings change the plan above; the rest confirm it.
+
+## A. Numeric priorities are a known-bad pattern — and §2.2 above proposed one
+
+Our `GestureRecognizer` sketch carried `priority: number`. Every system that
+shipped numeric priorities regrets it.
+
+Marijn Haverbeke, on why CodeMirror 6 refused them
+([Extensible Extension Mechanisms](https://marijnhaverbeke.nl/blog/extensibility.html)):
+a module in isolation cannot know what numbers other modules picked — "the
+options are just points on an undifferentiated numeric range". It is z-index.
+
+The evidence:
+
+- **Lexical** shipped five priority buckets, then discovered you could not get
+  in front of an existing listener at your own level. The fix was
+  `COMMAND_PRIORITY_BEFORE_*`: negative constants that `& 7` back into the same
+  bucket and unshift to its front. A priority system that needed a sub-priority
+  system ([#2978](https://github.com/facebook/lexical/issues/2978),
+  [#6767](https://github.com/facebook/lexical/issues/6767)).
+- **Tiptap** shipped the ordering *backwards* — a stray `.reverse()` meant the
+  lower-priority extension won, and nobody noticed for a long time because the
+  resulting order is unobservable
+  ([#1547](https://github.com/ueberdosis/tiptap/issues/1547)). Array position
+  also silently changes behaviour at equal priority
+  ([#1154](https://github.com/ueberdosis/tiptap/issues/1154)).
+- **BlockNote** ended up with three ordering systems in one stack:
+  `runsBefore` over Tiptap's number over ProseMirror's array order.
+
+**Correction:** named precedence categories (CodeMirror's
+`highest/high/default/low/lowest`), then source order within a category. Our
+gesture router already uses pure source order, which is the honest subset —
+it should stay that way and gain named categories only if something forces it.
+
+## B. One priority for a whole plugin is the wrong granularity
+
+Tiptap's single `priority` governs keymaps *and* input rules *and* paste rules
+*and* schema rendering at once. [#2570](https://github.com/ueberdosis/tiptap/issues/2570)
+is the `#` suggestion trigger fighting the `#` heading input rule; the fix
+moved the coupling rather than removing it. Marijn names this exact failure:
+"if a plugin has multiple effects, you have to either hope that they all need
+the same precedence relative to other plugins, or you have to split it into
+smaller plugins".
+
+**Consequence for us:** a block plugin must be *an array of tagged
+contributions*, not one object with one rank — so a block can want high
+precedence for its keymap and default precedence for its input rule.
+
+## C. `starterBlocks` as planned would defeat tree-shaking
+
+The plan above proposes `import { starterBlocks } from '@nbe/blocks'`. That is
+exactly Tiptap's `StarterKit`, which statically imports ~20 extensions;
+`StarterKit.configure({ heading: false })` disables it at runtime but the code
+is still in the bundle. Ergonomics and tree-shaking are in direct conflict, and
+the kit wins.
+
+**Correction:** the starter set should be a *documented array literal* users
+paste and edit — same ergonomics on day one, actually removable on day two.
+`R6`'s exit criterion ("removing it from the array removes it from the bundle")
+is only meaningful if the default set is not a barrel.
+
+## D. Confirmations, with sharper evidence than we had
+
+- **Projections must be exhaustive and loud.** Our §3 argument was reasoning;
+  here is the failure in production. Tiptap
+  [#7731](https://github.com/ueberdosis/tiptap/issues/7731): a `hardBreak`
+  inside a table cell serializes to a space — `foo<br>bar` becomes `foo bar`,
+  no error, no warning. Lexical is worse structurally, with **three
+  unsynchronised registries** for one node — `exportJSON`, `exportDOM`, and
+  markdown transformers that are not on the class at all but passed at the
+  call site, so a node can render perfectly and vanish from
+  `$convertToMarkdownString` with nothing able to notice.
+  `prosemirror-markdown` is the counter-example: it **throws** on an unmapped
+  node. Loud failure beats silent loss, and the renderer table should be
+  non-optional in the type so a missing format is a compile error.
+- **Markdown retrofitted is markdown broken.** Tiptap only shipped bidirectional
+  markdown in October 2025, years after its extension API froze; every
+  extension written before has no handler. We have markdown from the start —
+  that is the asset to protect, not a detail.
+- **No raw escape hatch.** Confirmed emphatically: ProseMirror's `nodeViews`
+  contract is why it can no longer change when it re-renders or destroys a
+  view, and every framework binding is built on it, so it is frozen. Tiptap's
+  `addProseMirrorPlugins` makes `@tiptap/core` permanently a veneer. BlockNote
+  leaks two levels down through `tiptapExtensions`. The rule: any API handing
+  out a live DOM node or a mutable core object *becomes* the real interface.
+- **Module-level keys, per-instance values.** ProseMirror's module-level
+  `PluginKey` produces the long-running "Adding different instances of a keyed
+  plugin" class of failure whenever two copies of a package load. Our two
+  module-global registries (`block-actions`, `block-toolbar`) are the same
+  mistake in miniature, and R3 already plans to fix it.
+
+## E. One recommendation we had not considered
+
+**Version the plugin contract separately from the library** — an `apiVersion`
+on each plugin, checked at load. Three lines, and it lets v1 and v2 plugins run
+side by side during a migration instead of forcing a Tiptap-style v2→v3 where
+`getPos()` changing return type broke every node view author at once.
+
+## F. The open question this raises for us
+
+The survey's strongest structural recommendation is **renderers return data,
+not DOM** — ProseMirror's `toDOM` returns `["div", {class}, 0]`, which is
+inspectable, testable in Node, reusable for SSR, and leaves the renderer free
+to change. Our `render.ts` returns a live `HTMLElement`.
+
+This is not free: our renderers do real work a spec array cannot express
+(drop zones, async asset resolution, database views). It also overlaps
+`@nbe/static-renderer`, which already produces HTML strings from the same
+blocks. Deciding this belongs with R3 and is deliberately left open here.
