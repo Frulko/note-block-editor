@@ -15,6 +15,10 @@
     "./vault": {
       "types": "./src/vault.ts",
       "default": "./src/vault.ts"
+    },
+    "./notion": {
+      "types": "./src/notion.ts",
+      "default": "./src/notion.ts"
     }
   },
   "dependencies": {

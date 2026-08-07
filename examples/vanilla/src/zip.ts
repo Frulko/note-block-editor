@@ -152,3 +152,71 @@ export function download(blob: Blob, filename: string): void {
   // the object URL pins the blob in memory until it is revoked
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/**
+ * Reading a ZIP back.
+ *
+ * @remarks
+ * The counterpart to {@link zip}, and the reason importing works from a
+ * browser at all: an export from Notion, or from us, arrives as one archive.
+ *
+ * Still no dependency, because the platform grew the hard part.
+ * `DecompressionStream('deflate-raw')` is exactly the method ZIP stores under
+ * number 8, so decompression is the browser's problem — this only has to walk
+ * the central directory, which is the part a library would not do better.
+ *
+ * The central directory is read rather than the local headers, because a
+ * streamed archive may leave sizes zero in the local header and only fill them
+ * in afterwards. The directory at the end is always authoritative.
+ */
+export async function unzip(data: ArrayBuffer): Promise<Array<{ path: string; text: string }>> {
+  const view = new DataView(data);
+  const bytes = new Uint8Array(data);
+
+  // the end-of-central-directory record, scanned from the back past any comment
+  let end = -1;
+  for (let i = data.byteLength - 22; i >= 0 && i > data.byteLength - 65_557; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) throw new Error('not a zip archive');
+
+  const count = view.getUint16(end + 10, true);
+  let at = view.getUint32(end + 16, true);
+  const decoder = new TextDecoder();
+  const files: Array<{ path: string; text: string }> = [];
+
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(at, true) !== 0x02014b50) break;
+    const method = view.getUint16(at + 10, true);
+    const compressed = view.getUint32(at + 20, true);
+    const nameLength = view.getUint16(at + 28, true);
+    const extraLength = view.getUint16(at + 30, true);
+    const commentLength = view.getUint16(at + 32, true);
+    const headerOffset = view.getUint32(at + 42, true);
+    const path = decoder.decode(bytes.subarray(at + 46, at + 46 + nameLength));
+    at += 46 + nameLength + extraLength + commentLength;
+
+    // directory entries carry no data, and the local header's own name and
+    // extra fields may differ in length from the directory's
+    if (path.endsWith('/')) continue;
+    const localName = view.getUint16(headerOffset + 26, true);
+    const localExtra = view.getUint16(headerOffset + 28, true);
+    const start = headerOffset + 30 + localName + localExtra;
+    const raw = bytes.subarray(start, start + compressed);
+
+    if (method === 0) {
+      files.push({ path, text: decoder.decode(raw) });
+    } else if (method === 8) {
+      const stream = new Blob([raw as unknown as BlobPart])
+        .stream()
+        .pipeThrough(new DecompressionStream('deflate-raw'));
+      files.push({ path, text: await new Response(stream).text() });
+    }
+    // any other method is a compressor we do not ship; skipping it loses one
+    // file rather than failing the whole import
+  }
+  return files;
+}

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { test, expect } from './fixtures';
@@ -110,5 +110,83 @@ test.describe('a workspace leaves as a folder of Markdown', () => {
     // the demo's page is "L'éditeur de blocs" — a UTF-8 name in a ZIP is only
     // correct if the general-purpose flag says so
     expect(tree(vault)[0]).toContain('éditeur');
+  });
+});
+
+/** Build a zip from a set of files, using the system zipper. */
+function makeArchive(files: Array<{ path: string; text: string }>): string {
+  const dir = mkdtempSync(join(tmpdir(), 'nbe-src-'));
+  for (const file of files) {
+    const full = join(dir, file.path);
+    mkdirSync(join(full, '..'), { recursive: true });
+    writeFileSync(full, file.text);
+  }
+  const archive = join(dir, '..', `${dir.split('/').pop()}.zip`);
+  execFileSync('zip', ['-r', '-q', archive, '.'], { cwd: dir });
+  return archive;
+}
+
+test.describe('an archive comes back in', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(300);
+  });
+
+  test('our own export re-imports onto the same pages, not beside them', async ({ page }) => {
+    const before = await page.locator('.page-item').count();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#export-vault').click(),
+    ]);
+    const dir = mkdtempSync(join(tmpdir(), 'nbe-rt-'));
+    const archive = join(dir, 'ours.zip');
+    await download.saveAs(archive);
+
+    await page.locator('#import-file').setInputFiles(archive);
+    await page.waitForTimeout(900);
+    // ids are preserved, so this updates rather than duplicates
+    expect(await page.locator('.page-item').count()).toBe(before);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('a Notion export arrives with its tree, titles and callouts', async ({ page }) => {
+    // named the way Notion names things (docs/research/notion-editor.md)
+    const hexA = 'aaaaaaaabbbbccccddddeeeeeeeeeeee';
+    const hexB = '11112222333344445555666666666666';
+    const archive = makeArchive([
+      { path: `Projet ${hexA}.md`, text: '# Projet\n\n> 💡 Une note importée\n' },
+      { path: `Projet ${hexA}/Sous-page ${hexB}.md`, text: '# Sous-page\n\nContenu Notion.\n' },
+    ]);
+
+    await page.locator('#import-file').setInputFiles(archive);
+    await page.waitForTimeout(900);
+
+    const labels = await page.locator('.page-item-label').allTextContents();
+    expect(labels.some((l) => l.includes('Projet'))).toBe(true);
+    expect(labels.some((l) => l.includes('Sous-page'))).toBe(true);
+
+    await page.locator('.page-item').filter({ hasText: 'Projet' }).first().click();
+    await page.waitForTimeout(400);
+    // the emoji blockquote is a callout again, not a quote
+    await expect(page.locator('.nbe-t-callout')).toHaveCount(1);
+    await expect(page.locator('.nbe-t-quote')).toHaveCount(0);
+    expect(await page.locator('.nbe-editor').textContent()).toContain('Une note importée');
+  });
+
+  test('the imported tree is nested, not flat', async ({ page }) => {
+    const hexA = 'ffffffffbbbbccccddddeeeeeeeeeeee';
+    const hexB = '99998888777766665555444444444444';
+    const archive = makeArchive([
+      { path: `Racine ${hexA}.md`, text: '# Racine\n\ntexte' },
+      { path: `Racine ${hexA}/Enfant ${hexB}.md`, text: '# Enfant\n\ntexte' },
+    ]);
+    await page.locator('#import-file').setInputFiles(archive);
+    await page.waitForTimeout(900);
+
+    const indents = await page.evaluate(() =>
+      [...document.querySelectorAll('.page-item')].map((el) => (el as HTMLElement).style.paddingInlineStart),
+    );
+    expect(indents).toContain('22px');
   });
 });

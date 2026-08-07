@@ -7,10 +7,12 @@ import { attachInspector } from './inspector';
 import { resolveAsset, storeAsset, releaseAssetUrls } from './assets';
 import { createDatabaseHost } from './dbhost';
 import { Workspace as PageTree, pageTitle } from '@nbe/workspace';
-import { exportVault } from '@nbe/workspace/vault';
-import { download, zip } from './zip';
+import { exportVault, importVault } from '@nbe/workspace/vault';
+import { importNotion } from '@nbe/workspace/notion';
+import { download, unzip, zip } from './zip';
 import {
   createPage,
+  flushWorkspace,
   loadWorkspace,
   pageStorage,
   resetWorkspace,
@@ -417,6 +419,51 @@ document.getElementById('export-vault')!.addEventListener('click', async () => {
   await tree.load();
   download(zip(exportVault(tree)), 'workspace-markdown.zip');
 });
+/**
+ * Import an archive: one of ours, or a Notion export.
+ *
+ * @remarks
+ * Which one is decided by looking rather than by asking. A Notion export names
+ * every file `Title <32 hex>.md`; ours does not. Making the user classify
+ * their own zip would be asking them to know something the file already says.
+ *
+ * Imported pages are added, never merged over what is there: ids are
+ * preserved, so re-importing the same export updates those pages and leaves
+ * the rest of the workspace alone.
+ */
+const NOTION_NAMING = /[\s-][0-9a-f]{32}\.(md|csv)$/i;
+
+document.getElementById('import-vault')!.addEventListener('click', () => {
+  (document.getElementById('import-file') as HTMLInputElement).click();
+});
+document.getElementById('import-file')!.addEventListener('change', async (e) => {
+  const input = e.target as HTMLInputElement;
+  const archive = input.files?.[0];
+  input.value = ''; // so choosing the same file twice fires again
+  if (!archive) return;
+  try {
+    const files = await unzip(await archive.arrayBuffer());
+    const fromNotion = files.some((f) => NOTION_NAMING.test(f.path));
+    const pages = fromNotion ? importNotion(files) : importVault(files);
+    if (!pages.length) {
+      alert('Aucune page trouvée dans cette archive.');
+      return;
+    }
+    for (const page of pages) {
+      const at = ws.pages.findIndex((p) => p.id === page.id);
+      if (at >= 0) ws.pages[at] = page;
+      else ws.pages.push(page);
+    }
+    saveWorkspace(ws);
+    flushWorkspace();
+    await renderSidebar();
+    openPage(pages[0]!.id);
+  } catch (err) {
+    console.error('[demo] import failed', err);
+    alert("Impossible de lire cette archive.");
+  }
+});
+
 document.getElementById('reset')!.addEventListener('click', () => {
   if (confirm('Réinitialiser la démo ? Toutes les pages seront perdues.')) void resetWorkspace();
 });

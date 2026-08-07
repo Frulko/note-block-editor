@@ -394,12 +394,18 @@ them directly. Two writers, never at once.
   sidebar (the block drag primitives are already there).
 - Search UI over `Workspace.search`, and a backlinks panel over
   `Workspace.backlinks`.
-- Migrate the demo's persistence from localStorage to `@nbe/workspace/idb`,
-  which needs an async boot and a home for the collection records the database
-  host keeps beside the pages.
+- ~~Migrate persistence to IndexedDB~~ — shipped 2026-08-07, with a migration
+  from the localStorage-era workspace.
+- ~~Export a workspace as an L1 vault artifact~~ — shipped 2026-08-07
+  (`@nbe/workspace/vault`), downloadable as a ZIP, re-importable.
+- ~~Notion importer~~ — shipped 2026-08-07 (`@nbe/workspace/notion`): filename
+  ids preserved, folder tree, relative links, emoji callouts, CSV databases as
+  tables. Fixtures are constructed from the documented shape, not a real
+  export — see `docs/TESTING.md`.
 - Binary asset pipeline (open question #2); `asset:<hash>` refs already ship.
-- Notion importers: ZIP export and Enhanced Markdown.
-- Export a workspace as an L1 vault *artifact* (no File System API needed).
+  Reference counting and GC on delete+undo are what remain.
+- Notion *Enhanced Markdown* export, which is a different shape again.
+- Databases as four records rather than a flat table on import (§2.5).
 
 ## Phase 4b — File backends
 
