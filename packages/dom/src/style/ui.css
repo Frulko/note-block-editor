@@ -252,3 +252,130 @@
   max-width: 220px;
   animation: nbe-fade-in 120ms ease-out;
 }
+
+/* --- form controls -------------------------------------------------------
+   The primitives a block plugin reaches for. Without them a plugin author
+   writes raw DOM, and raw DOM becomes the contract. */
+
+.nbe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.nbe-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+.nbe-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nbe-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nbe-field-inline .nbe-field-label {
+  font-size: 13px;
+  color: var(--nbe-text);
+  font-weight: 400;
+}
+.nbe-field-hint {
+  font-size: 11px;
+  color: var(--nbe-text-faint);
+  min-height: 0;
+}
+.nbe-field-error {
+  color: var(--nbe-danger);
+}
+
+.nbe-input,
+.nbe-select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--nbe-text);
+  background: var(--nbe-surface);
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm);
+  padding: 4px 7px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: border-color var(--nbe-fast) var(--nbe-ease), box-shadow var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-input:focus,
+.nbe-select:focus {
+  outline: none;
+  border-color: var(--nbe-accent);
+  box-shadow: 0 0 0 2px var(--nbe-accent-soft);
+}
+textarea.nbe-input {
+  resize: vertical;
+  min-height: 4.5em;
+  line-height: 1.5;
+}
+.nbe-field-invalid .nbe-input,
+.nbe-field-invalid .nbe-select {
+  border-color: var(--nbe-danger);
+}
+/* a bare field fills its host: the inline-edit case, where the control stands
+   in for the text it replaced rather than sitting in a form */
+.nbe-field-bare .nbe-input {
+  border-color: transparent;
+  background: transparent;
+  padding: 1px 3px;
+}
+.nbe-field-bare .nbe-input:focus {
+  background: var(--nbe-surface);
+  border-color: var(--nbe-accent);
+}
+
+.nbe-checkbox-input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--nbe-accent);
+  flex: none;
+}
+
+.nbe-segmented {
+  display: inline-flex;
+  background: var(--nbe-hover);
+  border-radius: var(--nbe-radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.nbe-segmented-option {
+  font: inherit;
+  font-size: 12px;
+  color: var(--nbe-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-segmented-option:hover {
+  color: var(--nbe-text);
+}
+.nbe-segmented-option.nbe-active {
+  background: var(--nbe-surface);
+  color: var(--nbe-text);
+  box-shadow: var(--nbe-shadow-sm);
+}
+
+/* --- popover: the floating container, without the list --- */
+
+.nbe-popover {
+  position: absolute;
+  z-index: 200;
+  background: var(--nbe-surface);
+  border-radius: var(--nbe-radius);
+  box-shadow: var(--nbe-shadow);
+  padding: 10px;
+  max-width: min(340px, calc(100vw - 24px));
+  box-sizing: border-box;
+}
