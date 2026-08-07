@@ -214,18 +214,29 @@ drives AppKit's own composition protocol directly.
 Recorded rather than fixed, because each needs its own investigation and a
 half-fix is worse than a known gap:
 
-1. **`gutter.spec.ts` — the gutter does not follow the scroll.** Diagnosed far
-   enough to be suspicious of the harness rather than the product: under WebKit
-   `document.scrollHeight` equals `window.innerHeight` after fifty blocks, so
-   there is nothing for `mouse.wheel` to scroll. Either the demo's scroll
-   container differs under WebKit's layout, or the blocks are not being laid
-   out at all. Start there.
-2. **`assets.spec.ts` ×2 — blob garbage collection.** Both the "orphan is
-   collected" and "referenced blob is kept" cases fail. IndexedDB timing under
-   WebKit is the first suspect; a real GC bug is the second.
+1. **`gutter.spec.ts` — the gutter does not follow the scroll.** Diagnosed, not
+   fixed. Both engines lay the document out *identically* — fifty blocks, an
+   editor 1764px tall inside a 720px window — so the page never scrolls in
+   either; the editor's own container does, and Chromium delivers `mouse.wheel`
+   to the hovered scrollable element where WebKit does not.
+   **An attempt to scroll the container directly instead was reverted**: it
+   passed when the file ran alone and failed on *both* engines in the full
+   parallel run, so it traded a known failure for a flaky one, which is worse.
+   Whatever replaces it has to be verified in a full run, not in isolation.
+2. **`assets.spec.ts` ×2 — the helper hangs on `indexedDB.open`.** Investigated
+   one level: the helper forced version `1`, which requests an upgrade whenever
+   the app already opened the database at a higher one, and an upgrade blocks
+   while the app holds its connection. `onblocked` was unhandled, so the promise
+   never settled. Both are fixed — no forced version, `onblocked` rejects loudly
+   — and Chromium still passes, but **WebKit still hangs, and not through
+   `onblocked`**: the `open` request fires none of success, error or blocked.
+   That is a genuine WebKit behaviour and the next person should start by
+   checking whether the demo's own IndexedDB connection is open at that moment,
+   and whether WebKit's stricter same-origin storage partitioning under
+   Playwright is involved.
 3. **`touch.spec.ts` — dragging a block by its handle.** WebKit's touch
    emulation differs from Chromium's, and this is the suite that matters most
-   for the mobile question, so it deserves the most care.
+   for the mobile question, so it deserves the most care and has had none yet.
 
 None is gating yet. They become gating as they are closed, the way the
 single-host topology run did.

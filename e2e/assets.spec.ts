@@ -30,12 +30,21 @@ async function storedAssets(page: import('@playwright/test').Page): Promise<stri
 async function plantOrphan(page: import('@playwright/test').Page, key: string) {
   await page.evaluate(async (hash) => {
     const db: IDBDatabase = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('nbe-assets', 1);
+      /*
+       * No version. Forcing `1` asks for an upgrade whenever the app already
+       * opened the database at a higher one, and an upgrade blocks while the
+       * app holds its connection — `onblocked` was unhandled, so the promise
+       * simply never settled and the test timed out. Chromium happened not to
+       * block here; WebKit does, which is the stricter and more correct
+       * reading. Opening at the current version needs no upgrade at all.
+       */
+      const request = indexedDB.open('nbe-assets');
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains('blobs')) request.result.createObjectStore('blobs');
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error('IndexedDB bloqué : une connexion est encore ouverte'));
     });
     await new Promise<void>((resolve) => {
       const request = db.transaction('blobs', 'readwrite').objectStore('blobs').put(new Blob(['x']), hash);
