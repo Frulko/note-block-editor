@@ -125,6 +125,34 @@ export function reconcileLeaf(view: EditorView, leaf: HTMLElement): void {
   );
 }
 
+/**
+ * Is this input event going into the document's text?
+ *
+ * @remarks
+ * The obvious test — is the event's target inside a leaf — is only right under
+ * the per-block topology, where each leaf *is* the editing host and so is the
+ * target. Under `singleHostTopology` the host is the root, the browser reports
+ * the root as the target, and the obvious test rejects every keystroke: it was
+ * measured as autoformat never firing, Backspace deleting nothing, and paste
+ * splitting wrong — twelve end-to-end failures from one guard.
+ *
+ * So the leaf is resolved from the *selection* when the target does not give
+ * one, because the selection is what actually says where the text is going. The
+ * target is still consulted first: a UI input mounted inside the editor (an
+ * image URL field, a menu's search box) is a real target outside any leaf and
+ * must keep its native behaviour.
+ */
+function inEditableText(ev: InputEvent): boolean {
+  const target = ev.target as Node | null;
+  if (leafOf(target)) return true;
+  // a target that is some *other* editable thing is not ours to handle
+  if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable="true"].nbe-ui')) {
+    return false;
+  }
+  const selection = document.getSelection();
+  return selection ? Boolean(leafOf(selection.anchorNode)) : false;
+}
+
 export function attachInput(view: EditorView): () => void {
   const editor = view.editor;
   const content = view.content;
@@ -132,7 +160,7 @@ export function attachInput(view: EditorView): () => void {
   const onBeforeInput = (e: Event) => {
     const ev = e as InputEvent;
     if (view.composing) return; // browser owns the DOM during composition
-    if (!leafOf(ev.target as Node)) return; // UI inputs (image URL, menus) keep native behavior
+    if (!inEditableText(ev)) return; // UI inputs (image URL, menus) keep native behavior
     // the DOM caret is the truth — typing must land where the caret visibly is
     syncCaretFromDom(view);
     switch (ev.inputType) {

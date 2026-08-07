@@ -54,24 +54,45 @@ default and single-host was the thing that would need justifying. After this,
 from real Android and iOS devices, because that is exactly where both data
 points say it fails.
 
-## Why this is affordable to act on
+## How affordable it actually is — measured 2026-08-08
 
-Because the escape hatch already exists. The interaction rebuild left
-`singleHostTopology` shipping beside the per-block one, with the same selection
-suite running against both — the roadmap's own words are that "D1's unspiked
-alternative is now a config change". The A/B that Phase 0 skipped is now cheap
-precisely because that work was done for other reasons.
+The roadmap said "D1's unspiked alternative is now a config change", and I
+repeated that to the project owner before checking it. **It is not true today.**
+
+Running the whole browser suite with `TOPOLOGY=single-host` — which the
+fixtures already supported, and which nobody had run — gave **99 passed, 12
+failed**. The claim rested on the *unit* topology suite, which does run against
+both; the end-to-end suite never had.
+
+One root cause accounted for a quarter of it, and is fixed: `attachInput`
+guarded on `leafOf(event.target)`, which is only right when each leaf *is* the
+editing host. Under single-host the host is the root, the browser reports the
+root as the target, and the guard rejected every keystroke — autoformat never
+fired, Backspace deleted nothing. The leaf is now resolved from the selection
+when the target does not give one. **12 failures → 9**, with the default
+topology unchanged at 116/116.
+
+The nine that remain cluster in paste handling and cross-block selection, and
+they are real work, not configuration. So the honest statement is: the escape
+hatch exists and is *most* of the way there, and switching to it today would
+cost a focused piece of work rather than a flag. That is still far cheaper than
+an architecture change — and it is no longer a claim, it is a number that CI
+can keep honest.
 
 So the action is not a rewrite. It is:
 
-1. Run the existing selection and IME suites under `singleHostTopology` in CI,
-   so the alternative stays working rather than bit-rotting into a claim.
-2. Get the touch/IME matrix onto real Android and iOS hardware. This was
+1. ~~Run the existing suites under `singleHostTopology`~~ — done, and it is
+   what produced the numbers above. `TOPOLOGY=single-host npx playwright test`
+   is the command; keeping it in CI is what stops the alternative bit-rotting
+   back into a claim.
+2. Close the remaining nine. Paste handling and cross-block selection, and both
+   are tractable — the first one fixed took an afternoon's reading and one
+   guard.
+3. Get the touch/IME matrix onto real Android and iOS hardware. This was
    already the open question; it is now the *decisive* one, and it is blocked
    on devices rather than on work.
-3. If per-block fails on real hardware in the way both data points predict,
-   switch the default. The cost is a configuration change plus whatever the
-   suites then surface — not an architecture.
+4. If per-block fails on real hardware in the way both data points predict,
+   switch the default — by then a flag rather than a project.
 
 ## Related
 
