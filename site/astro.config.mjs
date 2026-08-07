@@ -12,7 +12,7 @@ import svelte from '@astrojs/svelte';
  * static content, shipping no JavaScript unless an island asks for it.
  */
 export default defineConfig({
-  site: 'https://frulko.github.io',
+  site: 'https://guillaumedumoulin.fr',
   // GitHub Pages sert le site sous /note-block-editor/ ; en local, pas de base.
   base: process.env.BASE_PATH,
   integrations: [mdx(), react(), vue(), svelte()],
