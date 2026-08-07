@@ -164,7 +164,33 @@ export class EditorView {
   readonly content: HTMLElement;
   readonly options: EditorViewOptions;
   readonly topology: EditableTopology;
-  composing = false;
+  private _composing = false;
+  /** A full re-render that arrived mid-composition and is owed. */
+  private renderOwed = false;
+
+  /**
+   * True while an IME is composing.
+   *
+   * @remarks
+   * A setter rather than a field, so that clearing it can pay back a render
+   * that arrived while it was set. §5.1's rule is usually stated as "never
+   * mutate the DOM mid-composition", and the paths that *write* have always
+   * honoured it — but a **remote** edit reaches `renderAll` from outside the
+   * input path entirely, and would rebuild the surface under a half-typed
+   * word. Deferring is the whole fix: the update is not dropped, it lands the
+   * moment the word is committed.
+   */
+  get composing(): boolean {
+    return this._composing;
+  }
+
+  set composing(value: boolean) {
+    this._composing = value;
+    if (!value && this.renderOwed) {
+      this.renderOwed = false;
+      this.renderAll();
+    }
+  }
   /**
    * What pointer gesture is running, published by the gesture router. This is
    * the state that replaced three wall-clock windows: modules ask what is
@@ -321,6 +347,12 @@ export class EditorView {
   }
 
   renderAll(): void {
+    // a remote edit must not rebuild the surface under a half-typed word; the
+    // setter above pays this back the moment composition ends
+    if (this._composing) {
+      this.renderOwed = true;
+      return;
+    }
     const root = getBlock(this.editor.doc, this.editor.doc.rootId);
     this.withObserverPaused(() =>
       this.content.replaceChildren(...root.children.map((id) => renderBlock(this, id))),
