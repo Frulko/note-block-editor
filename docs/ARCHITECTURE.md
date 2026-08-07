@@ -402,10 +402,23 @@ Three layers with explicit fidelity contracts:
   `rows.csv` convenience export with computed columns marked as materialized
   cache. ~95% fidelity with a *documented, tested* loss list (silent lossy
   export is Notion's most-resented behavior).
-- **L2 — derived index.** SQLite: WAL, single writer, JSONB props, FTS5
-  external-content search, links table for backlinks, materialized view
-  results. Holds **zero unique information**, rebuildable by full L0 scan.
-  Deferred until search/db-views need it.
+- **L2 — derived index.** Holds **zero unique information**, rebuildable by a
+  full L0 scan. Its *implementation depends on the runtime*, and this is a
+  correction to an earlier reading of this document (2026-08-07):
+
+  - **In the browser**, L2 is whatever the browser provides — IndexedDB or
+    OPFS. SQLite/WASM is explicitly **not** the browser path: it would mean
+    shipping a WASM binary and a single-writer worker to rebuild something the
+    platform already stores, for a cache that by definition holds nothing
+    unique.
+  - **On a server, desktop or CLI runtime**, where the workspace is real files
+    on a real filesystem, L2 *is* SQLite: WAL, single writer, JSONB props,
+    FTS5 external-content search, a links table for backlinks, materialized
+    view results.
+
+  Both satisfy the same contract, which is why the choice can be deferred to
+  the runtime rather than baked into the model: an index that holds nothing
+  unique can be swapped, or absent, without the document layer noticing.
 
 **Authority flow:** exactly one layer is input at any instant. The editor
 writes L0 → regenerates L1 → incrementally updates L2. External edits to L1

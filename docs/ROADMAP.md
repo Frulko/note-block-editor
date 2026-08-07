@@ -35,10 +35,10 @@
 > workspace (rows hidden from the sidebar, save flushed on pagehide).
 > **Phase 3 remaining after slice 1:** board/list/gallery layouts,
 > multi-filter/multi-sort UI (engine already supports lists), groups, formula
-> language (AQ#8), relations/rollups, view virtualization, L2 SQLite (FTS5
-> search, backlinks table, materialized views), markdown/CSV projection of
-> collections — all shipped by 2026-08-06 except the SQLite index, which is
-> deliberately deferred (see Phase 3 below).
+> language (AQ#8), relations/rollups, view virtualization, the L2 derived
+> index, markdown/CSV projection of collections — all shipped by 2026-08-06
+> except L2, which is deferred and is per-runtime rather than one decision
+> (see Phase 3 below).
 
 > **Theming (2026-08-06).** Every colour in the stylesheet now resolves from
 > the token block: six base channels (`--nbe-ink`, `--nbe-ink-warm`,
@@ -219,7 +219,7 @@ size-limit budgets, sherif/knip, Nx, docs site — none of them hurt yet at
 > `test/packaging.test.ts`; what is missing is release machinery, not
 > architecture.
 
-## Phase 3 — Databases — **done 2026-08-06** (except the SQLite index)
+## Phase 3 — Databases — **done 2026-08-06** (except the L2 index)
 
 Delivered in four slices after Phase 2:
 1. **Foundation** — the four record kinds (`database` view block in the core
@@ -244,12 +244,14 @@ Delivered in four slices after Phase 2:
    columns are marked and never re-imported as data), one readable `.md` per
    row with YAML frontmatter, and an Obsidian-Bases-shaped `.base` view file.
 
-**Deliberately deferred: the L2 SQLite index.** It is pure cache by design
-(ARCHITECTURE §10: "holds zero unique information, rebuildable by full L0
-scan"), and adopting it means taking on a WASM bundle, OPFS and a
-single-writer worker — a dependency decision that deserves its own slice
-alongside Phase 4's file-tree storage, where search and cross-page queries
-actually create the need. Nothing shipped in Phase 3 blocks it.
+**Deliberately deferred: the L2 index — and it is not one decision but two.**
+Corrected 2026-08-07: SQLite belongs to a *backend* runtime (server, desktop,
+CLI) where the workspace is real files on a real filesystem. In the browser,
+L2 is IndexedDB or OPFS — shipping SQLite/WASM to the browser would mean a
+WASM binary and a single-writer worker to rebuild a cache the platform already
+knows how to store, and the cache holds nothing unique by design. Because L2
+holds zero unique information, the two can differ per runtime without the
+document layer noticing. Nothing shipped in Phase 3 blocks either.
 
 ### Original scope
 
@@ -265,8 +267,9 @@ actually create the need. Nothing shipped in Phase 3 blocks it.
   down a view does not snap back to the top. Native scrolling, find-in-page and
   text selection keep working, which absolute-positioned windowing gives up;
   revisit only if a real collection makes memory the binding constraint.
-- L2 SQLite lands here: FTS5 search, backlinks table, materialized views —
-  derived, rebuildable, single writer
+- L2 lands here, per runtime: IndexedDB/OPFS in the browser, SQLite (FTS5
+  search, backlinks, materialized views) on a backend — derived, rebuildable,
+  single writer
 
 ## Phase 4 — Storage & interop (file-over-app, fully honored)
 
