@@ -1,5 +1,5 @@
 import { LoroDoc, type LoroTree, type LoroTreeNode, type TreeID } from 'loro-crdt';
-import type { Block, BlockId, BlockStore } from '@nbe/core';
+import type { Block, BlockId, BlockJSON, BlockStore } from '@nbe/core';
 import { LoroText, applyRuns, textToRuns } from './text';
 import { MARKS } from '@nbe/core';
 
@@ -253,3 +253,35 @@ export class LoroBlockStore implements BlockStore {
 }
 
 export { LoroDoc };
+
+/**
+ * Fill an empty store from a page's JSON.
+ *
+ * @remarks
+ * Only for a document that has **no snapshot yet** — a first open, or one whose
+ * snapshot was lost. Seeding two peers separately from the same JSON does not
+ * converge, it duplicates (`test/seeding.test.ts`), so a peer joining an
+ * existing document must import that document's snapshot instead of building
+ * its own from the same content.
+ *
+ * Parents are written before children so each child's parent exists when it
+ * arrives, which is what lets `set` place it rather than orphan it.
+ */
+export function seedFromJSON(store: BlockStore, json: BlockJSON, parentId: BlockId | null = null): void {
+  const children = json.children ?? [];
+  store.set(json.id, {
+    id: json.id,
+    type: json.type,
+    version: json.version,
+    props: json.props ?? {},
+    ...(json.text ? { text: json.text } : {}),
+    children: children.map((child) => child.id),
+    parentId,
+  });
+  for (const child of children) seedFromJSON(store, child, json.id);
+  // written twice on purpose: the first pass creates the node, and this one
+  // orders the children now that they exist
+  if (children.length) {
+    store.set(json.id, { ...store.get(json.id)!, children: children.map((child) => child.id) });
+  }
+}

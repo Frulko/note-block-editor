@@ -1,4 +1,14 @@
-import { exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs';
+import {
+  exists,
+  mkdir,
+  readDir,
+  readFile,
+  readTextFile,
+  remove,
+  rename,
+  writeFile,
+  writeTextFile,
+} from '@tauri-apps/plugin-fs';
 import type { BlockJSON } from '@nbe/core';
 import type { WorkspaceStorage } from '@nbe/workspace';
 import { memoryStorage } from '@nbe/workspace';
@@ -165,4 +175,86 @@ export function scratchStorage(): WorkspaceStorage {
 /** Collections to match, for the same reason. */
 export function scratchCollections(): CollectionStore {
   return memoryCollections([]);
+}
+
+/* ---------------------------------------------------------------------------
+   CRDT snapshots
+   --------------------------------------------------------------------------- */
+
+/** Where a page's live document lives, beside its JSON. */
+export const SNAPSHOTS_DIRECTORY = `${PAGES_DIRECTORY}/rooms`;
+
+/**
+ * A page's CRDT document, on disk.
+ *
+ * @remarks
+ * **Why this exists at all**, given the JSON beside it: because a document
+ * cannot be rebuilt from its content. Two peers that each construct a `LoroDoc`
+ * from identical JSON do not converge — they merge to every block twice, since
+ * the identity Loro tracks is the tree node it created, not the id written
+ * inside it. That is a passing test
+ * (`packages/collab/test/seeding.test.ts`), not a guess. So peers share a
+ * *document*, and this is where it is kept.
+ *
+ * **The JSON stays canonical for portability, and this stays canonical for
+ * editing.** They are not the same fact twice: the JSON is what survives the
+ * app being deleted (§10, and the vault projects from it), and the snapshot is
+ * what carries the history and the merge identity that JSON has nowhere to put.
+ * The snapshot is written from the document; the JSON is written from the same
+ * document. Neither is derived from the other, so neither can go stale against
+ * it.
+ *
+ * **Losing a snapshot is recoverable; losing the JSON is not.** So a missing or
+ * unreadable snapshot is not an error — the page opens from its JSON and a new
+ * document begins. The cost is the old history, which is the right thing to
+ * lose in that trade.
+ */
+export interface SnapshotStore {
+  read(pageId: string): Promise<Uint8Array | null>;
+  write(pageId: string, bytes: Uint8Array): Promise<void>;
+  remove(pageId: string): Promise<void>;
+}
+
+export function vaultSnapshots(root: string): SnapshotStore {
+  const directory = `${root}/${SNAPSHOTS_DIRECTORY}`;
+  const ensure = async () => {
+    if (!(await exists(directory))) await mkdir(directory, { recursive: true });
+  };
+  const file = (id: string) => `${directory}/${safeName(id).replace(/\.json$/, '.loro')}`;
+
+  return {
+    async read(pageId) {
+      try {
+        const path = file(pageId);
+        return (await exists(path)) ? await readFile(path) : null;
+      } catch {
+        // an unreadable snapshot costs history, not content — the JSON remains
+        return null;
+      }
+    },
+    async write(pageId, bytes) {
+      await ensure();
+      const path = file(pageId);
+      // same temp-then-rename as the pages: a half-written snapshot on a crash
+      // would be worse than none, because it looks readable
+      const temporary = `${path}.tmp`;
+      await writeFile(temporary, bytes);
+      if (await exists(path)) await remove(path);
+      await rename(temporary, path);
+    },
+    async remove(pageId) {
+      const path = file(pageId);
+      if (await exists(path)) await remove(path);
+    },
+  };
+}
+
+/** Snapshots held in memory, for a browser build with no folder open. */
+export function memorySnapshots(): SnapshotStore {
+  const kept = new Map<string, Uint8Array>();
+  return {
+    read: async (pageId) => kept.get(pageId) ?? null,
+    write: async (pageId, bytes) => void kept.set(pageId, bytes),
+    remove: async (pageId) => void kept.delete(pageId),
+  };
 }

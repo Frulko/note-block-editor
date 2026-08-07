@@ -18,10 +18,13 @@
     "@nbe/workspace": "workspace:*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",
-    "@tauri-apps/plugin-fs": "^2"
+    "@tauri-apps/plugin-fs": "^2",
+    "@nbe/collab": "workspace:*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "vite-plugin-wasm": "^3.6.0",
+    "vite-plugin-top-level-await": "^1.6.0"
   }
 }

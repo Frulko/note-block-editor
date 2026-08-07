@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { docFromJSON, docToJSON, Editor, type BlockJSON } from '@nbe/core';
+import { LoroBlockStore, seedFromJSON } from '@nbe/collab';
 import { EditorView } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { Workspace, pageTitle } from '@nbe/workspace';
@@ -9,7 +10,18 @@ import { exportVault } from '@nbe/workspace/vault';
 import '@nbe/dom/style.css';
 import './app.css';
 import { createDatabaseHost, type CollectionRecord } from '@nbe/workspace/database';
-import { NATIVE, clearDirectory, collectionStore, scratchCollections, scratchStorage, vaultStorage, writeInto } from './storage';
+import {
+  NATIVE,
+  clearDirectory,
+  collectionStore,
+  memorySnapshots,
+  scratchCollections,
+  scratchStorage,
+  vaultSnapshots,
+  vaultStorage,
+  writeInto,
+  type SnapshotStore,
+} from './storage';
 
 /**
  * Carnet — a notes application whose storage is a folder you can read.
@@ -51,6 +63,8 @@ const vaultLabel = el('vault-label');
 
 let root: string | null = null;
 let workspace: Workspace | null = null;
+/** Where each page's CRDT document is kept. */
+let snapshots: SnapshotStore | null = null;
 let editor: Editor | null = null;
 let view: EditorView | null = null;
 let openId: string | null = null;
@@ -158,6 +172,7 @@ async function openVault(path: string): Promise<void> {
   root = NATIVE ? path : null;
   if (NATIVE) await grantAccess(path);
   workspace = new Workspace(NATIVE ? vaultStorage(path) : scratchStorage());
+  snapshots = NATIVE ? vaultSnapshots(path) : memorySnapshots();
   await workspace.load();
   vaultLabel.textContent = path.split('/').pop() ?? path;
   welcomeEl.hidden = true;
@@ -330,10 +345,25 @@ function persistSoon(): void {
   saveTimer = window.setTimeout(() => void persistNow(), 400);
 }
 
+/** The CRDT document currently open, so it can be snapshotted on save. */
+let liveStore: LoroBlockStore | null = null;
+
 async function persistNow(): Promise<void> {
   if (!dirty || !workspace || !editor || !openId) return;
   dirty = false;
   await workspace.save(openId, docToJSON(editor.doc) as BlockJSON);
+  /*
+   * Both, and neither derived from the other: the JSON is what survives this
+   * app being deleted, and the snapshot is what carries the merge identity and
+   * the history that JSON has nowhere to put. Written from the same document,
+   * so they cannot disagree.
+   */
+  if (snapshots && liveStore) {
+    await snapshots.write(openId, liveStore.doc.export({ mode: 'snapshot' })).catch((error: unknown) => {
+      // history is recoverable; the page is not. Never fail a save over this.
+      console.error('[carnet] instantané non écrit', error);
+    });
+  }
   /*
    * The Markdown mirror is a *projection*, and a projection failing must never
    * stop the thing it projects. This used to be awaited inside `persistNow`,
@@ -354,7 +384,21 @@ async function openPage(pageId: string): Promise<void> {
 
   openId = pageId;
   view?.destroy();
-  editor = new Editor({ doc: docFromJSON(document_) });
+
+  /*
+   * The page's *document*, not its content. A CRDT cannot be rebuilt from JSON
+   * and still merge — two peers seeded separately from identical JSON converge
+   * on every block twice, because the identity Loro tracks is the tree node it
+   * created (`packages/collab/test/seeding.test.ts`). So the snapshot is the
+   * thing that is opened, and the JSON is the fallback for a page that has
+   * never had one.
+   */
+  const store = new LoroBlockStore();
+  const snapshot = snapshots ? await snapshots.read(pageId) : null;
+  if (snapshot) store.import(snapshot);
+  else seedFromJSON(store, document_);
+  editor = new Editor({ doc: { blocks: store, rootId: document_.id } });
+  liveStore = store;
   view = new EditorView(editorEl, editor, {
     blocks: [callout],
     database: database ?? undefined,

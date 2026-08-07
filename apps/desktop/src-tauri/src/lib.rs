@@ -30,7 +30,14 @@ use tauri_plugin_fs::FsExt;
 fn allow_vault(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let scope = app.fs_scope();
     let root = std::path::Path::new(&path);
-    let wanted = [root.to_path_buf(), root.join(".nbe"), root.join("pages")];
+    // `.nbe/rooms` holds the CRDT snapshots. It is listed by name for the same
+    // reason `.nbe` is: granting the parent recursively did not reach it.
+    let wanted = [
+        root.to_path_buf(),
+        root.join(".nbe"),
+        root.join(".nbe").join("rooms"),
+        root.join("pages"),
+    ];
 
     for directory in &wanted {
         // it has to exist before the scope can be asked about it

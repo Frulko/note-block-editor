@@ -40,8 +40,8 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'pnpm --filter demo-collab dev --port 5174',
-      url: 'http://localhost:5174',
+      command: 'pnpm --filter demo-collab dev --port 5175',
+      url: 'http://localhost:5175',
       reuseExistingServer: true,
       timeout: 60_000,
     },

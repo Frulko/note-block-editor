@@ -12,7 +12,7 @@ import { expect, test } from '@playwright/test';
  * had arriving over the handshake.
  */
 
-const COLLAB = 'http://localhost:5174/';
+const COLLAB = 'http://localhost:5175/';
 
 test.describe('two peers, one document', () => {
   test('the joining peer receives a document it never had', async ({ page }) => {
