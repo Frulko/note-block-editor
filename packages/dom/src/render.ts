@@ -35,7 +35,7 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
   if (!view.readOnly) view.topology.prepareLeaf(leaf, block.id);
   leaf.dataset['gramm'] = 'false'; // Grammarly-class extension opt-out (best effort)
   const placeholder =
-    block.type === 'paragraph' ? 'Écris quelque chose…' : (spec.placeholder ?? '');
+    block.type === 'paragraph' ? view.labels.emptyParagraph : (spec.placeholder ?? '');
   if (placeholder) {
     leaf.dataset['placeholder'] = placeholder;
     // paragraphs: caret-only placeholder (Notion); other types: always when empty

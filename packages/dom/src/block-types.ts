@@ -1,3 +1,5 @@
+import type { EditorLabels } from './labels';
+
 /** Turn-into targets, shared by the block menu and the selection toolbar. */
 export interface TurnIntoTarget {
   label: string;
@@ -6,17 +8,18 @@ export interface TurnIntoTarget {
   props?: Record<string, unknown>;
 }
 
-export const TURN_INTO: TurnIntoTarget[] = [
-  { label: 'Texte', icon: '¶', type: 'paragraph' },
-  { label: 'Titre 1', icon: 'H1', type: 'heading', props: { level: 1 } },
-  { label: 'Titre 2', icon: 'H2', type: 'heading', props: { level: 2 } },
-  { label: 'Titre 3', icon: 'H3', type: 'heading', props: { level: 3 } },
-  { label: 'Liste à puces', icon: '•', type: 'bulleted_list_item' },
-  { label: 'Liste numérotée', icon: '1.', type: 'numbered_list_item' },
-  { label: 'Case à cocher', icon: '☑', type: 'to_do' },
-  { label: 'Toggle', icon: '▸', type: 'toggle' },
-  { label: 'Citation', icon: '❝', type: 'quote' },
-  { label: 'Code', icon: '⌨', type: 'code' },
+/** Built per view: labels are per view. */
+const builtinTurnInto = (labels: EditorLabels): TurnIntoTarget[] => [
+  { label: labels.text, icon: '¶', type: 'paragraph' },
+  { label: labels.heading1, icon: 'H1', type: 'heading', props: { level: 1 } },
+  { label: labels.heading2, icon: 'H2', type: 'heading', props: { level: 2 } },
+  { label: labels.heading3, icon: 'H3', type: 'heading', props: { level: 3 } },
+  { label: labels.bulletedList, icon: '•', type: 'bulleted_list_item' },
+  { label: labels.numberedList, icon: '1.', type: 'numbered_list_item' },
+  { label: labels.todo, icon: '☑', type: 'to_do' },
+  { label: labels.toggle, icon: '▸', type: 'toggle' },
+  { label: labels.quote, icon: '❝', type: 'quote' },
+  { label: labels.code, icon: '⌨', type: 'code' },
 ];
 
 export function isActiveTarget(
@@ -34,6 +37,7 @@ export function isActiveTarget(
  * extend it, and nothing is privileged.
  */
 export function turnIntoTargets(view: {
+  labels: EditorLabels;
   plugins: { all(): Array<{ schema: { type: string }; view?: unknown }> };
 }): TurnIntoTarget[] {
   const contributed: TurnIntoTarget[] = [];
@@ -48,5 +52,5 @@ export function turnIntoTargets(view: {
       contributed.push({ label: entry.label, icon: entry.icon, type: plugin.schema.type, props: entry.props });
     }
   }
-  return [...TURN_INTO, ...contributed];
+  return [...builtinTurnInto(view.labels), ...contributed];
 }

@@ -32,10 +32,12 @@ type Edge = 'before' | 'after' | 'left' | 'right';
 import { COLORS } from './colors';
 import { isActiveTarget, turnIntoTargets } from './block-types';
 import { blockActionEntries } from './block-actions';
+import { format } from './labels';
 import type { GestureRecognizer } from './gestures';
 
 export function attachControls(view: EditorView): () => void {
   const editor = view.editor;
+  const labels = view.labels;
 
   /**
    * Blocks a user can grab, drop next to, or open a menu on. Layout containers
@@ -62,7 +64,7 @@ export function attachControls(view: EditorView): () => void {
     onClick: () => insertBelow(),
   });
   const handleBtn = createActionButton({
-    title: 'Glisser pour déplacer\nCliquer pour ouvrir le menu',
+    title: labels.dragHandle,
     icon: 'grip-vertical',
     iconSize: 18,
     className: 'nbe-ctrl-btn nbe-handle',
@@ -184,42 +186,42 @@ export function attachControls(view: EditorView): () => void {
     const first = ids[0]!;
     const entries: MenuEntry[] = [
       {
-        label: 'Dupliquer',
+        label: labels.duplicate,
         hint: '⌘D',
         onSelect: () => {
           duplicateBlocks(editor, ids);
-          view.announce('Bloc dupliqué');
+          view.announce(labels.blockDuplicated);
         },
       },
       {
-        label: 'Supprimer',
+        label: labels.delete,
         hint: '⌫',
         onSelect: () => {
           deleteBlocks(editor, ids);
-          view.announce('Bloc supprimé');
+          view.announce(labels.blockDeleted);
         },
       },
       {
-        label: 'Copier le lien du bloc',
+        label: labels.copyBlockLink,
         onSelect: () => {
           void navigator.clipboard?.writeText(`${location.origin}${location.pathname}#${first}`);
-          view.announce('Lien copié');
+          view.announce(labels.linkCopied);
         },
       },
       {
-        label: 'Déplacer vers le haut',
+        label: labels.moveUp,
         hint: '⌘⇧↑',
         onSelect: () => {
           moveBlocksVertical(editor, ids, 'up');
-          view.announce('Bloc déplacé vers le haut');
+          view.announce(labels.blockMovedUp);
         },
       },
       {
-        label: 'Déplacer vers le bas',
+        label: labels.moveDown,
         hint: '⌘⇧↓',
         onSelect: () => {
           moveBlocksVertical(editor, ids, 'down');
-          view.announce('Bloc déplacé vers le bas');
+          view.announce(labels.blockMovedDown);
         },
       },
     ];
@@ -234,10 +236,10 @@ export function attachControls(view: EditorView): () => void {
       anchor: handleBtn,
       close: () => menu.close(),
     });
-    if (typeEntries.length) entries.push({ kind: 'section', label: 'Ce bloc' }, ...typeEntries);
+    if (typeEntries.length) entries.push({ kind: 'section', label: labels.thisBlock }, ...typeEntries);
 
     if (editor.schema.get(block.type).inline) {
-      entries.push({ kind: 'section', label: 'Transformer en' });
+      entries.push({ kind: 'section', label: labels.turnInto });
       for (const t of turnIntoTargets(view)) {
         entries.push({
           label: t.label,
@@ -245,7 +247,7 @@ export function attachControls(view: EditorView): () => void {
           hint: isActiveTarget(t, block) ? '✓' : undefined,
           onSelect: () => {
             for (const id of ids) turnInto(editor, id, t.type, t.props);
-            view.announce(`Transformé en ${t.label}`);
+            view.announce(format(labels.turnedInto, { type: t.label }));
           },
         });
       }
@@ -285,8 +287,8 @@ export function attachControls(view: EditorView): () => void {
       return swatches;
     };
 
-    entries.push({ kind: 'section', label: 'Couleur du texte' }, { kind: 'custom', el: swatchRow('color') });
-    entries.push({ kind: 'section', label: 'Couleur de fond' }, { kind: 'custom', el: swatchRow('backgroundColor') });
+    entries.push({ kind: 'section', label: labels.textColor }, { kind: 'custom', el: swatchRow('color') });
+    entries.push({ kind: 'section', label: labels.backgroundColor }, { kind: 'custom', el: swatchRow('backgroundColor') });
     return entries;
   };
 
@@ -398,7 +400,7 @@ export function attachControls(view: EditorView): () => void {
     if (!editor.doc.blocks.has(targetId) || !dragIds.every((id) => editor.doc.blocks.has(id))) return;
     if (edge === 'left' || edge === 'right') {
       moveIntoColumns(editor, dragIds, targetId, edge);
-      view.announce('Colonnes créées');
+      view.announce(labels.columnsCreated);
     } else {
       const target = getBlock(editor.doc, targetId);
       const parent = getBlock(editor.doc, target.parentId!);
@@ -409,7 +411,7 @@ export function attachControls(view: EditorView): () => void {
         after = i > 0 ? parent.children[i - 1]! : null;
       }
       moveBlocks(editor, dragIds, parent.id, after);
-      view.announce('Bloc déplacé');
+      view.announce(labels.blockMoved);
     }
   };
 

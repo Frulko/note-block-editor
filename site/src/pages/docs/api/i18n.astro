@@ -1,0 +1,103 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+import OptionsTable from '../../../components/api/OptionsTable.astro';
+import { options } from '../../../lib/api';
+const labels = options('@nbe/dom', 'EditorLabels');
+const basic = `import { EditorView } from '@nbe/dom';
+
+new EditorView(el, editor, {
+  labels: {
+    bold: 'Bold',
+    italic: 'Italic',
+    delete: 'Delete',
+    emptyParagraph: 'Write something…',
+  },
+});`;
+const full = `// en.ts — un dictionnaire complet
+import type { EditorLabels } from '@nbe/dom';
+
+export const en: EditorLabels = {
+  duplicate: 'Duplicate',
+  delete: 'Delete',
+  // … TypeScript signale toute clé manquante
+};
+
+new EditorView(el, editor, { labels: en });`;
+const interp = `import { format } from '@nbe/dom';
+
+format('Ligne {n}', { n: 2 });   // 'Ligne 2'
+format('Row {n}', { n: 2 });     // 'Row 2'
+format('Zeile', { n: 2 });       // 'Zeile' — un placeholder retiré ne casse rien`;
+---
+<Docs title="Internationalisation" wide>
+  <p>
+    Toutes les chaînes que l'éditeur met à l'écran passent par un dictionnaire.
+    Les valeurs par défaut sont en français parce que c'est la langue dans
+    laquelle il a été écrit — rien dans l'architecture ne la privilégie, et le
+    remplacement est total.
+  </p>
+
+  <h2 id="surcharge-partielle">Surcharge partielle</h2>
+  <p>Un sous-ensemble suffit : il est fusionné par-dessus les défauts.</p>
+  <pre><code class="language-ts">{basic}</code></pre>
+
+  <h2 id="dictionnaire-complet">Dictionnaire complet</h2>
+  <p>
+    En typant votre dictionnaire <code>EditorLabels</code>, TypeScript signale
+    toute clé oubliée — c'est ce qui rend une traduction vérifiable plutôt
+    qu'approximative.
+  </p>
+  <pre><code class="language-ts">{full}</code></pre>
+
+  <h2 id="interpolation">Interpolation</h2>
+  <p>
+    Deux libellés prennent une valeur : <code>rowN</code> et
+    <code>columnN</code>. Ils utilisent des marqueurs nommés
+    <code>{'{n}'}</code>, pas positionnels, pour qu'une traduction puisse les
+    déplacer ou les retirer.
+  </p>
+  <pre><code class="language-ts">{interp}</code></pre>
+  <div class="note">
+    <p>
+      <strong>Ce n'est délibérément pas un formateur ICU.</strong> L'éditeur a
+      exactement deux chaînes interpolées, toutes deux prenant un nombre nu.
+      Une bibliothèque de formatage pour deux chaînes est une dépendance qui ne
+      rapporte rien ; le jour où des pluriels ou des genres apparaissent, il
+      faudra la remplacer en bloc plutôt que faire grossir celle-ci.
+    </p>
+  </div>
+
+  <h2 id="garde-fou">Ce qui empêche la régression</h2>
+  <p>
+    Un dictionnaire que personne ne consulte est du code mort, et une base de
+    code qui recommence à écrire des chaînes en dur défait le travail un commit
+    à la fois. Un test parcourt donc les sources de l'éditeur et
+    <strong>échoue sur tout littéral accentué</strong> dans un module qui
+    affiche quelque chose. C'est ce test, plus que le dictionnaire, qui rend
+    l'internationalisation durable.
+  </p>
+
+  <h2 id="hors-perimetre">Hors périmètre, et pourquoi</h2>
+  <ul>
+    <li>
+      <strong>Les mots-clés de recherche d'emoji</strong> du sélecteur d'icônes.
+      Ce ne sont pas des libellés mais des synonymes de recherche : une autre
+      nature de localisation, avec une autre forme de donnée. Les mettre dans le
+      dictionnaire d'interface aurait été une erreur de modèle.
+    </li>
+    <li>
+      <strong>La direction du texte.</strong> L'éditeur n'a pas encore été
+      exercé en écriture droite-à-gauche ; la mise en page utilise déjà des
+      propriétés logiques par endroits, mais ce n'est ni complet ni testé, et
+      annoncer un support RTL serait malhonnête.
+    </li>
+    <li>
+      <strong>Le formatage des dates et des nombres</strong> dans les bases de
+      données, qui utilise aujourd'hui les entrées natives du navigateur et
+      suit donc déjà la locale du système.
+    </li>
+  </ul>
+
+  <h2 id="editorlabels">Toutes les clés</h2>
+  <OptionsTable entries={labels} />
+</Docs>

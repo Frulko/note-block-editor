@@ -78,7 +78,7 @@ export function attachLinkHover(view: EditorView): () => void {
     card.append(
       button('copy', 'Copier le lien', () => {
         void navigator.clipboard?.writeText(href);
-        view.announce('Lien copié');
+        view.announce(view.labels.linkCopied);
       }),
     );
 

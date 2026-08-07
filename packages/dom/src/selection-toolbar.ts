@@ -20,6 +20,7 @@ import {
   type MenuEntry,
 } from "./ui";
 import { COLORS } from "./colors";
+import type { EditorLabels } from "./labels";
 import { isActiveTarget, turnIntoTargets } from "./block-types";
 
 /**
@@ -35,30 +36,18 @@ interface FormatButton {
   className?: string;
 }
 
-const FORMATS: FormatButton[] = [
-  { mark: "bold", label: "B", title: "Gras · ⌘B", className: "nbe-fmt-bold" },
-  {
-    mark: "italic",
-    label: "i",
-    title: "Italique · ⌘I",
-    className: "nbe-fmt-italic",
-  },
-  {
-    mark: "underline",
-    label: "U",
-    title: "Souligné · ⌘U",
-    className: "nbe-fmt-underline",
-  },
-  {
-    mark: "strike",
-    label: "S",
-    title: "Barré · ⌘⇧S",
-    className: "nbe-fmt-strike",
-  },
-  { mark: "code", label: "<>", title: "Code · ⌘E", className: "nbe-fmt-code" },
+/** Built per view: labels are per view, shortcuts are not. */
+const formats = (labels: EditorLabels): FormatButton[] => [
+  { mark: 'bold', label: 'B', title: `${labels.bold} · ⌘B`, className: 'nbe-fmt-bold' },
+  { mark: 'italic', label: 'i', title: `${labels.italic} · ⌘I`, className: 'nbe-fmt-italic' },
+  { mark: 'underline', label: 'U', title: `${labels.underline} · ⌘U`, className: 'nbe-fmt-underline' },
+  { mark: 'strike', label: 'S', title: `${labels.strikethrough} · ⌘⇧S`, className: 'nbe-fmt-strike' },
+  { mark: 'code', label: '<>', title: `${labels.inlineCode} · ⌘E`, className: 'nbe-fmt-code' },
 ];
 
 export function attachSelectionToolbar(view: EditorView): () => void {
+  const labels = view.labels;
+  const FORMAT_BUTTONS = formats(labels);
   const editor = view.editor;
   const bar = document.createElement("div");
   bar.className = "nbe-seltoolbar";
@@ -233,7 +222,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     turnSep = divider();
     bar.append(turnBtn, turnSep);
 
-    for (const fmt of FORMATS) {
+    for (const fmt of FORMAT_BUTTONS) {
       const b = button(fmt.label, fmt.title, () => applyMark(fmt.mark), fmt.className);
       formatBtns.set(fmt.mark, b);
       bar.append(b);
@@ -274,7 +263,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       turnBtn!.textContent = `${turnIntoTargets(view).find((t) => isActiveTarget(t, block))?.label ?? "Texte"} ▾`;
     }
 
-    for (const fmt of FORMATS) {
+    for (const fmt of FORMAT_BUTTONS) {
       formatBtns.get(fmt.mark)?.classList.toggle("nbe-active", rangeHasMark(editor, fmt.mark));
     }
     linkBtn!.classList.toggle("nbe-active", rangeHasMark(editor, "link"));

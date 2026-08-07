@@ -125,6 +125,21 @@ Categories in use: `Blocks`, `Operations`, `Selection`, `Projections`,
   *explain*. When a symbol needs a concept explained, `@see` the guide and
   keep the entry short. That seam is what stops the two rotting apart.
 
+## On-screen strings
+
+Nothing the editor displays may be a literal in a source file. Everything goes
+through `EditorLabels`, which a host overrides in whole or in part.
+
+This is enforced, not requested: `packages/dom/test/i18n.test.ts` walks the
+editor's sources and fails on any accented literal in a module that renders
+something. A dictionary nothing consults is dead code, and a codebase that
+keeps adding hardcoded strings undoes the work one commit at a time — the
+tripwire is what makes the dictionary hold.
+
+Two things are deliberately outside it: emoji search synonyms, which are a
+different kind of localization with a different data shape, and text
+direction, which has not been exercised and would be dishonest to claim.
+
 ## The pipeline
 
 ```

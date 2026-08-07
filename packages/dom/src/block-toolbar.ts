@@ -2,6 +2,7 @@ import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { createActionButton, createMenu, positionFloating, type IconName, type MenuEntry } from './ui';
+import type { EditorLabels } from './labels';
 
 /**
  * Per-block floating toolbar, anchored to the block's top-right on hover.
@@ -42,13 +43,17 @@ export function hasBlockToolbar(type: string): boolean {
 
 // --- built-in: images ---------------------------------------------------
 
-const ALIGNMENTS = [
-  { value: 'left', label: 'Aligner à gauche' },
-  { value: 'center', label: 'Centrer' },
-  { value: 'right', label: 'Aligner à droite' },
-] as const;
+/** Built per view, because labels are per view. */
+const alignments = (labels: EditorLabels) =>
+  [
+    { value: 'left', label: labels.alignLeft },
+    { value: 'center', label: labels.alignCenter },
+    { value: 'right', label: labels.alignRight },
+  ] as const;
 
 registerBlockToolbar('image', ({ block, view, setProps }) => {
+  const labels = view.labels;
+  const ALIGNMENTS = alignments(labels);
   const src = String(block.props['src'] ?? '');
   const align = String(block.props['align'] ?? 'left');
   const width = Number(block.props['width'] ?? 100);
@@ -56,7 +61,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
   return [
     {
       icon: 'message-square',
-      title: block.props['caption'] ? 'Modifier la légende' : 'Ajouter une légende',
+      title: block.props['caption'] ? labels.editCaption : labels.addCaption,
       active: Boolean(block.props['caption']),
       onClick: (ctx, button) => {
         const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
@@ -64,7 +69,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
         wrap.className = 'nbe-db-filter';
         const input = document.createElement('input');
         input.className = 'nbe-db-input';
-        input.placeholder = 'Légende…';
+        input.placeholder = labels.captionPlaceholder;
         input.value = String(ctx.block.props['caption'] ?? '');
         input.addEventListener('keydown', (e) => {
           e.stopPropagation();
@@ -81,7 +86,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
     },
     {
       icon: 'columns',
-      title: `Alignement : ${ALIGNMENTS.find((a) => a.value === align)?.label ?? 'gauche'}`,
+      title: `${labels.alignLeft.split(' ')[0]} : ${ALIGNMENTS.find((a) => a.value === align)?.label ?? ''}`,
       onClick: (_ctx, button) => {
         const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
         menu.update(
@@ -96,7 +101,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
     },
     {
       icon: 'search',
-      title: `Taille : ${width}%`,
+      title: `${width} %`,
       onClick: (_ctx, button) => {
         const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
         menu.update(
@@ -111,7 +116,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
     },
     {
       icon: 'arrow-down',
-      title: "Télécharger l'image",
+      title: labels.downloadImage,
       onClick: async () => {
         if (!src) return;
         const url = (await view.options.resolveAssetUrl?.(src)) ?? src;

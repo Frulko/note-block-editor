@@ -8,6 +8,7 @@ import { Editor, PluginRegistry } from '@nbe/core';
 import { cellAt, insertTable, tableRows, rowCells, plainText } from '@nbe/core';
 import { blockActionEntries } from '../src/block-actions';
 import type { EditorView } from '../src/view';
+import { defaultLabels } from '../src/labels';
 
 function setup() {
   const editor = new Editor();
@@ -42,6 +43,7 @@ const viewFor = (editor: Editor, caretBlockId: string | null) =>
   ({
     editor,
     plugins: new PluginRegistry(),
+    labels: defaultLabels,
     lastTextCaret: caretBlockId ? { blockId: caretBlockId, offset: 0 } : null,
   }) as unknown as EditorView;
 

@@ -3,6 +3,7 @@ import { childIndex, getBlock, insertTable, plainText, textLength, uuidv7 } from
 import type { EditorView } from './view';
 import { createMenu, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
+import type { EditorLabels } from './labels';
 
 interface SlashItem {
   label: string;
@@ -16,22 +17,23 @@ interface SlashItem {
     | { kind: 'database' };
 }
 
-const ITEMS: SlashItem[] = [
-  { label: 'Texte', keywords: ['text', 'paragraphe', 'p'], icon: '¶', action: { kind: 'block', type: 'paragraph' } },
-  { label: 'Titre 1', keywords: ['h1', 'heading', 'titre'], icon: 'H1', action: { kind: 'block', type: 'heading', props: { level: 1 } } },
-  { label: 'Titre 2', keywords: ['h2', 'heading'], icon: 'H2', action: { kind: 'block', type: 'heading', props: { level: 2 } } },
-  { label: 'Titre 3', keywords: ['h3', 'heading'], icon: 'H3', action: { kind: 'block', type: 'heading', props: { level: 3 } } },
-  { label: 'Liste à puces', keywords: ['bullet', 'liste', 'ul'], icon: '•', action: { kind: 'block', type: 'bulleted_list_item' } },
-  { label: 'Liste numérotée', keywords: ['number', 'liste', 'ol'], icon: '1.', action: { kind: 'block', type: 'numbered_list_item' } },
-  { label: 'Case à cocher', keywords: ['todo', 'check', 'tâche', 'task'], icon: '☑', action: { kind: 'block', type: 'to_do' } },
-  { label: 'Toggle', keywords: ['toggle', 'dépliant', 'collapse'], icon: '▸', action: { kind: 'block', type: 'toggle' } },
-  { label: 'Citation', keywords: ['quote', 'citation'], icon: '❝', action: { kind: 'block', type: 'quote' } },
-  { label: 'Code', keywords: ['code', 'snippet'], icon: '⌨', action: { kind: 'block', type: 'code' } },
-  { label: 'Image', keywords: ['image', 'img', 'photo'], icon: '🖼', action: { kind: 'block', type: 'image' } },
-  { label: 'Tableau', keywords: ['table', 'tableau', 'grille', 'grid'], icon: '▦', action: { kind: 'table' } },
-  { label: 'Séparateur', keywords: ['divider', 'hr', 'ligne'], icon: '—', action: { kind: 'divider' } },
-  { label: 'Page', keywords: ['page', 'sous-page', 'subpage'], icon: '📄', action: { kind: 'page' } },
-  { label: 'Base de données', keywords: ['database', 'table', 'bdd', 'db'], icon: '🗃', action: { kind: 'database' } },
+/** Built per view: labels are per view. Blocks contribute their own on top. */
+const builtinItems = (labels: EditorLabels): SlashItem[] => [
+  { label: labels.text, keywords: ['text', 'p'], icon: '¶', action: { kind: 'block', type: 'paragraph' } },
+  { label: labels.heading1, keywords: ['h1', 'heading'], icon: 'H1', action: { kind: 'block', type: 'heading', props: { level: 1 } } },
+  { label: labels.heading2, keywords: ['h2', 'heading'], icon: 'H2', action: { kind: 'block', type: 'heading', props: { level: 2 } } },
+  { label: labels.heading3, keywords: ['h3', 'heading'], icon: 'H3', action: { kind: 'block', type: 'heading', props: { level: 3 } } },
+  { label: labels.bulletedList, keywords: ['bullet', 'ul'], icon: '•', action: { kind: 'block', type: 'bulleted_list_item' } },
+  { label: labels.numberedList, keywords: ['number', 'ol'], icon: '1.', action: { kind: 'block', type: 'numbered_list_item' } },
+  { label: labels.todo, keywords: ['todo', 'check', 'task'], icon: '☑', action: { kind: 'block', type: 'to_do' } },
+  { label: labels.toggle, keywords: ['toggle', 'collapse'], icon: '▸', action: { kind: 'block', type: 'toggle' } },
+  { label: labels.quote, keywords: ['quote'], icon: '❝', action: { kind: 'block', type: 'quote' } },
+  { label: labels.code, keywords: ['code', 'snippet'], icon: '⌨', action: { kind: 'block', type: 'code' } },
+  { label: labels.image, keywords: ['image', 'img', 'photo'], icon: '🖼', action: { kind: 'block', type: 'image' } },
+  { label: labels.table, keywords: ['table', 'grid'], icon: '▦', action: { kind: 'table' } },
+  { label: labels.divider, keywords: ['divider', 'hr'], icon: '—', action: { kind: 'divider' } },
+  { label: labels.page, keywords: ['page', 'subpage'], icon: '📄', action: { kind: 'page' } },
+  { label: labels.database, keywords: ['database', 'db'], icon: '🗃', action: { kind: 'database' } },
 ];
 
 /** Built-in entries plus everything the registered plugins contribute. */
@@ -50,10 +52,10 @@ export function slashItems(view: EditorView): SlashItem[] {
       });
     }
   }
-  return [...ITEMS, ...contributed];
+  return [...builtinItems(view.labels), ...contributed];
 }
 
-export function filterItems(query: string, hasPages: boolean, hasDb = hasPages, items: SlashItem[] = ITEMS): SlashItem[] {
+export function filterItems(query: string, hasPages: boolean, hasDb = hasPages, items: SlashItem[] = []): SlashItem[] {
   const q = query.toLowerCase().trim();
   return items.filter((item) => {
     if (item.action.kind === 'page' && !hasPages) return false;

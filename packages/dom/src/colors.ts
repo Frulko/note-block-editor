@@ -16,7 +16,7 @@ export interface ColorDef {
  * document rewriting. Arbitrary CSS can never enter the model this way.
  */
 export const COLORS: ColorDef[] = [
-  { name: 'default', label: 'Défaut', text: 'inherit', background: 'transparent' },
+  { name: 'default', label: 'default', text: 'inherit', background: 'transparent' },
   { name: 'gray', label: 'Gris', text: 'rgb(120,119,116)', background: 'rgb(241,241,239)' },
   { name: 'brown', label: 'Marron', text: 'rgb(159,107,83)', background: 'rgb(244,238,238)' },
   { name: 'orange', label: 'Orange', text: 'rgb(217,115,13)', background: 'rgb(251,236,221)' },

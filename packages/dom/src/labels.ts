@@ -109,6 +109,102 @@ export interface EditorLabels {
   blockMovedDown: string;
   /** Announced to screen readers after copying a block link. */
   linkCopied: string;
+
+  // --- block toolbar (image, media) ---
+  /** Add a caption under the image. Block toolbar. */
+  addCaption: string;
+  /** Edit the existing caption. Block toolbar. */
+  editCaption: string;
+  /** Placeholder in the caption field. */
+  captionPlaceholder: string;
+  /** Align left. Block toolbar. */
+  alignLeft: string;
+  /** Centre. Block toolbar. */
+  alignCenter: string;
+  /** Align right. Block toolbar. */
+  alignRight: string;
+  /** Download the image. Block toolbar. */
+  downloadImage: string;
+  /** Replace the image. Gutter menu. */
+  replaceImage: string;
+
+  // --- to-do and table actions ---
+  /** Tick the checkbox. Gutter menu. */
+  check: string;
+  /** Untick the checkbox. Gutter menu. */
+  uncheck: string;
+  /** Insert a row above the caret's row. */
+  insertRowAbove: string;
+  /** Insert a row below the caret's row. */
+  insertRowBelow: string;
+  /** Delete the caret's row. */
+  deleteRow: string;
+  /** Insert a column left of the caret's column. */
+  insertColumnLeft: string;
+  /** Insert a column right of the caret's column. */
+  insertColumnRight: string;
+  /** Delete the caret's column. */
+  deleteColumn: string;
+  /** Toggle whether the first row is a header. */
+  headerRow: string;
+  /** Section heading naming the caret's row, e.g. "Row 2". Takes `{n}`. */
+  rowN: string;
+  /** Section heading naming the caret's column. Takes `{n}`. */
+  columnN: string;
+
+  // --- code block ---
+  /** Section heading above the language list. */
+  language: string;
+
+  // --- announcements, continued ---
+  /** Announced after a drag-and-drop move. */
+  blockMoved: string;
+  /** Announced after a side drop creates columns. */
+  columnsCreated: string;
+
+  // --- database chrome ---
+  /** Shown when a database block points at a collection the host cannot find. */
+  dbUnavailable: string;
+  /** Toolbar button opening the property visibility list. */
+  dbProperties: string;
+  /** Adds a property to the collection. */
+  dbNewProperty: string;
+  /** Removes a property from the collection. */
+  dbDeleteProperty: string;
+  /** Shown on a board with no grouping property chosen. */
+  dbPickGrouping: string;
+  /** Shown on a rollup before a relation property exists. */
+  dbNeedsRelation: string;
+  /** Shown on a relation with no target collection chosen. */
+  dbPickCollection: string;
+  /** Section heading above the aggregated property. */
+  dbRolledUpProperty: string;
+  /** Exports the visible rows as CSV. */
+  dbDownloadCsv: string;
+  /** Exports the view definition as an Obsidian-shaped .base file. */
+  dbDownloadBase: string;
+  /** Hint under the formula editor. */
+  dbFormulaHint: string;
+  /** Announced after converting a block. Takes `{type}`. */
+  turnedInto: string;
+  /** The "no colour" entry in the palette. */
+  colorDefault: string;
+  /** Callout preset names, keyed by variant. */
+  calloutNote: string;
+  /** @see calloutNote */
+  calloutInfo: string;
+  /** @see calloutNote */
+  calloutTip: string;
+  /** @see calloutNote */
+  calloutSuccess: string;
+  /** @see calloutNote */
+  calloutWarning: string;
+  /** @see calloutNote */
+  calloutDanger: string;
+  /** @see calloutNote */
+  calloutQuote: string;
+  /** Placeholder in the formula editor. */
+  dbFormulaPlaceholder: string;
 }
 
 /**
@@ -175,9 +271,86 @@ export const defaultLabels: EditorLabels = {
   blockMovedUp: 'Bloc déplacé vers le haut',
   blockMovedDown: 'Bloc déplacé vers le bas',
   linkCopied: 'Lien copié',
+
+  addCaption: 'Ajouter une légende',
+  editCaption: 'Modifier la légende',
+  captionPlaceholder: 'Légende…',
+  alignLeft: 'Aligner à gauche',
+  alignCenter: 'Centrer',
+  alignRight: 'Aligner à droite',
+  downloadImage: "Télécharger l'image",
+  replaceImage: "Remplacer l'image",
+
+  check: 'Cocher',
+  uncheck: 'Décocher',
+  insertRowAbove: 'Insérer une ligne au-dessus',
+  insertRowBelow: 'Insérer une ligne en dessous',
+  deleteRow: 'Supprimer la ligne',
+  insertColumnLeft: 'Insérer une colonne à gauche',
+  insertColumnRight: 'Insérer une colonne à droite',
+  deleteColumn: 'Supprimer la colonne',
+  headerRow: "Ligne d'en-tête",
+  rowN: 'Ligne {n}',
+  columnN: 'Colonne {n}',
+
+  language: 'Langage',
+
+  blockMoved: 'Bloc déplacé',
+  columnsCreated: 'Colonnes créées',
+
+  dbUnavailable: '🗃️ Base de données indisponible',
+  dbProperties: 'Propriétés',
+  dbNewProperty: '＋ Nouvelle propriété',
+  dbDeleteProperty: 'Supprimer la propriété',
+  dbPickGrouping: 'Choisis une propriété de groupement pour le board.',
+  dbNeedsRelation: 'Crée d’abord une propriété Relation',
+  dbPickCollection: 'Choisis une collection cible dans le menu de la propriété',
+  dbRolledUpProperty: 'Propriété agrégée',
+  dbDownloadCsv: 'Télécharger le CSV',
+  dbDownloadBase: 'Télécharger la vue (.base)',
+  dbFormulaHint: 'Entrée pour valider',
+  turnedInto: 'Transformé en {type}',
+  colorDefault: 'Défaut',
+  calloutNote: 'Note',
+  calloutInfo: 'Info',
+  calloutTip: 'Astuce',
+  calloutSuccess: 'Succès',
+  calloutWarning: 'Attention',
+  calloutDanger: 'Erreur',
+  calloutQuote: 'Citation',
+  dbFormulaPlaceholder: 'ex: prop("Prix") * prop("Quantité")',
 };
 
-/** Merge a partial override over the defaults. */
+/**
+ * Merge a partial override over the defaults.
+ *
+ * @param overrides - Any subset of {@link EditorLabels}.
+ *
+ * @category Configuration
+ */
 export function resolveLabels(overrides?: Partial<EditorLabels>): EditorLabels {
   return overrides ? { ...defaultLabels, ...overrides } : defaultLabels;
+}
+
+/**
+ * Fill `{name}` placeholders in a label.
+ *
+ * @remarks
+ * Deliberately not an ICU message formatter: the editor has exactly two
+ * interpolated strings (`rowN`, `columnN`), both taking a bare number. A
+ * formatting library for two strings is a dependency that earns nothing, and
+ * the moment plurals or genders appear this should be replaced wholesale
+ * rather than grown.
+ *
+ * @example
+ * ```ts
+ * format(labels.rowN, { n: 2 })   // 'Ligne 2'
+ * ```
+ *
+ * @category Configuration
+ */
+export function format(label: string, values: Record<string, string | number>): string {
+  return label.replace(/\{(\w+)\}/g, (whole, key: string) =>
+    key in values ? String(values[key]) : whole,
+  );
 }

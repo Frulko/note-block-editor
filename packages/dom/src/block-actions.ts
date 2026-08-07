@@ -3,6 +3,7 @@ import { cellPosition, deleteColumn, deleteRow, getBlock, insertColumn, insertRo
 import type { EditorView } from './view';
 import { createDropZone, fileToDataUrl, openIconPicker, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
+import { format } from './labels';
 
 /**
  * Per-block-type actions contributed to the block menu (the ⋮⋮ handle).
@@ -50,18 +51,22 @@ const setProps = (ctx: BlockActionContext, props: Record<string, unknown>) =>
 
 const LANGUAGES = ['plain', 'ts', 'js', 'json', 'html', 'css', 'python', 'rust', 'go', 'sql', 'bash', 'swift'];
 
-registerBlockActions('code', (ctx) => [
-  { kind: 'section', label: 'Langage' },
+registerBlockActions('code', (ctx) => {
+  const labels = ctx.view.labels;
+  return [
+  { kind: 'section', label: labels.language },
   ...LANGUAGES.map((language) => ({
     label: language,
     hint: (ctx.block.props['language'] ?? 'plain') === language ? '✓' : undefined,
     onSelect: () => setProps(ctx, { language }),
   })),
-]);
+  ];
+});
 
 registerBlockActions('image', (ctx) => {
+  const labels = ctx.view.labels;
   const zone = createDropZone({
-    label: "Remplacer l'image",
+    label: labels.replaceImage,
     icon: '🖼️',
     onFile: async (file) => {
       const store = ctx.view.options.onStoreAsset;
@@ -81,6 +86,7 @@ registerBlockActions('image', (ctx) => {
  * table row is really "what do I do here" rather than a table-wide dialog.
  */
 registerBlockActions('table', (ctx) => {
+  const labels = ctx.view.labels;
   const doc = ctx.view.editor.doc;
   // the live selection is the block itself by the time this menu opens, so the
   // row and column come from where the caret last was in text
@@ -92,26 +98,28 @@ registerBlockActions('table', (ctx) => {
   const editor = ctx.view.editor;
 
   return [
-    { kind: 'section', label: `Ligne ${row + 1}` },
-    { label: 'Insérer une ligne au-dessus', onSelect: () => insertRow(editor, ctx.block.id, row) },
-    { label: 'Insérer une ligne en dessous', onSelect: () => insertRow(editor, ctx.block.id, row + 1) },
-    { label: 'Supprimer la ligne', onSelect: () => deleteRow(editor, ctx.block.id, row) },
-    { kind: 'section', label: `Colonne ${column + 1}` },
-    { label: 'Insérer une colonne à gauche', onSelect: () => insertColumn(editor, ctx.block.id, column) },
-    { label: 'Insérer une colonne à droite', onSelect: () => insertColumn(editor, ctx.block.id, column + 1) },
-    { label: 'Supprimer la colonne', onSelect: () => deleteColumn(editor, ctx.block.id, column) },
-    { kind: 'section', label: 'Tableau' },
+    { kind: 'section', label: format(labels.rowN, { n: row + 1 }) },
+    { label: labels.insertRowAbove, onSelect: () => insertRow(editor, ctx.block.id, row) },
+    { label: labels.insertRowBelow, onSelect: () => insertRow(editor, ctx.block.id, row + 1) },
+    { label: labels.deleteRow, onSelect: () => deleteRow(editor, ctx.block.id, row) },
+    { kind: 'section', label: format(labels.columnN, { n: column + 1 }) },
+    { label: labels.insertColumnLeft, onSelect: () => insertColumn(editor, ctx.block.id, column) },
+    { label: labels.insertColumnRight, onSelect: () => insertColumn(editor, ctx.block.id, column + 1) },
+    { label: labels.deleteColumn, onSelect: () => deleteColumn(editor, ctx.block.id, column) },
+    { kind: 'section', label: labels.table },
     {
-      label: "Ligne d'en-tête",
+      label: labels.headerRow,
       hint: ctx.block.props['headerRow'] !== false ? '✓' : undefined,
       onSelect: () => setProps(ctx, { headerRow: ctx.block.props['headerRow'] === false }),
     },
   ];
 });
 
-registerBlockActions('to_do', (ctx) => [
+registerBlockActions('to_do', (ctx) => {
+  const labels = ctx.view.labels;
+  return [
   {
-    label: ctx.block.props['checked'] === true ? 'Décocher' : 'Cocher',
+    label: ctx.block.props['checked'] === true ? labels.uncheck : labels.check,
     onSelect: () => {
       const checked = ctx.block.props['checked'] !== true;
       ctx.view.editor.dispatch(
@@ -126,4 +134,5 @@ registerBlockActions('to_do', (ctx) => [
       );
     },
   },
-]);
+  ];
+});
