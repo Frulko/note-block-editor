@@ -112,7 +112,7 @@
   margin: 4px 0;
 }
 .nbe-t-code .nbe-leaf {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--nbe-font-mono);
   font-size: 0.85em;
   line-height: 1.6;
 }
@@ -286,7 +286,7 @@
   text-decoration: underline line-through;
 }
 .nbe-m-code {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--nbe-font-mono);
   font-size: 0.85em;
   background: var(--nbe-code-bg);
   color: var(--nbe-code-text);

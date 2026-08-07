@@ -283,7 +283,7 @@
 }
 .nbe-fmt-italic {
   font-style: italic;
-  font-family: Georgia, serif;
+  font-family: var(--nbe-font-serif);
   padding: 4px 10px;
 }
 .nbe-fmt-underline {
@@ -293,7 +293,7 @@
   text-decoration: line-through;
 }
 .nbe-fmt-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--nbe-font-mono);
   font-size: 12px;
 }
 .nbe-seltoolbar-sep {

@@ -1,15 +1,27 @@
 /* ==========================================================================
-   Design tokens and themes. Six base channels plus the named block palette;
-   dark mode remaps those and nothing else. The dark blocks must stay after the
-   base rule in this file: the media-query one has equal specificity, so its
-   position is what makes it win.
-   ========================================================================== */
+   Carnet — the design tokens, and the whole of the visual language.
 
-/* ==========================================================================
-   Design tokens — one place for the whole UI language.
-   Everything below (menus, gutter, toolbar, database chrome) reads these, so
-   a host can re-skin the editor, or a future dark mode can remap them, by
-   overriding a dozen custom properties instead of patching rules.
+   THE CHARTER, in one line: ivory paper, blue ink, red pen.
+
+   That is not decoration, it is the rule that settles arguments. A carnet is
+   paper, so the surface is warm ivory rather than the cold white every
+   productivity tool defaults to. Writing is ink, so the accent is a saturated
+   fountain-pen blue — links, focus, selection, the caret. Corrections are made
+   in red, so danger keeps the red pen and nothing else may use it. A reader
+   should be able to name the metaphor without being told.
+
+   ORGANISATION. A short list of *base channels* is what a theme changes;
+   everything else derives from them and is written exactly once. That split is
+   load-bearing: the previous version restated some forty derived tokens inside
+   each theme block, and they drifted — `--nbe-code-text` ended up declared
+   twice in a row in the dark block, which is what copy-paste looks like after
+   a few months. If you find yourself adding a token to a theme block below,
+   check first whether it can derive from a channel instead. It usually can.
+
+   The named block palette uses `light-dark()`, so each of those eighteen
+   colours is written once rather than once per theme. The channels cannot: they
+   are `R G B` triplets, consumed as `rgb(var(--nbe-ink) / 0.4)` throughout, and
+   `light-dark()` yields a colour rather than a triplet.
    ========================================================================== */
 
 /* The editor, and any floating chrome mounted outside it (see ui/portal.ts).
@@ -17,143 +29,170 @@
    components missing from it painted with no tokens at all. */
 .nbe-editor,
 .nbe-portal {
-  /* base channels — dark mode remaps these six and the rest follows */
-  --nbe-ink: 55 53 47;
-  --nbe-ink-warm: 135 131 120;
-  --nbe-accent-rgb: 35 131 226;
-  --nbe-danger-rgb: 212 76 71;
-  --nbe-shadow-rgb: 15 15 15;
-  --nbe-surface: #fff;
+  /* `light-dark()` reads this. Forcing a theme below is one property. */
+  color-scheme: light dark;
+
+  /* ---- base channels: a theme changes these and nothing else ---- */
+  --nbe-ink: 28 27 42;            /* blue-black, the colour of ink not of soot */
+  --nbe-ink-warm: 122 116 104;    /* the warm grey of pencil and paper fibre */
+  --nbe-accent-rgb: 41 78 199;    /* encre — fountain-pen blue */
+  --nbe-danger-rgb: 199 58 52;    /* stylo rouge — corrections, and only those */
+  --nbe-shadow-rgb: 20 18 30;
+  --nbe-surface: #fdfcfa;         /* papier */
+  --nbe-surface-sunken: #f5f3ee;
+  --nbe-success-rgb: 45 132 94;
+  --nbe-inverse-surface: rgb(31, 30, 38);
+
+  /* alphas, so the derived tokens below are written once and still differ per
+     theme — light-on-dark ink needs a lighter touch than dark-on-light */
+  --nbe-a-muted: 0.66;
+  --nbe-a-light: 0.5;
+  --nbe-a-faint: 0.35;
+  --nbe-a-placeholder: 0.35;
+  --nbe-a-hover: 0.055;
+  --nbe-a-hover-strong: 0.09;
+  --nbe-a-border: 0.1;
+  --nbe-a-border-strong: 0.17;
+  --nbe-a-code-bg: 0.14;
+  --nbe-a-shadow-ring: 0.05;
+  --nbe-a-shadow-near: 0.1;
+  --nbe-a-shadow-far: 0.2;
+
+  /* ---- everything below derives, and is written once ---- */
 
   /* ink */
   --nbe-text: rgb(var(--nbe-ink));
-  --nbe-text-muted: rgb(var(--nbe-ink) / 0.65);
-  --nbe-text-light: rgb(var(--nbe-ink) / 0.5);
-  --nbe-text-faint: rgb(var(--nbe-ink) / 0.35);
-  --nbe-placeholder: rgb(var(--nbe-ink) / 0.35);
+  --nbe-text-muted: rgb(var(--nbe-ink) / var(--nbe-a-muted));
+  --nbe-text-light: rgb(var(--nbe-ink) / var(--nbe-a-light));
+  --nbe-text-faint: rgb(var(--nbe-ink) / var(--nbe-a-faint));
+  --nbe-placeholder: rgb(var(--nbe-ink) / var(--nbe-a-placeholder));
 
   /* surfaces */
-  --nbe-surface-sunken: rgb(247, 246, 243);
-  --nbe-hover: rgb(var(--nbe-ink) / 0.06);
-  --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
-  --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.15);
-  --nbe-code-text: rgb(235, 87, 87);
+  --nbe-hover: rgb(var(--nbe-ink) / var(--nbe-a-hover));
+  --nbe-hover-strong: rgb(var(--nbe-ink) / var(--nbe-a-hover-strong));
+  --nbe-code-bg: rgb(var(--nbe-ink-warm) / var(--nbe-a-code-bg));
+  --nbe-code-text: light-dark(rgb(197, 62, 74), rgb(255, 138, 138));
 
   /* lines */
-  --nbe-border: rgb(var(--nbe-ink) / 0.09);
-  --nbe-border-strong: rgb(var(--nbe-ink) / 0.16);
+  --nbe-border: rgb(var(--nbe-ink) / var(--nbe-a-border));
+  --nbe-border-strong: rgb(var(--nbe-ink) / var(--nbe-a-border-strong));
 
   /* accents */
   --nbe-accent: rgb(var(--nbe-accent-rgb));
   --nbe-accent-soft: rgb(var(--nbe-accent-rgb) / 0.13);
   --nbe-accent-line: rgb(var(--nbe-accent-rgb) / 0.45);
   --nbe-danger: rgb(var(--nbe-danger-rgb));
-  --nbe-success: rgb(68, 131, 97);
-  /* what sits on top of a filled accent (checkbox tick) — white in both themes */
+  --nbe-success: rgb(var(--nbe-success-rgb));
+  /* what sits on top of a filled accent (a checkbox tick) — white in both */
   --nbe-on-accent: #fff;
 
-  /* inverted surface (selection toolbar) */
-  --nbe-inverse-surface: rgb(37, 37, 37);
-  --nbe-inverse-text: rgba(255, 255, 255, 0.85);
-  --nbe-inverse-hover: rgba(255, 255, 255, 0.12);
-  --nbe-inverse-accent: rgb(96, 176, 255);
+  /* inverted surface (the selection toolbar), which flips against the page */
+  --nbe-inverse-text: rgb(255 255 255 / 0.88);
+  --nbe-inverse-hover: rgb(255 255 255 / 0.12);
+  --nbe-inverse-accent: rgb(138 172 255);
+
+  /* ---- type ----
+     Inter, because it was drawn for interfaces at small sizes and its figures
+     and punctuation stay unambiguous there. It is named, never fetched: a
+     remote font is a network dependency in an offline-first editor and a
+     third-party request in a private one. An app that wants it bundles it
+     (@fontsource/inter); everywhere else falls through to the system's own
+     interface face, which is the closest thing available and costs nothing. */
+  --nbe-font-sans: "Inter", "Inter Variable", ui-sans-serif, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --nbe-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --nbe-font-serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  /* Inter's alternates: a straight-tailed l and a plain a, which is what stops
+     `l`/`1`/`I` reading alike in a document full of identifiers. Ignored by
+     every fallback face, so this is free. */
+  --nbe-font-features: "cv05" 1, "cv08" 1, "cv11" 1;
 
   /* shape */
   --nbe-radius-sm: 3px;
-  --nbe-radius: 5px;
-  --nbe-radius-lg: 8px;
+  --nbe-radius: 6px;
+  --nbe-radius-lg: 10px;
 
   /* elevation */
-  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.04) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
-  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.05) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.1) 0 3px 6px,
-    rgb(var(--nbe-shadow-rgb) / 0.2) 0 9px 24px;
+  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-ring)) 0 0 0 1px,
+    rgb(var(--nbe-shadow-rgb) / 0.04) 0 2px 4px;
+  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-ring)) 0 0 0 1px,
+    rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-near)) 0 3px 6px,
+    rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-far)) 0 9px 24px;
 
-  /* block palette — persisted by name, resolved here so dark mode remaps it */
-  --nbe-color-gray-text: rgb(120,119,116);
-  --nbe-color-gray-bg: rgb(241,241,239);
-  --nbe-color-brown-text: rgb(159,107,83);
-  --nbe-color-brown-bg: rgb(244,238,238);
-  --nbe-color-orange-text: rgb(217,115,13);
-  --nbe-color-orange-bg: rgb(251,236,221);
-  --nbe-color-yellow-text: rgb(203,145,47);
-  --nbe-color-yellow-bg: rgb(251,243,219);
-  --nbe-color-green-text: rgb(68,131,97);
-  --nbe-color-green-bg: rgb(237,243,236);
-  --nbe-color-blue-text: rgb(51,126,169);
-  --nbe-color-blue-bg: rgb(231,243,248);
-  --nbe-color-purple-text: rgb(144,101,176);
-  --nbe-color-purple-bg: rgb(244,240,247);
-  --nbe-color-pink-text: rgb(193,76,138);
-  --nbe-color-pink-bg: rgb(249,238,243);
-  --nbe-color-red-text: rgb(212,76,71);
-  --nbe-color-red-bg: rgb(253,235,236);
-
-  /* motion — one duration language, all ease-out */
+  /* ---- motion ----
+     One duration language, all ease-out, because interface motion is a thing
+     arriving and settling rather than a thing being thrown. `--nbe-enter` adds
+     the slight overshoot that makes a menu feel placed instead of faded in;
+     it is deliberately the only non-monotonic curve in the system. */
   --nbe-fast: 90ms;
   --nbe-normal: 140ms;
   --nbe-slow: 220ms;
   --nbe-ease: cubic-bezier(0.2, 0, 0, 1);
+  --nbe-enter: cubic-bezier(0.16, 1.06, 0.32, 1.08);
+
+  /* ---- the named block palette ----
+     Persisted by name, so these values may be retuned but the names may not
+     change. Written once each: `light-dark()` picks the side, and the theme
+     blocks below never mention them. */
+  --nbe-color-gray-text: light-dark(rgb(120, 119, 116), rgb(155, 155, 155));
+  --nbe-color-gray-bg: light-dark(rgb(240, 239, 235), rgb(47, 47, 47));
+  --nbe-color-brown-text: light-dark(rgb(159, 107, 83), rgb(186, 133, 111));
+  --nbe-color-brown-bg: light-dark(rgb(244, 238, 236), rgb(74, 50, 40));
+  --nbe-color-orange-text: light-dark(rgb(202, 108, 22), rgb(199, 125, 72));
+  --nbe-color-orange-bg: light-dark(rgb(251, 236, 221), rgb(92, 59, 35));
+  --nbe-color-yellow-text: light-dark(rgb(184, 133, 39), rgb(202, 152, 73));
+  --nbe-color-yellow-bg: light-dark(rgb(251, 243, 219), rgb(86, 67, 40));
+  --nbe-color-green-text: light-dark(rgb(56, 128, 92), rgb(82, 158, 114));
+  --nbe-color-green-bg: light-dark(rgb(235, 243, 236), rgb(36, 61, 48));
+  --nbe-color-blue-text: light-dark(rgb(45, 110, 180), rgb(122, 165, 255));
+  --nbe-color-blue-bg: light-dark(rgb(230, 240, 250), rgb(24, 52, 88));
+  --nbe-color-purple-text: light-dark(rgb(133, 94, 186), rgb(157, 114, 199));
+  --nbe-color-purple-bg: light-dark(rgb(243, 239, 249), rgb(60, 45, 73));
+  --nbe-color-pink-text: light-dark(rgb(188, 71, 133), rgb(212, 93, 146));
+  --nbe-color-pink-bg: light-dark(rgb(249, 237, 243), rgb(78, 44, 60));
+  --nbe-color-red-text: light-dark(rgb(199, 58, 52), rgb(232, 106, 100));
+  --nbe-color-red-bg: light-dark(rgb(252, 234, 233), rgb(82, 46, 42));
 }
 
 /* ==========================================================================
-   Dark mode. The values below appear twice on purpose: once behind the OS
-   preference, once behind data-nbe-theme="dark" so a host can force it. CSS
-   cannot OR a media query with a selector, so if you change a value here,
-   change it in both blocks.
+   Themes.
 
-   Only the base channels and a handful of derived tokens change:
-   not one rule below is duplicated, which is the whole point of the token
-   layer. The OS preference applies on its own; a host running its own theme
-   switch sets data-nbe-theme on the editor — or on <html>, which is what
-   reaches the menus and tooltips portaled out to the document body.
+   Only the base channels appear below. If a derived token ever shows up here,
+   that is the drift this file is organised to prevent — derive it instead.
+
+   The values are stated twice on purpose: once behind the OS preference, once
+   behind data-nbe-theme="dark" so a host can force it. CSS cannot OR a media
+   query with a selector, and this is the shortest form of that unavoidable
+   duplication — fourteen lines rather than the fifty it used to be.
    ========================================================================== */
 
 @media (prefers-color-scheme: dark) {
-  .nbe-editor,
-  .nbe-portal {
-    --nbe-ink: 255 255 255;
-    --nbe-ink-warm: 200 195 185;
-    --nbe-accent-rgb: 94 150 255;
-    --nbe-danger-rgb: 223 84 82;
+  /* Scoped away from a forced light theme, which is what lets the light values
+     live in exactly one place — the base block. The second `:not()` covers the
+     ancestor form: a host setting data-nbe-theme on <html> is the documented
+     way to reach the menus portaled out to the body, so it has to count. */
+  .nbe-editor:not([data-nbe-theme="light"]):not([data-nbe-theme="light"] *),
+  .nbe-portal:not([data-nbe-theme="light"]):not([data-nbe-theme="light"] *) {
+    --nbe-ink: 250 249 245;
+    --nbe-ink-warm: 188 182 170;
+    --nbe-accent-rgb: 130 158 255;
+    --nbe-danger-rgb: 232 106 100;
     --nbe-shadow-rgb: 0 0 0;
-    --nbe-surface: rgb(25, 25, 25);
-    --nbe-surface-sunken: rgb(32, 32, 32);
-    /* ink is light-on-dark now, so the light theme's alphas read far too strong */
-    --nbe-hover: rgb(var(--nbe-ink) / 0.055);
-    --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
-    --nbe-border: rgb(var(--nbe-ink) / 0.11);
-    --nbe-border-strong: rgb(var(--nbe-ink) / 0.18);
-    --nbe-text-muted: rgb(var(--nbe-ink) / 0.6);
-    --nbe-text-light: rgb(var(--nbe-ink) / 0.45);
-    --nbe-text-faint: rgb(var(--nbe-ink) / 0.3);
-    --nbe-placeholder: rgb(var(--nbe-ink) / 0.28);
-    --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.11);
-  --nbe-code-text: rgb(255, 122, 122);
-    --nbe-code-text: rgb(255, 122, 122);
+    --nbe-surface: rgb(23, 22, 28);
+    --nbe-surface-sunken: rgb(31, 30, 37);
+    --nbe-success-rgb: 82 158 114;
     /* the toolbar inverts against the page: on a dark page it goes light */
-    --nbe-inverse-surface: rgb(58, 58, 58);
-    --nbe-success: rgb(82, 158, 114);
-    --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.3) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.3) 0 2px 4px;
-    --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.35) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.4) 0 3px 6px,
-      rgb(var(--nbe-shadow-rgb) / 0.5) 0 9px 24px;
-    --nbe-color-gray-text: rgb(155,155,155);
-    --nbe-color-gray-bg: rgb(47,47,47);
-    --nbe-color-brown-text: rgb(186,133,111);
-    --nbe-color-brown-bg: rgb(74,50,40);
-    --nbe-color-orange-text: rgb(199,125,72);
-    --nbe-color-orange-bg: rgb(92,59,35);
-    --nbe-color-yellow-text: rgb(202,152,73);
-    --nbe-color-yellow-bg: rgb(86,67,40);
-    --nbe-color-green-text: rgb(82,158,114);
-    --nbe-color-green-bg: rgb(36,61,48);
-    --nbe-color-blue-text: rgb(94,150,255);
-    --nbe-color-blue-bg: rgb(20,58,78);
-    --nbe-color-purple-text: rgb(157,114,199);
-    --nbe-color-purple-bg: rgb(60,45,73);
-    --nbe-color-pink-text: rgb(212,93,146);
-    --nbe-color-pink-bg: rgb(78,44,60);
-    --nbe-color-red-text: rgb(223,84,82);
-    --nbe-color-red-bg: rgb(82,46,42);
+    --nbe-inverse-surface: rgb(58, 57, 64);
+    --nbe-a-muted: 0.6;
+    --nbe-a-light: 0.45;
+    --nbe-a-faint: 0.3;
+    --nbe-a-placeholder: 0.28;
+    --nbe-a-border: 0.11;
+    --nbe-a-border-strong: 0.18;
+    --nbe-a-code-bg: 0.11;
+    --nbe-a-shadow-ring: 0.3;
+    --nbe-a-shadow-near: 0.4;
+    --nbe-a-shadow-far: 0.5;
   }
 }
 
@@ -161,93 +200,56 @@
 [data-nbe-theme="dark"] .nbe-editor,
 .nbe-portal[data-nbe-theme="dark"],
 [data-nbe-theme="dark"] .nbe-portal {
-  --nbe-ink: 255 255 255;
-  --nbe-ink-warm: 200 195 185;
-  --nbe-accent-rgb: 94 150 255;
-  --nbe-danger-rgb: 223 84 82;
+  color-scheme: dark;
+  --nbe-ink: 250 249 245;
+  --nbe-ink-warm: 188 182 170;
+  --nbe-accent-rgb: 130 158 255;
+  --nbe-danger-rgb: 232 106 100;
   --nbe-shadow-rgb: 0 0 0;
-  --nbe-surface: rgb(25, 25, 25);
-  --nbe-surface-sunken: rgb(32, 32, 32);
-  /* ink is light-on-dark now, so the light theme's alphas read far too strong */
-  --nbe-hover: rgb(var(--nbe-ink) / 0.055);
-  --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
-  --nbe-border: rgb(var(--nbe-ink) / 0.11);
-  --nbe-border-strong: rgb(var(--nbe-ink) / 0.18);
-  --nbe-text-muted: rgb(var(--nbe-ink) / 0.6);
-  --nbe-text-light: rgb(var(--nbe-ink) / 0.45);
-  --nbe-text-faint: rgb(var(--nbe-ink) / 0.3);
-  --nbe-placeholder: rgb(var(--nbe-ink) / 0.28);
-  --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.11);
-  --nbe-code-text: rgb(255, 122, 122);
-  /* the toolbar inverts against the page: on a dark page it goes light */
-  --nbe-inverse-surface: rgb(58, 58, 58);
-  --nbe-success: rgb(82, 158, 114);
-  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.3) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.3) 0 2px 4px;
-  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.35) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.4) 0 3px 6px,
-    rgb(var(--nbe-shadow-rgb) / 0.5) 0 9px 24px;
-  --nbe-color-gray-text: rgb(155,155,155);
-  --nbe-color-gray-bg: rgb(47,47,47);
-  --nbe-color-brown-text: rgb(186,133,111);
-  --nbe-color-brown-bg: rgb(74,50,40);
-  --nbe-color-orange-text: rgb(199,125,72);
-  --nbe-color-orange-bg: rgb(92,59,35);
-  --nbe-color-yellow-text: rgb(202,152,73);
-  --nbe-color-yellow-bg: rgb(86,67,40);
-  --nbe-color-green-text: rgb(82,158,114);
-  --nbe-color-green-bg: rgb(36,61,48);
-  --nbe-color-blue-text: rgb(94,150,255);
-  --nbe-color-blue-bg: rgb(20,58,78);
-  --nbe-color-purple-text: rgb(157,114,199);
-  --nbe-color-purple-bg: rgb(60,45,73);
-  --nbe-color-pink-text: rgb(212,93,146);
-  --nbe-color-pink-bg: rgb(78,44,60);
-  --nbe-color-red-text: rgb(223,84,82);
-  --nbe-color-red-bg: rgb(82,46,42);
+  --nbe-surface: rgb(23, 22, 28);
+  --nbe-surface-sunken: rgb(31, 30, 37);
+  --nbe-success-rgb: 82 158 114;
+  --nbe-inverse-surface: rgb(58, 57, 64);
+  --nbe-a-muted: 0.6;
+  --nbe-a-light: 0.45;
+  --nbe-a-faint: 0.3;
+  --nbe-a-placeholder: 0.28;
+  --nbe-a-border: 0.11;
+  --nbe-a-border-strong: 0.18;
+  --nbe-a-code-bg: 0.11;
+  --nbe-a-shadow-ring: 0.3;
+  --nbe-a-shadow-near: 0.4;
+  --nbe-a-shadow-far: 0.5;
 }
 
-/* forcing light has to out-specify the media query above, hence the explicit rule */
+/* Forcing light only has to restore `color-scheme`: the media query above is
+   already scoped away from this attribute, so the base channels never changed. */
 .nbe-editor[data-nbe-theme="light"],
 [data-nbe-theme="light"] .nbe-editor,
 .nbe-portal[data-nbe-theme="light"],
 [data-nbe-theme="light"] .nbe-portal {
-  --nbe-ink: 55 53 47;
-  --nbe-ink-warm: 135 131 120;
-  --nbe-accent-rgb: 35 131 226;
-  --nbe-danger-rgb: 212 76 71;
-  --nbe-shadow-rgb: 15 15 15;
-  --nbe-surface: #fff;
-  --nbe-surface-sunken: rgb(247, 246, 243);
-  --nbe-hover: rgb(var(--nbe-ink) / 0.06);
-  --nbe-hover-strong: rgb(var(--nbe-ink) / 0.09);
-  --nbe-border: rgb(var(--nbe-ink) / 0.09);
-  --nbe-border-strong: rgb(var(--nbe-ink) / 0.16);
-  --nbe-text-muted: rgb(var(--nbe-ink) / 0.65);
-  --nbe-text-light: rgb(var(--nbe-ink) / 0.5);
-  --nbe-text-faint: rgb(var(--nbe-ink) / 0.35);
-  --nbe-placeholder: rgb(var(--nbe-ink) / 0.35);
-  --nbe-code-bg: rgb(var(--nbe-ink-warm) / 0.15);
-  --nbe-code-text: rgb(235, 87, 87);
-  --nbe-inverse-surface: rgb(37, 37, 37);
-  --nbe-success: rgb(68, 131, 97);
-  --nbe-shadow-sm: rgb(var(--nbe-shadow-rgb) / 0.04) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.03) 0 2px 4px;
-  --nbe-shadow: rgb(var(--nbe-shadow-rgb) / 0.05) 0 0 0 1px, rgb(var(--nbe-shadow-rgb) / 0.1) 0 3px 6px,
-    rgb(var(--nbe-shadow-rgb) / 0.2) 0 9px 24px;
-  --nbe-color-gray-text: rgb(120,119,116);
-  --nbe-color-gray-bg: rgb(241,241,239);
-  --nbe-color-brown-text: rgb(159,107,83);
-  --nbe-color-brown-bg: rgb(244,238,238);
-  --nbe-color-orange-text: rgb(217,115,13);
-  --nbe-color-orange-bg: rgb(251,236,221);
-  --nbe-color-yellow-text: rgb(203,145,47);
-  --nbe-color-yellow-bg: rgb(251,243,219);
-  --nbe-color-green-text: rgb(68,131,97);
-  --nbe-color-green-bg: rgb(237,243,236);
-  --nbe-color-blue-text: rgb(51,126,169);
-  --nbe-color-blue-bg: rgb(231,243,248);
-  --nbe-color-purple-text: rgb(144,101,176);
-  --nbe-color-purple-bg: rgb(244,240,247);
-  --nbe-color-pink-text: rgb(193,76,138);
-  --nbe-color-pink-bg: rgb(249,238,243);
-  --nbe-color-red-text: rgb(212,76,71);
-  --nbe-color-red-bg: rgb(253,235,236);
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   Motion, honestly.
+   Everything above animates. Someone who has asked their system not to see
+   that must be obeyed, and the setting is not "slightly less" — it is off.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .nbe-editor,
+  .nbe-portal {
+    --nbe-fast: 0ms;
+    --nbe-normal: 0ms;
+    --nbe-slow: 0ms;
+  }
+
+  .nbe-editor *,
+  .nbe-portal * {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

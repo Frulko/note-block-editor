@@ -28,7 +28,8 @@
     max(var(--nbe-pad-x), var(--nbe-gutter-width), calc((100% - var(--nbe-max-width)) / 2))
     var(--nbe-pad-bottom);
 
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--nbe-font-sans);
+  font-feature-settings: var(--nbe-font-features);
   -webkit-font-smoothing: antialiased;
   color: var(--nbe-text);
   /* the editor paints its own page: without it a dark theme would put white

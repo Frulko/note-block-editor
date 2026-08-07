@@ -365,7 +365,7 @@
 }
 .nbe-db-formulainput {
   width: 100%;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--nbe-font-mono);
   font-size: 12px;
   border: 1px solid var(--nbe-border-strong);
   border-radius: 4px;
