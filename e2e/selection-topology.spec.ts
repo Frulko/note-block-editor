@@ -1,20 +1,24 @@
-import { test, expect } from './fixtures';
+import { test, expect, TOPOLOGY } from './fixtures';
 
 /**
- * D3 says a DOM Range may span several `contenteditable` hosts and the browser
- * paints it, so cross-block selection works under the per-block topology.
+ * What a `Selection` can span, measured rather than assumed.
  *
- * Measured here in Chromium 150 (headed) and 151 (headless): **it does not.**
- * A selection is clamped to the editing host it starts in, whether it is built
- * with `setBaseAndExtent` or `addRange`, whether the host is `plaintext-only`
- * or `true`, and whether or not the host has focus first.
+ * D3 originally claimed the browser would hold one across several
+ * `contenteditable` hosts. Measured in Chromium 150 (headed) and 151
+ * (headless): **it will not.** A selection is clamped to the editing host it
+ * starts in, whether built with `setBaseAndExtent` or `addRange`, whether the
+ * host is `plaintext-only` or `true`, and whether or not it has focus first.
  *
- * These tests exist to state the measurement rather than the belief. If a
- * future Chromium restores the spanning behaviour, the first test starts
- * failing and that is the signal to revisit D3.
+ * That measurement is what `cross-block-highlight.ts` exists for, so these
+ * tests stay as its justification: this file describes the *browser*, and
+ * `cross-block-selection.spec.ts` describes what a user gets. If a future
+ * Chromium restores spanning, the first test starts failing — the signal to
+ * delete the highlight layer rather than to revisit D3 again.
  */
 
 test.describe('what a selection can actually span', () => {
+  test.skip(TOPOLOGY !== 'per-block', 'describes the per-block topology');
+
   test('per-block hosts clamp a programmatic range to the first block', async ({ page, editor }) => {
     await editor.setDocument(['premier', 'second']);
     await editor.selectRange([0, 2], [1, 3]);

@@ -159,11 +159,17 @@ describe('blocksToMarkdown', () => {
     expect(md).toBe('> [!note] 💡 heads up\n> details');
   });
 
-  it('serializes toggle as a list item (toggle-ness lost)', () => {
+  it('serializes toggle as a list item (toggle-ness lost) and its child survives a re-read', () => {
     const md = blocksToMarkdown([
       b('toggle', { text: [{ text: 'more' }], children: [b('paragraph', { text: [{ text: 'hidden' }] })] }),
     ]);
-    expect(md).toBe('- more\n    hidden');
+    // the blank line is load-bearing: written tight, the indented child is a
+    // lazy continuation and comes back merged into the item's own text
+    expect(md).toBe('- more\n\n    hidden');
+    const back = markdownToBlocks(md);
+    expect(back).toHaveLength(1);
+    expect(back[0]!.text).toEqual([{ text: 'more' }]);
+    expect(back[0]!.children![0]!.text).toEqual([{ text: 'hidden' }]);
   });
 
   it('flattens column_list contents sequentially', () => {
@@ -268,12 +274,25 @@ describe('markdownToBlocks', () => {
     expect(blocks[0]!.children![0]!.text).toEqual([{ text: 'child' }]);
   });
 
-  it('parses quote continuation lines as children paragraphs', () => {
+  it('folds a wrapped quote into one paragraph, as CommonMark does', () => {
     const blocks = markdownToBlocks('> first\n> second');
     expect(blocks).toHaveLength(1);
     expect(blocks[0]!.type).toBe('quote');
+    expect(blocks[0]!.text).toEqual([{ text: 'first second' }]);
+    expect(blocks[0]!.children).toBeUndefined();
+  });
+
+  it('a blank quote line starts a real second paragraph inside the quote', () => {
+    const blocks = markdownToBlocks('> first\n>\n> second');
     expect(blocks[0]!.text).toEqual([{ text: 'first' }]);
     expect(blocks[0]!.children![0]!.text).toEqual([{ text: 'second' }]);
+  });
+
+  it("a callout's [!type] line is a title, never folded into its body", () => {
+    const blocks = markdownToBlocks('> [!warning] Careful\n> the body wraps\n> over two lines');
+    expect(blocks[0]!.type).toBe('callout');
+    expect(blocks[0]!.text).toEqual([{ text: 'Careful' }]);
+    expect(blocks[0]!.children![0]!.text).toEqual([{ text: 'the body wraps over two lines' }]);
   });
 });
 

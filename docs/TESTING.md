@@ -75,9 +75,20 @@ duplicated or dropped characters, marks intact around the composition.**
 
 ## Cross-block selection (D3) — the highest-risk surface
 
-Our implementation drives the drag with pointer events rather than toggling a
-container `contenteditable` (see `docs/research/cross-block-selection.md`).
-That is expected to be the weak spot on touch.
+The browser will not hold a `Selection` across editing hosts — measured in
+Chromium 150/151, `e2e/selection-topology.spec.ts`. So the model carries the
+range and the CSS Custom Highlight API paints it (D3, `cross-block-highlight.ts`).
+Machine-checkable behaviour lives in `e2e/cross-block-selection.spec.ts`; what
+is listed here is what only a human or a real device can judge.
+
+**The known gap, and the reason this section exists.** A `Highlight` is not a
+`Selection`. `window.getSelection()` therefore does not report a cross-block
+range, and two things follow that no test asserts because they are not ours to
+fix: a screen reader does not announce the selection, and browser find-on-page
+cannot extend it. Everything the editor itself does — copy, cut, delete, format,
+paste-over — goes through the model and is unaffected. Measuring how bad the
+announcement gap actually is, on real screen readers, is what open question 9
+in `docs/ARCHITECTURE.md` is waiting on.
 
 1. **Desktop, all three engines**: drag from the middle of one paragraph into
    the middle of a paragraph three blocks below. The highlight must be
@@ -89,19 +100,46 @@ That is expected to be the weak spot on touch.
    undoable step, with the last block's children preserved.
 4. Copy a partial cross-block range and paste into a plain text editor — the
    partial ends must be there.
-5. **iOS Safari, touch**: try the same drag. If the selection cannot be made,
-   record it here — the remedy is a touch-only container toggle, deliberately
-   not implemented until measured.
-6. IME: start a composition with a cross-block range live.
-7. Triple-click a paragraph: the selection must not spill into the next block.
+5. **iOS Safari, touch**: try the same drag. Touch drags go through the same
+   pointer path, but the OS selection handles do not; record what happens.
+6. **Screen readers (VoiceOver, NVDA), both topologies.** Make a cross-block
+   selection and ask the reader what is selected. Per-block is expected to say
+   nothing useful; `?topology=single-host` is expected to announce it properly.
+   This is the measurement open question 9 needs — record both, verbatim.
+7. **Find-on-page**: Cmd+F a word inside a cross-block selection. Expected:
+   the browser's own highlight appears, ours does not extend. Confirm the two
+   do not paint each other into illegibility.
+8. IME: start a composition with a cross-block range live.
+9. Triple-click a paragraph: the selection must not spill into the next block.
+
+## Block selection and drag (automated since 2026-08-07)
+
+`e2e/block-drag.spec.ts` drives the real pointer over the real editor, because
+both faults it was written for were invisible to the model — the document was
+fine, the interaction was not. It covers the indicator being a *coloured* line,
+the gap between blocks having an answer, vertical reorder in both directions,
+Escape cancelling a drag, the side drop building columns, `columns: false`
+reordering instead, and the whole block-mode key contract (Escape, arrows,
+Shift+arrows, Backspace, Meta+Shift+arrows).
+
+What still needs hands, on top of the matrix below:
+
+1. **Touch**: long-press to grab, drag with a finger, and whether the
+   indicator is visible under the thumb.
+2. **Trackpad momentum**: flick-drag past the last block and confirm edge
+   auto-scroll stops cleanly rather than running away.
+3. **Dark mode**, every floating piece: ghost, indicator, rubber band, menus.
+   The token scope reaches them through one marker class now; a portal that
+   forgot it will look plausible in light mode and wrong in dark.
 
 ## Regression checklist per run
 
 - [ ] All IME scenarios on devices 4–10
 - [ ] AZERTY scenarios on devices 1–3
-- [ ] SR scripts (VoiceOver, NVDA)
+- [ ] SR scripts (VoiceOver, NVDA), including cross-block scenario 6
 - [ ] Paste from Word + Google Docs on devices 1–2 (fixtures cover parsing;
       this verifies the clipboard formats actually arriving)
+- [ ] Drag/selection touch + dark-mode passes (section above)
 - [ ] Results recorded below
 
 ## Results log

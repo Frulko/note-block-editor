@@ -112,6 +112,27 @@ export interface EditorViewOptions {
    */
   readOnly?: boolean;
   /**
+   * Whether dropping a block beside another creates a column.
+   *
+   * @remarks
+   * Columns are ordinary nested blocks (§2.3), so turning this off removes
+   * only the *gesture* — a document that already has columns still renders and
+   * still reorders. What it buys is a drag with one meaning: every drop is a
+   * reorder, and the side bands are neither drawn nor tested for.
+   *
+   * Worth turning off for a comment box, a single-column embed, or any host
+   * whose layout cannot accommodate side-by-side content. Columns stay
+   * reachable from the slash menu regardless.
+   *
+   * @defaultValue true
+   *
+   * @example
+   * ```ts
+   * new EditorView(el, editor, { columns: false })
+   * ```
+   */
+  columns?: boolean;
+  /**
    * Ask the browser to spell-check the editable surface.
    *
    * @defaultValue false

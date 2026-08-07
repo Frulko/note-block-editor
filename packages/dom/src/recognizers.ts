@@ -1,8 +1,17 @@
+import type { Point } from '@nbe/core';
 import { textCaret } from '@nbe/core';
 import type { EditorView } from './view';
 import type { GestureRecognizer, GestureSession, PressContext } from './gestures';
 import { leafOf, nativeRangeSpans } from './topology';
+import { domToModelPoint, modelPointToDom } from './selection';
 import { offsetAtPoint } from './caret';
+import { canPaintCrossBlock } from './cross-block-highlight';
+import { mountPortal } from './ui/portal';
+
+/** Hand a cross-block range to the model, which paints it (D3). */
+function extendToModel(view: EditorView, anchor: Point, head: Point): void {
+  view.editor.setSelection({ kind: 'text', anchor, head }, 'dom');
+}
 
 /**
  * The arbitration story, as an ordered list. Registration order *is* the
@@ -54,15 +63,20 @@ function pointFromClient(view: EditorView, x: number, y: number): DomPoint | nul
 /**
  * Selecting text, including across blocks.
  *
- * A DOM Range MAY span several `contenteditable` hosts and the browser paints
- * it normally — what it refuses is to *create* one from a drag, since it
- * constrains drag-selection to the host the gesture started in. So we drive
- * the gesture and let the browser paint: track the drag and call
- * `setBaseAndExtent`. Unlike a CSS Custom Highlight overlay this produces a
- * REAL selection, so native copy, find-on-page and screen readers keep working.
+ * Inside one editing host the browser does this natively and better than we
+ * would, so we stay out of the way entirely. Across hosts it will not: a
+ * `Selection` is clamped to the host the gesture started in, measured in
+ * Chromium 150 and 151 (`e2e/selection-topology.spec.ts`). `setBaseAndExtent`
+ * does not escape it, and neither does any temporary toggle of editability —
+ * the range dies the moment editability returns.
  *
- * Under a single-host topology the browser already spans everything, so
- * `nativeRangeSpans` stays true and this never intervenes.
+ * So beyond that boundary the model carries the selection and the Highlight
+ * API paints it (`cross-block-highlight.ts`). That works because a plain
+ * `Range` spans hosts freely — only `Selection` is constrained — and because
+ * every range command already operates on the model rather than on the DOM.
+ *
+ * Under a single-host topology `nativeRangeSpans` stays true and none of this
+ * runs.
  */
 export const textSelectRecognizer: GestureRecognizer = {
   name: 'text-select',
@@ -76,14 +90,18 @@ export const textSelectRecognizer: GestureRecognizer = {
 
     // Shift+click extends the existing selection, across blocks if needed
     if (event.shiftKey) {
-      const sel = document.getSelection();
       const head = pointFromClient(view, event.clientX, event.clientY);
-      if (sel?.rangeCount && head && sel.anchorNode) {
+      const current = view.editor.selection;
+      const anchor = current?.kind === 'text' ? current.anchor : null;
+      const to = head && domToModelPoint(head.node, head.offset);
+      if (anchor && to) {
         event.preventDefault();
-        try {
-          sel.setBaseAndExtent(sel.anchorNode, sel.anchorOffset, head.node, head.offset);
-        } catch {
-          /* node replaced mid-gesture */
+        if (anchor.blockId === to.blockId) {
+          // one host: the browser holds it, and does the painting for free
+          const from = modelPointToDom(view, anchor);
+          if (from) document.getSelection()?.setBaseAndExtent(from.node, from.offset, head.node, head.offset);
+        } else if (canPaintCrossBlock()) {
+          extendToModel(view, anchor, to);
         }
       }
       return leaveBlockMode(view);
@@ -92,6 +110,12 @@ export const textSelectRecognizer: GestureRecognizer = {
     const anchor = pointFromClient(view, event.clientX, event.clientY);
     if (!anchor) return leaveBlockMode(view);
     leaveBlockMode(view);
+    // a fresh press starts a new selection: drop any painted one, so the
+    // remnant guard never outlives the gesture that needed it
+    const held = view.editor.selection;
+    if (held?.kind === 'text' && held.anchor.blockId !== held.head.blockId) {
+      view.editor.setSelection(null, 'dom');
+    }
 
     let crossed = false;
     return {
@@ -99,18 +123,27 @@ export const textSelectRecognizer: GestureRecognizer = {
       move(e) {
         const head = pointFromClient(view, e.clientX, e.clientY);
         if (!head) return;
-        // while the browser can span these natively it already is: stay out of
-        // its way, and let it own the intra-host case entirely
+        // inside one editing host the browser owns this natively and does it
+        // better than we would; only take over once the drag leaves it
         if (!crossed && nativeRangeSpans(view.topology, anchor.node, head.node)) return;
+        // without the Highlight API the range would be real but invisible, and
+        // deleting text the user cannot see selected is worse than not selecting
+        if (!canPaintCrossBlock()) return;
         crossed = true;
         e.preventDefault();
         // suppress the caret-drag autoscroll fight and the text-drag cursor
         document.body.classList.add('nbe-textdrag');
-        try {
-          document.getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
-        } catch {
-          /* a node was replaced mid-drag; the next move re-resolves it */
-        }
+
+        /*
+         * The browser refuses to hold a Selection across editing hosts — it
+         * clamps to the one the drag started in, measured in Chromium 150/151.
+         * So we stop asking it to hold one: the model carries the cross-block
+         * range (which every command already operates on) and the Highlight
+         * API paints it.
+         */
+        const from = domToModelPoint(anchor.node, anchor.offset);
+        const to = domToModelPoint(head.node, head.offset);
+        if (from && to) extendToModel(view, from, to);
       },
       end() {
         document.body.classList.remove('nbe-textdrag');
@@ -185,7 +218,7 @@ export const rubberBandRecognizer: GestureRecognizer = {
         if (!drawing) {
           if (Math.hypot(e.clientX - origin.x, e.clientY - origin.y) <= 4) return;
           drawing = true;
-          document.body.append(box);
+          mountPortal(box);
           document.body.classList.add('nbe-drag-active');
         }
         // the browser also drag-selects text under the pointer; keep it hidden

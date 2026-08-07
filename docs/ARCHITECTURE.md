@@ -296,6 +296,16 @@ overlays. Framework adapters never re-implement it.
   remain editor surface: rubber-band selection, click-to-place and drop
   targets all work out there (Word-like margins). Set them to `0` for a
   flush-to-the-edge embed.
+- **Floating chrome carries its own token scope** (`ui/portal.ts`). Menus,
+  toolbars, the drag ghost, the drop indicator and the rubber band are mounted
+  on `document.body` so nothing inside the editor can clip them — and so they
+  inherit none of the design tokens, which are declared on the editor element.
+  That was a hand-written list of eight component class names in `tokens.css`,
+  and it drifted: measured 2026-08-07, the drop indicator and the drag ghost
+  resolved `--nbe-accent-rgb` to nothing and painted `rgba(0, 0, 0, 0)`, so
+  dragging showed *nothing at all*. One marker class replaces the list, applied
+  where the element is mounted, and `test/portals.test.ts` fails the build on a
+  raw `document.body.append` in the view layer.
 - **All affordances are hover/focus-only** (handles, +, placeholders, sync
   halos). Always-visible chrome is why clones read as toys. Caret-only
   "Type / for commands" placeholder.
@@ -326,13 +336,46 @@ Cmd+Shift+V plain paste from day one.
 
 **Drag is pointer-events, not HTML5 DnD** (native DnD: no touch initiation,
 unstylable previews, no dragover data, broken auto-scroll — matches Notion's
-observed choice): setPointerCapture, movement threshold, `elementsFromPoint`
-hit-testing against block rects with hysteresis, own multi-block preview with
-count badge, Escape cancels, built-in edge auto-scroll. Drop model:
-`{targetBlockId, edge: before|after|inside|left|right}` where left/right
-creates/joins column blocks — ordinary schema nesting, so undo/copy/export
-degrade gracefully. Native drop listeners only for OS file drops. The vertical
-blue guide is the *sole* column-creation UI.
+observed choice): setPointerCapture, movement threshold, own multi-block
+preview with count badge, Escape cancels, built-in edge auto-scroll.
+
+**The drop target is geometry, not the DOM** (`dom/src/drop.ts`, reworked
+2026-08-07). `resolveDrop(x, y, candidates, opts)` is a pure function over
+rectangles — no DOM, no editor, no events — so how dragging *feels* is a set
+of numbers under unit test rather than something you check by hand. It answers
+`{id, edge}` where `edge` is `before | after | left | right`, and `left/right`
+creates or joins a `columnList/column` structure: ordinary nested blocks, so
+undo, copy and export degrade gracefully.
+
+Two faults it exists to prevent, both reported as "the editor is unusable":
+
+- **Dead zones.** The previous version asked `elementsFromPoint` what was under
+  the cursor, which is the pitfall `docs/research/hard-interactions.md` §8
+  names outright: margins, gaps and nested wrappers had no answer, so the
+  indicator blinked out between every pair of blocks. Now every candidate is
+  measured and the pointer resolves to the nearest one; `null` means the
+  document is empty, nothing else.
+- **A column band that ate the block.** The side zone was a quarter of the
+  width clamped to 140px — **46% of a 612px block** — so aiming to reorder
+  produced a column. It is now 12% clamped to 64px, leaving four fifths of the
+  width to reordering, with hysteresis capped at a quarter of the block height
+  (a constant 16px pushes the midpoint outside a 28px paragraph, which made
+  "drop above" unreachable from below).
+
+**Side drops are optional** (`EditorViewOptions.columns`, default `true`).
+Off, every drop is a reorder and the bands are neither drawn nor tested for —
+columns remain reachable from the slash menu, and documents that already have
+them still render.
+
+**The indicator is a 2px line with a head dot**, horizontal between blocks and
+vertical against the edge that would become a column — Atlassian's documented
+convention, and what Notion shows. It replaced a translucent 140px slab that
+read as "this area is selected" rather than "it lands here". Position eases,
+size snaps: animating both made the line morph through fat rectangles when it
+flipped orientation.
+
+Drop model: `{targetBlockId, edge}`. Native drop listeners only for OS file
+drops. The vertical line is the *sole* column-creation UI.
 
 ## 8. Accessibility
 
@@ -442,11 +485,11 @@ Where the research notes conflicted, resolved here:
 |---|----------|----------|-----|
 | D1 | Per-block contenteditable vs single editable root | **Per-block `plaintext-only` leaves** + document-level selection model from day one; confirmed by Phase 0 spike (Android IME, screen readers, cross-block selection) | Notion's actual production DOM; BlockSuite chose it greenfield; single-root means matching PM's decade of monthly reconciler workarounds. Notion's 5-year retrofit pain came from the missing selection *model*, which we build up front |
 | D2 | Build on ProseMirror vs from scratch | **From scratch, vanilla TS** — adopting PM's *ideas* (invertible ops, schema-at-apply, command chains) without the dependency | The project's raison d'être; per-block topology confines browser warfare to one leaf module instead of a document-wide reconciler, which is what makes from-scratch tractable; skipping PM's global position system removes its dominant complexity |
-| D3 | Cross-block text selection | **Falsified 2026-08-07 — see below.** The shipped implementation (`recognizers.ts`, `setBaseAndExtent` across leaves) does not produce a spanning selection under the per-block topology | **Measured, in Chromium 150 headed and 151 headless, by `e2e/selection-topology.spec.ts`:** a selection is clamped to the editing host it starts in. This holds for `setBaseAndExtent` *and* `addRange`, for `plaintext-only` *and* `contenteditable=true`, with or without focusing the host first. The same range spans freely when the leaves are not editable, and when a single editable root holds them — so the constraint is the **editing-host boundary**, not the DOM structure. The earlier note in `docs/research/cross-block-selection.md` recorded the opposite as measured; either the behaviour changed or the original measurement was wrong, and the current fact is what governs. **Consequence:** cross-block text selection does not work under D1's per-block topology, and `singleHostTopology` (shipped, `topology.ts`) is not a hypothetical alternative but the only configuration in which it works. Which of the two becomes the default is an open decision, recorded in §12 |
+| D3 | Cross-block text selection | **Amended 2026-08-07.** A selection spans blocks, but the *browser* does not hold it — the model does, and the CSS Custom Highlight API paints it (`cross-block-highlight.ts`) | The original claim was that a `Selection` may span several `contenteditable` hosts. **Measured false in Chromium 150 headed and 151 headless** (`e2e/selection-topology.spec.ts`): it is clamped to the host it starts in — for `setBaseAndExtent` *and* `addRange`, `plaintext-only` *and* `true`, focused or not. The same range spans freely when the leaves are not editable, or under one editable root, so the constraint is the **editing-host boundary**. Temporary toggles of editability were measured too and all lose the range on restore. What survived is the distinction between the two APIs: a plain **`Range`** spans hosts freely; only `Selection` is constrained. So the model carries the range — it always could (§5.2) — and a `Highlight` paints it. This kept D1: every range command already went through `resolveTextRange`, so delete, format and copy were defined on the model rather than the DOM and needed no change. **Cost:** a highlight is not a selection, so a screen reader does not announce it as one, and find-on-page does not extend it (`docs/TESTING.md`). **Verified by** `e2e/cross-block-selection.spec.ts`: drag, shift-click, type-over, delete, bold and copy, plus the release path |
 | D4 | Inline text representation | **Flat runs with mark sets**, no offset spans, no HTML strings | Offset spans contradict the no-persisted-integers rule; runs are Santos-proof, CRDT-ready, AttributedString-friendly |
 | D5 | Flat map vs nested tree | **Both: flat `Map` at runtime, nested JSON per page at rest** | Not a real conflict — same model, two serializations; each optimal for its medium |
 | D6 | Block ID format | **UUIDv7** | Time-ordered (SQLite index locality) yet still non-semantic/non-positional; creation time is not position |
-| D7 | Markdown: one-way export vs re-importable | **Two-way with documented loss boundary**; L0 stays canonical | "Readable without the tool" + Obsidian interop are project goals; SiYuan/Notion prove markdown-as-database fails, so import goes through the parser into L0, IDs preserved |
+| D7 | Markdown: one-way export vs re-importable | **Two-way with documented loss boundary**; L0 stays canonical | "Readable without the tool" + Obsidian interop are project goals; SiYuan/Notion prove markdown-as-database fails, so import goes through the parser into L0, IDs preserved. **The loss is source layout, and only that** (amended 2026-08-07): hand-wrapping is folded away because a soft break is not content, leading indentation is normalised, nested levels are re-emitted at four spaces, and consecutive numbered items are renumbered `1. 2. 3.` rather than the `1. 1. 1.` CommonMark also accepts. The property under test is therefore **idempotence**, not equality with the source: `parse → print` may differ from the input once and never again. `test/docs-roundtrip.test.ts` runs that over this repository's own documentation, which is where the wrapping bug was found |
 | D8 | Drag & drop: external lib (Atlassian Pragmatic) vs in-house | **In-house pointer-events drag primitive** (`ui/drag.ts`); native DnD listeners only for OS file drops | Pragmatic builds on native HTML5 DnD, whose limits are exactly why we avoided it (no touch initiation, unstylable previews, no dragover data, broken auto-scroll — research: hard-interactions). Revisit only if OS-level drag interop becomes a requirement |
 
 ## 12. Open questions (tracked, not yet designed)
@@ -482,23 +525,23 @@ phase begins:
    selection handles, virtual-keyboard occlusion (visualViewport), long-press.
 8. **Database evaluation engine.** Formula language, filter/sort/group
    evaluation, incremental rollup/relation recompute, CSV dialects.
-9. **Which editable topology ships by default** (opened 2026-08-07 by D3's
-   falsification). The two are already implemented and interchangeable
-   (`topology.ts`), and the same selection suite runs against both, so this is
-   a measurement rather than a rewrite — which is exactly why the topology was
-   made swappable. The trade is now concrete rather than theoretical:
+9. **Whether the accessibility gap forces single-host** (opened 2026-08-07 by
+   D3's falsification, narrowed the same day). The default is settled:
+   **per-block ships**, because the reason to abandon it — no cross-block
+   selection — was paid off by painting the model's range instead, and because
+   switching was measured to be not free (under `singleHostTopology` the whole
+   e2e suite runs but markdown autoformat stops firing: the input path is
+   written against per-block).
 
-   - **Per-block (`perBlockTopology`, current default).** The browser
-     physically cannot inject rich markup into `plaintext-only`, browser
-     warfare stays quarantined per leaf, and complex widgets sit outside any
-     editable root. **Costs cross-block text selection**, which is a headline
-     editing behaviour.
-   - **Single-host (`singleHostTopology`).** Cross-block selection, copy,
-     find-on-page and screen-reader traversal all work natively. **Costs** a
-     permanently editable container the browser will restructure, which is the
-     decade of reconciler workarounds D2 was avoiding — and Gutenberg tried it
-     in July 2026 and reverted in August.
+   What remains open is the one cost painting cannot cover: a `Highlight` is
+   not a `Selection`, so a screen reader does not announce it and find-on-page
+   does not extend it. Under `singleHostTopology` both work natively, at the
+   price of a permanently editable container the browser restructures — the
+   decade of reconciler workarounds D2 exists to avoid, which Gutenberg tried
+   in July 2026 and reverted in August. Notion, for reference, uses a
+   permanently editable page root.
 
-   Notion, for reference, uses a permanently editable page root. Deciding this
-   needs the Phase 0 spike D1 always called for, which is now cheap: the
-   IME/screen-reader matrix in `docs/TESTING.md`, run against both topologies.
+   Deciding needs the screen-reader half of the matrix in `docs/TESTING.md`,
+   run against both topologies. Both remain implemented and interchangeable
+   (`topology.ts`) and the selection suites run against both, so this stays a
+   measurement rather than a rewrite.

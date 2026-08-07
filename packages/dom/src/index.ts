@@ -38,6 +38,7 @@ export {
   selectionSyncFeature,
   gesturesFeature,
   outsidePressFeature,
+  crossBlockHighlightFeature,
   slashMenuFeature,
   mentionsFeature,
   gutterFeature,
@@ -48,6 +49,7 @@ export {
   databaseFeature,
 } from './features';
 export type { EditorFeature } from './features';
+export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';

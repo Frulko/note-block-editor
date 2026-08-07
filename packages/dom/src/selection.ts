@@ -1,4 +1,5 @@
 import type { Point } from '@nbe/core';
+import { domSelectionIsRemnant } from './caret';
 import type { EditorView } from './view';
 import { leafOf } from './topology';
 
@@ -64,8 +65,9 @@ export function attachSelectionSync(view: EditorView): () => void {
      * asked to leave it.
      */
     if (prev?.kind === 'block') return;
-    // a range crossing leaf boundaries is a real cross-block TEXT selection
-    // (D3): the browser paints it, and the model represents it natively
+    // the browser's clamped remnant of a painted cross-block selection is not
+    // the user's intent, and mapping it back would shrink their selection
+    if (domSelectionIsRemnant(view)) return;
     if (
       prev?.kind === 'text' &&
       prev.anchor.blockId === anchor.blockId &&

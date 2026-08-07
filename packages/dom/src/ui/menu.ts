@@ -1,5 +1,6 @@
 import { pushOverlay } from './overlay';
 import { autoUpdate, positionFloating, type AnchorRect, type PositionOptions } from './position';
+import { mountPortal } from './portal';
 
 export interface MenuItem {
   kind?: 'item';
@@ -156,7 +157,7 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     active = 0;
     anchorGetter = getAnchor;
     positionOptions = position;
-    document.body.append(el);
+    mountPortal(el);
     render();
     // autoUpdate re-positions on content size changes too, so a menu that
     // filters down to one item stays glued to its anchor instead of floating

@@ -1,4 +1,5 @@
 import type { Mark } from "@nbe/core";
+import { mountPortal } from './ui/portal';
 import {
   getBlock,
   isCollapsed,
@@ -279,7 +280,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     const rect = anchorRect();
     if (!rect) return hide();
     if (!visible) {
-      document.body.append(bar);
+      mountPortal(bar);
       visible = true;
     }
     render();

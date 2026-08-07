@@ -15,10 +15,13 @@ import { test, expect } from './fixtures';
  */
 async function pasteMarkdown(page: import('@playwright/test').Page, md: string) {
   await page.evaluate((text) => {
-    const leaf = document.activeElement as HTMLElement;
+    // the editable host, whichever topology is running
+    const host =
+      (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[contenteditable]') ??
+      document.querySelector<HTMLElement>('.nbe-editor [contenteditable], .nbe-editor[contenteditable]')!;
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
-    leaf.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    host.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
   }, md);
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
 }
@@ -101,5 +104,45 @@ test.describe('dynamic display follows the model', () => {
     await editor.caret(0, 0);
     await editor.type('# ');
     expect((await editor.types())[0]).toBe('heading');
+  });
+});
+
+/**
+ * The same wrapping rule, applied to list items — reported from
+ * docs/ARCHITECTURE.md §12 on 2026-08-07: every item rendered as "1." and each
+ * item's continuation lines sat under it as a stray paragraph. One cause: the
+ * DOM's `listNumber` counts *consecutive* siblings, and those paragraphs were
+ * sitting between the items.
+ */
+test.describe('a pasted numbered list numbers itself', () => {
+  const md = [
+    '1. **Storage runtime/platform.** Browser (OPFS/File System Access) vs',
+    '   Tauri/Electron vs CLI; atomic temp+rename writes, debounced saves.',
+    '2. **Binary asset pipeline.** Where blobs live across L0/L1/L2,',
+    '   content-hash dedup, reference counting.',
+    '3. **Unicode correctness.** Grapheme clusters, surrogate pairs.',
+  ].join('\n');
+
+  test('renders 1, 2, 3 — not 1, 1, 1', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await pasteMarkdown(page, md);
+    expect(await page.locator('.nbe-editor .nbe-number').allTextContents()).toEqual(['1.', '2.', '3.']);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('keeps each item whole, with no paragraph between them', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await pasteMarkdown(page, md);
+    const types = await editor.types();
+    expect(types.filter((t) => t !== 'paragraph')).toEqual([
+      'numbered_list_item',
+      'numbered_list_item',
+      'numbered_list_item',
+    ]);
+    const texts = await editor.texts();
+    expect(texts[0]).toContain('debounced saves.');
+    expect(texts[0]).not.toContain('\n');
   });
 });

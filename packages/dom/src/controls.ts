@@ -1,4 +1,6 @@
 import type { Block, BlockId } from '@nbe/core';
+import { resolveDrop, type DropCandidate, type DropTarget } from './drop';
+import { mountPortal } from './ui/portal';
 import {
   blockCategory,
   childIndex,
@@ -79,7 +81,7 @@ export function attachControls(view: EditorView): () => void {
   const showControlsFor = (blockEl: HTMLElement) => {
     hoveredId = blockEl.dataset['blockId']!;
     const rect = blockEl.getBoundingClientRect();
-    document.body.append(controls);
+    mountPortal(controls);
     // align to the block's first line rather than its box, so the gutter sits
     // next to the text on tall blocks (callouts, code, images)
     const line = parseFloat(getComputedStyle(blockEl).lineHeight) || 24;
@@ -306,7 +308,7 @@ export function attachControls(view: EditorView): () => void {
 
   // --- drag & drop (drag session primitive, ARCHITECTURE §7 / D8) ---
   let dragIds: BlockId[] = [];
-  let drop: { targetId: BlockId; edge: Edge } | null = null;
+  let drop: DropTarget | null = null;
 
   let ghost: DragGhost | null = null;
   const guide = document.createElement('div');
@@ -325,60 +327,58 @@ export function attachControls(view: EditorView): () => void {
     return p !== null; // depth cap hit — treat as unsafe target
   };
 
-  const updateDrop = (e: PointerEvent) => {
-    ghost?.move(e.clientX, e.clientY);
-
-    let candidate: HTMLElement | null = null;
-    for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
-      const blockEl = (el as HTMLElement).closest?.('.nbe-block') as HTMLElement | null;
-      const id = blockEl?.dataset['blockId'];
+  /** Every block the pointer may drop onto, measured. */
+  const dropCandidates = (): DropCandidate[] => {
+    const out: DropCandidate[] = [];
+    for (const el of view.content.querySelectorAll<HTMLElement>('.nbe-block')) {
+      const id = el.dataset['blockId'];
       if (!id || !editor.doc.blocks.has(id)) continue;
       if (!standalone(getBlock(editor.doc, id).type)) continue;
       if (isDraggedOrInside(id)) continue;
-      candidate = blockEl;
-      break;
+      const r = el.getBoundingClientRect();
+      out.push({ id, rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } });
     }
-    if (!candidate) {
-      drop = null;
-      guide.style.display = 'none';
-      return;
-    }
-    const id = candidate.dataset['blockId']!;
-    const rect = candidate.getBoundingClientRect();
+    return out;
+  };
 
-    /*
-     * Drop zones sized for the hand, not for the pixel. The side bands scale
-     * with the block (a quarter of its width, clamped) instead of a fixed
-     * 48px, and they are skipped entirely on short blocks where they would
-     * eat the whole target. Hysteresis: once a side is engaged it stays
-     * engaged a little past its boundary, so a shaky pointer does not flicker
-     * between "make a column" and "move below".
-     */
-    const sideBand = Math.min(140, Math.max(64, rect.width * 0.25));
-    const tall = rect.height >= 28;
-    const wideEnough = rect.width > sideBand * 2 + 40;
-    const sticky = drop?.targetId === id && (drop.edge === 'left' || drop.edge === 'right') ? 24 : 0;
-
-    let edge: Edge;
-    if (wideEnough && tall && e.clientX < rect.left + sideBand + sticky) edge = 'left';
-    else if (wideEnough && tall && e.clientX > rect.right - sideBand - sticky) edge = 'right';
-    else edge = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-
-    drop = { targetId: id, edge };
-    guide.classList.toggle('nbe-guide-side', edge === 'left' || edge === 'right');
+  /**
+   * Draw the indicator: a line where the block will land.
+   *
+   * @remarks
+   * A 2px line in the accent colour with a dot at its head, which is the
+   * convention Atlassian documents and Notion uses — horizontal between two
+   * blocks, vertical against the edge that would become a column. It replaces
+   * a translucent 140px slab that was meant to look "catchable" and instead
+   * read as a selection of the area it covered.
+   */
+  const drawGuide = (target: DropTarget) => {
+    const el = view.blockEl(target.id);
+    if (!el) return void (guide.style.display = 'none');
+    const r = el.getBoundingClientRect();
+    const side = target.edge === 'left' || target.edge === 'right';
+    guide.classList.toggle('nbe-guide-side', side);
     guide.style.display = 'block';
-    if (edge === 'left' || edge === 'right') {
-      // paint the whole band, not a hairline: the target should look catchable
-      guide.style.top = `${rect.top + window.scrollY}px`;
-      guide.style.height = `${rect.height}px`;
-      guide.style.width = `${sideBand}px`;
-      guide.style.left = `${(edge === 'left' ? rect.left : rect.right - sideBand) + window.scrollX}px`;
+    if (side) {
+      guide.style.top = `${r.top + window.scrollY}px`;
+      guide.style.height = `${r.height}px`;
+      guide.style.width = '';
+      guide.style.left = `${(target.edge === 'left' ? r.left : r.right) + window.scrollX}px`;
     } else {
-      guide.style.left = `${rect.left + window.scrollX}px`;
-      guide.style.width = `${rect.width}px`;
-      guide.style.height = '4px';
-      guide.style.top = `${(edge === 'before' ? rect.top - 2 : rect.bottom - 2) + window.scrollY}px`;
+      guide.style.left = `${r.left + window.scrollX}px`;
+      guide.style.width = `${r.width}px`;
+      guide.style.height = '';
+      guide.style.top = `${(target.edge === 'before' ? r.top : r.bottom) + window.scrollY}px`;
     }
+  };
+
+  const updateDrop = (e: PointerEvent) => {
+    ghost?.move(e.clientX, e.clientY);
+    drop = resolveDrop(e.clientX, e.clientY, dropCandidates(), {
+      columns: view.options.columns !== false,
+      previous: drop,
+    });
+    if (!drop) guide.style.display = 'none';
+    else drawGuide(drop);
   };
 
   const cleanupDrag = () => {
@@ -396,7 +396,7 @@ export function attachControls(view: EditorView): () => void {
 
   const commitDrop = () => {
     if (!drop || !dragIds.length) return;
-    const { targetId, edge } = drop;
+    const { id: targetId, edge } = drop;
     if (!editor.doc.blocks.has(targetId) || !dragIds.every((id) => editor.doc.blocks.has(id))) return;
     if (edge === 'left' || edge === 'right') {
       moveIntoColumns(editor, dragIds, targetId, edge);
@@ -436,7 +436,7 @@ export function attachControls(view: EditorView): () => void {
     for (const el of sources) el.classList.add('nbe-drag-source');
     ghost = createDragGhost(sources, { count: dragIds.length });
     ghost.move(e.clientX, e.clientY);
-    document.body.append(guide);
+    mountPortal(guide);
     controls.classList.add('nbe-ctrl-hidden');
     return true;
   };

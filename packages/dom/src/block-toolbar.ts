@@ -1,4 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
+import { mountPortal } from './ui/portal';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { createActionButton, createMenu, positionFloating, type IconName, type MenuEntry } from './ui';
@@ -175,7 +176,7 @@ export function attachBlockToolbar(view: EditorView): () => void {
       });
       bar.append(button);
     }
-    document.body.append(bar);
+    mountPortal(bar);
     const rect = blockEl.getBoundingClientRect();
     positionFloating(bar, { top: rect.top, bottom: rect.top, left: rect.right, right: rect.right }, {
       placement: 'bottom-end',

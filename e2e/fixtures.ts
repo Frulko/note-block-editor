@@ -57,7 +57,10 @@ function makeEditor(page: Page, errors: string[]): Editor {
       ({ i, o }) => {
         const leaf = document.querySelectorAll<HTMLElement>('.nbe-editor .nbe-leaf')[i];
         if (!leaf) throw new Error(`no leaf at index ${i}`);
-        leaf.focus();
+        // focus the editable HOST, which is the leaf under the per-block
+        // topology and the root under single-host. Focusing the leaf blindly
+        // is a no-op there, and every edit then lands nowhere.
+        (leaf.closest<HTMLElement>('[contenteditable]') ?? leaf).focus();
         const range = document.createRange();
         const node = leaf.firstChild ?? leaf;
         range.setStart(node, Math.min(o, node.textContent?.length ?? 0));
@@ -144,6 +147,15 @@ function makeEditor(page: Page, errors: string[]): Editor {
   };
 }
 
+/**
+ * The topology under test, from `TOPOLOGY` in the environment.
+ *
+ * @remarks
+ * D3 turned out to depend on it, so every interaction spec should be runnable
+ * against both. `TOPOLOGY=single-host pnpm e2e` is the whole switch.
+ */
+export const TOPOLOGY = process.env.TOPOLOGY === 'single-host' ? 'single-host' : 'per-block';
+
 export const test = base.extend<{ editor: Editor }>({
   editor: async ({ page }, use) => {
     const errors: string[] = [];
@@ -151,7 +163,7 @@ export const test = base.extend<{ editor: Editor }>({
       if (m.type() === 'error') errors.push(m.text());
     });
     page.on('pageerror', (e) => errors.push(String(e)));
-    await page.goto('/');
+    await page.goto(TOPOLOGY === 'single-host' ? '/?topology=single-host' : '/');
     await page.locator('.nbe-editor .nbe-leaf').first().waitFor();
     await use(makeEditor(page, errors));
   },

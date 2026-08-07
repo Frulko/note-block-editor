@@ -1,4 +1,5 @@
 import { autoUpdate, type AnchorRect, type PositionOptions } from './position';
+import { mountPortal } from './portal';
 import { pushOverlay } from './overlay';
 
 /**
@@ -65,7 +66,7 @@ export function createPopover(opts: PopoverOptions = {}): PopoverController {
     open(getAnchor, position) {
       if (open) return;
       open = true;
-      document.body.append(el);
+      mountPortal(el);
       stopAuto = autoUpdate(el, getAnchor, position);
       stopOverlay = pushOverlay({ el, close, exempt: opts.isOutsideExempt });
     },

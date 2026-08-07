@@ -199,20 +199,44 @@
 .nbe-drag-source {
   opacity: 0.4;
 }
+/*
+ * The drop indicator: a 2px line where the block will land, with a dot at its
+ * head. Horizontal between two blocks, vertical against the edge that becomes
+ * a column — the convention Atlassian documents and Notion uses.
+ *
+ * It replaced a translucent 140px slab, which read as "this area is selected"
+ * rather than "it lands here". The line is centred on the boundary via
+ * translate, so it sits *between* two blocks instead of covering either.
+ */
 .nbe-drop-guide {
   position: absolute;
   z-index: 150;
   display: none;
-  background: var(--nbe-accent, rgb(var(--nbe-accent-rgb)));
+  height: 2px;
   border-radius: 2px;
+  background: rgb(var(--nbe-accent-rgb));
   pointer-events: none;
-  transition: top 60ms linear, left 60ms linear, width 60ms linear, height 60ms linear;
+  transform: translateY(-1px);
+  /* position eases, size snaps: animating width/height too made the line morph
+     through fat intermediate rectangles when it flipped between horizontal
+     (reorder) and vertical (column) */
+  transition: top 70ms ease-out, left 70ms ease-out;
 }
-/* a side drop creates columns — show the band it would occupy, not a hairline */
+/* the head dot, which is what makes a 2px line read as an insertion point */
+.nbe-drop-guide::before {
+  content: "";
+  position: absolute;
+  inset-block-start: -3px;
+  inset-inline-start: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid rgb(var(--nbe-accent-rgb));
+  background: var(--nbe-surface);
+}
 .nbe-drop-guide.nbe-guide-side {
-  background: rgb(var(--nbe-accent-rgb) / 0.16);
-  border: 2px solid var(--nbe-accent, rgb(var(--nbe-accent-rgb)));
-  border-radius: var(--nbe-radius);
+  width: 2px;
+  transform: translateX(-1px) translateY(0);
 }
 
 /* --- selection toolbar --- */
@@ -294,4 +318,18 @@
   border: 1px solid rgb(var(--nbe-accent-rgb) / 0.35);
   border-radius: 2px;
   pointer-events: none;
+}
+
+/* --- cross-block selection ------------------------------------------------
+   The browser will not hold a Selection across editing hosts, so a cross-block
+   range is carried by the model and painted here. */
+
+::highlight(nbe-selection) {
+  background: rgb(var(--nbe-accent-rgb) / 0.28);
+}
+/* the browser still holds a clamped single-block selection underneath; hiding
+   it stops the first block being painted twice, in two different colours */
+.nbe-crossblock .nbe-leaf::selection,
+.nbe-crossblock .nbe-leaf *::selection {
+  background: transparent;
 }

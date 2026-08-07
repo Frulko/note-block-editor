@@ -1,5 +1,5 @@
 import { docFromJSON, docToJSON, Editor, uuidv7, type BlockJSON, type Run } from '@nbe/core';
-import { EditorView } from '@nbe/dom';
+import { EditorView, perBlockTopology, singleHostTopology } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
@@ -119,6 +119,13 @@ function openPage(pageId: string): void {
   detachInspector?.();
   editor = new Editor({ doc: docFromJSON(page) });
   view = new EditorView(editorEl, editor, {
+    // ?topology=single-host to exercise the alternative editable boundary
+    topology:
+      new URLSearchParams(location.search).get('topology') === 'single-host'
+        ? singleHostTopology
+        : perBlockTopology,
+    // ?columns=off to exercise the reorder-only drag
+    columns: new URLSearchParams(location.search).get('columns') !== 'off',
     // activation is an import plus an array entry
     blocks: [callout],
     onOpenPage: (id) => openPage(id),

@@ -1,3 +1,5 @@
+import { mountPortal } from './portal';
+
 export interface DragGhost {
   /** Follow the pointer. */
   move(x: number, y: number): void;
@@ -55,7 +57,7 @@ export function createDragGhost(sources: HTMLElement[], options: GhostOptions = 
     ghost.append(badge);
   }
 
-  document.body.append(ghost);
+  mountPortal(ghost);
 
   return {
     move(x, y) {

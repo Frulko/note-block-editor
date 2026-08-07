@@ -12,14 +12,11 @@
    overriding a dozen custom properties instead of patching rules.
    ========================================================================== */
 
+/* The editor, and any floating chrome mounted outside it (see ui/portal.ts).
+   One marker class, not a list of component names: the list drifted, and the
+   components missing from it painted with no tokens at all. */
 .nbe-editor,
-.nbe-menu,
-.nbe-seltoolbar,
-.nbe-controls,
-.nbe-tooltip,
-.nbe-iconpicker,
-.nbe-dropzone,
-.nbe-db {
+.nbe-portal {
   /* base channels — dark mode remaps these six and the rest follows */
   --nbe-ink: 55 53 47;
   --nbe-ink-warm: 135 131 120;
@@ -113,13 +110,7 @@
 
 @media (prefers-color-scheme: dark) {
   .nbe-editor,
-  .nbe-menu,
-  .nbe-seltoolbar,
-  .nbe-controls,
-  .nbe-tooltip,
-  .nbe-iconpicker,
-  .nbe-dropzone,
-  .nbe-db {
+  .nbe-portal {
     --nbe-ink: 255 255 255;
     --nbe-ink-warm: 200 195 185;
     --nbe-accent-rgb: 94 150 255;
@@ -168,20 +159,8 @@
 
 .nbe-editor[data-nbe-theme="dark"],
 [data-nbe-theme="dark"] .nbe-editor,
-.nbe-menu[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-menu,
-.nbe-seltoolbar[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-seltoolbar,
-.nbe-controls[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-controls,
-.nbe-tooltip[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-tooltip,
-.nbe-iconpicker[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-iconpicker,
-.nbe-dropzone[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-dropzone,
-.nbe-db[data-nbe-theme="dark"],
-[data-nbe-theme="dark"] .nbe-db {
+.nbe-portal[data-nbe-theme="dark"],
+[data-nbe-theme="dark"] .nbe-portal {
   --nbe-ink: 255 255 255;
   --nbe-ink-warm: 200 195 185;
   --nbe-accent-rgb: 94 150 255;
@@ -229,20 +208,8 @@
 /* forcing light has to out-specify the media query above, hence the explicit rule */
 .nbe-editor[data-nbe-theme="light"],
 [data-nbe-theme="light"] .nbe-editor,
-.nbe-menu[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-menu,
-.nbe-seltoolbar[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-seltoolbar,
-.nbe-controls[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-controls,
-.nbe-tooltip[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-tooltip,
-.nbe-iconpicker[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-iconpicker,
-.nbe-dropzone[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-dropzone,
-.nbe-db[data-nbe-theme="light"],
-[data-nbe-theme="light"] .nbe-db {
+.nbe-portal[data-nbe-theme="light"],
+[data-nbe-theme="light"] .nbe-portal {
   --nbe-ink: 55 53 47;
   --nbe-ink-warm: 135 131 120;
   --nbe-accent-rgb: 35 131 226;

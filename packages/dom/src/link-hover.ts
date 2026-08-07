@@ -1,4 +1,5 @@
 import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
+import { mountPortal } from './ui/portal';
 import type { EditorView } from './view';
 import { autoUpdate, createActionButton, pushOverlay, type IconName } from './ui';
 import { leafOf } from './selection';
@@ -115,7 +116,7 @@ export function attachLinkHover(view: EditorView): () => void {
       }),
     );
 
-    document.body.append(card);
+    mountPortal(card);
     // autoUpdate, not a one-shot position: switching to the edit form changes
     // the card's size and it must stay glued to the link
     stopAuto?.();

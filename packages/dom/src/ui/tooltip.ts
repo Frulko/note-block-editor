@@ -1,4 +1,5 @@
 import { positionFloating, type PositionOptions } from './position';
+import { mountPortal } from './portal';
 
 export interface TooltipOptions extends PositionOptions {
   delayMs?: number;
@@ -34,7 +35,7 @@ export function attachTooltip(
     tip.className = 'nbe-tooltip';
     tip.setAttribute('role', 'tooltip');
     tip.textContent = typeof text === 'function' ? text() : text;
-    document.body.append(tip);
+    mountPortal(tip);
     positionFloating(tip, target.getBoundingClientRect(), { placement: 'bottom-start', ...position });
   };
 

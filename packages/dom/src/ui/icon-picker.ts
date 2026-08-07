@@ -1,4 +1,5 @@
 import { autoUpdate, type AnchorRect } from './position';
+import { mountPortal } from './portal';
 import { pushOverlay } from './overlay';
 import { createDropZone, fileToDataUrl } from './upload';
 
@@ -262,7 +263,7 @@ export function openIconPicker(
     root.append(remove);
   }
 
-  document.body.append(root);
+  mountPortal(root);
   stopAuto = autoUpdate(root, getAnchor, { placement: 'bottom-start' });
   stopDismiss = pushOverlay({ el: root, close });
 

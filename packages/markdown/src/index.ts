@@ -194,15 +194,48 @@ export interface MarkdownOptions {
  * @category Projections
  */
 export function blocksToMarkdown(blocks: BlockJSON[], opts: MarkdownOptions = {}): string {
-  const groups = blocks.map((b) => ({ lines: renderBlock(b, 0, opts), list: LIST_TYPES.has(b.type) }));
-  let out = '';
-  groups.forEach((g, idx) => {
-    if (g.lines.length === 0) return;
-    // blank line between top-level blocks except between consecutive list items
-    if (out) out += g.list && groups[idx - 1]?.list ? '\n' : '\n\n';
-    out += g.lines.join('\n');
+  return renderSiblingLines(blocks, 0, opts).join('\n');
+}
+
+/**
+ * Render a sibling list into lines, blank-separated where markdown needs it.
+ *
+ * @remarks
+ * Consecutive list items are written tight; everything else gets a blank line
+ * between it and its neighbour. That rule used to live only at the top level,
+ * so a paragraph nested after a nested list item was written straight against
+ * it — and reading the file back swallowed the paragraph into the item as a
+ * lazy continuation. Same rule at every depth, in one place.
+ */
+function renderSiblingLines(list: BlockJSON[], depth: number, opts: MarkdownOptions): string[] {
+  const rendered = renderSiblings(list, depth, opts);
+  const out: string[] = [];
+  let prevList = false;
+  rendered.forEach((lines, i) => {
+    if (!lines.length) return;
+    const isList = LIST_TYPES.has(list[i]!.type);
+    if (out.length && !(isList && prevList)) out.push('');
+    out.push(...lines);
+    prevList = isList;
   });
   return out;
+}
+
+/**
+ * Render a list of siblings, numbering consecutive numbered items.
+ *
+ * @remarks
+ * Numbering is a property of a block's position among its siblings, not of the
+ * block, so it can only be decided here. Emitting `1.` for every item round
+ * trips (CommonMark renumbers) but it is unreadable in the file — and "readable
+ * without the tool" is the whole point of the markdown projection.
+ */
+function renderSiblings(list: BlockJSON[], depth: number, opts: MarkdownOptions): string[][] {
+  let n = 0;
+  return list.map((b) => {
+    n = b.type === 'numbered_list_item' ? n + 1 : 0;
+    return renderBlock(b, depth, opts, n);
+  });
 }
 
 /** Re-indent the continuation lines a hard break produced. */
@@ -210,7 +243,7 @@ function indented(pad: string, text: string): string {
   return pad + text.split('\n').join(`\n${pad}`);
 }
 
-function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}): string[] {
+function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, ordinal = 1): string[] {
   // a plugin's projection wins over the built-in switch; the switch is what
   // the block types not yet extracted still use
   const projection = opts.plugins?.get(b.type)?.markdown;
@@ -223,9 +256,31 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}): s
   const pad = '    '.repeat(depth);
   const p = b.props ?? {};
   const text = runsToMarkdown(b.text);
-  const kids = () => (b.children ?? []).flatMap((c) => renderBlock(c, depth + 1, opts));
+  /*
+   * A block's own line and its children need the same separation rule as two
+   * siblings do: an indented *list* child reads as nesting, but an indented
+   * *paragraph* child written tight against the parent reads as a lazy
+   * continuation of the parent's text, and is swallowed on the next read.
+   */
+  const kids = () => {
+    const lines = renderSiblingLines(b.children ?? [], depth + 1, opts);
+    if (!lines.length || LIST_TYPES.has(b.children![0]!.type)) return lines;
+    return ['', ...lines];
+  };
   // quote/callout children are rendered un-indented then '> '-prefixed
-  const quotedKids = () => (b.children ?? []).flatMap((c) => renderBlock(c, 0, opts)).map((l) => pad + '> ' + l);
+  /*
+   * Paragraphs inside a quote need a blank `>` line between them, or reading
+   * the file back folds them into one — consecutive lines inside a blockquote
+   * are one paragraph, exactly as they are outside it.
+   *
+   * @param afterText - True when the quote's own inline text precedes the
+   * children, so the first child needs a separator too. A callout's `[!type]`
+   * line is a title rather than a paragraph, so its body follows directly.
+   */
+  const quotedKids = (afterText: boolean) => {
+    const lines = renderSiblingLines(b.children ?? [], 0, opts);
+    return (afterText && lines.length ? ['', ...lines] : lines).map((l) => (l ? pad + '> ' + l : pad + '>'));
+  };
 
   switch (b.type) {
     case 'paragraph':
@@ -237,20 +292,20 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}): s
     case 'bulleted_list_item':
       return [indented(pad, '- ' + text), ...kids()];
     case 'numbered_list_item':
-      return [indented(pad, '1. ' + text), ...kids()]; // always "1.": renderers renumber
+      return [indented(pad, `${ordinal}. ` + text), ...kids()];
     case 'to_do':
       return [indented(pad, (p['checked'] === true ? '- [x] ' : '- [ ] ') + text), ...kids()];
     case 'toggle':
       // documented loss: toggle-ness is lost — serialized as a plain list item with indented children
       return [indented(pad, '- ' + text), ...kids()];
     case 'quote':
-      return [pad + '> ' + text, ...quotedKids()];
+      return [pad + '> ' + text, ...quotedKids(true)];
     case 'callout': {
       // Obsidian callout convention: the variant IS the callout type, so
       // presets round-trip as `> [!warning]` instead of collapsing to note
       const variant = typeof p['variant'] === 'string' && p['variant'] ? p['variant'] : 'note';
       const icon = typeof p['icon'] === 'string' && p['icon'] ? p['icon'] + ' ' : '';
-      return [pad + `> [!${variant}] ` + icon + text, ...quotedKids()];
+      return [pad + `> [!${variant}] ` + icon + text, ...quotedKids(false)];
     }
     case 'code': {
       const lang = typeof p['language'] === 'string' ? p['language'] : '';
@@ -327,37 +382,35 @@ function mk(type: string, props: Record<string, unknown>, text?: Run[], children
   return b;
 }
 
-/** Indent depth in levels: one tab or 4 spaces per level. */
-function indentLevel(line: string): number {
-  let level = 0;
-  let spaces = 0;
+/**
+ * Leading indentation, measured in **columns** — a tab is four.
+ *
+ * @remarks
+ * Columns rather than a fixed four-space ladder, which is what this counted
+ * before. CommonMark nests a list item under whatever column its parent's
+ * content starts at, so `- a` followed by `  - b` is a child list; the ladder
+ * saw two spaces, rounded to zero levels, and made them siblings. Two-space
+ * nesting is what most editors emit, so that was most real markdown.
+ */
+function indentColumns(line: string): number {
+  let cols = 0;
   for (const ch of line) {
-    if (ch === '\t') {
-      level++;
-      spaces = 0;
-    } else if (ch === ' ') {
-      if (++spaces === 4) {
-        level++;
-        spaces = 0;
-      }
-    } else break;
+    if (ch === '\t') cols += 4;
+    else if (ch === ' ') cols++;
+    else break;
   }
-  return level;
+  return cols;
 }
 
-/** Remove up to `levels` levels of leading indentation (tab or 4 spaces each). */
-function stripLevels(line: string, levels: number): string {
+/** Remove up to `cols` columns of leading indentation. */
+function stripColumns(line: string, cols: number): string {
   let i = 0;
-  for (let l = 0; l < levels && i < line.length; l++) {
-    if (line[i] === '\t') i++;
-    else {
-      let s = 0;
-      while (s < 4 && line[i] === ' ') {
-        i++;
-        s++;
-      }
-      if (s === 0) break;
-    }
+  let taken = 0;
+  while (i < line.length && taken < cols) {
+    if (line[i] === '\t') taken += 4;
+    else if (line[i] === ' ') taken++;
+    else break;
+    i++;
   }
   return line.slice(i);
 }
@@ -424,12 +477,65 @@ function startsConstruct(
   if (rules.some(({ rule }) => rule.match.test(line))) return true;
   if (CONSTRUCT_STARTS.some((re) => re.test(line))) return true;
   // a pipe row is only a table when the next line is the delimiter
-  return line.includes('|') && pos + 1 < lines.length && isDelimiterRow(stripLevels(lines[pos + 1]!, level));
+  return line.includes('|') && pos + 1 < lines.length && isDelimiterRow(stripColumns(lines[pos + 1]!, level));
+}
+
+/**
+ * Consecutive non-blank lines that form ONE inline text, per CommonMark.
+ *
+ * @remarks
+ * Shared by paragraphs and by list items, because they wrap identically and
+ * writing it twice is how they drift — which is exactly what had happened: the
+ * paragraph branch folded its continuation lines and the list branch did not,
+ * so every wrapped list item shed its tail into a stray paragraph.
+ *
+ * Two kinds of line ending, and the difference is the whole subtlety:
+ *   - a *soft* break (a bare newline) is not content. CommonMark renders it as
+ *     a space, so source wrapping is normalised away. That is a documented,
+ *     deliberate loss: how a file happens to be wrapped is presentation of the
+ *     source, not of the document.
+ *   - a *hard* break (a trailing backslash, or two trailing spaces) is
+ *     content, and becomes the `\n` our model uses for Shift+Enter.
+ *
+ * A line that starts another construct ends the run, so the outer loop sees
+ * it. Leading whitespace on a continuation line is never content — indented
+ * code blocks are not a construct we support, only fenced ones.
+ *
+ * @param seed - **Source** text already taken from the opening line, when the
+ * caller consumed it to recognise the block (a list marker, say). Source, not
+ * parsed runs: inline syntax has to be read once, over the whole joined text,
+ * or the first line's marks are dropped on the floor.
+ */
+function takeInlineText(
+  lines: string[],
+  pos: number,
+  level: number,
+  rules: Array<{ type: string; rule: MarkdownRule }>,
+  seed?: string,
+): [string, number] {
+  const parts: string[] = [];
+  const hard: boolean[] = [];
+  if (seed !== undefined) {
+    parts.push(seed.replace(/(\\|\s+)$/, ''));
+    hard.push(/(\\|\s{2,})$/.test(seed));
+  }
+  while (pos < lines.length) {
+    const raw = lines[pos]!;
+    if (raw.trim() === '') break;
+    const line = stripColumns(raw, level).trimStart();
+    if (parts.length && startsConstruct(line, lines, pos, level, rules)) break;
+    hard.push(/(\\|\s{2,})$/.test(raw));
+    parts.push(line.replace(/(\\|\s+)$/, ''));
+    pos++;
+  }
+  const text = parts.reduce((acc, line, i) => (i === 0 ? line : acc + (hard[i - 1] ? '\n' : ' ') + line), '');
+  return [text, pos];
 }
 
 function parseLevel(
   lines: string[],
   pos: number,
+  /** Column this level's content starts at; deeper lines are its children. */
   level: number,
   opts: MarkdownOptions = {},
 ): [BlockJSON[], number] {
@@ -441,17 +547,23 @@ function parseLevel(
       pos++;
       continue;
     }
-    const ind = indentLevel(raw);
+    const ind = indentColumns(raw);
     if (ind < level) break;
-    // orphan deeper indentation (not under a list item): clamp to this level
-    const content = ind > level ? raw.trimStart() : stripLevels(raw, level);
+    /*
+     * Leading whitespace never survives into content: CommonMark lets a block
+     * marker sit under a few spaces of indentation, and keeping them meant a
+     * line like `  - item` matched no construct at all and became a paragraph
+     * whose text literally began with "- ". Indented code blocks are not a
+     * construct here — only fenced ones — so nothing is lost by trimming.
+     */
+    const content = raw.trimStart();
     let m: RegExpExecArray | null;
 
     // contributed rules first: a plugin owns its own syntax
     let claimed = false;
     for (const { rule } of rules) {
       if (!rule.match.test(content)) continue;
-      const parsed = rule.parse(lines.map((l) => stripLevels(l, level)), pos);
+      const parsed = rule.parse(lines.map((l) => stripColumns(l, level)), pos);
       if (!parsed) continue;
       const block = parsed.block as unknown as BlockJSON;
       out.push({ ...block, id: block.id || uuidv7() });
@@ -465,8 +577,8 @@ function parseLevel(
     if ((m = /^```(.*)$/.exec(content))) {
       pos++;
       const body: string[] = [];
-      while (pos < lines.length && !/^```\s*$/.test(stripLevels(lines[pos]!, level))) {
-        body.push(stripLevels(lines[pos]!, level));
+      while (pos < lines.length && !/^```\s*$/.test(stripColumns(lines[pos]!, level))) {
+        body.push(stripColumns(lines[pos]!, level));
         pos++;
       }
       if (pos < lines.length) pos++; // closing fence
@@ -477,11 +589,11 @@ function parseLevel(
     }
 
     // GFM table: a pipe row is only a table if the next line is the delimiter
-    if (content.includes('|') && pos + 1 < lines.length && isDelimiterRow(stripLevels(lines[pos + 1]!, level))) {
+    if (content.includes('|') && pos + 1 < lines.length && isDelimiterRow(stripColumns(lines[pos + 1]!, level))) {
       const rows = [splitRow(content)];
       pos += 2;
       while (pos < lines.length) {
-        const next = stripLevels(lines[pos]!, level);
+        const next = stripColumns(lines[pos]!, level);
         if (!next.includes('|') || next.trim() === '') break;
         rows.push(splitRow(next));
         pos++;
@@ -544,42 +656,69 @@ function parseLevel(
       pos++;
       while (pos < lines.length) {
         const r = lines[pos]!;
-        if (r.trim() === '' || indentLevel(r) !== level) break;
-        const qm = /^>\s?(.*)$/.exec(stripLevels(r, level));
+        if (r.trim() === '' || indentColumns(r) !== level) break;
+        const qm = /^>\s?(.*)$/.exec(stripColumns(r, level));
         if (!qm) break;
         quoteLines.push(qm[1]!);
         pos++;
       }
-      const children = quoteLines
-        .slice(1)
-        .filter((l) => l.trim() !== '')
-        .map((l) => mk('paragraph', {}, markdownToRuns(l)));
+      /*
+       * A quote's body is markdown in its own right — wrapped prose folds, a
+       * blank `>` line starts a new paragraph, and a list inside a quote is a
+       * list. Mapping one line to one child paragraph, which this did, turned
+       * every wrapped quote into a stack of sub-paragraphs.
+       */
       const cm = /^\[!(\w+)\][-+]?\s?(.*)$/.exec(quoteLines[0]!);
+      /*
+       * A callout's `[!type]` line is its **title**, so it is never folded
+       * into the body — that is the Obsidian convention and the difference
+       * from a plain quote, whose first line is just the first line of prose.
+       */
+      const [body] = parseLevel(cm ? quoteLines.slice(1) : quoteLines, 0, 0, opts);
+      const lead = cm ? undefined : body[0]?.type === 'paragraph' && !body[0].children ? body.shift() : undefined;
+      const children = body;
+      const leadText = cm ? markdownToRuns(cm[2]!) : (lead?.text ?? []);
       if (cm) {
         // 'note' is the default rendering, so it is never stored — that keeps
         // documents lean and makes the markdown round-trip byte-stable
         const variant = cm[1]!.toLowerCase();
-        out.push(mk('callout', variant === 'note' ? {} : { variant }, markdownToRuns(cm[2]!), children));
+        out.push(mk('callout', variant === 'note' ? {} : { variant }, leadText, children));
       }
-      else out.push(mk('quote', {}, markdownToRuns(quoteLines[0]!), children));
+      else out.push(mk('quote', {}, leadText, children));
       continue;
     }
 
     // list items: to_do, bullet, numbered — all may have indented children
     let item: BlockJSON | null = null;
+    let seed = '';
     if ((m = /^[-*] \[([ xX])\]\s?(.*)$/.exec(content))) {
-      item = mk('to_do', { checked: m[1]!.toLowerCase() === 'x' }, markdownToRuns(m[2]!));
+      item = mk('to_do', { checked: m[1]!.toLowerCase() === 'x' });
+      seed = m[2]!;
     } else if ((m = /^[-*]\s+(.*)$/.exec(content))) {
-      item = mk('bulleted_list_item', {}, markdownToRuns(m[1]!));
+      item = mk('bulleted_list_item', {});
+      seed = m[1]!;
     } else if ((m = /^\d+\.\s+(.*)$/.exec(content))) {
-      item = mk('numbered_list_item', {}, markdownToRuns(m[1]!));
+      item = mk('numbered_list_item', {});
+      seed = m[1]!;
     }
     if (item) {
-      pos++;
+      /*
+       * A list item's text continues onto the following lines exactly as a
+       * paragraph's does — CommonMark calls the indented form a continuation
+       * line and the unindented form a lazy one, and both belong to the item.
+       * Without this each wrapped line became its own paragraph *between* the
+       * items, which is also why numbering restarted at 1: `listNumber` in the
+       * DOM package counts consecutive siblings, and those paragraphs were
+       * sitting between them.
+       */
+      const [itemText, afterText] = takeInlineText(lines, pos + 1, level, rules, seed);
+      if (itemText) item.text = markdownToRuns(itemText);
+      pos = afterText;
       let j = pos;
       while (j < lines.length && lines[j]!.trim() === '') j++;
-      if (j < lines.length && indentLevel(lines[j]!) > level) {
-        const [children, next] = parseLevel(lines, j, level + 1, opts);
+      const childColumn = j < lines.length ? indentColumns(lines[j]!) : level;
+      if (childColumn > level) {
+        const [children, next] = parseLevel(lines, j, childColumn, opts);
         if (children.length) item.children = children;
         pos = next;
       }
@@ -587,33 +726,8 @@ function parseLevel(
       continue;
     }
 
-    /*
-     * Paragraph: consecutive non-blank lines form ONE block, per CommonMark.
-     * Treating each line as its own block — which this did — turns a
-     * hand-wrapped paragraph into a pile of paragraphs and makes the round
-     * trip unstable, which contradicts D7's two-way promise.
-     *
-     * Two kinds of line ending, and the difference is the whole subtlety:
-     *   - a *soft* break (a bare newline) is not content. CommonMark renders
-     *     it as a space, so source wrapping is normalised away. That is a
-     *     documented, deliberate loss: how a file happens to be wrapped is
-     *     presentation of the source, not of the document.
-     *   - a *hard* break (a trailing backslash, or two trailing spaces)
-     *     is content, and becomes the `\n` our model uses for Shift+Enter.
-     */
-    const paragraph: string[] = [];
-    let hard: boolean[] = [];
-    while (pos < lines.length) {
-      const line = indentLevel(lines[pos]!) > level ? lines[pos]!.trimStart() : stripLevels(lines[pos]!, level);
-      if (line.trim() === '') break;
-      // any construct starts a new block: stop and let the outer loop see it
-      if (pos > 0 && paragraph.length && startsConstruct(line, lines, pos, level, rules)) break;
-      const isHard = /(\\|\s{2,})$/.test(line);
-      paragraph.push(line.replace(/(\\|\s+)$/, ''));
-      hard.push(isHard);
-      pos++;
-    }
-    const text = paragraph.reduce((acc, line, i) => (i === 0 ? line : acc + (hard[i - 1] ? '\n' : ' ') + line), '');
+    const [text, nextPos] = takeInlineText(lines, pos, level, rules);
+    pos = nextPos;
     out.push(mk('paragraph', {}, markdownToRuns(text)));
   }
   return [out, pos];

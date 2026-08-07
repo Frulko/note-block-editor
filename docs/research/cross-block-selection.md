@@ -11,6 +11,13 @@
 > *alternatives* — Gutenberg's container toggle, the CSS Custom Highlight
 > overlay — remains accurate and is now more relevant, not less. See D3 and
 > open question 9 in `docs/ARCHITECTURE.md`.
+>
+> **What shipped:** the Highlight overlay, in `packages/dom/src/cross-block-highlight.ts`.
+> The container toggle was measured too and rejected — both variants (leaves
+> made non-editable, and the root made editable, which is Gutenberg's) do span
+> *during* the drag and then collapse to the first block the moment editability
+> is restored. Only a permanent single host survives, and that is the trade
+> open question 9 weighs.
 
 # Cross-block text selection with per-block contenteditable
 

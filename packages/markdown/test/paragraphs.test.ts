@@ -86,3 +86,76 @@ describe('round-trip stability', () => {
     expect(text(out)).toEqual(['a\nb']);
   });
 });
+
+// Wrapping applies to every block that carries inline text, not just to
+// paragraphs. It did not, and the visible damage went further than the text:
+// each stray continuation paragraph landed *between* two list items, so the
+// DOM's `listNumber` — which counts consecutive siblings — restarted at 1 on
+// every item. Reported from docs/ARCHITECTURE.md §12.
+describe('a list item spans consecutive lines too', () => {
+  const wrapped = [
+    '1. **Storage runtime.** Browser (OPFS/File System Access) vs',
+    '   Tauri/Electron vs CLI; atomic temp+rename writes, debounced saves.',
+    '2. **Binary assets.** Where blobs live across L0/L1/L2,',
+    '   content-hash dedup, reference counting.',
+    '3. **Unicode.** Short one.',
+  ].join('\n');
+
+  it('folds the continuation into the item, leaving nothing between items', () => {
+    const blocks = parse(wrapped);
+    expect(blocks.map((b) => b.type)).toEqual([
+      'numbered_list_item',
+      'numbered_list_item',
+      'numbered_list_item',
+    ]);
+  });
+
+  it('joins with a space and drops the source indentation', () => {
+    expect(plainText(parse(wrapped)[0]!.text)).toBe(
+      'Storage runtime. Browser (OPFS/File System Access) vs Tauri/Electron vs CLI; atomic temp+rename writes, debounced saves.',
+    );
+  });
+
+  it('accepts a lazy continuation, unindented, as CommonMark does', () => {
+    expect(text('1. item\nlazy tail\n2. next')).toEqual(['item lazy tail', 'next']);
+  });
+
+  it('still ends the item when the next line starts a construct', () => {
+    expect(parse('- item\n# heading').map((b) => b.type)).toEqual(['bulleted_list_item', 'heading']);
+  });
+
+  it('keeps a hard break inside the item', () => {
+    expect(text('- line one  \n  line two')).toEqual(['line one\nline two']);
+  });
+
+  it('still nests a deeper item as a child, not as continuation', () => {
+    const blocks = parse('- item one\n  continues\n    - nested\n- item two');
+    expect(blocks).toHaveLength(2);
+    expect(plainText(blocks[0]!.text)).toBe('item one continues');
+    expect(blocks[0]!.children!.map((c) => plainText(c.text))).toEqual(['nested']);
+  });
+
+  it('applies to to-dos and bullets, not only numbered items', () => {
+    expect(text('- [ ] a task that\n  wraps\n- [x] done')).toEqual(['a task that wraps', 'done']);
+    expect(text('- a bullet that\n  wraps')).toEqual(['a bullet that wraps']);
+  });
+});
+
+describe('the markdown file stays readable', () => {
+  it('numbers consecutive items 1, 2, 3 rather than 1, 1, 1', () => {
+    // it round-trips either way — CommonMark renumbers — but "readable without
+    // the tool" is the point of the projection, and 1., 1., 1. is not
+    const out = blocksToMarkdown(parse('1. one\n2. two\n3. three'));
+    expect(out.split('\n')).toEqual(['1. one', '2. two', '3. three']);
+  });
+
+  it('restarts numbering after a break in the run', () => {
+    const out = blocksToMarkdown(parse('1. one\n2. two\n\npara\n\n1. fresh'));
+    expect(out.split('\n').filter((l) => /^\d/.test(l))).toEqual(['1. one', '2. two', '1. fresh']);
+  });
+
+  it('numbers nested runs independently of their parent', () => {
+    const out = blocksToMarkdown(parse('1. one\n    1. a\n    2. b\n2. two'));
+    expect(out.split('\n').map((l) => l.trim())).toEqual(['1. one', '1. a', '2. b', '2. two']);
+  });
+});

@@ -4,6 +4,7 @@ import { attachKeymap } from './keymap';
 import { attachSelectionSync } from './selection';
 import { attachSlashMenu } from './slash';
 import { attachMentions } from './mention';
+import { attachCrossBlockHighlight } from './cross-block-highlight';
 import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
 import { attachGestureRouter } from './gestures';
@@ -43,6 +44,8 @@ export const inputFeature = feature('input', attachInput);
 export const keymapFeature = feature('keymap', attachKeymap);
 /** Mirrors the browser selection into the model. */
 export const selectionSyncFeature = feature('selection-sync', attachSelectionSync);
+/** Paints a text selection that spans blocks, which the browser will not hold. */
+export const crossBlockHighlightFeature = feature('cross-block-highlight', attachCrossBlockHighlight);
 /** Pointer arbitration: text selection, block click-routing, the rubber band. */
 export const gesturesFeature = feature('gestures', attachGestureRouter);
 /** Drops a block selection when a press lands outside the editor. */
@@ -86,6 +89,7 @@ export const defaultFeatures: EditorFeature[] = [
   inputFeature,
   keymapFeature,
   selectionSyncFeature,
+  crossBlockHighlightFeature,
   gesturesFeature,
   outsidePressFeature,
   slashMenuFeature,
@@ -112,6 +116,7 @@ export const minimalFeatures: EditorFeature[] = [
   inputFeature,
   keymapFeature,
   selectionSyncFeature,
+  crossBlockHighlightFeature,
   gesturesFeature,
   clipboardFeature,
 ];

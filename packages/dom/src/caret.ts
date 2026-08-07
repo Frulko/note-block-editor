@@ -28,13 +28,58 @@ export function domTextSelection(view: EditorView): TextSelection | null {
 }
 
 /**
+ * The clamped remnant of a painted cross-block selection.
+ *
+ * @remarks
+ * The browser refuses to hold a `Selection` across editing hosts, so a
+ * cross-block selection is carried by the model and painted (D3). But the
+ * browser still holds the *clamped* single-block selection its drag produced,
+ * and every DOM→model sync would map that remnant back — silently shrinking
+ * the user's selection to its first block the moment they pressed a key.
+ *
+ * The remnant is recognised by its *shape* rather than by recording it: the
+ * clamp keeps the anchor the drag started from and truncates the head into
+ * that anchor's block. Anything else — a click elsewhere, a keyboard move — is
+ * the user asking for something else, and the DOM wins again.
+ *
+ * Shape, not a recorded snapshot, because recording races: the browser updates
+ * its own selection *after* our pointermove handler runs, so a snapshot taken
+ * when the model was set is already stale. Measured — a drag delivered as a
+ * single pointermove (a fast flick) lost its selection entirely that way.
+ */
+export function domSelectionIsRemnant(view: EditorView): boolean {
+  const sel = view.editor.selection;
+  if (sel?.kind !== 'text' || sel.anchor.blockId === sel.head.blockId) return false;
+  const dom = domTextSelection(view);
+  return (
+    !!dom &&
+    dom.anchor.blockId === sel.anchor.blockId &&
+    dom.anchor.offset === sel.anchor.offset &&
+    dom.head.blockId === sel.anchor.blockId
+  );
+}
+
+/**
  * Re-derive the model selection from the DOM before acting on input. Call at
  * the top of beforeinput/keydown handlers: stale model state (missed
  * selectionchange, padding clicks, races) can then never misroute an edit.
- * Leaves block selections alone (they have no DOM selection).
+ * Leaves block selections alone: they have no DOM counterpart, and the caret
+ * the browser keeps in the still-focused leaf is not the user leaving them.
  */
 export function syncCaretFromDom(view: EditorView): void {
   if (view.composing) return;
+  /*
+   * A block selection has no DOM counterpart, but the leaf it came from keeps
+   * focus and the browser keeps a caret inside it — so this used to derive a
+   * text selection and overwrite the block one, before the keymap had even
+   * looked at the key. Measured 2026-08-07: Escape selected a block and the
+   * very next Shift+ArrowDown dropped the selection and extended text
+   * instead, which killed the whole block-mode key contract.
+   *
+   * `attachSelectionSync` already refused this; the two paths had drifted.
+   */
+  if (view.editor.selection?.kind === 'block') return;
+  if (domSelectionIsRemnant(view)) return;
   const derived = domTextSelection(view);
   if (!derived) return;
   const prev = view.editor.selection;
