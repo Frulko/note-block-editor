@@ -30,3 +30,15 @@ export {
   snapGrapheme,
 } from './grapheme';
 export { MARKS, expandsForward, markExpansion, registerMark, type MarkExpansion, type MarkSpec } from './marks';
+export {
+  anchoredThreads,
+  memoryComments,
+  newMessage,
+  newThread,
+  orphanThreads,
+  threadIdsIn,
+  threadsInDocumentOrder,
+  type CommentMessage,
+  type CommentStore,
+  type CommentThread,
+} from './comments';

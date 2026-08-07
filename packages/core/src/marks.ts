@@ -60,6 +60,13 @@ export const MARKS: readonly MarkSpec[] = [
   { type: 'code', expand: 'none' },
   { type: 'link', expand: 'none' },
   { type: 'mention', expand: 'none' },
+  /*
+   * A comment marks the text someone was talking about. Typing next to it must
+   * not drag the anchor along, or a thread quietly comes to cover a sentence
+   * nobody commented on — the same reason links do not expand, and worse here,
+   * because the discussion stays attached while its subject changes.
+   */
+  { type: 'comment', expand: 'none' },
 ];
 
 const BY_TYPE = new Map(MARKS.map((spec) => [spec.type, spec]));

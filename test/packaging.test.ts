@@ -33,10 +33,12 @@ describe('package layering', () => {
     expect(deps('collab').sort()).toEqual(['@nbe/core', 'loro-crdt']);
   });
 
-  it('the cli depends on core, markdown and workspace — and no framework', () => {
-    //  because Node ships a WebSocket *client* and no server, and the
-    // handshake plus framing is a protocol rather than a few lines
-    expect(deps('cli').sort()).toEqual(['@nbe/core', '@nbe/markdown', '@nbe/workspace', 'ws']);
+  it('the cli depends on core, markdown, workspace and collab — and no framework', () => {
+    // `ws` because Node ships a WebSocket *client* and no server, and the
+    // handshake plus framing is a protocol rather than a few lines.
+    // `collab` because `nbe serve` is a *peer*: it runs the same `connect()`
+    // as every client rather than reimplementing sync inside the relay.
+    expect(deps('cli').sort()).toEqual(['@nbe/collab', '@nbe/core', '@nbe/markdown', '@nbe/workspace', 'ws']);
   });
 
   it('workspace depends on core and markdown (the vault is a markdown projection)', () => {
