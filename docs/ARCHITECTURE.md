@@ -583,8 +583,25 @@ phase begins:
 6. **Editor test automation.** Simulating IME composition/clipboard/drag in CI
    (Playwright/CDP limits), headless op-layer tests vs real-browser matrix,
    non-US layouts (AZERTY dead keys vs shortcut collisions).
-7. **Touch/mobile interaction design.** Touch equivalent of hover chrome,
-   selection handles, virtual-keyboard occlusion (visualViewport), long-press.
+7. **Touch/mobile interaction design.** *Largely resolved 2026-08-07; the
+   device half remains.* The first measurement was not about gestures: at 390px
+   the editor was **not on screen at all**, because the demo's three fixed
+   columns pushed it out of the window — so the panels are drawers below 900px
+   and the editor is the application. Then dragging a block did nothing, no
+   indicator and no move, because nothing set `touch-action`: the browser
+   claimed the sequence for scrolling and cancelled the pointer. The gesture
+   router now captures the pointer and the chrome that starts a drag declares
+   `touch-action: none`. Tap targets grow to 44px under `(pointer: coarse)` via
+   a pseudo-element, so the layout does not change on a desktop that happens to
+   have a touchscreen. `attachViewportGuard` keeps the caret above a virtual
+   keyboard using `visualViewport` — `window.innerHeight` cannot see it, since
+   the keyboard does not resize the layout viewport — and it moves only when
+   the caret is actually hidden, so it does not fight pinch-zoom. **Still
+   open:** long-press to grab a block without going through the gutter, and
+   everything only a real device shows — iOS Safari's selection handles over a
+   painted cross-block highlight (see question 9), and Android's own
+   text-selection chrome. Emulation gets the events right and the engine wrong.
+
 8. **Database evaluation engine.** Formula language, filter/sort/group
    evaluation, incremental rollup/relation recompute, CSV dialects.
 9. **Whether the accessibility gap forces single-host** (opened 2026-08-07 by

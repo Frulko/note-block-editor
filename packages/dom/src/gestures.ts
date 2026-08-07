@@ -160,6 +160,20 @@ export function attachGestureRouter(view: EditorView): () => void {
       if (!started) continue; // declined; the next one may take it
       session = started;
       view.gesture = { name: recognizer.name, mode: started.mode, moved: false };
+      /*
+       * Capture the pointer, so the gesture survives the finger or cursor
+       * leaving the element it started on. On touch this is not a nicety: the
+       * browser otherwise claims the sequence for scrolling and delivers
+       * `pointercancel`, which is why dragging a block by its handle did
+       * nothing at all on a phone — measured, no drop indicator and no move.
+       * Capture alone is not enough; the chrome that starts a drag also needs
+       * `touch-action: none`, which is in `chrome.css`.
+       */
+      try {
+        target.setPointerCapture(e.pointerId);
+      } catch {
+        /* a detached or non-capturing target: the window listeners still work */
+      }
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onCancel);

@@ -484,6 +484,35 @@ document.getElementById('import-file')!.addEventListener('change', async (e) => 
 document.getElementById('reset')!.addEventListener('click', () => {
   if (confirm('Réinitialiser la démo ? Toutes les pages seront perdues.')) void resetWorkspace();
 });
+/*
+ * The panels are drawers below 900px. The editor is the application on a
+ * narrow screen; the sidebar navigates and the inspector explains, and both
+ * can wait behind a button rather than taking two thirds of a phone.
+ */
+const scrim = document.getElementById('scrim')!;
+const drawers: Array<[button: HTMLElement, panel: HTMLElement]> = [
+  [document.getElementById('toggle-pages')!, document.getElementById('sidebar')!],
+  [document.getElementById('toggle-inspector')!, document.getElementById('inspector')!],
+];
+
+function setDrawer(panel: HTMLElement | null): void {
+  for (const [button, candidate] of drawers) {
+    const open = candidate === panel;
+    candidate.classList.toggle('open', open);
+    button.setAttribute('aria-expanded', String(open));
+  }
+  scrim.hidden = panel === null;
+}
+
+for (const [button, panel] of drawers) {
+  button.addEventListener('click', () => setDrawer(panel.classList.contains('open') ? null : panel));
+}
+scrim.addEventListener('click', () => setDrawer(null));
+// opening a page from the sidebar is the end of using it
+document.getElementById('sidebar')!.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('.page-item, .result')) setDrawer(null);
+});
+
 document.getElementById('undo')!.addEventListener('click', () => editor.undo());
 document.getElementById('redo')!.addEventListener('click', () => editor.redo());
 

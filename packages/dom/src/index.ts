@@ -39,6 +39,7 @@ export {
   gesturesFeature,
   outsidePressFeature,
   crossBlockHighlightFeature,
+  viewportGuardFeature,
   slashMenuFeature,
   mentionsFeature,
   gutterFeature,
@@ -50,6 +51,7 @@ export {
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
+export { attachViewportGuard } from './viewport';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';

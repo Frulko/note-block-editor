@@ -333,3 +333,37 @@
 .nbe-crossblock .nbe-leaf *::selection {
   background: transparent;
 }
+
+
+/* --- touch ----------------------------------------------------------------
+   Two things a finger needs that a mouse does not.
+
+   `touch-action: none` on anything that begins a drag: without it the browser
+   claims the sequence for scrolling and cancels the pointer, so dragging a
+   block by its handle did nothing at all on a phone.
+
+   And a target it can actually hit. 26px is comfortable under a cursor and
+   below every touch-target minimum there is (44px in WCAG 2.5.5, 44pt in
+   Apple's guidelines, 48dp in Material). The button keeps its size; the tap
+   area grows around it, so the layout does not change on a desktop that
+   happens to have a touchscreen. */
+
+.nbe-controls,
+.nbe-handle,
+.nbe-blocktoolbar {
+  touch-action: none;
+}
+
+@media (pointer: coarse) {
+  .nbe-controls button,
+  .nbe-blocktoolbar button {
+    position: relative;
+  }
+  .nbe-controls button::after,
+  .nbe-blocktoolbar button::after {
+    content: "";
+    position: absolute;
+    /* grow the hit area to 44px without moving anything */
+    inset: calc((44px - 100%) / -2);
+  }
+}

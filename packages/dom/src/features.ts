@@ -5,6 +5,7 @@ import { attachSelectionSync } from './selection';
 import { attachSlashMenu } from './slash';
 import { attachMentions } from './mention';
 import { attachCrossBlockHighlight } from './cross-block-highlight';
+import { attachViewportGuard } from './viewport';
 import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
 import { attachGestureRouter } from './gestures';
@@ -46,6 +47,8 @@ export const keymapFeature = feature('keymap', attachKeymap);
 export const selectionSyncFeature = feature('selection-sync', attachSelectionSync);
 /** Paints a text selection that spans blocks, which the browser will not hold. */
 export const crossBlockHighlightFeature = feature('cross-block-highlight', attachCrossBlockHighlight);
+/** Keeps the caret visible when a virtual keyboard opens over it. */
+export const viewportGuardFeature = feature('viewport-guard', attachViewportGuard);
 /** Pointer arbitration: text selection, block click-routing, the rubber band. */
 export const gesturesFeature = feature('gestures', attachGestureRouter);
 /** Drops a block selection when a press lands outside the editor. */
@@ -90,6 +93,7 @@ export const defaultFeatures: EditorFeature[] = [
   keymapFeature,
   selectionSyncFeature,
   crossBlockHighlightFeature,
+  viewportGuardFeature,
   gesturesFeature,
   outsidePressFeature,
   slashMenuFeature,
@@ -117,6 +121,7 @@ export const minimalFeatures: EditorFeature[] = [
   keymapFeature,
   selectionSyncFeature,
   crossBlockHighlightFeature,
+  viewportGuardFeature,
   gesturesFeature,
   clipboardFeature,
 ];

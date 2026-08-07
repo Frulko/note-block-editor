@@ -152,6 +152,23 @@ What a person with an account should check, once:
    re-import; pages must update, not duplicate.
 3. Note what arrives wrong and add it as a fixture before fixing it.
 
+## Touch, on a real device
+
+`e2e/touch.spec.ts` covers what Chromium emulation can honestly cover: the
+layout at 390px, drawers, a finger dragging a block, and a 44px tap target.
+Emulation gets the *events* right and the engine wrong, so these need hands:
+
+1. **iOS Safari**: place the caret, then check the keyboard does not cover it.
+   Then select across two blocks and look for the OS selection handles — a
+   painted highlight is not a selection, so they will not appear (question 9).
+2. **Android Chrome**: the same, plus the floating "paste" chrome, which
+   overlaps our own toolbars.
+3. **Long-press** on a block on both: today it opens the browser's own context
+   menu rather than grabbing the block. Record what each does before designing
+   the gesture.
+4. **Pinch-zoom** while the caret is visible: the viewport guard must not
+   scroll the page under the gesture.
+
 ## Regression checklist per run
 
 - [ ] All IME scenarios on devices 4–10
@@ -161,6 +178,7 @@ What a person with an account should check, once:
       this verifies the clipboard formats actually arriving)
 - [ ] Drag/selection touch + dark-mode passes (section above)
 - [ ] A real Notion export imported at least once per release
+- [ ] Touch matrix on one iOS and one Android device
 - [ ] Results recorded below
 
 ## Results log

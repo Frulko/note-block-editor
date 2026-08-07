@@ -398,3 +398,68 @@ body {
   outline-offset: -2px;
   background: rgb(35 131 226 / 0.1);
 }
+
+/* --- narrow screens -------------------------------------------------------
+   Three fixed columns side by side means the editor is pushed off a phone
+   entirely — measured at 390px, where it was not on screen at all. The panels
+   are auxiliary: the sidebar navigates and the inspector explains. On a narrow
+   screen the editor is the application, so it gets the width and the panels
+   become drawers reachable from the top bar. */
+
+.drawer-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .drawer-toggle {
+    display: inline-flex;
+  }
+
+  .layout {
+    position: relative;
+  }
+
+  .sidebar,
+  .inspector {
+    position: absolute;
+    inset-block: 0;
+    z-index: 20;
+    width: min(85vw, 320px);
+    background: #fbfbfa;
+    /* translated rather than hidden, so focus order and screen readers see a
+       panel that is simply off to one side and can still be opened */
+    transition: transform 180ms ease-out;
+    box-shadow: 0 0 24px rgb(15 15 15 / 0.12);
+  }
+  .sidebar {
+    inset-inline-start: 0;
+    transform: translateX(-101%);
+  }
+  .inspector {
+    inset-inline-end: 0;
+    background: #fff;
+    transform: translateX(101%);
+  }
+  .sidebar.open,
+  .inspector.open {
+    transform: none;
+  }
+
+  .page-scroll {
+    width: 100%;
+  }
+
+  /* a tap outside a drawer closes it */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: rgb(15 15 15 / 0.2);
+  }
+}
+
+@media (min-width: 901px) {
+  .scrim {
+    display: none;
+  }
+}
