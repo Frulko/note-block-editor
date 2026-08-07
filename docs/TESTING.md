@@ -186,3 +186,46 @@ Emulation gets the *events* right and the engine wrong, so these need hands:
 | Date | Commit | Matrix rows run | Failures | Notes |
 |------|--------|-----------------|----------|-------|
 | —    | —      | not yet run — needs real hardware | — | first pass pending |
+
+## WebKit — added 2026-08-08
+
+The suite now runs on WebKit as well as Chromium. WebKit is Safari's engine and
+therefore iOS's, and the external evidence on D1
+(`docs/research/per-block-contenteditable-evidence.md`) says per-block
+`contenteditable` is exactly where Notion hit "roadblocks on iOS and Android".
+Running on that engine is the closest this machine gets to the question. It is
+**not** a device: the input stack, the software keyboard, touch selection and a
+real IME are all still missing.
+
+First run: **105 passed, 4 failed, 7 skipped.** Run it with
+`npx playwright test --project=webkit`.
+
+### Skipped by necessity
+
+`e2e/ime.spec.ts` is Chromium-only. `Input.imeSetComposition` is a CDP command
+and WebKit exposes no equivalent, so a *genuine* composition cannot be driven
+there from a test. What that leaves uncovered is WebKit's particular
+composition behaviour, not our handling of composition — the model-side rule is
+unit-tested (`packages/dom/test/composition-render.test.ts`) and the Swift side
+drives AppKit's own composition protocol directly.
+
+### The four differences, undiagnosed
+
+Recorded rather than fixed, because each needs its own investigation and a
+half-fix is worse than a known gap:
+
+1. **`gutter.spec.ts` — the gutter does not follow the scroll.** Diagnosed far
+   enough to be suspicious of the harness rather than the product: under WebKit
+   `document.scrollHeight` equals `window.innerHeight` after fifty blocks, so
+   there is nothing for `mouse.wheel` to scroll. Either the demo's scroll
+   container differs under WebKit's layout, or the blocks are not being laid
+   out at all. Start there.
+2. **`assets.spec.ts` ×2 — blob garbage collection.** Both the "orphan is
+   collected" and "referenced blob is kept" cases fail. IndexedDB timing under
+   WebKit is the first suspect; a real GC bug is the second.
+3. **`touch.spec.ts` — dragging a block by its handle.** WebKit's touch
+   emulation differs from Chromium's, and this is the suite that matters most
+   for the mobile question, so it deserves the most care.
+
+None is gating yet. They become gating as they are closed, the way the
+single-host topology run did.

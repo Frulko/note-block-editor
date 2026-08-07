@@ -33,8 +33,15 @@ jobs:
       # the editor's own faults have all been invisible to the model — a
       # painted-transparent drop indicator, a dead block-mode key contract —
       # so the browser suite is a gate rather than something run by hand
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm e2e
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm e2e --project=chromium
+      # WebKit is Safari's engine and therefore iOS's, and the D1 evidence says
+      # per-block contenteditable is exactly where iOS breaks. Four known
+      # differences remain (docs/TESTING.md), so this reports rather than gates
+      # — a red build on a known gap teaches people to ignore red builds.
+      - name: Browser suite on WebKit (informational)
+        continue-on-error: true
+        run: pnpm e2e --project=webkit
       # The alternative editable boundary, gated like the default one.
       # External evidence says per-block contenteditable is what Notion left
       # over iOS and Android roadblocks (docs/research/…-evidence.md), so

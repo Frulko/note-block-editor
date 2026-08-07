@@ -26,7 +26,26 @@ export default defineConfig({
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    /*
+     * WebKit is Safari's engine, and therefore iOS's. The external evidence on
+     * D1 says per-block `contenteditable` is where Notion hit "roadblocks on
+     * iOS and Android", so running the suite on the engine iOS actually uses is
+     * the closest this machine gets to that question. It is not a device — the
+     * input stack, the software keyboard and a real IME are still missing — but
+     * it is the engine, and engine differences are most of what a cross-browser
+     * editor gets wrong.
+     */
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      // four known differences, listed in docs/TESTING.md. Reported rather than
+      // gating until they are diagnosed: a red build on a known gap is how a
+      // team learns to ignore red builds.
+      ignoreSnapshots: true,
+    },
+  ],
   /*
    * Two demos, two servers. The collaborative one is a separate app because it
    * demonstrates something the single-player demo must not grow — two peers in

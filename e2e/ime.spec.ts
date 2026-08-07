@@ -15,6 +15,20 @@ import { test, expect } from './fixtures';
  * engine behaviours, not protocol gaps.
  */
 
+/*
+ * CDP is Chromium's protocol, and `Input.imeSetComposition` is the only way to
+ * drive a *genuine* composition from a test — WebKit exposes no equivalent. So
+ * this suite is Chromium-only by necessity rather than by choice, and saying so
+ * here is better than letting it fail red on WebKit, which is how a team learns
+ * to ignore red.
+ *
+ * What that leaves uncovered on WebKit is not composition *handling* — the
+ * model-side rule is unit-tested, and the Swift side drives AppKit's own
+ * composition protocol directly — but WebKit's particular composition
+ * behaviour. That belongs to the device matrix in docs/TESTING.md.
+ */
+test.skip(({ browserName }) => browserName !== 'chromium', 'Input.imeSetComposition is Chromium-only');
+
 /** Drive a composition the way an IME does, through CDP. */
 async function compose(page: import('@playwright/test').Page, steps: string[], commit: string) {
   const cdp = await page.context().newCDPSession(page);
