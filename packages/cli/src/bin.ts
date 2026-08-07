@@ -2,6 +2,7 @@
 import { blocksToMarkdown } from '@nbe/markdown';
 import { checkReadable, importDirectory, openWorkspace, writeVault } from './index';
 import { watchVault } from './watch';
+import { WorkspaceIndex } from './index-db';
 
 /**
  * `nbe` — a workspace on the command line.
@@ -23,7 +24,8 @@ const USAGE = `nbe — un espace de travail en Markdown
   nbe ls                    l'arbre des pages
   nbe new <titre> [--parent <id>]
   nbe cat <id>              une page, en Markdown
-  nbe search <requête>
+  nbe search <requête>      recherche classée (index SQLite)
+  nbe backlinks <id>        ce qui pointe vers une page
   nbe sync                  régénère le miroir Markdown depuis les pages
   nbe import <dossier>      un vault ou un export Notion
   nbe watch                 reprend les modifications faites dans un autre éditeur
@@ -90,9 +92,35 @@ async function main(argv: string[]): Promise<number> {
     }
 
     case 'search': {
-      const hits = workspace.search(positional.join(' '));
-      for (const hit of hits) process.stdout.write(`${hit.title}\n  ${hit.snippet}\n  ${hit.pageId}\n`);
-      return hits.length ? 0 : 1;
+      /*
+       * Rebuilt before every query rather than kept warm. It is derived data
+       * over a person's notes — milliseconds — and a stale answer costs more
+       * than a rebuild does. It is also the claim §10 makes about L2, run for
+       * real on every search rather than asserted once in a test.
+       */
+      const index = new WorkspaceIndex(root);
+      try {
+        index.rebuild(workspace);
+        const hits = index.search(positional.join(' '));
+        for (const hit of hits) process.stdout.write(`${hit.title}\n  ${hit.snippet}\n  ${hit.pageId}\n`);
+        return hits.length ? 0 : 1;
+      } finally {
+        index.close();
+      }
+    }
+
+    case 'backlinks': {
+      const id = positional[0];
+      if (!id) return fail('nbe backlinks <id>');
+      const index = new WorkspaceIndex(root);
+      try {
+        index.rebuild(workspace);
+        const links = index.backlinks(id);
+        for (const link of links) process.stdout.write(`${link.kind}\t${link.title}\t${link.pageId}\n`);
+        return links.length ? 0 : 1;
+      } finally {
+        index.close();
+      }
     }
 
     case 'sync': {

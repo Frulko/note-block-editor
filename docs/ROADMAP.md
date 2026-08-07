@@ -430,12 +430,30 @@ and a relation or rollup cannot be recovered from a CSV that never encoded one
 
 ## Phase 4b — File backends
 
-- Desktop/CLI runtime where files are real: one .md per page, atomic
-  temp+rename writes, crash safety (open question #1)
-- The directory mirror, and watcher-based external-edit import (Obsidian/vim
-  round-trip) through the same parser as Notion-import, IDs preserved
-- SQLite as the L2 index for that runtime: WAL, FTS5, backlinks table
-- The acceptance test becomes CI: delete the app, read the files
+**Shipped 2026-08-07 as `@nbe/cli`** (deps: core, markdown, workspace — no
+framework, no runtime dependency at all):
+
+- ~~One JSON per page, atomic temp+rename writes~~ (AQ#1). A reader sees the
+  old page or the new one, never a truncated one. A page id that would escape
+  its directory is refused rather than sanitised.
+- ~~The directory mirror~~ — rebuilt, never patched, so a renamed page leaves
+  no stale second copy for the next import to read as a second page.
+- ~~Watcher-based external-edit import~~ — polling on content hashes rather
+  than `fs.watch`, which differs per platform and reports one save as between
+  one and four events. Moving a file into a folder re-parents the page, which
+  is the point. An import never writes the vault back while someone is editing
+  it, and a vanished file is reported rather than deleting its page.
+- ~~SQLite as the L2 index~~ — WAL, FTS5, a links table. Node ships SQLite with
+  FTS5 compiled in (checked, not assumed), so this needs no dependency. It is
+  rebuilt before every query: derived data over a person's notes costs
+  milliseconds, and a stale answer costs more.
+- ~~The acceptance test in CI~~ — `nbe check` reports *what* is unreadable: a
+  page with no file, a file with no id in its frontmatter, a file smuggling the
+  model back as JSON or HTML, an asset referenced but not written.
+
+**Remaining in 4b:** a desktop shell (Tauri/Electron) around the same
+adapters, and single-writer election — the rename race is last-writer-wins
+today, which is the assumption §10 states rather than a guarantee it makes.
 
 ## Phase 5 — Collaboration, native, ecosystem (the long game)
 

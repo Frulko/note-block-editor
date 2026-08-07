@@ -523,9 +523,14 @@ Where the research notes conflicted, resolved here:
 From the adversarial completeness review — each needs a design pass before its
 phase begins:
 
-1. **Storage runtime/platform.** Browser (OPFS/File System Access) vs
-   Tauri/Electron vs CLI; atomic temp+rename writes, debounced saves, crash
-   safety, watcher-based conflict handling.
+1. **Storage runtime/platform.** *Resolved 2026-08-07 for two runtimes.* The
+   browser writes pages to IndexedDB (`@nbe/workspace/idb`); a machine writes
+   one JSON per page with atomic temp+rename (`@nbe/cli`), so a crash leaves
+   the old page or the new one and never a truncated one. External edits are
+   picked up by polling content hashes, not `fs.watch`, whose behaviour differs
+   per platform and per editor. **Still open:** a desktop shell, and
+   single-writer election — two processes can still race on the rename, which
+   is last-writer-wins rather than a guarantee.
 2. **Binary asset pipeline.** *Resolved 2026-08-07 for the browser runtime.*
    Blobs live in a content-addressed store and the document holds an opaque
    `asset:<hash>` ref, so dedup is free and the model never carries bytes.

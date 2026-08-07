@@ -203,3 +203,35 @@ describe('the command line', () => {
     expect(err).toContain('commande inconnue');
   });
 });
+
+describe('search and backlinks from the command line', () => {
+  it('search finds a word in a page body, ranked by the index', () => {
+    nbe('new', 'Réunion de lundi');
+    const found = nbe('search', 'lundi');
+    expect(found.code).toBe(0);
+    expect(found.out).toContain('Réunion de lundi');
+  });
+
+  it('a query with an apostrophe searches rather than erroring', () => {
+    nbe('new', "Aujourd'hui");
+    const found = nbe('search', "aujourd'hui");
+    expect(found.code).toBe(0);
+    expect(found.err).toBe('');
+  });
+
+  it('backlinks names what points at a page, and why', () => {
+    const parent = nbe('new', 'Parent').out.trim();
+    const child = nbe('new', 'Enfant', '--parent', parent).out.trim();
+    const links = nbe('backlinks', child);
+    expect(links.code).toBe(0);
+    expect(links.out).toContain('sub_page');
+    expect(links.out).toContain('Parent');
+  });
+
+  it('the index is derived: deleting it changes no answer', () => {
+    nbe('new', 'Réunion de lundi');
+    const before = nbe('search', 'lundi').out;
+    rmSync(join(root, '.nbe', 'index.sqlite'), { force: true });
+    expect(nbe('search', 'lundi').out).toBe(before);
+  });
+});
