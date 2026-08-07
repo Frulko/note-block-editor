@@ -62,7 +62,19 @@ test.describe('a finger can move a block', () => {
     await expect(page.locator('.nbe-controls')).toBeVisible();
   });
 
-  test('dragging by the handle reorders, rather than scrolling the page', async ({ page }) => {
+  test('dragging by the handle reorders, rather than scrolling the page', async ({ page, browserName }) => {
+    /*
+     * `Input.dispatchTouchEvent` is a CDP command, and CDP is Chromium's. A
+     * multi-touch *drag* — as opposed to the taps and swipes above, which
+     * Playwright's own `touchscreen` API covers on every engine — has no
+     * cross-engine equivalent, so this one test is Chromium-only by necessity.
+     *
+     * That is a harness limit, not a product difference, and it matters to say
+     * which: this suite is the one that speaks to the mobile question the D1
+     * evidence raises, so a red mark here would be read as "touch is broken on
+     * WebKit" when it means "the test cannot be expressed there".
+     */
+    test.skip(browserName !== 'chromium', 'Input.dispatchTouchEvent is Chromium-only');
     await open(page);
     const texts = () => page.locator('.nbe-editor .nbe-leaf').allTextContents();
     const before = await texts();

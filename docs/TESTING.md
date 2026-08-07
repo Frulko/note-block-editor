@@ -197,10 +197,18 @@ Running on that engine is the closest this machine gets to the question. It is
 **not** a device: the input stack, the software keyboard, touch selection and a
 real IME are all still missing.
 
-First run: **105 passed, 4 failed, 7 skipped.** Run it with
-`npx playwright test --project=webkit`.
+First run: 105 passed, 4 failed, 7 skipped. **Now 105 passed, 3 failed, 8
+skipped** — one "failure" turned out to be a test that cannot be expressed on
+WebKit at all. Run it with `npx playwright test --project=webkit`.
 
 ### Skipped by necessity
+
+**`e2e/touch.spec.ts`'s handle-drag** uses `Input.dispatchTouchEvent`, a CDP
+command. Playwright's own `touchscreen` API covers taps and swipes on every
+engine, but a multi-touch *drag* has no cross-engine equivalent. Saying which
+kind of gap this is matters more here than anywhere: this suite is the one that
+speaks to the mobile question, so a red mark would be read as "touch is broken
+on WebKit" when it means "the test cannot be written there".
 
 `e2e/ime.spec.ts` is Chromium-only. `Input.imeSetComposition` is a CDP command
 and WebKit exposes no equivalent, so a *genuine* composition cannot be driven
