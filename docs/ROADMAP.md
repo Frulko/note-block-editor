@@ -513,9 +513,17 @@ framework, no runtime dependency at all):
   **Remaining:** iroh for p2p on native. ACL stays outside the CRDT — it merges
   whatever it is handed, so the check must happen before the bytes arrive;
   `startRelay` takes an `authorize` hook and is meant to sit behind a proxy.
-- **Native Swift editor:** same JSON schema + registry, per-block TextKit 2
-  views, SwiftUI chrome, loro-swift when collab lands (Craft proves the
-  category)
+- **Native Swift: the model half is verified** (`native/swift`, 2026-08-07).
+  §9 claims the contract "doubles as the spec a Swift port mirrors" and §4 that
+  unknown types and props round-trip untouched — neither had been checked
+  outside TypeScript. A dependency-free Swift package now decodes a document
+  written by the editor itself, keeps a block type it has never heard of with
+  its nested props intact, and does not turn `1` into `1.0`. Two
+  implementations checked against each other rather than against one author's
+  idea of the format.
+  **Remaining:** the editor itself — per-block TextKit 2 views, SwiftUI chrome,
+  `loro-swift` when it is needed. That needs an application project and a
+  device, not a package.
 - **Obsidian:** decide plugin vs standalone app once L1 vaults are stable —
   an L1 workspace already *is* an Obsidian vault, which keeps both doors open
 - Mobile/touch interaction design (open question #7)

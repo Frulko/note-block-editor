@@ -1,0 +1,93 @@
+{
+  "id": "019fdbe8-869a-75d2-884f-d088eb073e53",
+  "type": "page",
+  "version": 1,
+  "props": {
+    "title": "Portabilité"
+  },
+  "children": [
+    {
+      "id": "h1",
+      "type": "heading",
+      "version": 1,
+      "props": {
+        "level": 1
+      },
+      "text": [
+        {
+          "text": "Portabilité"
+        }
+      ]
+    },
+    {
+      "id": "p1",
+      "type": "paragraph",
+      "version": 1,
+      "text": [
+        {
+          "text": "Du texte "
+        },
+        {
+          "text": "en gras",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "text": " et un "
+        },
+        {
+          "text": "lien",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com"
+              }
+            }
+          ]
+        },
+        {
+          "text": " — et un emoji 👨‍👩‍👧."
+        }
+      ]
+    },
+    {
+      "id": "toggle1",
+      "type": "toggle",
+      "version": 1,
+      "props": {
+        "collapsed": false
+      },
+      "children": [
+        {
+          "id": "p2",
+          "type": "paragraph",
+          "version": 1,
+          "text": [
+            {
+              "text": "Imbriqué."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x1",
+      "type": "un_bloc_du_futur",
+      "version": 3,
+      "props": {
+        "inconnu": {
+          "profond": [
+            1,
+            2,
+            null,
+            true
+          ]
+        }
+      }
+    }
+  ]
+}
