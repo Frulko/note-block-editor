@@ -501,10 +501,18 @@ framework, no runtime dependency at all):
   browsers and in Node 22+); the server side takes `ws`, since Node ships a
   client and no server and the handshake plus framing is a protocol rather than
   a few lines. Tested through a real HTTP server, not a loopback.
-  **Remaining:** iroh for p2p on native, and presence on a separate ephemeral
-  channel. ACL stays outside the CRDT — it merges whatever it is handed, so the
-  check must happen before the bytes arrive; `startRelay` takes an `authorize`
-  hook and is meant to sit behind a proxy that authenticates.
+  ~~Presence~~ — shipped 2026-08-07 (`collab/src/presence.ts`). §3 says
+  ephemeral overlay state never enters the document or history, so a remote
+  caret is not stored in the CRDT at all: it rides the same socket under a
+  different tag, and there are tests proving a cursor is neither saved nor
+  undoable. Peers expire on their own — a closed tab leaves no goodbye, so a
+  presence keyed on disconnection would leave ghosts sitting in a document
+  forever. Known limit, stated in the code: a selection is integer offsets,
+  which are briefly wrong after someone else's edit; `Cursor` gives stable
+  positions and is the upgrade when a moment starts to feel long.
+  **Remaining:** iroh for p2p on native. ACL stays outside the CRDT — it merges
+  whatever it is handed, so the check must happen before the bytes arrive;
+  `startRelay` takes an `authorize` hook and is meant to sit behind a proxy.
 - **Native Swift editor:** same JSON schema + registry, per-block TextKit 2
   views, SwiftUI chrome, loro-swift when collab lands (Craft proves the
   category)

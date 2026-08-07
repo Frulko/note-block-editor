@@ -40,14 +40,23 @@ export interface Transport {
  * size of the document. On the measured sample the difference was 104 bytes
  * against 372, and that ratio grows with history.
  */
-const enum Message {
+export const enum Message {
   /** "This is my version vector." Answer with what I do not have. */
   Have = 0,
   /** "Here is an update." Apply it. */
   Update = 1,
+  /**
+   * "Here is where I am." Presence, which never touches the document (§3).
+   *
+   * It shares the socket because opening a second one would double the
+   * connections for data that is a few bytes — but it is a separate *channel*
+   * in the sense that matters: nothing here is ever written to the CRDT, so it
+   * cannot end up in the document or in history.
+   */
+  Presence = 2,
 }
 
-function envelope(kind: Message, payload: Uint8Array): Uint8Array {
+export function envelope(kind: Message, payload: Uint8Array): Uint8Array {
   const out = new Uint8Array(payload.length + 1);
   out[0] = kind;
   out.set(payload, 1);
