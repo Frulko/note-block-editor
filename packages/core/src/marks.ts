@@ -1,0 +1,89 @@
+/**
+ * How a mark behaves at its edges.
+ *
+ * @remarks
+ * §2.2 says each mark type declares Peritext expansion semantics — "bold
+ * expands at boundaries, links do not" — and calls it dormant metadata, cheap
+ * to declare now and needed when CRDTs arrive. Auditing Loro for phase 5 found
+ * that it had never been declared: marks were `type: string` with no registry
+ * anywhere. The document described something that did not exist.
+ *
+ * It turns out not to be dormant at all. `marksAt` continues every mark of the
+ * preceding character, so typing after a link extended the link and typing
+ * after inline code stayed code — both wrong, both visible today, both fixed by
+ * the metadata that was supposed to be for later.
+ *
+ * The names match Loro's `configTextStyle`, which takes exactly this per-mark
+ * configuration (`{ bold: { expand: "after" }, link: { expand: "none" } }`).
+ * That is not a coincidence: both follow Peritext, which is why §2.2 chose to
+ * record it early.
+ *
+ * @category Rich text
+ */
+
+/**
+ * Which side of a mark absorbs text typed against it.
+ *
+ * - `after` — typing at the end continues the mark. What emphasis should do.
+ * - `before` — typing at the start continues it.
+ * - `both` — either edge.
+ * - `none` — the mark keeps exactly the characters it was applied to.
+ */
+export type MarkExpansion = 'none' | 'before' | 'after' | 'both';
+
+export interface MarkSpec {
+  type: string;
+  expand: MarkExpansion;
+}
+
+/**
+ * The closed mark set of §2.2, with its edge behaviour.
+ *
+ * @remarks
+ * Emphasis expands after, so continuing to type continues the emphasis —
+ * which is what every editor does and what a user expects. The others do not,
+ * for reasons that differ:
+ *
+ * - a **link** has a target; text typed after it is not part of that target,
+ *   and silently extending the anchor is how a stray word ends up clickable;
+ * - **code** is a span with a boundary a reader relies on;
+ * - a **mention** resolves a live page title (§2.4) — it is one thing, and
+ *   typing beside it must not grow it.
+ */
+export const MARKS: readonly MarkSpec[] = [
+  { type: 'bold', expand: 'after' },
+  { type: 'italic', expand: 'after' },
+  { type: 'underline', expand: 'after' },
+  { type: 'strike', expand: 'after' },
+  { type: 'color', expand: 'after' },
+  { type: 'background', expand: 'after' },
+  { type: 'code', expand: 'none' },
+  { type: 'link', expand: 'none' },
+  { type: 'mention', expand: 'none' },
+];
+
+const BY_TYPE = new Map(MARKS.map((spec) => [spec.type, spec]));
+
+/**
+ * How a mark expands, defaulting to `after`.
+ *
+ * @remarks
+ * An unknown mark — one a plugin added — is treated as emphasis, because that
+ * is what most marks are and because continuing to type inside formatting you
+ * just applied is the less surprising failure. A plugin that needs otherwise
+ * says so by registering.
+ */
+export function markExpansion(type: string): MarkExpansion {
+  return BY_TYPE.get(type)?.expand ?? 'after';
+}
+
+/** Register or override a mark's edge behaviour, for a plugin's own mark. */
+export function registerMark(spec: MarkSpec): void {
+  BY_TYPE.set(spec.type, spec);
+}
+
+/** True when typing *after* this mark should continue it. */
+export function expandsForward(type: string): boolean {
+  const expand = markExpansion(type);
+  return expand === 'after' || expand === 'both';
+}

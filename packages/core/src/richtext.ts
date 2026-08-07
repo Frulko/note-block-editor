@@ -1,4 +1,5 @@
 import type { Mark, Run } from './types';
+import { expandsForward } from './marks';
 import { prevGrapheme } from './grapheme';
 
 export function textLength(runs: Run[] | undefined): number {
@@ -78,16 +79,23 @@ export function hasMark(runs: Run[], from: number, to: number, type: string): bo
 }
 
 /**
- * Marks at the caret: those of the character before `offset` (Notion behavior).
+ * Marks the next typed character should carry.
  *
  * @remarks
- * The character, not the code unit. Stepping back one unit from after an emoji
- * lands inside it, and a slice that starts mid-surrogate carries no run at all
- * — so typing after an emoji lost whatever formatting it had.
+ * Those of the character before `offset` — the character, not the code unit.
+ * Stepping back one unit from after an emoji lands inside it, and a slice that
+ * starts mid-surrogate carries no run at all, so typing after an emoji lost
+ * whatever formatting it had.
+ *
+ * And only the marks that *expand forward* (`marks.ts`). Continuing all of
+ * them meant typing after a link extended the link and typing after inline
+ * code stayed code — §2.2 says exactly the opposite, and had said so since
+ * before the behaviour existed.
  */
 export function marksAt(runs: Run[] | undefined, offset: number): Mark[] | undefined {
   if (!runs || offset === 0) return undefined;
   const text = runs.map((r) => r.text).join('');
   const slice = sliceRuns(runs, prevGrapheme(text, offset), offset);
-  return slice[0]?.marks;
+  const carried = (slice[0]?.marks ?? []).filter((mark) => expandsForward(mark.type));
+  return carried.length ? carried : undefined;
 }

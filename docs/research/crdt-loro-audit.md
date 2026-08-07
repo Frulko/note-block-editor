@@ -1,0 +1,107 @@
+# Audit: adopting Loro (phase 5)
+
+The roadmap says of the CRDT: *"Loro is the presumptive choice … behind the
+same store interface the plain-JSON implementation satisfies — audit, then
+adopt when this phase starts, not before."* This is that audit, done
+2026-08-07, before any dependency was added.
+
+Its conclusion is not "yes" or "no". It is that **two of the three things
+phase 5 assumed were already true are not**, and that fixing them is worth
+doing whether or not Loro is ever adopted.
+
+## What holds
+
+**Moves.** §3 chose `moveBlock(id, parent, afterSibling)` as *intent*, never
+delete-plus-reinsert, and called that one of the two known concurrency traps.
+Loro's `LoroTree.move(target, parent, index)` is exactly that operation, in a
+container built for it. The decision pays off precisely as predicted: the op
+does not need translating, only mapping.
+
+**The identifier scheme.** UUIDv7 block ids (D6) and "no persisted integer
+offsets" (§2.2) are what a CRDT needs from a document model. Nothing here has
+to change.
+
+**The transport shape.** Loro exchanges opaque update blobs, which is what the
+roadmap already specifies (*"opaque update blobs over pluggable transports"*).
+
+## What does not hold
+
+### 1. The mark expansion metadata did not exist
+
+§2.2 states that *"each mark type declares Peritext expansion semantics (bold
+expands at boundaries, links do not) — dormant metadata until CRDTs, cheap to
+declare now"*.
+
+It had never been declared. Marks were `type: string` with no registry
+anywhere in `core`. The document described something that was not built.
+
+This matters more than a missing field, because Loro's `configTextStyle` takes
+*exactly* this per-mark configuration:
+
+```ts
+doc.configTextStyle({ bold: { expand: "after" }, link: { expand: "none" } })
+```
+
+Both follow Peritext, which is why §2.2 was right to want it recorded early.
+
+**Fixed 2026-08-07** (`core/src/marks.ts`), and it was never dormant: `marksAt`
+decides what the *next typed character* inherits, and it carried every mark of
+the preceding character. So typing after a link extended the link, and typing
+after inline code stayed code — the opposite of what §2.2 described, visible in
+the product, and repaired by the metadata that was supposed to be for later.
+
+### 2. There is no store interface for a CRDT to go behind
+
+`Doc` is `{ blocks: Map<BlockId, Block>; rootId: BlockId }` — a data structure,
+not an interface — and `applyOp` mutates that `Map` directly. Every command
+reads `doc.blocks.get(…)`. "Behind the same store interface" has no interface.
+
+Two shapes are available, and they are not equivalent:
+
+- **CRDT as the document.** `Doc` becomes an interface; a Loro-backed
+  implementation satisfies it. Faithful, and it makes every existing command a
+  CRDT operation for free. Costs a pass over `core`, and every read becomes a
+  call into WASM.
+- **CRDT as the transport.** The `Map` stays; the CRDT holds a parallel copy
+  for merging, and remote updates come back as ops. Far less invasive, and it
+  has a known failure mode: two representations of the same document that can
+  disagree, with no authority to resolve which is right.
+
+The second is tempting and is the one to distrust. A CRDT that is not the
+source of truth is a cache of a truth nobody owns.
+
+### 3. Our ops are not the sync unit, and should not be
+
+`insert_block` carries `index`, `insert_text` carries `offset`,
+`format_text` carries `from`/`to`. Integer positions are exactly what does not
+merge — two clients inserting at index 3 mean different things.
+
+That is not a flaw: §2.2 already limits offsets to "op payloads and ephemeral
+selection", never to anything persisted. But it settles a question phase 5
+might otherwise get wrong: **the ops are a local application format, and the
+wire format is Loro's own updates.** Sending our ops between peers would
+reintroduce the trap the op design avoids.
+
+## Recommendation
+
+In this order, and the first is already done:
+
+1. ~~Declare the mark expansion semantics.~~ Shipped, with a present-day bug
+   fixed on the way.
+2. **Make `Doc` an interface** before adopting anything. It is the change that
+   makes a CRDT possible and it is worth making on its own merits: today
+   nothing can be swapped for the document store, including a lazy one for
+   large documents.
+3. **Then** adopt Loro, as the document rather than as a transport, with the
+   op layer mapping onto its containers: `move_block` → `LoroTree.move`,
+   text ops → `LoroText` with `configTextStyle` fed from `MARKS`.
+
+Step 2 is the real cost of phase 5, and it is invisible from the outside. Doing
+step 3 first would produce something that syncs and cannot be trusted.
+
+## Not evaluated here
+
+Performance, memory, and the WASM bundle's weight in the browser — all of
+which need a prototype rather than documentation. The Swift bindings
+(`loro-swift`), which matter for the native editor, are documented as existing
+and have not been tried.

@@ -468,10 +468,16 @@ framework, no runtime dependency at all):
 
 ## Phase 5 — Collaboration, native, ecosystem (the long game)
 
-- **CRDT:** Loro is the presumptive choice (MovableTree, Peritext-grade text,
-  Rust core shared with Swift bindings) behind the same store interface the
-  plain-JSON implementation satisfies — audit, then adopt when this phase
-  starts, not before
+- **CRDT: audited 2026-08-07** (`docs/research/crdt-loro-audit.md`), before any
+  dependency was added. Loro fits where it was expected to — `LoroTree.move`
+  *is* our `move_block`, and its `configTextStyle` *is* §2.2's mark expansion —
+  but two assumptions were false. The mark metadata had never been declared
+  (fixed, and it was fixing a live bug, not preparing for one), and there is no
+  store interface for a CRDT to go behind: `Doc` is a `Map` and `applyOp`
+  mutates it. **Making `Doc` an interface is the real cost of this phase**, and
+  it comes before adoption; adopting first would produce something that syncs
+  and cannot be trusted. The ops stay a local format — they carry integer
+  positions — and the wire format is Loro's own updates.
 - **Sync:** opaque update blobs over pluggable transports (Automerge-Repo
   pattern); default ~100-line self-hostable websocket relay; iroh for p2p
   native later; presence on a separate ephemeral channel; ACL outside the CRDT

@@ -81,8 +81,12 @@ interface Mark { type: 'bold'|'italic'|'underline'|'strike'|'code'|'link'|'color
   keeps projections meaningful
   (the static renderer emits classes, not frozen values), and stops arbitrary
   CSS from entering the model through a colour picker.
-- Each mark type declares Peritext expansion semantics (bold expands at
-  boundaries, links do not) — dormant metadata until CRDTs, cheap to declare now.
+- Each mark type declares Peritext expansion semantics in `core/src/marks.ts`
+  (bold expands after, links and code do not). Declared for the CRDT phase —
+  Loro's `configTextStyle` takes exactly this shape — but **not dormant**: it
+  decides what the next typed character inherits, so without it typing after a
+  link extended the link. Written here since the design phase and only actually
+  built on 2026-08-07, when the phase 5 audit went looking for it.
 - **Coordinate system: `(blockId, offset)`**, offsets in UTF-16 code units.
   Offsets live only in op payloads and ephemeral selection; anything persisted
   (comments, deep links) anchors to identities, never integers. Grapheme-safe
