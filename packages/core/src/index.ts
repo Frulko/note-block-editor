@@ -19,6 +19,7 @@ export * from './table';
 export * from './migrate';
 export * from './validate';
 export * from './plugin';
+export type { BlockStore } from './doc';
 export { singleBlockRange } from './commands';
 export {
   GRAPHEME_AWARE,

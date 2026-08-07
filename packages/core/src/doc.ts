@@ -3,8 +3,38 @@ import type { Schema } from './schema';
 import { migrateJSON, type MigrationReport } from './migrate';
 import { uuidv7 } from './id';
 
+/**
+ * Where a document's blocks live.
+ *
+ * @remarks
+ * An interface rather than a `Map`, and the distinction is the whole of what
+ * phase 5 needs from `core` (`docs/research/crdt-loro-audit.md`). The roadmap
+ * has always said a CRDT would sit "behind the same store interface the
+ * plain-JSON implementation satisfies" — there was no interface, and every
+ * command read a `Map` directly.
+ *
+ * The methods are exactly the ones the codebase uses, which is why `Map`
+ * satisfies this structurally and all fifty-odd call sites are unchanged. A
+ * store backed by a CRDT, or a lazy one that materialises blocks on demand for
+ * a very large document, implements the same six members.
+ *
+ * Deliberately *not* an abstraction over how blocks are shaped, ordered or
+ * validated: those are the reducer's business, and a store that knew about
+ * them would be a second model.
+ *
+ * @category Document
+ */
+export interface BlockStore {
+  get(id: BlockId): Block | undefined;
+  has(id: BlockId): boolean;
+  set(id: BlockId, block: Block): void;
+  delete(id: BlockId): boolean;
+  values(): IterableIterator<Block>;
+  readonly size: number;
+}
+
 export interface Doc {
-  blocks: Map<BlockId, Block>;
+  blocks: BlockStore;
   rootId: BlockId;
 }
 

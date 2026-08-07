@@ -45,7 +45,7 @@ interface Block {
 }
 ```
 
-- **Runtime shape: flat `Map<BlockId, Block>`** (Lexical's EditorState shape
+- **Runtime shape: a flat block store** (`BlockStore`, satisfied by `Map`) (Lexical's EditorState shape
   holding Notion's five attributes). Immutable snapshots, per-block
   copy-on-write, a dirty-block set per transaction drives the reconciler.
 - **At-rest shape: one nested JSON tree file per page** (SiYuan-style,

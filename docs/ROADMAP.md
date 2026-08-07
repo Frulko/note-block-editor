@@ -474,8 +474,12 @@ framework, no runtime dependency at all):
   but two assumptions were false. The mark metadata had never been declared
   (fixed, and it was fixing a live bug, not preparing for one), and there is no
   store interface for a CRDT to go behind: `Doc` is a `Map` and `applyOp`
-  mutates it. **Making `Doc` an interface is the real cost of this phase**, and
-  it comes before adoption; adopting first would produce something that syncs
+  mutates it. ~~Making `Doc` an interface~~ — done
+  2026-08-07, and it cost nothing: the six members the codebase actually used
+  are ones `Map` already has, so `BlockStore` is satisfied structurally and all
+  fifty-odd call sites are unchanged. A test drives a real editor against a
+  non-`Map` store, because a seam nothing implements is a seam in name only.
+  Adoption comes next; adopting first would have produced something that syncs
   and cannot be trusted. The ops stay a local format — they carry integer
   positions — and the wire format is Loro's own updates.
 - **Sync:** opaque update blobs over pluggable transports (Automerge-Repo
