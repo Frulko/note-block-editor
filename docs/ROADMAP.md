@@ -575,13 +575,20 @@ framework, no runtime dependency at all):
   the Swift snap always rounded forward, where TypeScript rounds *back at the
   start of a range and forward at its end* so a snap only ever grows it. Two
   peers would have disagreed about what was selected.
-  **Remaining:** the views themselves — per-block TextKit 2, SwiftUI chrome.
-  That needs an application project and a device, and it is the one item here
-  that no work on this machine can finish, because its entire value is whether
-  IME composition, selection and the software keyboard behave — which is
-  precisely where the D1 evidence says this architecture fails. Building it
-  blind would be shipping the one part that cannot be checked. Everything
-  beneath it is verified in both implementations.
+  ~~The editing surface~~ — `BlockTextView`, 2026-08-08. An `NSTextView` per
+  block on TextKit 2, bound to the model in both directions, and **tested
+  without a window**: typing, replacing, marks surviving an edit inside a run,
+  a remote repaint not echoing back as a local change, and Backspace removing a
+  whole surrogate pair or ZWJ family rather than half of one. It turned out not
+  to need Xcode at all — `NSTextView` instantiates headlessly and `insertText`
+  is the same entry point the input system uses, so the binding is under test
+  even though the input stack is not.
+  **Remaining:** IME composition, the software keyboard, and touch selection.
+  Those come from a real input stack and no headless test substitutes for them
+  — they are the device matrix, and they are precisely where the D1 evidence
+  says this architecture fails. What this buys is that when a device is
+  available, a failure there is about the input stack rather than about the
+  binding. SwiftUI chrome around it is an application, not a package.
 - ~~**Obsidian:** decide plugin vs standalone app once L1 vaults are stable.~~
   **Revised the same day: both.** The survey
   (`docs/research/competitive-landscape.md`) found the gap is *Notion-grade
