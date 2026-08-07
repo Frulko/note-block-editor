@@ -9,7 +9,7 @@ import { exportVault } from '@nbe/workspace/vault';
 import '@nbe/dom/style.css';
 import './app.css';
 import { createDatabaseHost, type CollectionRecord } from '@nbe/workspace/database';
-import { clearDirectory, collectionStore, vaultStorage, writeInto } from './storage';
+import { NATIVE, clearDirectory, collectionStore, scratchCollections, scratchStorage, vaultStorage, writeInto } from './storage';
 
 /**
  * Carnet — a notes application whose storage is a folder you can read.
@@ -105,6 +105,12 @@ window.addEventListener('unhandledrejection', (event) => {
  * granted — a path with no permission would reopen to an error, and a
  * permission with no path would reopen to the welcome screen.
  */
+/** True when a previously used folder is still there. */
+async function hasRememberedVault(): Promise<boolean> {
+  const remembered = await rememberedRoot();
+  return !!remembered && (await exists(remembered));
+}
+
 async function rememberedRoot(): Promise<string | null> {
   try {
     if (!(await exists(SETTINGS, { baseDir: BaseDirectory.AppConfig }))) return null;
@@ -149,9 +155,9 @@ async function grantAccess(path: string): Promise<void> {
 }
 
 async function openVault(path: string): Promise<void> {
-  root = path;
-  await grantAccess(path);
-  workspace = new Workspace(vaultStorage(path));
+  root = NATIVE ? path : null;
+  if (NATIVE) await grantAccess(path);
+  workspace = new Workspace(NATIVE ? vaultStorage(path) : scratchStorage());
   await workspace.load();
   vaultLabel.textContent = path.split('/').pop() ?? path;
   welcomeEl.hidden = true;
@@ -162,10 +168,10 @@ async function openVault(path: string): Promise<void> {
    * records in `.nbe/collections.json`, and every row is an ordinary page —
    * which is why a row opens in the editor like anything else.
    */
-  const store = collectionStore(path);
+  const store = NATIVE ? collectionStore(path) : scratchCollections();
   collections = await store.read();
   database = createDatabaseHost(workspace, collections, store, {
-    openPage: (id) => void openPage(id),
+    openPage: (id) => goTo(id),
     onMutate: () => void render(),
   });
 
@@ -176,11 +182,14 @@ async function openVault(path: string): Promise<void> {
 
 // --- the page tree -----------------------------------------------------------
 
+/** Open a page, reporting anything that stops it. */
+const goTo = (pageId: string) => guard('Ouverture de la page', () => openPage(pageId))();
+
 function pageButton(id: string, label: string, className: string): HTMLButtonElement {
   const button = document.createElement('button');
   button.className = className;
   button.textContent = label;
-  button.addEventListener('click', () => void openPage(id));
+  button.addEventListener('click', () => goTo(id));
   return button;
 }
 
@@ -215,7 +224,7 @@ async function render(): Promise<void> {
     });
     button.append(add);
 
-    button.addEventListener('click', () => void openPage(id));
+    button.addEventListener('click', () => goTo(id));
     return [button, ...node.children.flatMap((child) => row(child, depth + 1))];
   };
 
@@ -294,7 +303,7 @@ function renderSearch(): void {
       button.addEventListener('click', () => {
         searchEl.value = '';
         renderSearch();
-        void openPage(hit.pageId);
+        goTo(hit.pageId);
       });
       return button;
     }),
@@ -325,7 +334,16 @@ async function persistNow(): Promise<void> {
   if (!dirty || !workspace || !editor || !openId) return;
   dirty = false;
   await workspace.save(openId, docToJSON(editor.doc) as BlockJSON);
-  await syncVault();
+  /*
+   * The Markdown mirror is a *projection*, and a projection failing must never
+   * stop the thing it projects. This used to be awaited inside `persistNow`,
+   * which every navigation calls first — so one unwritable file meant clicking
+   * a page did nothing at all, with no way to tell.
+   */
+  void syncVault().catch((error: unknown) => {
+    console.error('[carnet] Markdown non régénéré', error);
+    say('Markdown non régénéré — les pages sont enregistrées', 'error');
+  });
 }
 
 async function openPage(pageId: string): Promise<void> {
@@ -340,7 +358,7 @@ async function openPage(pageId: string): Promise<void> {
   view = new EditorView(editorEl, editor, {
     blocks: [callout],
     database: database ?? undefined,
-    onOpenPage: (id) => void openPage(id),
+    onOpenPage: (id) => goTo(id),
     onSearchPages: (query) => {
       const wanted = query.toLowerCase().trim();
       return (workspace?.pages ?? [])
@@ -377,7 +395,7 @@ async function openPage(pageId: string): Promise<void> {
  * folder that the canonical JSON does not have.
  */
 async function syncVault(): Promise<void> {
-  if (!workspace || !root) return;
+  if (!workspace || !root) return; // no root outside Tauri: nothing to mirror
   await workspace.load();
   const files = exportVault(workspace);
   // cleared first, so a page that vanished does not leave its Markdown behind
@@ -421,8 +439,12 @@ window.addEventListener('beforeunload', () => void persistNow());
  * data loss.
  */
 try {
-  const remembered = await rememberedRoot();
-  if (remembered && (await exists(remembered))) await openVault(remembered);
+  if (!NATIVE) {
+    // running in a plain browser: open a scratch workspace so the interface
+    // can be seen, driven and tested without building a window
+    await openVault('(navigateur)');
+    say('Espace de travail temporaire — aucun fichier ne sera écrit');
+  } else if (await hasRememberedVault()) await openVault((await rememberedRoot())!);
   else {
     sidebarEl.hidden = true;
     welcomeEl.hidden = false;

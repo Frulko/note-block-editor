@@ -1,6 +1,8 @@
 import { exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs';
 import type { BlockJSON } from '@nbe/core';
 import type { WorkspaceStorage } from '@nbe/workspace';
+import { memoryStorage } from '@nbe/workspace';
+import { memoryCollections } from '@nbe/workspace/database';
 import type { CollectionRecord, CollectionStore } from '@nbe/workspace/database';
 
 /**
@@ -138,4 +140,29 @@ export function collectionStore(root: string): CollectionStore {
       await rename(temp, path);
     },
   };
+}
+
+/**
+ * True when the native filesystem is reachable.
+ *
+ * @remarks
+ * The Tauri APIs exist only inside its webview. Outside — `vite dev` opened in
+ * a browser — every call throws, and the application was therefore impossible
+ * to look at without building and launching a window.
+ *
+ * That mattered more than it sounds: a cursor landing in the wrong place was
+ * reported and could not be reproduced, because there was no way to run this
+ * interface anywhere a test could reach it. The fallback below is not a
+ * convenience, it is what makes the app observable.
+ */
+export const NATIVE = typeof (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== 'undefined';
+
+/** A workspace that lives only in this tab, for running the UI in a browser. */
+export function scratchStorage(): WorkspaceStorage {
+  return memoryStorage();
+}
+
+/** Collections to match, for the same reason. */
+export function scratchCollections(): CollectionStore {
+  return memoryCollections([]);
 }

@@ -4,7 +4,7 @@ import type { EditorView } from './view';
 import type { GestureRecognizer, GestureSession, PressContext } from './gestures';
 import { leafOf, nativeRangeSpans } from './topology';
 import { domToModelPoint, modelPointToDom } from './selection';
-import { offsetAtPoint } from './caret';
+import { caretFromClientPoint, offsetAtPoint } from './caret';
 import { canPaintCrossBlock } from './cross-block-highlight';
 import { mountPortal } from './ui/portal';
 
@@ -28,16 +28,11 @@ interface DomPoint {
 
 /** Caret position under a client point, constrained to a leaf. */
 function pointFromClient(view: EditorView, x: number, y: number): DomPoint | null {
-  const doc = document as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  };
+  // the same verified lookup the caret uses: a webview that reads these as
+  // document coordinates would otherwise select from the wrong place too
   const resolve = (cx: number, cy: number): DomPoint | null => {
-    const pos = doc.caretPositionFromPoint?.(cx, cy);
-    if (pos && leafOf(pos.offsetNode)) return { node: pos.offsetNode, offset: pos.offset };
-    const range = doc.caretRangeFromPoint?.(cx, cy);
-    if (range && leafOf(range.startContainer)) return { node: range.startContainer, offset: range.startOffset };
-    return null;
+    const found = caretFromClientPoint(cx, cy);
+    return found && leafOf(found.node) ? found : null;
   };
 
   const direct = resolve(x, y);

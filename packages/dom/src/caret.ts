@@ -95,6 +95,63 @@ export function syncCaretFromDom(view: EditorView): void {
   view.editor.setSelection(derived, 'dom');
 }
 
+/**
+ * The DOM position under a client point — checked, not trusted.
+ *
+ * @remarks
+ * `caretPositionFromPoint` and `caretRangeFromPoint` both take *viewport*
+ * coordinates by specification, and WebKit has a long history of treating them
+ * as *document* coordinates instead. The symptom is a caret that lands
+ * correctly at the top of a document and drifts further the more the page is
+ * scrolled — reported from the desktop build, whose webview is WebKit, while
+ * every browser test passed because Chromium follows the specification.
+ *
+ * Rather than ask which engine this is, the answer is verified: the position
+ * a lookup returns has a rectangle, and that rectangle must contain the point
+ * that was asked about. When it does not, the same lookup is retried with the
+ * document scroll added — the exact error a document-relative reading makes —
+ * and whichever answer verifies is the one used.
+ *
+ * Measuring rather than sniffing matters here because the quirk is version
+ * dependent: a WebKit that fixes it would silently break a correction keyed to
+ * the engine's name, and this one simply stops applying.
+ */
+export function caretFromClientPoint(x: number, y: number): { node: Node; offset: number } | null {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+
+  const lookup = (px: number, py: number): { node: Node; offset: number } | null => {
+    const position = doc.caretPositionFromPoint?.(px, py);
+    if (position) return { node: position.offsetNode, offset: position.offset };
+    const range = doc.caretRangeFromPoint?.(px, py);
+    return range ? { node: range.startContainer, offset: range.startOffset } : null;
+  };
+
+  /** Does this position actually sit at the point we asked about? */
+  const holds = (found: { node: Node; offset: number }): boolean => {
+    try {
+      const probe = document.createRange();
+      probe.setStart(found.node, found.offset);
+      probe.setEnd(found.node, found.offset);
+      const rect = probe.getBoundingClientRect();
+      if (!rect.height) return true; // nothing to compare against: accept it
+      // one line of tolerance, so a click between lines still counts
+      return y >= rect.top - rect.height && y <= rect.bottom + rect.height;
+    } catch {
+      return true; // an offset we cannot probe is not evidence of a fault
+    }
+  };
+
+  const direct = lookup(x, y);
+  if (direct && holds(direct)) return direct;
+
+  const scrolled = window.scrollX || window.scrollY ? lookup(x + window.scrollX, y + window.scrollY) : null;
+  if (scrolled && holds(scrolled)) return scrolled;
+  return direct ?? scrolled;
+}
+
 /** Model offset closest to client point (x, y) inside a block's leaf. */
 export function offsetAtPoint(view: EditorView, blockId: BlockId, x: number, y: number): number {
   const block = getBlock(view.editor.doc, blockId);
@@ -103,18 +160,9 @@ export function offsetAtPoint(view: EditorView, blockId: BlockId, x: number, y: 
   const rect = leaf.getBoundingClientRect();
   const cx = Math.min(Math.max(x, rect.left + 1), rect.right - 1);
   const cy = Math.min(Math.max(y, rect.top + 1), rect.bottom - 1);
-  const doc = document as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  };
-  const pos = doc.caretPositionFromPoint?.(cx, cy);
-  if (pos) {
-    const p = domToModelPoint(pos.offsetNode, pos.offset);
-    if (p?.blockId === blockId) return p.offset;
-  }
-  const range = doc.caretRangeFromPoint?.(cx, cy);
-  if (range) {
-    const p = domToModelPoint(range.startContainer, range.startOffset);
+  const found = caretFromClientPoint(cx, cy);
+  if (found) {
+    const p = domToModelPoint(found.node, found.offset);
     if (p?.blockId === blockId) return p.offset;
   }
   // clamped point failed to map (rare): end for right-side clicks, start otherwise

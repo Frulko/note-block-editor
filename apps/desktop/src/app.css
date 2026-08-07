@@ -167,17 +167,35 @@ body {
   min-width: 0;
   min-height: 0;
 }
+/* the breadcrumb needs a bar to sit in: it was floating above the page with
+   nothing marking it as chrome, and on macOS it collided with the traffic
+   lights the window keeps at the top left */
+.topbar {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  padding-top: env(titlebar-area-height, 8px);
+  border-bottom: 1px solid var(--line);
+  background: var(--sidebar);
+  flex-shrink: 0;
+  /* the window is dragged by its chrome, not by its content */
+  -webkit-app-region: drag;
+}
+.topbar button { -webkit-app-region: no-drag; }
+
 .crumbs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  padding: 30px 24px 0;
   font-size: 13px;
   color: var(--muted);
-  flex-shrink: 0;
 }
-.crumbs:empty { display: none; }
+.crumbs:empty::before {
+  content: "Sans titre";
+  opacity: 0.5;
+}
 .crumb {
   padding: 2px 4px;
   background: none;

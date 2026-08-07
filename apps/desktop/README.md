@@ -48,6 +48,18 @@ n'apparaît pas dans l'arbre : elle appartient à sa table. Les lignes ne sont
 listées nulle part — une page appartient à une collection parce que ses propres
 propriétés le disent, et c'est le seul endroit où c'est écrit.
 
+## Voir l'interface sans construire l'application
+
+```bash
+pnpm --filter @nbe/desktop dev   # http://localhost:5174
+```
+
+Hors de Tauri, il n'y a pas de système de fichiers : l'application ouvre alors
+un espace de travail **temporaire, en mémoire**, et le dit. Ce n'est pas une
+commodité — c'est ce qui rend l'interface observable. Un curseur qui tombait au
+mauvais endroit a été signalé et n'a pas pu être reproduit, faute d'un endroit
+où un test pouvait atteindre cette interface.
+
 ## Si quelque chose ne marche pas
 
 L'application le dit. Toute erreur s'affiche en bas à droite, en rouge, et y
