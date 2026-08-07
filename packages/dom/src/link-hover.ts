@@ -1,6 +1,6 @@
 import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
 import type { EditorView } from './view';
-import { autoUpdate, createActionButton, dismissable, type IconName } from './ui';
+import { autoUpdate, createActionButton, pushOverlay, type IconName } from './ui';
 import { leafOf } from './selection';
 import { markTextIntent } from './caret';
 
@@ -126,7 +126,7 @@ export function attachLinkHover(view: EditorView): () => void {
       offset: 6,
     });
     stopDismiss?.();
-    stopDismiss = dismissable(card, hide);
+    stopDismiss = pushOverlay({ el: card, close: hide });
   };
 
   const onMove = (e: MouseEvent) => {

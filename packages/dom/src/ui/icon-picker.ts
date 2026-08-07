@@ -1,4 +1,5 @@
-import { autoUpdate, dismissable, type AnchorRect } from './position';
+import { autoUpdate, type AnchorRect } from './position';
+import { pushOverlay } from './overlay';
 import { createDropZone, fileToDataUrl } from './upload';
 
 /**
@@ -263,7 +264,7 @@ export function openIconPicker(
 
   document.body.append(root);
   stopAuto = autoUpdate(root, getAnchor, { placement: 'bottom-start' });
-  stopDismiss = dismissable(root, close);
+  stopDismiss = pushOverlay({ el: root, close });
 
   return { close };
 }

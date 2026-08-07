@@ -1,4 +1,5 @@
-import { autoUpdate, dismissable, positionFloating, type AnchorRect, type PositionOptions } from './position';
+import { pushOverlay } from './overlay';
+import { autoUpdate, positionFloating, type AnchorRect, type PositionOptions } from './position';
 
 export interface MenuItem {
   kind?: 'item';
@@ -37,11 +38,11 @@ export interface MenuOptions {
   isOutsideExempt?: (target: Node) => boolean;
 }
 
-const NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape']);
+const NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', 'Tab']);
 
 /**
  * Floating menu primitive: positioning with flip/clamp, outside-click and
- * Escape dismissal, arrow-key navigation (document-level capture so the menu
+ * Arrow-key navigation (document-level capture so the menu
  * wins over editor keymaps while typing continues to flow to the editor).
  */
 export function createMenu(opts: MenuOptions = {}): MenuController {
@@ -130,7 +131,7 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     // their keys belong to them, not to menu navigation — this capture-phase
     // listener would otherwise steal Enter and fire the highlighted item
     const target = e.target as HTMLElement | null;
-    if (e.key !== 'Escape' && target && el.contains(target) && target.closest('input, textarea, select')) return;
+    if (target && el.contains(target) && target.closest('input, textarea, select')) return;
     e.preventDefault();
     e.stopPropagation();
     const items = selectable();
@@ -146,9 +147,6 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
         if (item) select(item);
         return;
       }
-      case 'Escape':
-        close();
-        return;
     }
   };
 
@@ -163,7 +161,9 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     // autoUpdate re-positions on content size changes too, so a menu that
     // filters down to one item stays glued to its anchor instead of floating
     stopAuto = autoUpdate(el, getAnchor, position);
-    stopDismiss = dismissable(el, close, { exempt: opts.isOutsideExempt, onEscape: false });
+    // the overlay stack owns dismissal, so a menu nested in a popover closes
+    // alone instead of taking its parent down with it
+    stopDismiss = pushOverlay({ el, close, exempt: opts.isOutsideExempt });
     document.addEventListener('keydown', onKeyDown, { capture: true });
   };
 

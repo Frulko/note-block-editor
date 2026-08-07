@@ -1,4 +1,4 @@
-import { dismissedBy } from './position';
+import { dismissedBy } from './overlay';
 import { icon, type IconName } from './icons';
 import { attachTooltip } from './tooltip';
 

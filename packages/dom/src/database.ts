@@ -21,7 +21,7 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { collectionToCsv, csvToRows, safeName, viewToBase } from '@nbe/markdown/collections';
-import { createDragGhost, createMenu, draggable, type DragGhost, type MenuEntry } from './ui';
+import { createDragGhost, createMenu, draggable, ESCAPE_SELF_ATTR, type DragGhost, type MenuEntry } from './ui';
 import { renderBlock } from './render';
 
 export interface DatabaseData {
@@ -154,6 +154,9 @@ function inlineInput(cell: HTMLElement, initial: string, commit: (value: string)
   const input = document.createElement('input');
   input.type = inputType;
   input.className = 'nbe-db-input';
+  // Escape here cancels the edit; without this the overlay stack would close
+  // the surrounding menu instead when the field sits inside one
+  input.setAttribute(ESCAPE_SELF_ATTR, '');
   input.value = initial;
   cell.replaceChildren(input);
   input.focus();
