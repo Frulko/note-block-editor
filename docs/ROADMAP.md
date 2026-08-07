@@ -590,7 +590,16 @@ framework, no runtime dependency at all):
   peer reads the result and merges its own edit into it
   (`collab/test/swift-interop.test.ts`). The three clients now demonstrably
   share one document.
-  **Remaining:** IME composition, the software keyboard, and touch selection.
+  ~~Composition~~ — guarded and tested 2026-08-08, and it was a live bug.
+  `NSTextInputClient` is AppKit's composition entry point, so driving
+  `setMarkedText` directly exercises our handling of it, the same way the web
+  suite drives Chromium's real pipeline through CDP. It reported **every
+  intermediate state**: composing "にほん" wrote three garbage states into the
+  CRDT and would have broadcast each to every peer. §5.1's rule — nothing
+  reaches the model mid-composition — existed on the web side through
+  `view.composing` and simply had no Swift counterpart. It does now.
+  **Remaining:** a *particular* IME's behaviour, the software keyboard, and
+  touch selection.
   Those come from a real input stack and no headless test substitutes for them
   — they are the device matrix, and they are precisely where the D1 evidence
   says this architecture fails. What this buys is that when a device is

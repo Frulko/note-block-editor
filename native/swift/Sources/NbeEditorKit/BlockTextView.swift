@@ -48,6 +48,20 @@ public final class BlockTextView: NSTextView {
     public override func didChangeText() {
         super.didChangeText()
         guard !applying, let storage = textStorage else { return }
+        /*
+         * §5.1's ironclad rule, in its AppKit form: **nothing reaches the model
+         * mid-composition.** An IME reports every intermediate state — typing
+         * "にほん" fires three times before the commit — and each one would
+         * become a CRDT operation broadcast to every peer, so a word being
+         * composed here would appear as three pieces of garbage on someone
+         * else's screen and land in the undo history.
+         *
+         * Measured, not assumed: driving `setMarkedText` reported "に", "にほ",
+         * "にほん" and then "日本". The web editor has guarded this from the
+         * start through `view.composing`; this is the same rule, and the Swift
+         * side simply did not have it.
+         */
+        if hasMarkedText() { return }
         let updated = AttributedText.toRuns(storage)
         // keep the property in step without repainting under the caret
         applying = true
