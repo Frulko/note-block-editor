@@ -168,11 +168,24 @@ export function attachGestureRouter(view: EditorView): () => void {
        * nothing at all on a phone — measured, no drop indicator and no move.
        * Capture alone is not enough; the chrome that starts a drag also needs
        * `touch-action: none`, which is in `chrome.css`.
+       *
+       * **Except for a mouse selecting text.** Capture retargets every later
+       * pointer event to the capturing element, and the browser extends a
+       * selection by hit-testing where the pointer actually is — so capturing
+       * silently disables native drag-select. Under the per-block topology
+       * that was invisible, because we drive cross-block selection ourselves;
+       * under `singleHostTopology` the browser owns it, and the selection
+       * simply stopped at the first block. The window listeners below already
+       * carry the gesture past the element's edge, which is the only thing
+       * capture was buying here.
        */
-      try {
-        target.setPointerCapture(e.pointerId);
-      } catch {
-        /* a detached or non-capturing target: the window listeners still work */
+      const needsCapture = started.mode !== 'text' || e.pointerType !== 'mouse';
+      if (needsCapture) {
+        try {
+          target.setPointerCapture(e.pointerId);
+        } catch {
+          /* a detached or non-capturing target: the window listeners still work */
+        }
       }
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);

@@ -64,20 +64,33 @@ fixtures already supported, and which nobody had run — gave **99 passed, 12
 failed**. The claim rested on the *unit* topology suite, which does run against
 both; the end-to-end suite never had.
 
-One root cause accounted for a quarter of it, and is fixed: `attachInput`
-guarded on `leafOf(event.target)`, which is only right when each leaf *is* the
-editing host. Under single-host the host is the root, the browser reports the
-root as the target, and the guard rejected every keystroke — autoformat never
-fired, Backspace deleted nothing. The leaf is now resolved from the selection
-when the target does not give one. **12 failures → 9**, with the default
-topology unchanged at 116/116.
+All twelve came from two causes, and both are fixed.
 
-The nine that remain cluster in paste handling and cross-block selection, and
-they are real work, not configuration. So the honest statement is: the escape
-hatch exists and is *most* of the way there, and switching to it today would
-cost a focused piece of work rather than a flag. That is still far cheaper than
-an architecture change — and it is no longer a claim, it is a number that CI
-can keep honest.
+**Nine were one guard, written twice.** `attachInput` and the paste handler
+each tested `leafOf(event.target)`, which is only right when each leaf *is* the
+editing host. Under single-host the host is the root, the browser reports the
+root as the target, and both handlers rejected everything — autoformat never
+fired, Backspace deleted nothing, paste produced an empty document. The
+predicate now lives once, in `topology.ts` beside `leafOf`, and resolves the
+leaf from the *selection* when the target does not give one.
+
+**Three were pointer capture, and this one is a real bug in its own right.**
+The gesture router captured the pointer for every gesture. Capture retargets
+later pointer events, and the browser extends a selection by hit-testing where
+the pointer actually is — so capturing silently disables native drag-select.
+Per-block never noticed, because we drive cross-block selection ourselves;
+single-host relies on the browser, and the selection stopped at the first
+block. Capture is now taken for touch and for non-text gestures, which is what
+it was actually for; the window listeners already carried a mouse drag past the
+element's edge.
+
+**Result: 111 passed, 0 failed under single-host** (five skipped as
+per-block-only), with the default unchanged at 116/116. Both topologies now
+gate in CI.
+
+So the roadmap's claim is finally true rather than merely stated: switching the
+editable boundary *is* a configuration change. It was not true when it was
+written, and only running it made the difference.
 
 So the action is not a rewrite. It is:
 

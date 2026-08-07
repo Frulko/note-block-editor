@@ -97,6 +97,35 @@ export function leafOf(node: Node | null): HTMLElement | null {
 }
 
 /**
+ * Is this event aimed at the document's text?
+ *
+ * @remarks
+ * The obvious test — is the event's target inside a leaf — is only right under
+ * the per-block topology, where each leaf *is* the editing host and therefore
+ * is the target. Under `singleHostTopology` the host is the root, the browser
+ * reports the root, and the obvious test rejects everything: measured as
+ * autoformat never firing, Backspace deleting nothing and paste producing an
+ * empty document.
+ *
+ * So the leaf is resolved from the **selection** when the target does not give
+ * one, because the selection is what actually says where the text is going. The
+ * target is still consulted first, so a real input mounted inside the editor —
+ * an image URL field, a menu's search box — keeps its native behaviour.
+ *
+ * Lives here rather than in `input.ts` or `clipboard.ts` because it is a
+ * question about where the editable boundary sits, and both of those had
+ * written their own answer to it.
+ */
+export function inEditableText(target: Node | null): boolean {
+  if (leafOf(target)) return true;
+  if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable="true"].nbe-ui')) {
+    return false;
+  }
+  const selection = target?.ownerDocument?.getSelection?.() ?? null;
+  return selection ? Boolean(leafOf(selection.anchorNode)) : false;
+}
+
+/**
  * Will the browser natively drag-select from `a` to `b`?
  *
  * Derived rather than implemented per topology: a drag-selection is

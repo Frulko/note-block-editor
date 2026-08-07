@@ -18,6 +18,7 @@ import {
 import { blocksToMarkdown, markdownToBlocks, runsToMarkdown } from '@nbe/markdown';
 import type { EditorView } from './view';
 import { leafOf } from './selection';
+import { inEditableText } from './topology';
 import { syncCaretFromDom } from './caret';
 
 // --- copy: three formats at once (ARCHITECTURE §7) ---
@@ -524,7 +525,7 @@ export function attachClipboard(view: EditorView): () => void {
     const data = e.clipboardData;
     if (!data) return;
     // only handle pastes aimed at the editor (leaves or block selection)
-    if (!leafOf(e.target as Node) && editor.selection?.kind !== 'block') return;
+    if (!inEditableText(e.target as Node) && editor.selection?.kind !== 'block') return;
     e.preventDefault();
 
     // image files first (screenshots, copied images) — asset pipeline (AQ#2)
