@@ -349,14 +349,65 @@ document layer noticing. Nothing shipped in Phase 3 blocks either.
 > - **Phase 5 — native + collab**, unchanged, with iOS now a client of the
 >   Phase 4 app model.
 
-## Phase 4 — Storage & interop (file-over-app, fully honored)
+## Phase 4 — The notes app
 
-- Full L1 vault projection: Obsidian-flavored markdown per page, one .md per
-  database row + `.base` view files + rows.csv
-- Watcher-based external-edit import (Obsidian/vim round-trip), atomic writes,
-  crash safety (open question #1)
-- Binary asset pipeline (open question #2)
-- Notion importers: ZIP export and Enhanced Markdown
+**Slice 1 shipped 2026-08-07: the page tree.**
+
+`packages/workspace` (deps: core only, zero DOM) is the application layer that
+did not exist — the demo's workspace was `pages: BlockJSON[]`, a flat array.
+
+The design decision, forced by three commitments that had to hold together:
+§2.2 stores one JSON tree *per page*, §2.4 keeps sub-page / link-to-page /
+mention distinct, and §10 says the derived index holds **zero unique
+information**. So the parent's document carries a `sub_page` block naming its
+child, and the tree is *computed* from those blocks. Nothing about the
+hierarchy is stored beside the documents; delete the index, scan again, get
+the same tree. That is also what makes "delete the app, read the files"
+reachable rather than aspirational.
+
+Shipped in the slice:
+
+- `Workspace`: derived tree, `path` breadcrumbs, create / move / rename /
+  delete with subtree cascade, accent-insensitive search, backlinks that name
+  their kind (sub-page, link, mention). 34 unit tests, including a corrupt
+  store — double claims, cycles and self-references all still yield a forest.
+- `WorkspaceStorage`: the seam, four methods, one page at a time — the
+  granularity a file backend needs to write atomically. `memoryStorage` is the
+  reference implementation; `@nbe/workspace/idb` is the browser one.
+- `sub_page` in the core schema, with DOM and markdown projections. The
+  markdown projection is a *documented* loss (D7): both reference kinds become
+  `[[wikilink]]`, since in a vault the hierarchy is the folder layout — which
+  is phase 4b's job.
+- The demo's sidebar is a real tree, and its page array is exposed as a
+  `WorkspaceStorage`, so the workspace operates on it in place rather than
+  becoming a second source of truth.
+
+One seam the wiring exposed and settled: a sub-page is a *block*, so when its
+parent is the page being edited it must be created by a transaction — the
+editor owns that document and writing underneath it is simply overwritten by
+the next persist. Closed parents have no such owner, so the workspace writes
+them directly. Two writers, never at once.
+
+**Remaining in phase 4:**
+
+- Navigation: breadcrumbs in the app, and moving a page by dragging it in the
+  sidebar (the block drag primitives are already there).
+- Search UI over `Workspace.search`, and a backlinks panel over
+  `Workspace.backlinks`.
+- Migrate the demo's persistence from localStorage to `@nbe/workspace/idb`,
+  which needs an async boot and a home for the collection records the database
+  host keeps beside the pages.
+- Binary asset pipeline (open question #2); `asset:<hash>` refs already ship.
+- Notion importers: ZIP export and Enhanced Markdown.
+- Export a workspace as an L1 vault *artifact* (no File System API needed).
+
+## Phase 4b — File backends
+
+- Desktop/CLI runtime where files are real: one .md per page, atomic
+  temp+rename writes, crash safety (open question #1)
+- The directory mirror, and watcher-based external-edit import (Obsidian/vim
+  round-trip) through the same parser as Notion-import, IDs preserved
+- SQLite as the L2 index for that runtime: WAL, FTS5, backlinks table
 - The acceptance test becomes CI: delete the app, read the files
 
 ## Phase 5 — Collaboration, native, ecosystem (the long game)

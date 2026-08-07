@@ -425,8 +425,11 @@ react|vue|svelte   thin mounts: lifecycle + reactive projection
                    asserted in CI; a third dep means the feature belongs
                    one layer down.
 
-markdown, sqlite, static-renderer   depend on core ONLY, never dom
-                                    (preserves server/CLI/Swift/Obsidian paths).
+markdown, workspace, static-renderer   depend on core ONLY, never dom
+                                       (preserves server/CLI/Swift/Obsidian paths).
+workspace   the notes app's model: a page tree derived from sub_page blocks,
+            search, backlinks, and the WorkspaceStorage seam (memory here,
+            /idb in the browser, files on a backend). Zero DOM.
 blocks-*    schema entry (deps: core) + /dom renderer entry (deps: dom)
             split via subpath exports.
 collab      (phase 5) CRDT behind the same store interface, optional peer.

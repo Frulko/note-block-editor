@@ -163,10 +163,11 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     return root;
   }
 
-  if (block.type === 'link_to_page') {
+  if (block.type === 'link_to_page' || block.type === 'sub_page') {
     root.setAttribute('contenteditable', 'false');
     const row = el('div', 'nbe-row nbe-page-link');
-    row.append('📄 ');
+    // a sub-page is where the child page lives; a link only points at one
+    row.append(block.type === 'sub_page' ? '📄 ' : '🔗 ');
     const title = el('span', 'nbe-page-link-title');
     title.textContent = String(block.props['title'] ?? '') || 'Page sans titre';
     row.append(title);

@@ -11,7 +11,8 @@
   "dependencies": {
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
-    "@nbe/blocks-callout": "workspace:*"
+    "@nbe/blocks-callout": "workspace:*",
+    "@nbe/workspace": "workspace:*"
   },
   "devDependencies": {
     "vite": "^6.0.0"

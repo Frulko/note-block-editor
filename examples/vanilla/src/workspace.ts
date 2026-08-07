@@ -1,4 +1,5 @@
 import { uuidv7, type BlockJSON } from '@nbe/core';
+import type { WorkspaceStorage } from '@nbe/workspace';
 import type { CollectionRecord } from './dbhost';
 
 export interface Workspace {
@@ -80,16 +81,32 @@ export function pageTitle(page: BlockJSON): string {
   return String(page.props?.['title'] ?? '') || 'Sans titre';
 }
 
-/** Backlink counts: pageId → number of link_to_page blocks pointing at it. */
-export function backlinkCounts(ws: Workspace): Map<string, number> {
-  const counts = new Map<string, number>();
-  const walk = (b: BlockJSON) => {
-    if (b.type === 'link_to_page') {
-      const target = String(b.props?.['pageId'] ?? '');
-      if (target) counts.set(target, (counts.get(target) ?? 0) + 1);
-    }
-    for (const c of b.children ?? []) walk(c);
+/**
+ * The demo's page array, exposed as a {@link WorkspaceStorage}.
+ *
+ * @remarks
+ * ROADMAP phase 4 introduces `@nbe/workspace`, whose whole model is that the
+ * page tree is *derived* from `sub_page` blocks rather than stored. That means
+ * it can run over anything that can hand it pages one at a time — including
+ * this array. So the demo keeps its localStorage persistence and its database
+ * host, which mutate `ws.pages` directly, and still gets a real tree.
+ *
+ * `@nbe/workspace/idb` is the adapter a real app would use; swapping to it is
+ * a one-line change here once the demo's boot goes async.
+ */
+export function pageStorage(ws: Workspace): WorkspaceStorage {
+  return {
+    list: async () => ws.pages.map((p) => p.id),
+    read: async (id) => ws.pages.find((p) => p.id === id) ?? null,
+    write: async (id, page) => {
+      const at = ws.pages.findIndex((p) => p.id === id);
+      if (at >= 0) ws.pages[at] = page;
+      else ws.pages.push(page);
+      saveWorkspace(ws);
+    },
+    remove: async (id) => {
+      ws.pages = ws.pages.filter((p) => p.id !== id);
+      saveWorkspace(ws);
+    },
   };
-  for (const page of ws.pages) walk(page);
-  return counts;
 }

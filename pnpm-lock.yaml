@@ -109,6 +109,9 @@ importers:
       '@nbe/dom':
         specifier: workspace:*
         version: link:../../packages/dom
+      '@nbe/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
     devDependencies:
       vite:
         specifier: ^6.0.0
@@ -210,6 +213,12 @@ importers:
       vue:
         specifier: ^3.4.0
         version: 3.5.41(typescript@5.9.3)
+
+  packages/workspace:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
 
   site:
     dependencies:

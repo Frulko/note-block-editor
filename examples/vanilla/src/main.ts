@@ -6,11 +6,11 @@ import './demo.css';
 import { attachInspector } from './inspector';
 import { resolveAsset, storeAsset, releaseAssetUrls } from './assets';
 import { createDatabaseHost } from './dbhost';
+import { Workspace as PageTree, pageTitle } from '@nbe/workspace';
 import {
-  backlinkCounts,
   createPage,
   loadWorkspace,
-  pageTitle,
+  pageStorage,
   resetWorkspace,
   saveWorkspace,
   type Workspace,
@@ -70,7 +70,7 @@ let view: EditorView | null = null;
 let detachInspector: (() => void) | null = null;
 const dbHost = createDatabaseHost(ws, {
   openPage: (id) => openPage(id),
-  onMutate: () => renderSidebar(),
+  onMutate: () => void renderSidebar(),
 });
 
 const editorEl = document.getElementById('editor')!;
@@ -83,30 +83,85 @@ function persistCurrentPage(): void {
   saveWorkspace(ws);
 }
 
-function renderSidebar(): void {
-  const backlinks = backlinkCounts(ws);
+/**
+ * The page tree, derived from the documents on every render.
+ *
+ * @remarks
+ * Phase 4's model: nothing about the tree is stored — it is computed from the
+ * `sub_page` blocks inside each page. Rebuilding it per render is a scan of a
+ * handful of documents, and it means the sidebar cannot disagree with what is
+ * actually written in the pages, which a cached tree eventually does.
+ */
+const tree = new PageTree(pageStorage(ws));
+
+async function renderSidebar(): Promise<void> {
+  await tree.load();
   // database row pages live inside their collection's table, not the sidebar
-  const listed = ws.pages.filter((p) => !p.props?.['collectionId']);
-  pagesEl.replaceChildren(
-    ...listed.map((page) => {
-      const btn = document.createElement('button');
-      btn.className = 'page-item' + (page.id === ws.openId ? ' active' : '');
-      const label = document.createElement('span');
-      label.className = 'page-item-label';
-      label.textContent = `📄 ${pageTitle(page)}`;
-      btn.append(label);
-      const count = backlinks.get(page.id);
-      if (count) {
-        const badge = document.createElement('span');
-        badge.className = 'page-badge';
-        badge.title = `${count} lien(s) vers cette page`;
-        badge.textContent = `↩ ${count}`;
-        btn.append(badge);
+  const listed = (id: string) => !ws.pages.find((p) => p.id === id)?.props?.['collectionId'];
+
+  const row = (pageId: string, depth: number): HTMLElement[] => {
+    const node = tree.node(pageId);
+    if (!node || !listed(pageId)) return [];
+    const btn = document.createElement('button');
+    btn.className = 'page-item' + (pageId === ws.openId ? ' active' : '');
+    btn.style.paddingInlineStart = `${8 + depth * 14}px`;
+
+    const label = document.createElement('span');
+    label.className = 'page-item-label';
+    label.textContent = `${node.children.some(listed) ? '📂' : '📄'} ${node.title}`;
+    btn.append(label);
+
+    const links = tree.backlinks(pageId).filter((b) => b.kind !== 'sub_page');
+    if (links.length) {
+      const badge = document.createElement('span');
+      badge.className = 'page-badge';
+      badge.title = `${links.length} lien(s) vers cette page`;
+      badge.textContent = `↩ ${links.length}`;
+      btn.append(badge);
+    }
+
+    const add = document.createElement('span');
+    add.className = 'page-add';
+    add.title = 'Nouvelle sous-page';
+    add.textContent = '+';
+    add.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      /*
+       * A sub-page is a *block* (§2.4), so when its parent is the page being
+       * edited it has to be created by a transaction — the editor owns that
+       * document, and writing underneath it just gets overwritten by the next
+       * persist. Closed parents have no such owner, so the workspace writes
+       * them directly. Same result, two writers, never at once.
+       */
+      const created = await tree.createPage({ title: '' });
+      if (pageId === ws.openId) {
+        editor.dispatch((tx) =>
+          tx.op({
+            type: 'insert_block',
+            block: {
+              id: uuidv7(),
+              type: 'sub_page',
+              version: 1,
+              props: { pageId: created, title: '' },
+              children: [],
+              parentId: editor.doc.rootId,
+            },
+            index: editor.doc.blocks.get(editor.doc.rootId)!.children.length,
+          }),
+        );
+      } else {
+        await tree.movePage(created, pageId);
       }
-      btn.addEventListener('click', () => openPage(page.id));
-      return btn;
-    }),
-  );
+      saveWorkspace(ws);
+      openPage(created);
+    });
+    btn.append(add);
+
+    btn.addEventListener('click', () => openPage(pageId));
+    return [btn, ...node.children.flatMap((child) => row(child, depth + 1))];
+  };
+
+  pagesEl.replaceChildren(...tree.roots.flatMap((id) => row(id, 0)));
 }
 
 function openPage(pageId: string): void {
@@ -145,7 +200,7 @@ function openPage(pageId: string): void {
     onCreatePage: () => {
       const created = createPage(ws, '');
       saveWorkspace(ws);
-      renderSidebar();
+      void renderSidebar();
       return { pageId: created.id, title: 'Sans titre' };
     },
     onStoreAsset: storeAsset,
@@ -155,9 +210,9 @@ function openPage(pageId: string): void {
   detachInspector = attachInspector(editor);
   editor.on(() => {
     persistCurrentPage();
-    renderSidebar();
+    void renderSidebar();
   });
-  renderSidebar();
+  void renderSidebar();
 
   // per-block anchors: #<blockId> scrolls to and flashes the block
   if (location.hash.length > 1) {

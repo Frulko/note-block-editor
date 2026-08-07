@@ -114,6 +114,9 @@ export function baseSchema(): Schema {
   s.register({ type: 'divider', version: 1, inline: false });
   s.register({ type: 'image', version: 1, inline: false, defaultProps: { src: '', caption: '' } });
   s.register({ type: 'link_to_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
+  // a sub-page: the child page *lives* here, where a link_to_page only points
+  // at it. The workspace tree is derived from these (@nbe/workspace).
+  s.register({ type: 'sub_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
   s.register({ type: 'column_list', version: 1, inline: false, layout: true });
   s.register({ type: 'column', version: 1, inline: false, layout: true, defaultProps: {} });
   // simple table: blocks all the way down (AQ#3, docs/design/table-block.md)

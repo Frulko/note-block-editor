@@ -22,7 +22,7 @@ describe('package layering', () => {
     expect(deps('core')).toEqual([]);
   });
 
-  it.each(['markdown', 'static-renderer'])(
+  it.each(['markdown', 'static-renderer', 'workspace'])(
     'projection package %s depends on core only, never on dom',
     (name) => {
       expect(deps(name)).toEqual(['@nbe/core']);
@@ -89,7 +89,7 @@ describe('source layering', () => {
     }
   });
 
-  it.each(['markdown', 'static-renderer'])('%s never imports @nbe/dom', (name) => {
+  it.each(['markdown', 'static-renderer', 'workspace'])('%s never imports @nbe/dom', (name) => {
     for (const file of sourceFiles(name)) {
       expect(importsOf(readFileSync(file, 'utf8'))).not.toContain('@nbe/dom');
     }

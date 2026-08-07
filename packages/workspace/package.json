@@ -1,0 +1,19 @@
+{
+  "name": "@nbe/workspace",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./idb": {
+      "types": "./src/idb.ts",
+      "default": "./src/idb.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*"
+  }
+}

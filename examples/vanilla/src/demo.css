@@ -236,3 +236,20 @@ body {
   font-weight: 600;
   margin-right: 6px;
 }
+
+/* phase 4: the sidebar is a tree, so each row can spawn a sub-page */
+.page-add {
+  margin-inline-start: auto;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--muted, #8a8a8a);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.page-item:hover .page-add,
+.page-add:focus-visible {
+  opacity: 1;
+}
+.page-add:hover {
+  background: rgb(0 0 0 / 0.07);
+}

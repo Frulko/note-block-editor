@@ -317,6 +317,10 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
     case 'image':
       return [pad + `![${text}](${String(p['src'] ?? '')})`];
     case 'link_to_page':
+    case 'sub_page':
+      // documented loss (D7): both become a wikilink, so a re-import cannot
+      // tell "the page lives here" from "the page is mentioned here". In a
+      // vault the hierarchy is the folder layout, which is phase 4b's job.
       return [pad + `[[${String(p['title'] || 'page')}]]`];
     case 'table': {
       const rows = (b.children ?? []).filter((r) => r.type === 'table_row');
