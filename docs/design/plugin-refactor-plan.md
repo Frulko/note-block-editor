@@ -149,6 +149,24 @@ Sections a front-end developer actually needs:
 7. **API reference** — generated from source, not hand-written
 8. **Architecture** — the decisions, linked to `docs/`
 
+**Reference shipped 2026-08-07.** `pnpm docs:api` runs `typedoc --json` into
+a gitignored `site/.data/api.json`, rendered by our own Astro components:
+`OptionsTable` (Nom / Type / Défaut / Description, the Default column shown
+only when something has one), `MethodList` (signature, params, returns) and
+`SymbolIndex`. Conventions and the reasoning are in `docs/DOCUMENTING.md`.
+
+`excludeNotDocumented` is on, which is the load-bearing decision: the repo had
+zero `@param`, `@defaultValue`, `@example` and `@returns` tags, so generating
+everything would have produced hundreds of pages containing a name and a
+source line. Coverage stops being a denominator — the reference holds 100% of
+what was deliberately documented.
+
+Two things worth knowing before extending it. `disableSources` is on because
+there is no git remote yet, and without it TypeDoc emits local filesystem
+paths into every entry. And the source comments are in English while the site
+prose is French, so the generated reference is English — normal for a library,
+but a decision rather than an accident.
+
 **Sequencing, stated once because it matters:** the site's reference section
 documents the API that Track R is changing. Writing both at full speed means
 writing the reference twice and shipping a site that is wrong the day R3

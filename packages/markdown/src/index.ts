@@ -1,3 +1,10 @@
+/**
+ * The human-readable projection: markdown in both directions, plus CSV
+ * and Obsidian-shaped view files for collections. Depends on core only.
+ *
+ * @module @nbe/markdown
+ */
+
 import type { BlockJSON, Mark, Run } from '@nbe/core';
 import { uuidv7 } from '@nbe/core';
 

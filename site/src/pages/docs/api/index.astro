@@ -1,0 +1,33 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+import SymbolIndex from '../../../components/api/SymbolIndex.astro';
+import { API_MODULES, moduleIndex, moduleSummary } from '../../../lib/api';
+const modules = API_MODULES.map((name) => ({
+  name,
+  summary: moduleSummary(name),
+  entries: moduleIndex(name),
+}));
+---
+<Docs title="Référence de l'API">
+  <p>
+    Cette référence est <strong>générée depuis les sources</strong>. Rien n'y
+    figure sans commentaire de documentation : la couverture cesse d'être un
+    dénominateur, et vous lisez cent pour cent de ce qui a été documenté
+    délibérément plutôt qu'une fraction de ce qui se trouve exporté.
+  </p>
+  <div class="note">
+    <p>
+      La référence <em>décrit</em> ; les guides <em>expliquent</em>. Quand une
+      entrée demande un concept, elle renvoie au guide au lieu de le refaire —
+      c'est cette couture qui empêche les deux de diverger.
+    </p>
+  </div>
+
+  {modules.map((m) => (
+    <section>
+      <h2 id={m.name.replace('@nbe/', '')}><code>{m.name}</code></h2>
+      {m.summary && <p>{m.summary}</p>}
+      <SymbolIndex entries={m.entries} />
+    </section>
+  ))}
+</Docs>

@@ -1,3 +1,10 @@
+/**
+ * The single contenteditable view: rendering, keymaps, clipboard, drag,
+ * overlays and the UI primitives.
+ *
+ * @module @nbe/dom
+ */
+
 export { EditorView } from './view';
 export type { EditorViewOptions } from './view';
 export { renderBlock } from './render';

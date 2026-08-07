@@ -1,0 +1,14 @@
+---
+interface Props { entries: Array<{ name: string; kind: string; summary: string }> }
+const { entries } = Astro.props;
+---
+<div class="api-scroll">
+  <table class="api-table">
+    <thead><tr><th style="width:26%">Nom</th><th style="width:14%">Genre</th><th>Description</th></tr></thead>
+    <tbody>
+      {entries.map((e) => (
+        <tr><td><code class="api-name">{e.name}</code></td><td><span class="api-kind">{e.kind}</span></td><td>{e.summary}</td></tr>
+      ))}
+    </tbody>
+  </table>
+</div>

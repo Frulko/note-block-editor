@@ -48,16 +48,38 @@ export interface Ranked<T> {
 /**
  * Tag a contribution with a precedence.
  *
- * Per-contribution rather than per-plugin, which is the fix for the other
- * documented failure: Tiptap's single `priority` governs keymaps *and* input
- * rules *and* paste rules *and* rendering at once, so a block that needs to
- * win the keyboard but lose the input rule cannot say so.
+ * @remarks
+ * Per contribution rather than per plugin, which is the fix for a documented
+ * failure: Tiptap's single `priority` governs keymaps *and* input rules *and*
+ * paste rules *and* rendering at once, so a block that needs to win the
+ * keyboard while losing the input rule cannot say so.
+ *
+ * @param precedence - Which category this contribution belongs to.
+ * @param value - The contribution itself.
+ *
+ * @example
+ * ```ts
+ * keys: { Enter: at('high', handleEnterInsideTable) }
+ * ```
+ *
+ * @category Plugins
  */
 export function at<T>(precedence: Precedence, value: T): Ranked<T> {
   return { precedence, value };
 }
 
-/** Sort ranked contributions: category first, then registration order. */
+/**
+ * Sort contributions by category, then by the order they were registered in.
+ *
+ * @remarks
+ * Untagged values are treated as `default`, so a plugin only reaches for a
+ * precedence when it actually needs one.
+ *
+ * @param items - Contributions, tagged or not.
+ * @returns The values alone, highest precedence first.
+ *
+ * @category Plugins
+ */
 export function byPrecedence<T>(items: Array<Ranked<T> | T>): T[] {
   const ranked = items.map((item, index) =>
     isRanked(item) ? { ...item, index } : { precedence: 'default' as Precedence, value: item, index },
@@ -121,9 +143,21 @@ export interface ProjectionContext {
 /**
  * Declare that a format cannot represent this block faithfully.
  *
+ * @remarks
  * The alternative — omitting the handler — is what produces silent loss, and
  * silent loss on export is the one failure this project exists to prevent. A
- * lossy projection still round-trips *something*, and says what it dropped.
+ * lossy projection still emits *something*, and says what it dropped.
+ *
+ * @param reason - What this format cannot carry, in one sentence. Surfaced in
+ * the documentation rather than read at runtime.
+ * @param fallback - What to emit instead.
+ *
+ * @example
+ * ```ts
+ * markdown: lossy('les colonnes sont aplaties', (b) => [`<!-- ${b.type} -->`])
+ * ```
+ *
+ * @category Projections
  */
 export function lossy(reason: string, fallback: (block: Block) => string[]): MarkdownProjection {
   return { toMarkdown: (block) => fallback(block), fromMarkdown: [], lossyReason: reason };
@@ -139,12 +173,29 @@ export function lossy(reason: string, fallback: (block: Block) => string[]): Mar
  */
 export interface BlockPlugin {
   /**
-   * The contract version this plugin was written against, checked at
-   * registration. Three lines that let v1 and v2 plugins run side by side
-   * during a migration, instead of a flag day where every author breaks at
-   * once.
+   * The plugin contract version this was written against.
+   *
+   * @remarks
+   * Checked at registration, so a plugin from a future contract fails loudly
+   * by name instead of misbehaving. It also lets v1 and v2 plugins run side by
+   * side during a migration, rather than every author breaking on one flag day.
+   *
+   * @example
+   * ```ts
+   * import { PLUGIN_API_VERSION } from '@nbe/core'
+   * const myBlock = { apiVersion: PLUGIN_API_VERSION, schema: { … } }
+   * ```
    */
   apiVersion: 1;
+  /**
+   * The block's declarative description: type, version, whether it carries
+   * inline text, its default props.
+   *
+   * @remarks
+   * JSON-serializable and free of behaviour on purpose. The static renderer
+   * and a future Swift port consume it without executing any JavaScript, which
+   * they could not do if rendering functions lived inside it.
+   */
   schema: BlockSpec;
   /**
    * Editing-surface behaviour. Lives in the `@nbe/dom` layer, so it is typed
@@ -152,7 +203,17 @@ export interface BlockPlugin {
    */
   view?: unknown;
   markdown?: MarkdownProjection;
-  /** Static HTML for export and SSR. Returns a spec tree, never live DOM. */
+  /**
+   * Static HTML for export and server rendering.
+   *
+   * @remarks
+   * Returns a string rather than a live element, so it runs with no DOM and
+   * the same block renders identically in a CLI, on a server and in a browser.
+   *
+   * @param block - The block to render.
+   * @param ctx - Depth and a child renderer, so containers do not walk the
+   * tree themselves.
+   */
   html?: (block: Block, ctx: ProjectionContext) => string;
 }
 

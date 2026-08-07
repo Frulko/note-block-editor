@@ -334,3 +334,128 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   color: var(--text-faint);
   font-size: 0.88rem;
 }
+
+/* --- API reference -------------------------------------------------------
+   Column sets differ per entity kind: options get a Default column, methods
+   get Returns. You never see an empty Default on something that has none. */
+
+.api-scroll {
+  overflow-x: auto;
+  margin: 1rem 0 2rem;
+}
+.api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 40rem;
+}
+.api-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  padding: 0 0.7rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.api-table td {
+  padding: 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.api-table td p {
+  margin: 0 0 0.4rem;
+}
+.api-table td p:last-child {
+  margin-bottom: 0;
+}
+.api-name {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.api-required {
+  color: var(--accent);
+  margin-left: 2px;
+}
+.api-type {
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+.api-default {
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+}
+.api-dash,
+.api-kind {
+  color: var(--text-faint);
+}
+.api-kind {
+  font-size: 0.8rem;
+}
+.api-remarks {
+  color: var(--text-muted);
+  font-size: 0.94em;
+}
+.api-deprecated {
+  color: var(--text-muted);
+}
+.api-example {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  background: var(--bg-sunken);
+}
+.api-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.api-index {
+  columns: 2;
+  gap: 2rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+  font-size: 0.9rem;
+}
+.api-index a {
+  text-decoration: none;
+  color: var(--accent);
+}
+.api-method {
+  border-top: 1px solid var(--border);
+  padding-top: 1.2rem;
+  margin-top: 1.8rem;
+}
+.api-method h3 {
+  margin-top: 0;
+}
+.api-method h3 a {
+  text-decoration: none;
+}
+.api-signature {
+  background: var(--bg-sunken);
+  font-size: 0.82rem;
+}
+.api-subhead {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin: 1rem 0 0.3rem;
+}
+.api-params {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.api-params li {
+  padding: 0.2rem 0;
+}

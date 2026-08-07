@@ -1,0 +1,39 @@
+---
+import type { Entry } from '../../lib/api';
+interface Props { entries: Entry[]; showDefault?: boolean }
+const { entries, showDefault = entries.some((e) => e.defaultValue) } = Astro.props;
+---
+{entries.length === 0 ? (
+  <p class="api-empty">Rien de documenté ici pour l'instant.</p>
+) : (
+  <div class="api-scroll">
+    <table class="api-table">
+      <thead>
+        <tr>
+          <th style="width:18%">Nom</th>
+          <th style="width:20%">Type</th>
+          {showDefault && <th style="width:12%">Défaut</th>}
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((e) => (
+          <tr id={e.anchor}>
+            <td>
+              <a class="api-name" href={`#${e.anchor}`}>{e.name}</a>
+              {!e.optional && <span class="api-required" title="requis">*</span>}
+            </td>
+            <td><code class="api-type">{e.type}</code></td>
+            {showDefault && <td>{e.defaultValue ? <code class="api-default">{e.defaultValue}</code> : <span class="api-dash">—</span>}</td>}
+            <td>
+              {e.deprecated && <p class="api-deprecated"><strong>Déprécié.</strong> {e.deprecated}</p>}
+              <p>{e.summary}</p>
+              {e.remarks && <p class="api-remarks">{e.remarks}</p>}
+              {e.examples.map((ex) => <pre class="api-example"><code>{ex.replace(/^```\w*\n?|```$/g, '').trim()}</code></pre>)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}

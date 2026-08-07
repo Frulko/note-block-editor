@@ -1,0 +1,41 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+import OptionsTable from '../../../components/api/OptionsTable.astro';
+import MethodList from '../../../components/api/MethodList.astro';
+import { options, methods } from '../../../lib/api';
+const blockPlugin = options('@nbe/core', 'BlockPlugin');
+const markdownProjection = options('@nbe/core', 'MarkdownProjection');
+const helpers = methods('@nbe/core').filter((m) => ['at', 'byPrecedence', 'lossy'].includes(m.name));
+const registry = methods('@nbe/core', 'PluginRegistry');
+---
+<Docs title="API des plugins">
+  <p>
+    Un plugin de bloc est <strong>une seule déclaration</strong> couvrant toutes
+    les surfaces qu'un bloc touche : son schéma, sa vue et chacune de ses
+    projections. Cette totalité est délibérée — un bloc ne doit pas pouvoir
+    s'afficher sans dire comment il survit à un export.
+  </p>
+
+  <h2 id="blockplugin"><code>BlockPlugin</code></h2>
+  <OptionsTable entries={blockPlugin} />
+
+  <h2 id="markdownprojection"><code>MarkdownProjection</code></h2>
+  <p>
+    Les deux directions sont requises, et c'est le point : n'implémenter que la
+    sérialisation, c'est écrire un bloc qui se dégrade silencieusement au
+    réimport. Quand un format ne peut vraiment pas représenter un bloc, on le
+    déclare avec <code>lossy()</code> plutôt que d'omettre la fonction.
+  </p>
+  <OptionsTable entries={markdownProjection} />
+
+  <h2 id="helpers">Fonctions</h2>
+  <MethodList methods={helpers} />
+
+  <h2 id="pluginregistry"><code>PluginRegistry</code></h2>
+  <p>
+    Par éditeur, jamais globale au module. Deux éditeurs sur une même page est
+    la deuxième démo qu'on écrit, et un registre global rend impossible d'y
+    avoir des jeux de blocs différents.
+  </p>
+  <MethodList methods={registry} />
+</Docs>

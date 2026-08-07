@@ -1,3 +1,10 @@
+/**
+ * JSON to HTML without an editor instance and without DOM globals — for
+ * export, server rendering and static sites.
+ *
+ * @module @nbe/static-renderer
+ */
+
 import type { BlockJSON, Run } from '@nbe/core';
 
 /**

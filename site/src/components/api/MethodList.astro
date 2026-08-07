@@ -1,0 +1,37 @@
+---
+import type { MethodEntry } from '../../lib/api';
+interface Props { methods: MethodEntry[] }
+const { methods } = Astro.props;
+---
+{methods.length === 0 ? (
+  <p class="api-empty">Rien de documenté ici pour l'instant.</p>
+) : (
+  <>
+    <ul class="api-index">
+      {methods.map((m) => <li><a href={`#${m.anchor}`}><code>{m.name}</code></a></li>)}
+    </ul>
+    {methods.map((m) => (
+      <section class="api-method" id={m.anchor}>
+        <h3><a href={`#${m.anchor}`}><code>{m.name}</code></a></h3>
+        <pre class="api-signature"><code>{m.signature}</code></pre>
+        <p>{m.summary}</p>
+        {m.params.length > 0 && (
+          <>
+            <p class="api-subhead">Paramètres</p>
+            <ul class="api-params">
+              {m.params.map((p) => (
+                <li>
+                  <code>{p.name}{p.optional ? '?' : ''}: {p.type}</code>
+                  {p.summary && <> — {p.summary}</>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p class="api-subhead">Retourne</p>
+        <ul class="api-params"><li><code>{m.returns}</code></li></ul>
+        {m.examples.map((ex) => <pre class="api-example"><code>{ex.replace(/^```\w*\n?|```$/g, '').trim()}</code></pre>)}
+      </section>
+    ))}
+  </>
+)}

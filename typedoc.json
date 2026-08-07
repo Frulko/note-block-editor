@@ -1,0 +1,24 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "packages/core/src/index.ts",
+    "packages/dom/src/index.ts",
+    "packages/markdown/src/index.ts",
+    "packages/static-renderer/src/index.ts"
+  ],
+  "entryPointStrategy": "resolve",
+  "tsconfig": "./tsconfig.json",
+  "json": "site/.data/api.json",
+  "pretty": false,
+  "excludeNotDocumented": true,
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeExternals": true,
+  "readme": "none",
+  "skipErrorChecking": true,
+  "plugin": [
+    "typedoc-plugin-missing-exports"
+  ],
+  "categorizeByGroup": false,
+  "disableSources": true
+}

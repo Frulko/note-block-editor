@@ -1,3 +1,10 @@
+/**
+ * The headless editor: block store, seven invertible operations,
+ * transactions, selection, history and commands. Zero DOM.
+ *
+ * @module @nbe/core
+ */
+
 export * from './types';
 export * from './id';
 export * from './richtext';
