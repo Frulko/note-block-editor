@@ -8,14 +8,14 @@ import { attachKeymap } from './keymap';
 import { attachSlashMenu } from './slash';
 import { attachControls } from './controls';
 import { attachClipboard } from './clipboard';
-import { attachRubberBand } from './rubberband';
-import { attachBlockClickRouting, domTextSelection } from './caret';
+import { attachOutsidePressDeselect, domTextSelection } from './caret';
 import { attachDatabaseBlocks } from './database';
 import { attachSelectionToolbar } from './selection-toolbar';
-import { attachCrossBlockSelection } from './cross-block-selection';
 import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
 import { perBlockTopology, type EditableTopology } from './topology';
+import { attachGestureRouter, type ActiveGesture, type GestureRecognizer } from './gestures';
+import { defaultRecognizers } from './recognizers';
 
 export interface EditorViewOptions {
   onOpenPage?: (pageId: string) => void;
@@ -46,6 +46,13 @@ export interface EditorViewOptions {
    * is written against this, so switching is a config change.
    */
   topology?: EditableTopology;
+  /**
+   * Pointer gestures, in precedence order — the arbitration story as data.
+   * Defaults to text selection, block click-routing and the rubber band.
+   * Replace it to add a gesture, reorder it to change who wins a contested
+   * press, or pass `[]` for an editor that handles none.
+   */
+  recognizers?: GestureRecognizer[];
 }
 
 export class EditorView {
@@ -55,12 +62,11 @@ export class EditorView {
   readonly topology: EditableTopology;
   composing = false;
   /**
-   * True while a block-level gesture owns the selection (rubber band). The
-   * browser keeps making its own native text selection under the pointer even
-   * over non-editable content, and mapping that back would overwrite the block
-   * selection the gesture just built.
+   * What pointer gesture is running, published by the gesture router. This is
+   * the state that replaced three wall-clock windows: modules ask what is
+   * happening instead of guessing from how long ago something happened.
    */
-  blockGesture = false;
+  gesture: ActiveGesture | null = null;
   /**
    * Where the caret last was in text. Opening a menu or selecting a block
    * replaces the live selection, so anything that needs to act "where the user
@@ -90,9 +96,12 @@ export class EditorView {
 
     this.renderAll();
     this.unbinders.push(attachInput(this), attachKeymap(this), attachSelectionSync(this));
-    this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this), attachRubberBand(this));
-    this.unbinders.push(attachBlockClickRouting(this), attachDatabaseBlocks(this), attachSelectionToolbar(this));
-    this.unbinders.push(attachCrossBlockSelection(this), attachBlockToolbar(this), attachLinkHover(this));
+    this.unbinders.push(attachSlashMenu(this), attachControls(this), attachClipboard(this));
+    // one press, one owner — replaces the rubber band, cross-block selection
+    // and block click-routing all listening for pointerdown independently
+    this.unbinders.push(attachGestureRouter(this, options.recognizers ?? defaultRecognizers));
+    this.unbinders.push(attachOutsidePressDeselect(this), attachDatabaseBlocks(this), attachSelectionToolbar(this));
+    this.unbinders.push(attachBlockToolbar(this), attachLinkHover(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 

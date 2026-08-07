@@ -2,7 +2,6 @@ import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
 import type { EditorView } from './view';
 import { autoUpdate, createActionButton, pushOverlay, type IconName } from './ui';
 import { leafOf } from './selection';
-import { markTextIntent } from './caret';
 
 /**
  * Link hover card: hovering a link offers open / copy / edit / remove without
@@ -42,7 +41,6 @@ export function attachLinkHover(view: EditorView): () => void {
     before.setEnd(anchor, 0);
     const from = before.toString().length;
     const to = from + (anchor.textContent ?? '').length;
-    markTextIntent();
     editor.setSelection(
       { kind: 'text', anchor: { blockId, offset: from }, head: { blockId, offset: to } },
       'keyboard',

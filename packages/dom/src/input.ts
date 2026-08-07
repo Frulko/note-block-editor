@@ -24,7 +24,6 @@ import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
 import { syncCaretFromDom } from './caret';
 import { dismissedBy, openIconPicker } from './ui';
-import { justRubberBanded } from './rubberband';
 
 function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: number } | null {
   const sel = view.editor.selection;
@@ -245,7 +244,9 @@ export function attachInput(view: EditorView): () => void {
     }
     // click in the empty area below the last block: append a paragraph (Notion).
     // A drag that ended here was a selection gesture, not a click to write.
-    if (target === content && !view.blockGesture && !justRubberBanded()) {
+    // a drag that ended here was a selection gesture, not a click to write —
+    // the router swallows that synthetic click, so reaching here means a click
+    if (target === content && !view.gesture) {
       const root = getBlock(editor.doc, editor.doc.rootId);
       const lastId = root.children[root.children.length - 1];
       const last = lastId ? getBlock(editor.doc, lastId) : null;

@@ -157,10 +157,42 @@ top overlay → active gesture → block selection → text selection → nothin
 
 ## 4. Order of work
 
-1. `ui/overlay.ts` — the stack. Self-contained, testable, fixes Escape.
-2. `topology.ts` — the abstraction, with both implementations.
-3. `gestures.ts` — the router; delete the three timing hacks as recognizers
-   land.
-4. Escape chain wired through the router and the stack.
-5. Tests: the cornerstone gets the coverage it never had — arbitration order,
-   dismissal precedence, and both topologies against the same selection suite.
+1. ~~`ui/overlay.ts` — the stack.~~ **Done.** Escape is "back one level"; an
+   outside press is judged once against the whole stack. One document listener
+   for every overlay. The one legitimate exception — a form control that needs
+   Escape to cancel its own edit — is declared with `data-nbe-escape-self`
+   rather than discovered, because capture phase leaves nothing deeper a
+   chance. 19 tests.
+2. ~~`topology.ts` — the abstraction, with both implementations.~~ **Done.**
+   `perBlockTopology` and `singleHostTopology` both ship; the renderer no
+   longer decides editability; `nativeRangeSpans` is derived from
+   `hostOf(a) === hostOf(b)` rather than implemented twice. 16 tests, half
+   parameterised over both. 
+3. ~~`gestures.ts` — the router.~~ **Done.** All three wall-clock windows are
+   gone: `textIntentActive` (500 ms), `justRubberBanded` (300 ms) and the
+   `blockGesture` flag with its `requestAnimationFrame` deferral. Leaving block
+   mode is decided where it happens — the text recognizer clears the block
+   selection on press — instead of inferred later in `selectionchange`. The
+   trailing click after a moved gesture is swallowed by a one-shot capture
+   listener rather than a 300 ms window. Recognizers are a view option, so the
+   arbitration order is data. 16 tests.
+4. **Next:** fold `controls.ts`'s direct block drag into the router as a
+   recognizer. It still listens for pointerdown on the content independently,
+   which is the last competing listener; today it is safe only because void
+   blocks are caught by the chrome guard and reach neither text nor click
+   routing. Until it moves, precedence between it and the router is still
+   attach order.
+5. **Next:** the Escape chain end to end. The stack owns the top level and the
+   router owns an active gesture, but `keymap.ts` still handles Escape for
+   selection modes without consulting either — correct today only because the
+   stack and router both consume the event in capture first.
+
+## 5. What the numbers say
+
+| | before | after |
+|---|---|---|
+| pointer listeners on the content | 5, unarbitrated | 1 router + 1 legacy drag |
+| wall-clock coordination windows | 3 | 0 |
+| Escape handlers with no precedence | 8 | stack → router → keymap |
+| topologies the code admits | 1, hardcoded | 2, selectable |
+| tests on the interaction core | 0 | 51 |

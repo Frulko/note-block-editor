@@ -1,6 +1,5 @@
 import type { Point } from '@nbe/core';
 import type { EditorView } from './view';
-import { textIntentActive } from './caret';
 import { leafOf } from './topology';
 
 export { leafOf } from './topology';
@@ -42,7 +41,7 @@ export function modelPointToDom(view: EditorView, point: Point): { node: Node; o
 export function attachSelectionSync(view: EditorView): () => void {
   const handler = () => {
     if (view.composing) return;
-    if (view.blockGesture) return; // a rubber band owns the selection
+    if (view.gesture?.mode === 'block') return; // a block gesture owns the selection
     const sel = document.getSelection();
     // Firefox still ships multi-range selections (bug 753718): only the
     // anchor/focus pair is meaningful, and the spec now caps others at one
@@ -54,15 +53,17 @@ export function attachSelectionSync(view: EditorView): () => void {
     const prev = view.editor.selection;
     /*
      * A block selection has no DOM counterpart, and the browser keeps making
-     * its own text selection underneath — a caret dropped on mousedown, or a
-     * whole range drag-selected over non-editable content. Neither is user
-     * intent to leave block mode, and mapping either one back is what made a
-     * rubber-band selection vanish the moment the button was released.
+     * its own underneath — a caret dropped on mousedown, a range drag-selected
+     * over non-editable content. Neither is intent to leave block mode, and
+     * mapping either back is what made a rubber-band selection vanish on
+     * release.
      *
-     * So while a block selection is live, DOM selections are ignored unless
-     * the user actually pressed inside editable text (markTextIntent).
+     * Leaving block mode is now decided where it happens: the text recognizer
+     * clears the block selection when a press lands in editable text. So by
+     * the time this runs, a surviving block selection means the user has not
+     * asked to leave it.
      */
-    if (prev?.kind === 'block' && !textIntentActive()) return;
+    if (prev?.kind === 'block') return;
     // a range crossing leaf boundaries is a real cross-block TEXT selection
     // (D3): the browser paints it, and the model represents it natively
     if (
