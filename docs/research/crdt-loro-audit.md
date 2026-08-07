@@ -99,6 +99,27 @@ In this order, and the first is already done:
 Step 2 is the real cost of phase 5, and it is invisible from the outside. Doing
 step 3 first would produce something that syncs and cannot be trusted.
 
+## Follow-up: the interface was necessary and not sufficient
+
+Written 2026-08-07, after starting the adapter.
+
+Declaring `BlockStore` cost nothing and changed nothing at the call sites,
+which was the right result — but it did not make the store swappable. The
+reducer mutated the block `get` returned (`parent.children.splice(…)`,
+`block.text = …`) and never wrote it back, because a `Map` hands out its own
+object and the mutation *was* the write. Any store that materialises blocks on
+demand — every CRDT-backed one — saw nothing.
+
+Fixed by writing back after each mutation: free for a `Map`, and the write
+signal for everything else. Verified by driving an editor against a store that
+deliberately returns copies, where a missing write-back is a lost edit.
+
+The lesson is about the audit itself: reading the code found the missing
+interface, and only building against it found that the interface's *contract*
+was unsatisfiable. Loro's own capabilities were checked by running them
+(`LoroTree.move`, `configTextStyle`, update export/import all confirmed at
+version 1.8) rather than by reading, which is why nothing there surprised us.
+
 ## Not evaluated here
 
 Performance, memory, and the WASM bundle's weight in the browser — all of

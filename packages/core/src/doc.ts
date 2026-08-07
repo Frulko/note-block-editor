@@ -18,6 +18,15 @@ import { uuidv7 } from './id';
  * store backed by a CRDT, or a lazy one that materialises blocks on demand for
  * a very large document, implements the same six members.
  *
+ * **The contract is that a store never has to hand out its own objects.** The
+ * reducer mutates what `get` returns and then calls `set` — so a store that
+ * materialises a fresh block on every read, as a CRDT-backed one must, still
+ * sees every edit. That was not true when this interface was first declared,
+ * and declaring it did not make it true: `applyOp` mutated in place and relied
+ * on `Map` handing back its own object. `test/block-store.test.ts` drives an
+ * editor against a store that returns copies, which fails on any missing
+ * write-back.
+ *
  * Deliberately *not* an abstraction over how blocks are shaped, ordered or
  * validated: those are the reducer's business, and a store that knew about
  * them would be a second model.

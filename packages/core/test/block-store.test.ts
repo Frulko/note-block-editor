@@ -44,6 +44,93 @@ function docWith(store: BlockStore) {
   return { blocks: store, rootId: template.rootId };
 }
 
+/**
+ * A store that hands out *copies*, so mutating what you read writes nowhere.
+ *
+ * @remarks
+ * This is what a CRDT-backed or lazily-materialising store looks like, and it
+ * is the reason declaring `BlockStore` was not enough on its own: the reducer
+ * mutated the object `get` returned and never wrote it back, which only worked
+ * because a `Map` hands out its own object. Against this store, any missing
+ * write-back is a lost edit.
+ */
+function copyingStore(): BlockStore {
+  const inner = new Map<BlockId, Block>();
+  const clone = (block: Block): Block => structuredClone(block);
+  return {
+    get: (id) => {
+      const found = inner.get(id);
+      return found ? clone(found) : undefined;
+    },
+    has: (id) => inner.has(id),
+    set: (id, block) => void inner.set(id, clone(block)),
+    delete: (id) => inner.delete(id),
+    values: () => [...inner.values()].map(clone).values(),
+    get size() {
+      return inner.size;
+    },
+  };
+}
+
+describe('a store that hands out copies still sees every edit', () => {
+  const paragraph = (parentId: BlockId): Block => ({
+    id: uuidv7(),
+    type: 'paragraph',
+    version: 1,
+    props: {},
+    children: [],
+    parentId,
+    text: [],
+  });
+
+  it('an insert reaches the parent, whose children array was mutated in place', () => {
+    const editor = new Editor({ doc: docWith(copyingStore()) });
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    expect(getBlock(editor.doc, editor.doc.rootId).children).toEqual([block.id]);
+  });
+
+  it('typed text survives, though `block.text` was assigned in place', () => {
+    const editor = new Editor({ doc: docWith(copyingStore()) });
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    editor.setSelection(textCaret(block.id, 0), 'api');
+    insertText(editor, 'bonjour');
+    expect(getBlock(editor.doc, block.id).text?.[0]?.text).toBe('bonjour');
+  });
+
+  it('a move reaches both parents and the block', () => {
+    const editor = new Editor({ doc: docWith(copyingStore()) });
+    const a = paragraph(editor.doc.rootId);
+    const b = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => {
+      tx.op({ type: 'insert_block', block: a, index: 0 });
+      tx.op({ type: 'insert_block', block: b, index: 1 });
+    });
+    editor.dispatch((tx) => tx.op({ type: 'move_block', id: b.id, parentId: a.id, after: null }));
+
+    expect(getBlock(editor.doc, a.id).children).toEqual([b.id]);
+    expect(getBlock(editor.doc, b.id).parentId).toBe(a.id);
+    expect(getBlock(editor.doc, editor.doc.rootId).children).toEqual([a.id]);
+  });
+
+  it('a type change reaches the block', () => {
+    const editor = new Editor({ doc: docWith(copyingStore()) });
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    editor.dispatch((tx) => tx.op({ type: 'update_block', id: block.id, patch: { type: 'quote' } }));
+    expect(getBlock(editor.doc, block.id).type).toBe('quote');
+  });
+
+  it('undo reaches it too', () => {
+    const editor = new Editor({ doc: docWith(copyingStore()) });
+    const block = paragraph(editor.doc.rootId);
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }));
+    editor.undo();
+    expect(getBlock(editor.doc, editor.doc.rootId).children).toEqual([]);
+  });
+});
+
 describe('an editor runs against any store', () => {
   it('accepts one that is not a Map', () => {
     const store = countingStore();

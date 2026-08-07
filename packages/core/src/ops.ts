@@ -21,6 +21,22 @@ export interface ApplyResult {
   dirty: BlockId[];
 }
 
+/**
+ * Apply one operation to the document.
+ *
+ * @remarks
+ * Every mutation is followed by `doc.blocks.set`, and that is a contract
+ * rather than belt and braces. `getBlock` returns the store's own object when
+ * the store is a `Map`, so mutating it in place *was* the write — which meant
+ * `BlockStore` could only ever be satisfied by a `Map`, however carefully the
+ * interface was declared. A store that materialises blocks on demand (a CRDT,
+ * a lazy one) sees nothing at all.
+ *
+ * Writing back costs a `Map` nothing — same key, same object — and is the
+ * write signal for everything else. Found while building the Loro adapter the
+ * phase 5 audit called for: declaring the interface was necessary and not
+ * sufficient.
+ */
 export function applyOp(doc: Doc, op: Op): ApplyResult {
   switch (op.type) {
     case 'insert_block': {
@@ -31,6 +47,7 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       doc.blocks.set(block.id, { ...block, children: [...block.children] });
       // subtree inserts: a parent inserted first already lists this child id
       if (!parent.children.includes(block.id)) parent.children.splice(op.index, 0, block.id);
+      doc.blocks.set(parent.id, parent);
       return { inverse: [{ type: 'delete_block', id: block.id }], dirty: [block.parentId, block.id] };
     }
     case 'delete_block': {
@@ -43,6 +60,7 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       const parent = getBlock(doc, block.parentId);
       const index = parent.children.indexOf(op.id);
       parent.children.splice(index, 1);
+      doc.blocks.set(parent.id, parent);
       doc.blocks.delete(op.id);
       return { inverse: [{ type: 'insert_block', block, index }], dirty: [block.parentId, op.id] };
     }
@@ -67,6 +85,9 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       newParent.children.splice(index, 0, op.id);
       const oldParentId = block.parentId;
       block.parentId = op.parentId;
+      doc.blocks.set(oldParent.id, oldParent);
+      doc.blocks.set(newParent.id, newParent);
+      doc.blocks.set(block.id, block);
       return {
         inverse: [{ type: 'move_block', id: op.id, parentId: oldParentId, after: oldAfter }],
         dirty: [oldParentId, op.parentId, op.id],
@@ -88,6 +109,7 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
         }
         inversePatch.props = prev;
       }
+      doc.blocks.set(op.id, block);
       return { inverse: [{ type: 'update_block', id: op.id, patch: inversePatch }], dirty: [op.id] };
     }
     case 'insert_text': {
@@ -95,6 +117,7 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       const runs = block.text ?? [];
       const len = textLength(op.runs);
       block.text = spliceRuns(runs, op.offset, op.offset, op.runs);
+      doc.blocks.set(op.id, block);
       return {
         inverse: [{ type: 'delete_text', id: op.id, from: op.offset, to: op.offset + len }],
         dirty: [op.id],
@@ -105,6 +128,7 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       const runs = block.text ?? [];
       const removed = sliceRuns(runs, op.from, op.to);
       block.text = spliceRuns(runs, op.from, op.to, []);
+      doc.blocks.set(op.id, block);
       return {
         inverse: [{ type: 'insert_text', id: op.id, offset: op.from, runs: removed }],
         dirty: [op.id],
@@ -115,6 +139,7 @@ export function applyOp(doc: Doc, op: Op): ApplyResult {
       const runs = block.text ?? [];
       const before = sliceRuns(runs, op.from, op.to);
       block.text = applyMark(runs, op.from, op.to, op.mark, op.add);
+      doc.blocks.set(op.id, block);
       // text is unchanged by formatting, so replace-with-old-slice is an exact inverse
       return {
         inverse: [

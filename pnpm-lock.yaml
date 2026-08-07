@@ -200,6 +200,15 @@ importers:
         specifier: workspace:*
         version: link:../workspace
 
+  packages/collab:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      loro-crdt:
+        specifier: ^1.8.0
+        version: 1.13.9
+
   packages/core: {}
 
   packages/dom:
@@ -2395,6 +2404,9 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
+
+  loro-crdt@1.13.9:
+    resolution: {integrity: sha512-gZYkMy1mqP1wzZqhQ69rNQowOuohLPcLbVQ+MjeJh3dbiXR+XJnbbP1GMxkJ0uBNbRbGmR2w+LazSDQImIJDrw==}
 
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
@@ -5519,6 +5531,8 @@ snapshots:
   locate-character@3.0.0: {}
 
   longest-streak@3.1.0: {}
+
+  loro-crdt@1.13.9: {}
 
   loupe@3.2.1: {}
 
