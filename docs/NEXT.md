@@ -28,15 +28,28 @@ every image would have silently failed to persist on Safari and iOS. That is
 what the WebKit run was for, and it paid for itself the first day.
 
 **1. `gutter.spec.ts` — the gutter does not follow the scroll.**
-Diagnosed. Both engines lay the document out *identically* (fifty blocks, an
-editor 1764px tall inside a 720px window), so the page never scrolls in either
-— the editor's own container does. Chromium delivers `mouse.wheel` to the
-hovered scrollable element; WebKit does not.
+Do not start by fixing this. Start by working out what the test measures,
+because the last measurement says it is not what the name claims.
 
-> **The trap, learned the hard way.** Scrolling the container directly instead
-> passed when the file ran alone and failed on *both* engines in the full
-> parallel run. That trades a known failure for a flaky one, which is worse,
-> and it was reverted. **Verify any replacement in a full run.**
+Established, in this order:
+
+- Both engines lay the document out *identically* — fifty blocks, an editor
+  1764px tall inside a 720px window — so the page itself never scrolls in
+  either. My first conclusion was that Chromium delivers `mouse.wheel` to the
+  hovered scrollable element and WebKit does not.
+- **That was wrong too.** A probe of `mouse.wheel(0, 300)` shows `scrollTop`
+  unchanged at `0` on `.nbe-editor`, `document.scrollingElement` *and*
+  `document.body`, **on both engines**. Nothing among the three obvious
+  containers moves anywhere.
+- Yet on Chromium the test passes: the gutter's `top` drops by more than 100px
+  while staying beside the same block at the same offset. So something moves
+  it, and it is not any scroll this probe can see.
+
+The first job is therefore to find what actually moves the gutter on Chromium.
+Until that is known, any "fix" is a guess dressed as a repair — and one such
+guess has already been reverted here (it passed when the file ran alone and
+failed on both engines in the full parallel run, trading a known failure for a
+flaky one). **Verify anything in a full parallel run, never in isolation.**
 
 **And a lesson about diagnosing.** I first concluded the asset tests were
 hanging on a blocked `indexedDB.open` and wrote that here as fact. A three-line
