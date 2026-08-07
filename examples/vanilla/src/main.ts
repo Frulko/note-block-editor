@@ -196,6 +196,66 @@ function renderSearch(): void {
   );
 }
 
+/**
+ * Dragging a page in the sidebar re-parents it.
+ *
+ * @remarks
+ * One gesture with one meaning: drop **on** a row and the page becomes its
+ * child; drop on the sidebar's own background and it becomes a root. No
+ * before/after bands — a tree row is 26px tall, and splitting that into three
+ * zones is how a sidebar drag becomes a coin toss. Reordering siblings is the
+ * block gutter's job, inside the parent page, where the `sub_page` blocks
+ * actually live.
+ *
+ * `movePage` refuses a move into the page's own subtree, so the impossible
+ * drop is rejected by the model rather than guarded here.
+ */
+function startPageDrag(event: PointerEvent, pageId: string): void {
+  if (event.button !== 0 || (event.target as HTMLElement).classList.contains('page-add')) return;
+  const origin = { x: event.clientX, y: event.clientY };
+  let dragging = false;
+  let target: HTMLElement | null = null;
+
+  const clearTarget = () => {
+    target?.classList.remove('page-drop');
+    target = null;
+  };
+
+  const move = (e: PointerEvent) => {
+    if (!dragging) {
+      if (Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < 5) return;
+      dragging = true;
+      document.body.classList.add('page-dragging');
+    }
+    clearTarget();
+    const under = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const row = under?.closest?.('.page-item') as HTMLElement | null;
+    if (row && row.dataset['pageId'] !== pageId) {
+      target = row;
+      row.classList.add('page-drop');
+    }
+  };
+
+  const up = async (e: PointerEvent) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    document.body.classList.remove('page-dragging');
+    const dropOn = target?.dataset['pageId'] ?? null;
+    clearTarget();
+    if (!dragging) return;
+    // outside every row but inside the sidebar: promote to a root
+    const inSidebar = (e.target as HTMLElement)?.closest?.('.sidebar');
+    if (!dropOn && !inSidebar) return;
+    if (await tree.movePage(pageId, dropOn)) {
+      saveWorkspace(ws);
+      void renderSidebar();
+    }
+  };
+
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
 searchEl.addEventListener('input', () => renderSearch());
 searchEl.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
@@ -267,6 +327,8 @@ async function renderSidebar(): Promise<void> {
     btn.append(add);
 
     btn.addEventListener('click', () => openPage(pageId));
+    btn.dataset['pageId'] = pageId;
+    btn.addEventListener('pointerdown', (e) => startPageDrag(e, pageId));
     return [btn, ...node.children.flatMap((child) => row(child, depth + 1))];
   };
 

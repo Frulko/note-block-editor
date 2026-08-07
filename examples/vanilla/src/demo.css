@@ -386,3 +386,15 @@ body {
 .backlink-page:hover {
   background: rgb(0 0 0 / 0.06);
 }
+
+/* dragging a page onto another re-parents it */
+.page-dragging,
+.page-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.page-item.page-drop {
+  outline: 2px solid rgb(35 131 226 / 0.8);
+  outline-offset: -2px;
+  background: rgb(35 131 226 / 0.1);
+}

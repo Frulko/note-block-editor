@@ -168,3 +168,55 @@ test.describe('navigating the workspace', () => {
     expect(editor.errors()).toEqual([]);
   });
 });
+
+/** Drag a sidebar row onto another, the way a mouse does. */
+async function dragPageOnto(page: import('@playwright/test').Page, from: number, to: number) {
+  const a = (await page.locator('.page-item').nth(from).boundingBox())!;
+  const b = (await page.locator('.page-item').nth(to).boundingBox())!;
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+}
+
+test.describe('moving a page by dragging it', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(250);
+    // a second root to move around
+    await page.locator('#new-page').click();
+    await page.waitForTimeout(400);
+  });
+
+  test('dropping one page on another nests it', async ({ page }) => {
+    expect((await rows(page)).map((r) => r.split(':')[0])).toEqual(['0', '0']);
+    await dragPageOnto(page, 1, 0);
+    expect((await rows(page)).map((r) => r.split(':')[0])).toEqual(['0', '1']);
+  });
+
+  test('the move is written to the parent document, so it survives a reload', async ({ page }) => {
+    await dragPageOnto(page, 1, 0);
+    const before = await rows(page);
+    await page.reload();
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+    await page.waitForTimeout(300);
+    expect(await rows(page)).toEqual(before);
+  });
+
+  test('a page cannot be dropped into its own subtree', async ({ page }) => {
+    await dragPageOnto(page, 1, 0);
+    const nested = await rows(page);
+    // now drag the parent onto its own child: the model must refuse
+    await dragPageOnto(page, 0, 1);
+    expect(await rows(page)).toEqual(nested);
+  });
+
+  test('a click still opens the page rather than starting a drag', async ({ page }) => {
+    await page.locator('.page-item').nth(1).click();
+    await page.waitForTimeout(300);
+    expect((await rows(page)).map((r) => r.split(':')[0])).toEqual(['0', '0']);
+    await expect(page.locator('.page-item.active')).toHaveCount(1);
+  });
+});
