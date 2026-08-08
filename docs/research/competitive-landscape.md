@@ -108,7 +108,12 @@ so they can be checked against what we ship rather than assumed:
   path as the drag**, or the two disagree at the edges; autoformat is undoable
   back to literal text in one `Cmd+Z`; deleting the last block leaves a fresh
   paragraph rather than an invalid empty document.
-- **Performance**: keystroke to paint under 16 ms. Notion's own diagnosis of
+- **Performance**: keystroke to paint under 16 ms. **Measured 2026-08-08**
+  (`e2e/performance.spec.ts`): a median of **8.3 ms** on a small document and
+  **8.4 ms** with five hundred blocks on the page — flat, which is the property
+  that matters. Five hundred blocks render in **205 ms**. The bar below is met
+  with room, and the architecture is the reason: a keystroke touches one block's
+  leaf, not the document. Notion's own diagnosis of
   why it loses to Google Docs is that its rendered DOM is also its input
   surface — any architecture where a keystroke triggers a wide re-render
   inherits that. Sub-second cold start and sub-100 ms search at 10k notes is

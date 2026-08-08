@@ -13,6 +13,7 @@ remembered.
 | Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 111/111, **gates CI** |
 | Browser, WebKit (`pnpm e2e --project=webkit`) | 108/108, 8 skipped, **gates CI** |
 | Touch, mobile viewports (`--project=mobile-safari --project=mobile-chrome`) | 6+7 passing, **gates CI** |
+| Performance (`e2e/performance.spec.ts`) | keystroke 8.3ms / 8.4ms at 500 blocks, render 205ms |
 | Swift (`cd native/swift && swift test`) | 49 passing |
 | `pnpm typecheck` | clean, and now covers `apps/` |
 
