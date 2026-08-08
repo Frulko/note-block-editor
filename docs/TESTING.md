@@ -275,3 +275,27 @@ now under test.
 
 The one skip is the handle-drag, which needs `Input.dispatchTouchEvent` (CDP,
 Chromium-only) — so it runs on `mobile-chrome` and not on `mobile-safari`.
+
+
+## Offline-first, demonstrated — 2026-08-08
+
+`e2e/offline.spec.ts`. The survey names *partial* offline as an anti-pattern
+that "invites trust it cannot repay", so the claim is now tested rather than
+stated.
+
+- **Zero requests leave the origin.** A remote font, an analytics beacon or a
+  CDN script would each break the promise quietly — working in development and
+  phoning home in production. The charter names this for fonts specifically:
+  Inter is declared and never fetched. Now asserted.
+- **The editor works with the network cut.** Typing, editing and the model all
+  continue with every request aborted at the browser.
+- **And the honest limit, asserted so it cannot drift into an implicit claim:**
+  the browser build has **no service worker**, so a genuinely cold start with no
+  connection does not work — the page itself is still fetched. The desktop and
+  Obsidian builds do not have this limit; their assets are local files. If a
+  service worker is ever added, the test that asserts its absence says to delete
+  it.
+
+Persistence across reloads is `persistence.spec.ts`'s job and is deliberately
+not repeated here — this file's fixture re-seeds its document on every load, so
+testing it here would fight the harness rather than the product.
