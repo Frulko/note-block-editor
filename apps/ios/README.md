@@ -49,12 +49,29 @@ parce que `P2PTransport` reçoit son `PeerLink` au lieu de l'importer. Cette app
 n'ajoute que deux choses : `WebRTCLink.swift`, la vraie implémentation, et un
 écran. Le seul fichier qui importe `WebRTC` est donc celui-là.
 
-**Ce n'est pas un éditeur.** `NbeEditorKit` est derrière `#if canImport(AppKit)`
-et la vue texte par bloc sur iOS est précisément la question ouverte que la
+**C'est un éditeur de blocs**, avec un `UITextView` par bloc (D1 sur iOS) :
+
+- Entrée scinde le bloc au curseur, continue une liste, et sort d'une puce vide.
+- Retour arrière au début fusionne avec le bloc précédent — après avoir d'abord
+  ramené un titre ou une puce à un paragraphe, comme Notion.
+- `/` ouvre le menu des types ; le champ de filtre prend le clavier parce qu'une
+  feuille le lui prend de toute façon.
+- Les préfixes markdown (`# `, `- `, `1. `, `[] `, `" `, ```` ``` ````, `---`)
+  convertissent le bloc, y compris quand ils arrivent en lot ou par un collage.
+- Cases à cocher, citations, code, bascules repliables, imbrication, poignée de
+  glissement et flèches monter/descendre dans la barre au-dessus du clavier.
+
+Les commandes vivent dans `native/swift` (`DocumentWriter`) et sont un miroir de
+`packages/core/src/commands.ts` : `swift test` les vérifie sans simulateur, et
+`test/swift-parity.test.ts` échoue si les deux tables de préfixes divergent.
+
+**Ce qui reste ouvert.** L'édition par bloc sur mobile est la question que la
 matrice d'appareils doit trancher
-(`docs/research/per-block-contenteditable-evidence.md`). Ici, un `TextField` par
-bloc : assez pour taper, pas assez pour prétendre. Ce que cette app démontre,
-c'est la synchronisation entre trois implémentations, pas l'édition sur mobile.
+(`docs/research/per-block-contenteditable-evidence.md`), et deux vérifications
+d'interface échouent en série complète pour une raison qui vient du clavier iOS
+et non de l'éditeur — `docs/TESTING.md` le détaille. Pas de marques (gras,
+liens) à l'écran : elles traversent une scission intactes, mais rien ne les
+affiche encore.
 
 **Le simulateur ne dit pas tout.** Il partage la pile réseau du Mac : le
 pair-à-pair y est trivialement local. Ce qu'il ne peut pas montrer, c'est le

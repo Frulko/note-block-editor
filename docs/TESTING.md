@@ -354,3 +354,53 @@ this machine. The fallback path is exercised; the carrier NAT that forces it is
 not. That is the same category as the device matrix above — see
 `docs/research/p2p-any-sync.md` for why the fallback is the original transport
 rather than a degraded mode, which is what makes the untested case the safe one.
+
+
+## The iOS editor — added 2026-08-08
+
+`apps/ios/CarnetUITests/EditorUITests.swift`, 18 checks driven through a real
+keyboard in the simulator. It exists because `swift test` cannot see any of what
+it covers: in every bug below the *document was correct* and the editor was
+unusable, which is exactly the failure mode a model-level test is blind to.
+
+What driving the keystrokes found, in order:
+
+1. **Autoformat through the model was one frame too slow.** `# Titre` came back
+   as `e# Titr` — the model stripped the prefix, SwiftUI repainted later, and
+   everything typed in between landed at the old caret. The view now strips
+   synchronously and tells the model after: the view owns the caret, the model
+   owns the content.
+2. **A caret handover dropped keystrokes.** `un⏎deux` gave `unde` / `ux`. A split
+   moves the caret immediately and SwiftUI builds the receiving text view a frame
+   later, so keystrokes in the gap are buffered and replayed into it.
+3. **The buffer leaked into unrelated blocks.** A character nobody claimed was
+   flushed into the *next* block to be given a caret — a delete, a reorder,
+   minutes later. A stray letter in another paragraph reads as a typo, not a bug.
+4. **A stale render reset the text under the caret.** `deux` became `xde`. The
+   view now wins over the model while it holds the caret, except on a change the
+   model says came from elsewhere.
+5. **`/` opened a menu that dismissed itself**, because presenting the sheet ends
+   editing and the end-editing handler closed the menu.
+6. **Choosing an item did nothing**, because the handler re-read `menu` from state
+   that the presentation binding had already cleared. The sheet now passes the
+   value it holds.
+7. **The first tap on a menu row only dismissed the keyboard.** Every choice cost
+   two taps, since the filter field is focused on purpose.
+8. **A tap that moved the caret lost the first characters**, because the view was
+   asked to prove it held the caret against published state that lags a frame. A
+   view being asked whether it may accept a character *is* the first responder.
+
+**Two checks fail in the full run and pass in isolation**, and the cause is the
+keyboard rather than the editor: iOS rewrites words as they are typed and takes
+Return for itself when a completion is highlighted, so a driven `un⏎deux` is not
+the same input twice — the same sequence produced `dux`, `unu` and no split at
+all across runs. The tests that could avoid it type single letters; the two that
+must type a prefix (`- x`, and the reorder's setup) still lose a character
+sometimes. **Not fixed and not hidden**: the editor's logic is covered
+deterministically by `native/swift`'s 75 tests, and this is the boundary where
+synthetic typing stops being evidence.
+
+**What is still not covered here at all:** a real finger, a real software
+keyboard and a real IME. `docs/research/per-block-contenteditable-evidence.md`
+names per-block editing on mobile as the project's open question, and nothing in
+a simulator answers it.

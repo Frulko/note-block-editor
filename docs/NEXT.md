@@ -8,14 +8,14 @@ remembered.
 
 | Suite | State |
 | --- | --- |
-| Unit (`pnpm test`) | 917 passing, 80 files |
+| Unit (`pnpm test`) | 922 passing, 81 files |
 | Browser, Chromium (`pnpm e2e --project=chromium`) | 137/137, **gates CI** |
 | Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 132/132, 5 skipped, **gates CI** |
 | Browser, WebKit (`pnpm e2e --project=webkit`) | 127/127, 10 skipped, **gates CI** |
 | Touch, mobile viewports (`--project=mobile-safari --project=mobile-chrome`) | 6+7 passing, **gates CI** |
 | Performance (`e2e/performance.spec.ts`) | keystroke 8.3ms / 8.4ms at 500 blocks, render 205ms |
-| Swift (`cd native/swift && swift test`) | 52 passing |
-| iOS app (`cd apps/ios && xcodegen generate && xcodebuild …`) | builds and runs in the simulator |
+| Swift (`cd native/swift && swift test`) | 75 passing |
+| iOS UI (`cd apps/ios && xcodebuild test …`) | 16/18; the two that type words are keyboard-flaky, `docs/TESTING.md` |
 | `pnpm typecheck` | clean, and now covers `apps/` |
 
 Three clients share one document, proven end to end: a keystroke typed into an
@@ -49,6 +49,44 @@ of the way, and is also the fallback.**
   `native/swift` (`SyncSession`, `P2PTransport`, `RelayTransport`) and injects
   its `PeerLink`, so `swift test` checks the state machine without downloading a
   40MB binary. One file in the app imports WebRTC.
+
+## The iOS app is an editor now, 2026-08-08 (later)
+
+The first version was a sync proof with a `TextField` per block — no commands, no
+drag, unusable as an editor, and correctly called out as such. What it is now:
+
+- **A `UITextView` per block** (`BlockTextEditor`), because SwiftUI's text
+  controls cannot report Backspace-at-0 or intercept Return, which is most of
+  what makes a block editor one. UIKit sibling of the AppKit `BlockTextView`.
+- **The structural commands live in `native/swift`** — `splitBlock`,
+  `mergeBackward`, `turnInto`, `indent`, `outdent`, `move`, `setProp` on
+  `DocumentWriter`, mirrored from `packages/core/src/commands.ts` line for line
+  and covered by 23 new tests. Enter on an empty bullet stops being a bullet;
+  Backspace at the start of a heading makes it a paragraph first; Tab under the
+  first sibling refuses. A split **keeps the marks on both halves**, because
+  reading the plain string back would silently strip a link off every peer's copy.
+- **`Autoformat` moved to `NbeModel`** and `test/swift-parity.test.ts` fails if
+  the two tables drift — the exact bug a second implementation produces, where
+  both sides work and the same keystroke does two things.
+- **The slash menu, markdown prefixes, checkboxes, indent/outdent, reorder, a
+  keyboard bar**, and drag handles. The bar is the phone's answer to Tab, and its
+  up/down buttons are not a test affordance: dragging a block past a screenful is
+  miserable, and a VoiceOver user cannot drag at all.
+- **`Offsets` gained the CRDT's unit.** Three now coexist — UTF-16 for the model,
+  grapheme clusters for Swift, code points for Loro — and a test pins Loro's with
+  a document rather than trusting a comment, because getting it wrong tears text
+  around an emoji.
+
+**Eight bugs came out of driving the keystrokes**, every one invisible from the
+document: see `docs/TESTING.md`. The one worth repeating is the last: a view being
+asked whether it may accept a character *is* the first responder, and comparing
+that against published state that lags a frame is how a tap-then-type lost its
+first letters.
+
+**Where it stops.** Two UI checks fail in the full run and pass alone, and the
+cause is iOS's own suggestion bar rewriting words and taking Return — a driven
+sentence is not the same input twice. That is the boundary where synthetic typing
+stops being evidence, and the honest next step is a device, not another patch.
 - **Desktop and the web demo** show which path is live, because an optimisation
   nobody can observe is one nobody can debug.
 

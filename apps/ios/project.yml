@@ -56,3 +56,38 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGN_IDENTITY: ""
+
+  # The editor's own faults are invisible from the model: Return that inserts a
+  # newline instead of splitting, a caret that jumps to the end of the line, a
+  # `/` menu that never opens. None of those show up in `swift test`, because
+  # none of them are the document being wrong. So the keystrokes are driven.
+  CarnetUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: CarnetUITests
+    dependencies:
+      - target: Carnet
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.myrole.carnet.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        TEST_TARGET_NAME: Carnet
+
+schemes:
+  Carnet:
+    build:
+      targets:
+        Carnet: all
+        CarnetUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - CarnetUITests

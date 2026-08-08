@@ -1,5 +1,4 @@
 import Foundation
-import NbeModel
 
 /// Where a caret is, in a language that disagrees with the model about counting.
 ///
@@ -77,5 +76,37 @@ public enum Offsets {
     /// How many UTF-16 units these runs hold — the block's length, model-side.
     public static func length(of runs: [Run]) -> Int {
         runs.reduce(0) { $0 + $1.text.utf16.count }
+    }
+
+    // MARK: - The CRDT's unit, which is a third one
+
+    /// A UTF-16 offset as the **Unicode scalar** offset Loro indexes text by.
+    ///
+    /// Three units are now in play and it is worth naming them once: the web
+    /// platform and this model count **UTF-16 code units**, Swift's `String`
+    /// counts **grapheme clusters**, and `LoroText.insert(pos:s:)` counts
+    /// **Unicode code points**. An emoji makes all three differ — 👍 is one
+    /// cluster, one scalar, two UTF-16 units — so a caret handed straight from a
+    /// text view to the CRDT lands in the wrong place the first time anyone types
+    /// an emoji, and the text tears.
+    ///
+    /// `OffsetTests` pins Loro's unit with a document rather than trusting this
+    /// comment, because it is the kind of fact that changes in a minor release.
+    public static func scalarOffset(in text: String, utf16Offset: Int) -> Int {
+        let here = index(in: text, at: utf16Offset, prefer: .back)
+        return text.unicodeScalars.distance(from: text.unicodeScalars.startIndex, to: here.samePosition(in: text.unicodeScalars) ?? text.unicodeScalars.startIndex)
+    }
+
+    /// The other direction: a Loro scalar offset as a UTF-16 one.
+    public static func utf16Offset(in text: String, scalarOffset: Int) -> Int {
+        let clamped = max(0, min(scalarOffset, text.unicodeScalars.count))
+        let scalars = text.unicodeScalars
+        let here = scalars.index(scalars.startIndex, offsetBy: clamped)
+        return text.utf16.distance(from: text.utf16.startIndex, to: here)
+    }
+
+    /// How many scalars a string is — the length the CRDT means.
+    public static func scalarLength(of text: String) -> Int {
+        text.unicodeScalars.count
     }
 }

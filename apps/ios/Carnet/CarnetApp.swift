@@ -11,11 +11,8 @@ struct CarnetApp: App {
 
 /// One room, one page, and the line that says how the bytes are travelling.
 ///
-/// Not an editor — `NbeEditorKit` is AppKit-gated and the per-block text view
-/// for iOS is the open question the device matrix exists to answer
-/// (`docs/research/per-block-contenteditable-evidence.md`). What this is: the
-/// third client on the same document, so peer-to-peer can be watched happening
-/// between a phone, a browser and a command line rather than asserted.
+/// The editor itself is `DocumentView`; this is the shell around it — joining a
+/// relay, and reporting whether the document is going through it.
 struct RoomView: View {
     @StateObject private var room = Room()
     @State private var relay = "ws://localhost:8787"
@@ -25,22 +22,21 @@ struct RoomView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if room.connected {
-                    document
+                    DocumentView(room: room)
                 } else {
                     connect
                 }
                 Divider()
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(room.status.hasPrefix("Pair-à-pair") ? .green : room.connected ? .orange : .secondary)
-                        .frame(width: 8, height: 8)
-                    Text(room.status).font(.footnote).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 10)
+                status
             }
             .navigationTitle("Carnet")
+            .toolbar {
+                if room.connected {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Quitter") { room.leave() }
+                    }
+                }
+            }
             /*
              * A simulator run is the only way this app gets checked, and tapping
              * a button is the one thing a script cannot do to it. So the room can
@@ -58,21 +54,19 @@ struct RoomView: View {
                 if let url = environment["CARNET_RELAY"] { relay = url }
                 self.room.join(relay: relay, room: room)
             }
-            .toolbar {
-                if room.connected {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Quitter") { room.leave() }
-                    }
-                    ToolbarItem(placement: .bottomBar) {
-                        Button {
-                            room.append()
-                        } label: {
-                            Label("Bloc", systemImage: "plus")
-                        }
-                    }
-                }
-            }
         }
+    }
+
+    private var status: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(room.status.hasPrefix("Pair-à-pair") ? .green : room.connected ? .orange : .secondary)
+                .frame(width: 8, height: 8)
+            Text(room.status).font(.footnote).foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
     }
 
     private var connect: some View {
@@ -99,22 +93,5 @@ struct RoomView: View {
                 )
             }
         }
-    }
-
-    private var document: some View {
-        List {
-            ForEach(room.blocks, id: \.id) { block in
-                TextField(
-                    "…",
-                    text: Binding(
-                        get: { block.text ?? "" },
-                        set: { room.setText($0, for: block.id) }
-                    ),
-                    axis: .vertical
-                )
-                .padding(.leading, CGFloat(max(0, block.depth - 1)) * 16)
-            }
-        }
-        .listStyle(.plain)
     }
 }

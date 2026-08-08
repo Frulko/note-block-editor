@@ -1,6 +1,5 @@
 import XCTest
-@testable import NbeEditorKit
-import NbeModel
+@testable import NbeModel
 
 /// Counting, which Swift and the model do differently.
 ///
