@@ -45,6 +45,25 @@ export default defineConfig({
       // team learns to ignore red builds.
       ignoreSnapshots: true,
     },
+    /*
+     * Mobile Safari: WebKit at a phone viewport with touch actually enabled.
+     * Still not a device — no software keyboard, no IME, no real input stack —
+     * but it is the only way here to exercise the touch paths at the size they
+     * ship at, and the D1 evidence says mobile is where this architecture is
+     * owed proof. Scoped to the touch suite: the rest is covered desktop-side
+     * and running it twice buys nothing.
+     */
+    {
+      name: 'mobile-safari',
+      use: { ...devices['iPhone 15'] },
+      testMatch: /touch\.spec\.ts/,
+    },
+    /* And the other half of the matrix, at Android's viewport. */
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 7'] },
+      testMatch: /touch\.spec\.ts/,
+    },
   ],
   /*
    * Two demos, two servers. The collaborative one is a separate app because it

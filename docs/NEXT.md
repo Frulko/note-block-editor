@@ -12,6 +12,7 @@ remembered.
 | Browser, Chromium (`pnpm e2e --project=chromium`) | 116/116, **gates CI** |
 | Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 111/111, **gates CI** |
 | Browser, WebKit (`pnpm e2e --project=webkit`) | 108/108, 8 skipped, **gates CI** |
+| Touch, mobile viewports (`--project=mobile-safari --project=mobile-chrome`) | 6+7 passing, **gates CI** |
 | Swift (`cd native/swift && swift test`) | 49 passing |
 | `pnpm typecheck` | clean, and now covers `apps/` |
 
@@ -41,8 +42,9 @@ and failed on both engines in the full run.
 
 ## What needs something this machine does not have
 
-- **An Android device and an iPhone.** WebKit covers Safari's *engine*, which
-  is most of what a cross-browser editor gets wrong — but not the input stack:
+- **An Android device and an iPhone.** WebKit covers Safari's *engine*, and the
+  mobile-viewport projects now cover touch at phone size on both engines — but
+  neither covers the input stack:
   the software keyboard, touch selection, and a particular IME's behaviour
   (GBoard actively lies about `beforeinput`). This is **the decisive question**,
   not a residual one: see `docs/research/per-block-contenteditable-evidence.md`.

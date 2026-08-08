@@ -254,3 +254,24 @@ half-fix is worse than a known gap:
 
 None is gating yet. They become gating as they are closed, the way the
 single-host topology run did.
+
+
+## Mobile viewports — added 2026-08-08
+
+`--project=mobile-safari` (iPhone 15, WebKit) and `--project=mobile-chrome`
+(Pixel 7) run `touch.spec.ts` at phone viewports with touch genuinely enabled.
+Both gate CI. Mobile Safari: 6 passed, 1 skipped. Mobile Chrome: 7 passed.
+
+**What this is.** The touch paths — tap to place a caret, the gutter appearing
+under a finger, long-press, swipe — exercised at the size they ship at, on the
+two engines that matter, rather than only under a desktop mouse.
+
+**What it is not, and this matters.** No software keyboard, no IME, no real
+input stack. The D1 question — whether per-block `contenteditable` survives
+Android GBoard and iOS Safari — is *not* answered by this and cannot be. What
+it does mean is that when a device finally arrives, a failure there is about
+the input stack rather than about touch handling or layout, because those are
+now under test.
+
+The one skip is the handle-drag, which needs `Input.dispatchTouchEvent` (CDP,
+Chromium-only) — so it runs on `mobile-chrome` and not on `mobile-safari`.

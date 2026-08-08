@@ -42,6 +42,11 @@ jobs:
       # gates.
       - name: Browser suite on WebKit
         run: pnpm e2e --project=webkit
+      # Touch, at the viewports it ships at. Not devices — no software keyboard
+      # and no IME — but the touch paths run under Mobile Safari and Android
+      # Chrome rather than only under a desktop mouse.
+      - name: Touch suite on mobile viewports
+        run: pnpm e2e --project=mobile-safari --project=mobile-chrome
       # The alternative editable boundary, gated like the default one.
       # External evidence says per-block contenteditable is what Notion left
       # over iOS and Android roadblocks (docs/research/…-evidence.md), so
