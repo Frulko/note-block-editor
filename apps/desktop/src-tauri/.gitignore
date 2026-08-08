@@ -1,0 +1,4 @@
+# Rust build output. Committed by accident once — 7060 files and 764 MB, which
+# GitHub refused outright — because `cargo check` creates it and `git add -A`
+# does not know it should not.
+/target
