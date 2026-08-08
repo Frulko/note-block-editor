@@ -108,7 +108,25 @@ export class Editor {
     build(tx);
     if (tx.ops.length === 0) return;
     if (tx.ops.some((o) => o.type !== 'insert_text' && o.type !== 'delete_text' && o.type !== 'format_text')) {
-      this.normalizeWrappers(tx);
+      /*
+       * A wrapper can only *become* empty or underfull when something leaves
+       * it, so an insertion cannot need this scan — and insertion is what a
+       * document does constantly while growing.
+       *
+       * Measured before this guard: inserting two hundred blocks cost 5ms in an
+       * empty document and 28ms once there were two thousand, because the scan
+       * walked every block on every structural transaction. The `ponytail:`
+       * note on `normalizeWrappers` predicted the ceiling ("fine at document
+       * scale, index later") and it turned out to sit at roughly the size the
+       * competitive survey says a document starts to hurt.
+       *
+       * This is not an incremental reimplementation of the rule — the scan is
+       * unchanged and still exhaustive when it runs. It simply does not run
+       * when nothing could have been vacated.
+       */
+      if (tx.ops.some((o) => o.type === 'delete_block' || o.type === 'move_block')) {
+        this.normalizeWrappers(tx);
+      }
       normalizeTables(this.doc, tx);
     }
     if (opts.selection !== undefined) this.setSelection(opts.selection, opts.origin ?? 'dispatch');
@@ -187,7 +205,14 @@ export class Editor {
   /**
    * Wrapper garbage collection (ARCHITECTURE §2.3): every transaction that
    * touches structure dissolves empty columns and underfull column_lists.
-   * ponytail: full scan per structural tx — fine at document scale, index later.
+   * ponytail: full scan, but only on a transaction that could vacate a wrapper
+   * — see the guard at the call site. Measured 2026-08-08: with the guard,
+   * inserting two hundred blocks costs 4ms in an empty document and 17ms at two
+   * thousand; without it, 5ms and 28ms. The remaining scaling is
+   * `normalizeTables`, which still walks every block unconditionally and needs
+   * to know whether the document has a table without looking — a tracked flag
+   * rather than a scan. Trying the obvious early-out first *was* a scan and
+   * bought nothing, so it was reverted.
    */
   private normalizeWrappers(tx: Tx): void {
     for (let pass = 0; pass < 100; pass++) {
