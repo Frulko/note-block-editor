@@ -55,11 +55,25 @@ Established, in this order:
   — 218 before and after — so the remaining failure is real: under WebKit the
   gutter does not travel with the scrolled content.
 
-That is the open question, and it is now a product question rather than a
-harness one: why is an absolutely-positioned element inside a scrolled
-container not moving with it on WebKit? Suspect the portal
-(`ui/portal.ts` mounts floating chrome on `body`) and whether the gutter is
-actually inside `.page-scroll` there at all.
+- **Portal hypothesis: disproved.** The ancestry is identical on both engines —
+  `.nbe-controls` → `.nbe-editor` → `.page` → `.page-scroll` → `main.layout`.
+  The gutter is inside the scroller in both.
+- **Layout hypothesis: disproved.** `.page-scroll` scrolls identically on both:
+  `scrollTop` 0 → 300, `clientHeight` 673, `scrollHeight` 1794, `overflow-y:
+  auto`. The browser does the same thing in both engines.
+
+**So the difference is in our own positioning code, not in the browser.** The
+DOM is the same, the scroll is the same, and the element is inside the thing
+that scrolled — yet on Chromium its `style.top` stays at `141px` while it
+travels with the content, and on WebKit it stays visually put at `218`. The
+shape of that says something re-writes `style.top` on scroll under WebKit and
+not under Chromium.
+
+Start at `packages/dom/src/ui/position.ts` — `autoUpdate` and what it listens
+to. A `scroll` listener that fires on one engine and not the other, or one that
+recomputes against the viewport rather than the offset parent, would produce
+exactly this. That is a ten-minute question for a session with budget, and it
+was three wrong guesses away for this one.
 
 **And the standing rule, learned twice here.** An earlier fix scrolled
 `.nbe-editor` with a fallback to the document — neither of the elements
