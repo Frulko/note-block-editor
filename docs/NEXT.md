@@ -69,11 +69,23 @@ travels with the content, and on WebKit it stays visually put at `218`. The
 shape of that says something re-writes `style.top` on scroll under WebKit and
 not under Chromium.
 
-Start at `packages/dom/src/ui/position.ts` — `autoUpdate` and what it listens
-to. A `scroll` listener that fires on one engine and not the other, or one that
-recomputes against the viewport rather than the offset parent, would produce
-exactly this. That is a ten-minute question for a session with budget, and it
-was three wrong guesses away for this one.
+- **`autoUpdate` hypothesis: disproved too.** The gutter does not use it.
+  `showControlsFor` in `controls.ts` positions it *once*, on hover, inside
+  `view.content` via `toContainerPoint` — so it is absolutely positioned within
+  the scrolled container and travels with the content for free. Nothing
+  re-writes `style.top` on scroll by design.
+
+**The one explanation left standing**, and the next session should test it
+first: scrolling under a stationary pointer puts a *different block* under the
+cursor. If WebKit re-fires the hover on a programmatic scroll and Chromium does
+not, then `showControlsFor` runs again on WebKit for the newly-hovered block —
+and lands the gutter at the same screen position, which is exactly the `218`
+before and `218` after that was measured.
+
+If that is it, **the product behaviour on WebKit is arguably the correct one**
+(the gutter follows the pointer) and the test encodes Chromium's. So the fix is
+probably to the test's expectation, not to `controls.ts` — but confirm the
+re-hover before changing either. Log inside `showControlsFor` and scroll.
 
 **And the standing rule, learned twice here.** An earlier fix scrolled
 `.nbe-editor` with a fallback to the document — neither of the elements
