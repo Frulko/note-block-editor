@@ -1,5 +1,5 @@
 import { Plugin, TextFileView, type WorkspaceLeaf } from 'obsidian';
-import { Editor, docFromJSON, uuidv7, type BlockJSON } from '@nbe/core';
+import { Editor, docFromJSON, docToJSON, uuidv7, type BlockJSON } from '@nbe/core';
 import { EditorView } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 
@@ -84,9 +84,15 @@ class CarnetView extends TextFileView {
   /** Obsidian asks for the file's content. This is the L1 projection. */
   getViewData(): string {
     if (!this.editor) return this.data;
-    const root = this.editor.doc.blocks.get(this.editor.doc.rootId);
-    const children = (root?.children ?? []).map((id) => toJSON(this.editor!, id));
-    return blocksToMarkdown(children);
+    /*
+     * `docToJSON`, not a walk of our own. This used to hand-roll the same
+     * recursion — a second implementation of a tested function, which is the
+     * duplication this codebase keeps paying to remove, and which I wrote here
+     * without noticing. It would have drifted the first time `Block` gained a
+     * field.
+     */
+    const page = docToJSON(this.editor.doc) as BlockJSON;
+    return blocksToMarkdown(page.children ?? []);
   }
 
   /** Obsidian hands over the file's content, on open and on external change. */
@@ -131,19 +137,6 @@ class CarnetView extends TextFileView {
     });
     this.loading = false;
   }
-}
-
-/** A block and its descendants, as the JSON the projection expects. */
-function toJSON(editor: Editor, id: string): BlockJSON {
-  const block = editor.doc.blocks.get(id)!;
-  return {
-    id: block.id,
-    type: block.type,
-    version: block.version,
-    props: block.props,
-    ...(block.text ? { text: block.text } : {}),
-    children: (block.children ?? []).map((child) => toJSON(editor, child)),
-  };
 }
 
 export default class CarnetPlugin extends Plugin {
