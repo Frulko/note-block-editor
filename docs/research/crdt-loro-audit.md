@@ -160,9 +160,30 @@ minimal for arbitrary rewrites: a paste changing the middle of a paragraph
 produces one replacement spanning the change, which merges worse than it could
 and is still correct.
 
-## Not evaluated here
+## Not evaluated here — updated 2026-08-08
 
-Performance, memory, and the WASM bundle's weight in the browser — all of
-which need a prototype rather than documentation. The Swift bindings
-(`loro-swift`), which matter for the native editor, are documented as existing
-and have not been tried.
+Three of the four were evaluated once there was something to run.
+
+**The Swift bindings have been tried.** `loro-swift` resolves to 1.13.3 against
+our `loro-crdt` 1.13.9 — close enough to be a non-issue, and I say that having
+first read the git tags, concluded it was stuck at 1.8.1, and been wrong: the
+tag listing was incomplete. `native/swift` now opens a snapshot the TypeScript
+editor wrote, and writes one that a TypeScript peer merges. The two
+implementations agree on the merge format, not merely on the JSON.
+
+**The WASM bundle weighs 3.16 MB uncompressed, 1.05 MB gzipped.** That is the
+single largest thing the collaborative build ships, and it is why the site
+loads it as a `client:only` island rather than on every page — the editor
+itself has no CRDT and should not pay for one. The desktop and Obsidian builds
+bundle it as a local file, where the transfer cost does not exist.
+
+**Editing performance was measured** (`e2e/performance.spec.ts`), though not
+specifically under the CRDT store: keystroke to paint is 8.3ms on a small
+document and 8.4ms with five hundred blocks — flat, which is the property that
+matters.
+
+**Still not evaluated:** memory under a long-lived document, and how the
+oplog grows in practice. AFFiNE reports 10k modifications peaking at 1 GB and
+100 MB of Postgres per 1,000 documents, which is the cost Loro's shallow
+snapshots are supposed to answer — and shallow snapshots are the specific
+feature nobody here has exercised.
