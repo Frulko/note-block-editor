@@ -1,5 +1,19 @@
 # Roadmap
 
+> **Status (2026-08-08): phases 1–5 shipped.** The editor, the SDK and its
+> bindings, databases, the notes app with a Markdown vault, and collaboration —
+> Loro CRDT, comments, document history, a headless sync node, and four clients
+> (web, Tauri, an Obsidian plugin, and a Swift package that reads *and writes*
+> the same document). Six gating suites: ~870 unit tests, Chromium, WebKit, an
+> alternative editable topology, touch at phone viewports, and the Swift port.
+>
+> **What is left needs hardware or a decision, not work**: an Android device
+> and an iPhone for the input stack, a screen reader for AQ#9, and a licence.
+> `docs/NEXT.md` is the measured state and the place to start.
+>
+> The history below is kept because the corrections in it are the useful part —
+> several claims here were true when written and false when finally run.
+>
 > **Status (2026-08-06).** Phase 0 folded into Phase 1 (the per-block
 > contenteditable hypothesis D1 was implemented directly; the A/B spike is
 > superseded by the working editor — revisit only if IME/screen-reader testing

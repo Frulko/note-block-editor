@@ -1,8 +1,27 @@
-# Manual test matrix — IME, keyboards, screen readers
+# What needs a device, and what turned out not to
 
-The parts of the editor no CI can verify (AQ#6: CDP cannot synthesize real IME
-composition, and screen-reader behavior only exists on real assistive tech).
-This is the executable protocol; run it before any release that touches
+**Corrected 2026-08-08.** This document used to open by saying CDP cannot
+synthesize real IME composition. **It can** — `Input.imeSetComposition` drives
+Chromium's genuine pipeline, and AppKit's `NSTextInputClient` is callable
+directly from a Swift test. Both were used this week and both found real bugs:
+composing a word wrote three intermediate states into the CRDT and broadcast
+each to every peer, and a remote edit arriving mid-composition rebuilt the DOM
+under a half-typed word.
+
+That correction matters beyond the fact, because "no CI can verify this" is a
+claim that stops people trying. The honest line is narrower:
+
+**Automated, and gating** (see the sections below): composition handling on two
+platforms, the clipboard, drag, four browser projects including Safari's engine,
+touch at phone viewports, and the software keyboard's *effect* on the viewport.
+
+**Still needs a device, and nothing simulates it:** a *particular* IME's
+behaviour — Android GBoard actively lies about `beforeinput`, a Chinese IME has
+a candidate window, Korean composes jamo — plus the software keyboard's own
+input stack, physical non-US layouts with dead keys, and screen readers, which
+exist only on real assistive tech.
+
+The matrix below is that residue. Run it before any release touching
 `input.ts`, `keymap.ts`, `selection.ts` or `view.ts`, and record results in the
 table at the bottom.
 
