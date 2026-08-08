@@ -38,6 +38,49 @@ import { blockActionEntries } from './block-actions';
 import { format } from './labels';
 import type { GestureRecognizer } from './gestures';
 
+/**
+ * One button in a hover gutter.
+ *
+ * @remarks
+ * The gutters are lists, not a fixed set of features, because "what can I do
+ * to this block" is the question a host answers differently every time — a
+ * review tool wants approve/reject, a CMS wants publish, a wiki wants nothing
+ * at all. The editor owns the hover, the placement and the tooltip; the host
+ * owns the meaning.
+ *
+ * @category Configuration
+ */
+export interface GutterAction {
+  /** Stable identifier. Becomes `nbe-ctrl-<name>` on the button. */
+  name: string;
+  /** A Lucide icon name, e.g. `check`, `trash-2`, `message-square`. */
+  icon: string;
+  /** The tooltip, and the accessible name. */
+  title: string;
+  /** @defaultValue 16 */
+  iconSize?: number;
+  /** Called with the block the pointer is on. */
+  onClick: (blockId: BlockId, view: EditorView) => void;
+}
+
+/**
+ * An entry in a gutter: one of the editor's own buttons, by name, or your own.
+ *
+ * @remarks
+ * `add` inserts a paragraph below and opens the slash menu, `handle` is the
+ * ⋮⋮ drag source and block menu, `comment` calls `onComment` and is dropped
+ * when there is no such host.
+ *
+ * @category Configuration
+ */
+export type GutterItem = 'add' | 'handle' | 'comment' | GutterAction;
+
+/** The + button and the ⋮⋮ handle, in that order. */
+export const defaultLeftGutter: readonly GutterItem[] = ['add', 'handle'];
+
+/** Just the comment button, and only when `onComment` is set. */
+export const defaultRightGutter: readonly GutterItem[] = ['comment'];
+
 export function attachControls(view: EditorView): () => void {
   const editor = view.editor;
   const labels = view.labels;
@@ -54,34 +97,89 @@ export function attachControls(view: EditorView): () => void {
     return blockCategory(editor.schema, type) !== 'layout';
   };
 
-  // --- floating hover controls ---
-  const controls = document.createElement('div');
-  controls.className = 'nbe-controls';
-  // it lives inside the content, which is the editing host under a single-host
-  // topology: mark it so the input path and the keymap leave it alone
-  controls.setAttribute('contenteditable', 'false');
-  controls.setAttribute('data-nbe-ui', '');
-  controls.dataset['nbeUi'] = '';
-  const plusBtn = createActionButton({
-    title: 'Ajouter un bloc en dessous',
-    icon: 'plus',
-    iconSize: 18,
-    className: 'nbe-ctrl-btn nbe-plus',
-    preserveSelection: true,
-    onClick: () => insertBelow(),
-  });
-  const handleBtn = createActionButton({
-    title: labels.dragHandle,
-    icon: 'grip-vertical',
-    iconSize: 18,
-    className: 'nbe-ctrl-btn nbe-handle',
-    popover: true,
-    // the drag session owns the press; the factory's click only opens the menu
-    onClick: () => {},
-  });
-  controls.append(plusBtn, handleBtn);
-
   let hoveredId: BlockId | null = null;
+
+  // --- the two hover gutters ---
+
+  /**
+   * A gutter is a list of buttons, and the list is the option.
+   *
+   * @remarks
+   * The three built-ins are named rather than exported as objects, because two
+   * of them are not plain buttons: `handle` is also the drag source and owns
+   * the block menu, and `comment` carries the author identity. Naming them lets
+   * a host reorder or drop them without the editor having to expose the drag
+   * session to make that possible.
+   */
+  const builtin = (name: string): HTMLButtonElement | null => {
+    switch (name) {
+      case 'add':
+        return createActionButton({
+          title: labels.addBlock,
+          icon: 'plus',
+          iconSize: 18,
+          className: 'nbe-ctrl-btn nbe-plus',
+          preserveSelection: true,
+          onClick: () => insertBelow(),
+        });
+      case 'handle':
+        return createActionButton({
+          title: labels.dragHandle,
+          icon: 'grip-vertical',
+          iconSize: 18,
+          className: 'nbe-ctrl-btn nbe-handle',
+          popover: true,
+          // the drag session owns the press; the factory's click only opens the menu
+          onClick: () => {},
+        });
+      case 'comment':
+        // no host to receive it is not a disabled button, it is no button
+        if (!view.options.onComment) return null;
+        return createActionButton({
+          title: labels.addComment,
+          icon: 'message-square',
+          iconSize: 16,
+          className: 'nbe-ctrl-btn nbe-comment',
+          preserveSelection: true,
+          onClick: () => {
+            if (hoveredId) view.options.onComment!(hoveredId, view.options.commentAuthor ?? null);
+          },
+        });
+      default:
+        return null;
+    }
+  };
+
+  const gutter = (side: 'left' | 'right', items: readonly GutterItem[]): HTMLElement => {
+    const el = document.createElement('div');
+    el.className = side === 'left' ? 'nbe-controls' : 'nbe-controls nbe-controls-right';
+    // it lives inside the content, which is the editing host under a single-host
+    // topology: mark it so the input path and the keymap leave it alone
+    el.setAttribute('contenteditable', 'false');
+    el.setAttribute('data-nbe-ui', '');
+    el.dataset['nbeUi'] = '';
+    for (const item of items) {
+      const button =
+        typeof item === 'string'
+          ? builtin(item)
+          : createActionButton({
+              title: item.title,
+              icon: item.icon,
+              iconSize: item.iconSize ?? 16,
+              className: `nbe-ctrl-btn nbe-ctrl-${item.name}`,
+              preserveSelection: true,
+              onClick: () => {
+                if (hoveredId) item.onClick(hoveredId, view);
+              },
+            });
+      if (button) el.append(button);
+    }
+    return el;
+  };
+
+  const controls = gutter('left', view.options.gutter?.left ?? defaultLeftGutter);
+  const rightControls = gutter('right', view.options.gutter?.right ?? defaultRightGutter);
+  const handleBtn = controls.querySelector<HTMLButtonElement>('.nbe-handle');
 
   /*
    * The gutter lives **inside** the editor, in the margin the page geometry
@@ -97,20 +195,24 @@ export function attachControls(view: EditorView): () => void {
     // next to the text on tall blocks (callouts, code, images)
     const line = parseFloat(getComputedStyle(blockEl).lineHeight) || 24;
     const padTop = parseFloat(getComputedStyle(blockEl).paddingTop) || 0;
-    const at = toContainerPoint(
-      view.content,
-      rect.left - controls.offsetWidth - 6,
-      rect.top + padTop + Math.max(0, (line - controls.offsetHeight || 0) / 2),
-    );
+    const lineTop = rect.top + padTop + Math.max(0, (line - controls.offsetHeight || 0) / 2);
+    const at = toContainerPoint(view.content, rect.left - controls.offsetWidth - 6, lineTop);
     // a host that sets `padding.x: 0` leaves no margin to sit in; hugging the
     // edge and overlapping the text is worse-looking but still inside
     controls.style.left = `${Math.max(0, at.x)}px`;
     controls.style.top = `${at.y}px`;
+
+    if (!rightControls.childElementCount) return;
+    view.content.append(rightControls);
+    const right = toContainerPoint(view.content, rect.right + 6, lineTop);
+    rightControls.style.left = `${right.x}px`;
+    rightControls.style.top = `${right.y}px`;
   };
 
   const hideControls = () => {
     hoveredId = null;
     controls.remove();
+    rightControls.remove();
   };
 
   /**
@@ -166,7 +268,11 @@ export function attachControls(view: EditorView): () => void {
   const hover = createHoverZone({
     resolve: resolveBlock,
     isChrome: (t) =>
-      t instanceof Node && (controls.contains(t) || menu.el.contains(t) || (t as HTMLElement).closest?.('.nbe-tooltip') != null),
+      t instanceof Node &&
+      (controls.contains(t) ||
+        rightControls.contains(t) ||
+        menu.el.contains(t) ||
+        (t as HTMLElement).closest?.('.nbe-tooltip') != null),
     onTarget: showControlsFor,
     onClear: hideControls,
   });
@@ -284,7 +390,7 @@ export function attachControls(view: EditorView): () => void {
       view,
       ids,
       block,
-      anchor: handleBtn,
+      anchor: handleBtn ?? controls,
       close: () => menu.close(),
     });
     if (typeEntries.length) entries.push({ kind: 'section', label: labels.thisBlock }, ...typeEntries);
@@ -352,7 +458,7 @@ export function attachControls(view: EditorView): () => void {
     if (!ids.length) return;
     hover.freeze(true);
     menu.update(buildMenuEntries(ids));
-    menu.open(() => handleBtn.getBoundingClientRect(), { placement: 'bottom-start', offset: 4 });
+    menu.open(() => (handleBtn ?? controls).getBoundingClientRect(), { placement: 'bottom-start', offset: 4 });
   };
 
   // --- drag & drop (drag session primitive, ARCHITECTURE §7 / D8) ---
@@ -374,6 +480,34 @@ export function attachControls(view: EditorView): () => void {
       p = block.parentId;
     }
     return p !== null; // depth cap hit — treat as unsafe target
+  };
+
+  /**
+   * The measured candidates, held for the duration of a drag.
+   *
+   * @remarks
+   * `dropCandidates()` reads a rect per block, and a pointermove fires tens of
+   * times a second: measuring on every move is a full layout read of the
+   * document per frame, which is what made dragging heavy on a long page
+   * (`e2e/performance.spec.ts` puts 500 blocks on screen). Nothing moves during
+   * a drag except the scroll offset, so measure once and re-measure only when
+   * the page has actually scrolled under the pointer.
+   */
+  let candidates: DropCandidate[] = [];
+  let measuredAt = -1;
+
+  const scrollOffset = (): number => {
+    const el = findScrollParent(view.content);
+    return el.scrollTop + window.scrollY;
+  };
+
+  const freshCandidates = (): DropCandidate[] => {
+    const at = scrollOffset();
+    if (at !== measuredAt) {
+      candidates = dropCandidates();
+      measuredAt = at;
+    }
+    return candidates;
   };
 
   /** Every block the pointer may drop onto, measured. */
@@ -422,8 +556,8 @@ export function attachControls(view: EditorView): () => void {
 
   const updateDrop = (e: PointerEvent) => {
     ghost?.move(e.clientX, e.clientY);
-    drop = resolveDrop(e.clientX, e.clientY, dropCandidates(), {
-      columns: view.options.columns !== false,
+    drop = resolveDrop(e.clientX, e.clientY, freshCandidates(), {
+      columns: view.options.columns === true,
       previous: drop,
     });
     if (!drop) guide.style.display = 'none';
@@ -433,6 +567,7 @@ export function attachControls(view: EditorView): () => void {
   const cleanupDrag = () => {
     document.body.classList.remove('nbe-drag-active');
     controls.classList.remove('nbe-ctrl-hidden');
+    rightControls.classList.remove('nbe-ctrl-hidden');
     for (const n of view.content.querySelectorAll('.nbe-drag-source')) n.classList.remove('nbe-drag-source');
     ghost?.destroy();
     ghost = null;
@@ -441,6 +576,8 @@ export function attachControls(view: EditorView): () => void {
     hover.freeze(false);
     dragIds = [];
     drop = null;
+    candidates = [];
+    measuredAt = -1;
   };
 
   const commitDrop = () => {
@@ -479,6 +616,8 @@ export function attachControls(view: EditorView): () => void {
     if (!ids.length) return false;
     menu.close();
     dragIds = ids;
+    // measured after `dragIds` is set, so the dragged blocks are excluded
+    measuredAt = -1;
     hover.freeze(true);
     document.body.classList.add('nbe-drag-active');
     const sources = dragIds.map((id) => view.blockEl(id)).filter((el): el is HTMLElement => el !== null);
@@ -487,6 +626,7 @@ export function attachControls(view: EditorView): () => void {
     ghost.move(e.clientX, e.clientY);
     mountPortal(guide);
     controls.classList.add('nbe-ctrl-hidden');
+    rightControls.classList.add('nbe-ctrl-hidden');
     return true;
   };
 
@@ -543,19 +683,23 @@ export function attachControls(view: EditorView): () => void {
   // highest precedence: a qualifying press must not first read as text
   view.recognizers.unshift(blockDragRecognizer);
 
-  const unDrag = draggable(handleBtn, {
-    onTap: () => toggleMenu(),
-    scrollContainer: () => findScrollParent(view.content),
-    onStart: (e) => {
-      menu.close();
-      dragIds = dragTargets(hoveredId);
-      if (!dragIds.length) return false;
-      return beginDrag(e, dragIds);
-    },
-    onMove: updateDrop,
-    onDrop: () => endDrag(true),
-    onCancel: () => endDrag(false),
-  });
+  // a gutter without the handle simply has no handle-drag; the direct block
+  // drag recognizer above still works
+  const unDrag = handleBtn
+    ? draggable(handleBtn, {
+        onTap: () => toggleMenu(),
+        scrollContainer: () => findScrollParent(view.content),
+        onStart: (e) => {
+          menu.close();
+          dragIds = dragTargets(hoveredId);
+          if (!dragIds.length) return false;
+          return beginDrag(e, dragIds);
+        },
+        onMove: updateDrop,
+        onDrop: () => endDrag(true),
+        onCancel: () => endDrag(false),
+      })
+    : () => {};
 
   return () => {
     document.removeEventListener('scroll', onScroll, { capture: true });
@@ -565,6 +709,7 @@ export function attachControls(view: EditorView): () => void {
     const i = view.recognizers.indexOf(blockDragRecognizer);
     if (i >= 0) view.recognizers.splice(i, 1);
     controls.remove();
+    rightControls.remove();
     ghost?.destroy();
     guide.remove();
   };

@@ -57,9 +57,42 @@ export class Tx {
   }
 }
 
+/**
+ * The document, its schema, its selection, and the only way to change any of
+ * them.
+ *
+ * @remarks
+ * Headless on purpose: it imports nothing from the DOM, which is what lets the
+ * same editor run in a browser tab, in a Node test, in an Obsidian plugin and
+ * inside a Tauri window. A view is a *projection* of this object (§ Projections
+ * in the guides) — delete every view and the document is still here, still
+ * editable, still savable.
+ *
+ * **Every change goes through {@link Editor.dispatch}**, which builds a
+ * transaction of the seven operations, applies it, records its inverse for
+ * undo, validates only the blocks it touched, and then notifies listeners
+ * once. There is no second path: a mutation that skips it is a bug, because
+ * nothing would be undoable, validated, or observed.
+ *
+ * @example Mount, listen, edit
+ * ```ts
+ * import { Editor, createDoc, insertText } from '@nbe/core'
+ *
+ * const editor = new Editor({ doc: createDoc() })
+ * const off = editor.on((change) => console.log(change.origin, change.ops))
+ * insertText(editor, 'bonjour')   // a command: sugar over dispatch
+ * editor.undo()
+ * off()
+ * ```
+ *
+ * @category Editing
+ */
 export class Editor {
+  /** The live document. Read it freely; write only through {@link Editor.dispatch}. */
   doc: Doc;
+  /** Which block types exist, and what they may contain. */
   schema: Schema;
+  /** Where the caret or the block selection is, or `null` when nowhere. */
   selection: Selection = null;
 
   private undoStack: HistoryEntry[] = [];
@@ -80,28 +113,84 @@ export class Editor {
    */
   validation: ValidationMode;
 
+  /**
+   * @param opts - `doc` defaults to an empty page, `schema` to
+   * {@link baseSchema}, and `validation` to `'warn'`.
+   */
   constructor(opts: { doc?: Doc; schema?: Schema; validation?: ValidationMode } = {}) {
     this.doc = opts.doc ?? createDoc();
     this.schema = opts.schema ?? baseSchema();
     this.validation = opts.validation ?? 'warn';
   }
 
+  /**
+   * Every change, after it has been applied.
+   *
+   * @remarks
+   * One call per transaction, not per operation: a paste that inserts forty
+   * blocks notifies once, with all forty in `change.ops`. `change.origin` says
+   * who caused it (`'ui'`, `'paste'`, `'history'`, whatever a caller passed),
+   * which is how a host tells its own edits from a remote peer's.
+   *
+   * @returns An unsubscribe. Call it, or the listener outlives the host.
+   *
+   * @example
+   * ```ts
+   * const off = editor.on((change) => {
+   *   if (change.origin !== 'history') save(docToJSON(editor.doc))
+   * })
+   * ```
+   */
   on(listener: (change: Change) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * Caret and block-selection moves, which are not edits and so never reach
+   * {@link Editor.on}.
+   *
+   * @returns An unsubscribe.
+   */
   onSelection(listener: (sel: Selection, origin: string) => void): () => void {
     this.selListeners.add(listener);
     return () => this.selListeners.delete(listener);
   }
 
-  /** Update selection without a transaction (caret moves are not edits). */
+  /**
+   * Move the selection without a transaction, because a caret move is not an
+   * edit: it is not undoable and it does not mark the document dirty.
+   */
   setSelection(sel: Selection, origin = 'api'): void {
     this.selection = sel;
     for (const l of this.selListeners) l(sel, origin);
   }
 
+  /**
+   * Apply a transaction: the one way the document changes.
+   *
+   * @remarks
+   * The callback receives a {@link Tx} and calls `tx.op(…)` for each of the
+   * seven operations. Everything else — the inverse for undo, wrapper and table
+   * normalisation, validation of the touched blocks, and the single
+   * notification — happens around it. An empty transaction is a no-op and does
+   * not enter history.
+   *
+   * @param build - Fills the transaction.
+   * @param opts - `origin` labels the change for listeners; `selection` sets
+   * the selection atomically with the edit; `addToHistory: false` keeps it out
+   * of undo; `coalesce` merges consecutive dispatches sharing a key within
+   * 500 ms into one undo step, which is how typing undoes by word rather than
+   * by keystroke.
+   *
+   * @example
+   * ```ts
+   * editor.dispatch(
+   *   (tx) => tx.op({ type: 'delete_block', id }),
+   *   { origin: 'ui' },
+   * )
+   * ```
+   */
   dispatch(build: (tx: Tx) => void, opts: DispatchOptions = {}): void {
     const selectionBefore = this.selection;
     const tx = new Tx(this.doc, this.schema);
@@ -174,14 +263,21 @@ export class Editor {
     });
   }
 
+  /** How many undo steps are available. */
   get undoDepth(): number {
     return this.undoStack.length;
   }
 
+  /** How many redo steps are available. */
   get redoDepth(): number {
     return this.redoStack.length;
   }
 
+  /**
+   * Undo one step, restoring the selection it was made from.
+   *
+   * @returns `false` when there was nothing to undo.
+   */
   undo(): boolean {
     const entry = this.undoStack.pop();
     if (!entry) return false;
@@ -192,6 +288,11 @@ export class Editor {
     return true;
   }
 
+  /**
+   * Redo one step.
+   *
+   * @returns `false` when there was nothing to redo.
+   */
   redo(): boolean {
     const entry = this.redoStack.pop();
     if (!entry) return false;

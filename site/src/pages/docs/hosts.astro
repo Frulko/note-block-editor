@@ -1,0 +1,113 @@
+---
+import Docs from '../../layouts/Docs.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const embed = `// aucune dépendance au DOM dans le cœur : le même objet
+// tourne dans un onglet, dans un test Node, dans un plugin, dans Tauri
+import { Editor, createDoc, docToJSON } from '@nbe/core';
+
+const editor = new Editor({ doc: createDoc() });
+editor.on(() => host.save(docToJSON(editor.doc)));
+
+// une projection dans le navigateur…
+import { EditorView } from '@nbe/dom';
+const view = new EditorView(el, editor);
+
+// …ou aucune : du HTML sans navigateur, pour un rendu serveur
+import { renderToHTML } from '@nbe/static-renderer';
+const html = renderToHTML(docToJSON(editor.doc));`;
+
+const obsidian = `// le plugin Obsidian, dans sa forme la plus courte : le fichier reste
+// du Markdown, Obsidian garde la propriété du chargement et de la sauvegarde
+import { markdownToBlocks, blocksToMarkdown } from '@nbe/markdown';
+
+const editor = new Editor({ doc: docFromJSON({ …page, children: markdownToBlocks(text) }) });
+new EditorView(container, editor);
+editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)));`;
+---
+<Docs title="Où ça tourne" wide>
+  <p>
+    Le cœur ne connaît ni le DOM, ni React, ni un serveur. Ce n'est pas une
+    élégance d'architecture&nbsp;: c'est la raison pour laquelle le même éditeur
+    est une bibliothèque à embarquer, une application de bureau et un plugin
+    Obsidian, sans qu'aucune de ces trois formes soit un portage de l'autre.
+  </p>
+
+  <h2 id="bibliotheque">Une bibliothèque à embarquer</h2>
+  <p>
+    <code>@nbe/core</code> est un éditeur de texte <em>sans interface</em>&nbsp;:
+    un document, un schéma, une sélection, sept opérations, une pile d'annulation.
+    Vous l'embarquez comme vous embarqueriez un moteur de rendu ou un parseur —
+    y compris à l'intérieur d'un produit qui a déjà son propre cadre.
+  </p>
+  <pre><code class="language-ts">{embed}</code></pre>
+  <p>
+    Les couches sont séparées pour être remplaçables&nbsp;: <code>@nbe/dom</code>
+    projette dans un navigateur, <code>@nbe/static-renderer</code> projette en
+    HTML sans navigateur, <code>@nbe/markdown</code> projette en Markdown. Aucune
+    n'est privilégiée, et le document ne sait pas laquelle existe.
+    Les liaisons <a href={`${base}/integrations/`}>React, Vue et Svelte</a> ont
+    exactement deux dépendances — c'est vérifié en intégration continue&nbsp;: une
+    troisième signifierait que la fonctionnalité appartient à la couche du dessous.
+  </p>
+
+  <h2 id="desktop">Une application de bureau</h2>
+  <p>
+    <strong>Carnet</strong> est l'application&nbsp;: une fenêtre Tauri autour de
+    l'éditeur, dont le stockage est un dossier que vous pouvez lire. Vous en
+    choisissez un au premier lancement, et il contient exactement deux choses&nbsp;:
+  </p>
+  <pre><code class="language-txt">{`mon-carnet/
+  pages/                ← le vault Markdown : c'est ça que vous lisez
+    Projets.md
+    Projets/
+      Éditeur.md
+  .nbe/                 ← les documents canoniques, en JSON
+    019fdbe8-….json
+    collections.json    ← schémas et vues des bases de données`}</code></pre>
+  <p>
+    <code>pages/</code> <strong>est</strong> un vault Obsidian&nbsp;: ouvrez-le
+    dans Obsidian et tout y est, la hiérarchie étant l'arborescence des dossiers.
+    Il y a deux copies parce que le Markdown est une <em>projection</em> et non un
+    format de stockage — il ne sait pas écrire un bloc vide, et il replie les
+    paragraphes coupés à la main. Le JSON fait donc foi et le Markdown est
+    <em>régénéré</em>&nbsp;; en échange, le Markdown est toujours sûr à lire, à
+    modifier et à comparer dans un <code>git diff</code>.
+  </p>
+
+  <h2 id="obsidian">Un plugin Obsidian</h2>
+  <p>
+    Le même éditeur, sur <em>une note à la fois</em>, et le fichier reste du
+    Markdown. Le menu «&nbsp;/&nbsp;», les poignées, la sélection de blocs,
+    l'autoformat, les tableaux, les callouts et les toggles fonctionnent&nbsp;;
+    Obsidian garde la propriété du chargement, de l'enregistrement, du renommage
+    et des conflits.
+  </p>
+  <pre><code class="language-ts">{obsidian}</code></pre>
+  <div class="note">
+    <p>
+      Ce n'est <strong>pas</strong> un espace de travail&nbsp;: ni commentaires,
+      ni temps réel, ni fichier annexe, ni dossier <code>.nbe/</code>. Cette
+      frontière est le design, pas une limite à lever plus tard. Le plugin ne
+      confisque pas non plus le Markdown&nbsp;: vos notes s'ouvrent toujours dans
+      l'éditeur d'Obsidian, et Carnet s'active note par note depuis la palette de
+      commandes.
+    </p>
+  </div>
+
+  <h2 id="headless">Sans interface du tout</h2>
+  <p>
+    <code>@nbe/cli</code> fait tourner le même modèle en ligne de commande&nbsp;:
+    lire un vault, chercher, régénérer le miroir Markdown, vérifier que tout
+    reste lisible sans l'outil — et
+    <a href={`${base}/docs/examples/#relais`}>servir un relais de synchronisation</a>
+    en headless, avec un port pour toute configuration.
+  </p>
+  <pre><code class="language-bash">{`nbe ls                    # les pages
+nbe cat <id>              # une page, en Markdown
+nbe search <requête>      # recherche classée (index SQLite)
+nbe sync                  # régénère le miroir Markdown
+nbe check                 # vérifie que tout est lisible sans cet outil
+nbe relay --port 8787     # relais entre pairs
+nbe serve --port 8787     # relais + pair permanent (un NAS)`}</code></pre>
+</Docs>

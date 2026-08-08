@@ -1,4 +1,4 @@
-import { uuidv7, type BlockJSON } from '@nbe/core';
+import { uuidv7, type BlockJSON, type CommentThread } from '@nbe/core';
 import type { WorkspaceStorage } from '@nbe/workspace';
 import { indexedDbStorage } from '@nbe/workspace/idb';
 import type { CollectionRecord } from '@nbe/workspace/database';
@@ -8,6 +8,16 @@ export interface Workspace {
   openId: string;
   /** phase 3: collection schemas + view configs; rows are pages above */
   collections?: CollectionRecord[];
+  /**
+   * Comment threads, for every page at once.
+   *
+   * @remarks
+   * Beside the pages rather than inside them, because the *anchor* is already
+   * in the page — the `comment` mark on the block's text — and duplicating the
+   * bodies there would give a thread two homes that can disagree. Threads are
+   * small and few; they ride in the same localStorage record as the collections.
+   */
+  threads?: CommentThread[];
 }
 
 const LEGACY_KEY = 'nbe-workspace-v1';
@@ -36,6 +46,7 @@ const pages = indexedDbStorage('nbe-demo-workspace');
 interface Meta {
   openId: string;
   collections?: CollectionRecord[];
+  threads?: CommentThread[];
 }
 
 function readMeta(): Meta | null {
@@ -64,7 +75,7 @@ export async function loadWorkspace(seed: () => BlockJSON): Promise<Workspace> {
   if (legacy) {
     // migrate once, then drop the old key so this never runs again
     for (const page of legacy.pages) await pages.write(page.id, page);
-    localStorage.setItem(META_KEY, JSON.stringify({ openId: legacy.openId, collections: legacy.collections }));
+    localStorage.setItem(META_KEY, JSON.stringify({ openId: legacy.openId, collections: legacy.collections, threads: legacy.threads }));
     localStorage.removeItem(LEGACY_KEY);
   }
 
@@ -79,10 +90,10 @@ export async function loadWorkspace(seed: () => BlockJSON): Promise<Workspace> {
   if (!stored.length) {
     const first = seed();
     await pages.write(first.id, first);
-    return { pages: [first], openId: first.id, collections: meta?.collections };
+    return { pages: [first], openId: first.id, collections: meta?.collections, threads: meta?.threads };
   }
   const openId = stored.some((p) => p.id === meta?.openId) ? meta!.openId : stored[0]!.id;
-  return { pages: stored, openId, collections: meta?.collections };
+  return { pages: stored, openId, collections: meta?.collections, threads: meta?.threads };
 }
 
 /**
@@ -104,7 +115,7 @@ export function flushWorkspace(): void {
   pending = null;
   clearTimeout(saveTimer);
 
-  localStorage.setItem(META_KEY, JSON.stringify({ openId: ws.openId, collections: ws.collections }));
+  localStorage.setItem(META_KEY, JSON.stringify({ openId: ws.openId, collections: ws.collections, threads: ws.threads }));
   const live = new Set(ws.pages.map((p) => p.id));
   for (const page of ws.pages) {
     const json = JSON.stringify(page);

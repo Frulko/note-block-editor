@@ -59,7 +59,7 @@ test.describe('a finger can move a block', () => {
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(2).boundingBox())!;
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(300);
-    await expect(page.locator('.nbe-controls')).toBeVisible();
+    await expect(page.locator('.nbe-handle')).toBeVisible();
   });
 
   test('dragging by the handle reorders, rather than scrolling the page', async ({ page, browserName }) => {
@@ -82,7 +82,7 @@ test.describe('a finger can move a block', () => {
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(3).boundingBox())!;
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(300);
-    const handle = (await page.locator('.nbe-controls button').nth(1).boundingBox())!;
+    const handle = (await page.locator('.nbe-handle').boundingBox())!;
     const target = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
 
     const cdp = await page.context().newCDPSession(page);
@@ -106,7 +106,7 @@ test.describe('a finger can move a block', () => {
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(2).boundingBox())!;
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(300);
-    const handle = (await page.locator('.nbe-controls button').nth(1).boundingBox())!;
+    const handle = (await page.locator('.nbe-handle').boundingBox())!;
 
     // 8px below the button's own box: inside the 44px target, outside the button
     const hit = await page.evaluate(

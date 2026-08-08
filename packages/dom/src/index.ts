@@ -6,7 +6,9 @@
  */
 
 export { EditorView } from './view';
-export type { EditorViewOptions } from './view';
+export type { EditorViewOptions, CommentAuthor } from './view';
+export { defaultLeftGutter, defaultRightGutter } from './controls';
+export type { GutterAction, GutterItem } from './controls';
 export { renderBlock } from './render';
 export { domToModelPoint, modelPointToDom } from './selection';
 export { perBlockTopology, singleHostTopology, leafOf, nativeRangeSpans } from './topology';

@@ -37,6 +37,7 @@
   --nbe-ink-warm: 122 116 104;    /* the warm grey of pencil and paper fibre */
   --nbe-accent-rgb: 41 78 199;    /* encre — fountain-pen blue */
   --nbe-danger-rgb: 199 58 52;    /* stylo rouge — corrections, and only those */
+  --nbe-note-rgb: 191 141 38;     /* surligneur — annotations, never an error */
   --nbe-shadow-rgb: 20 18 30;
   --nbe-surface: #fdfcfa;         /* papier */
   --nbe-surface-sunken: #f5f3ee;
@@ -177,6 +178,7 @@
     --nbe-ink-warm: 188 182 170;
     --nbe-accent-rgb: 130 158 255;
     --nbe-danger-rgb: 232 106 100;
+    --nbe-note-rgb: 222 179 92;
     --nbe-shadow-rgb: 0 0 0;
     --nbe-surface: rgb(23, 22, 28);
     --nbe-surface-sunken: rgb(31, 30, 37);
@@ -205,6 +207,7 @@
   --nbe-ink-warm: 188 182 170;
   --nbe-accent-rgb: 130 158 255;
   --nbe-danger-rgb: 232 106 100;
+  --nbe-note-rgb: 222 179 92;
   --nbe-shadow-rgb: 0 0 0;
   --nbe-surface: rgb(23, 22, 28);
   --nbe-surface-sunken: rgb(31, 30, 37);

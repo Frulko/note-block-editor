@@ -3,20 +3,21 @@ import {
   newMessage,
   newThread,
   orphanThreads,
+  plainText,
   documentOrder,
   threadsInDocumentOrder,
-  toggleMarkRange,
   uuidv7,
   type Block,
   type BlockId,
   type CommentStore,
 } from '@nbe/core';
-import { EditorView, attachRemoteCarets, icon } from '@nbe/dom';
+import { EditorView, attachRemoteCarets, icon, type CommentAuthor } from '@nbe/dom';
 import {
   LoroBlockStore,
   LoroComments,
   LoroHistory,
   connect,
+  connectToRelay,
   createPresence,
   loopback,
   redrawOnRemote,
@@ -118,7 +119,40 @@ function pane(
   host.append(wrap);
 
   const editor = new Editor({ doc: { blocks: store, rootId } });
-  const view = new EditorView(surface, editor, {});
+
+  /*
+   * A comment is on a block, not on a hand-picked range — that is the product
+   * decision, and it is why this hangs off the gutter rather than off the
+   * selection toolbar. The anchor is still the mark `@nbe/core` documents
+   * (§2.2): it covers the whole block's text, so it survives edits and merges
+   * on its own, and a block emptied of text orphans its thread rather than
+   * leaving it pointing at a position that no longer means anything.
+   */
+  const commentOn = (blockId: BlockId, author: CommentAuthor | null): void => {
+    const body = prompt('Votre commentaire');
+    if (!body) return;
+    // anonymous is a real mode, so the fallback is a label, not a fake identity
+    const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
+    const thread = newThread(message, blockId);
+    comments.create(thread);
+    const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
+    editor.dispatch((tx) =>
+      tx.op({
+        type: 'format_text',
+        id: blockId,
+        from: 0,
+        to: length,
+        mark: { type: 'comment', attrs: { threadId: thread.id } },
+        add: true,
+      }),
+    );
+    renderComments();
+  };
+
+  const view = new EditorView(surface, editor, {
+    onComment: commentOn,
+    commentAuthor: { id: person.id, name: person.name },
+  });
   const carets = attachRemoteCarets(view);
 
   /* A remote edit lands in the store without passing through this editor, so
@@ -174,7 +208,7 @@ function pane(
     const orphans = orphanThreads(editor.doc, comments);
 
     if (!live.length && !orphans.length) {
-      commentList.append(el('p', 'empty', 'Sélectionnez du texte, puis « Commenter ».'));
+      commentList.append(el('p', 'empty', 'Survolez un bloc, puis « Commenter » dans la marge de droite.'));
       return;
     }
 
@@ -225,17 +259,9 @@ function pane(
 
   // --- panels ---------------------------------------------------------------
 
+  // commenting lives in the editor's right-hand gutter, on the block you hover
   const tools = el('div', 'tools');
   tools.append(
-    button('Commenter', 'message-square', () => {
-      const selection = editor.selection;
-      if (selection?.kind !== 'text') return alert('Sélectionnez d’abord du texte.');
-      const body = prompt('Votre commentaire');
-      if (!body) return;
-      const thread = newThread(newMessage(person.id, body, person.name), selection.anchor.blockId);
-      comments.create(thread);
-      toggleMarkRange(editor, 'comment', { threadId: thread.id });
-    }),
     button('Nommer cette version', 'clock', () => {
       const name = prompt('Nom de la version');
       if (name) history.checkpoint(name);
@@ -266,30 +292,87 @@ function pane(
 // --- wiring -----------------------------------------------------------------
 
 const app = document.getElementById('app')!;
-const [left, right] = loopback();
+const params = new URLSearchParams(location.search);
+const room = params.get('room');
 
-const alice = new LoroBlockStore();
-const rootId = uuidv7();
-alice.set(rootId, { id: rootId, type: 'page', version: 1, props: { title: 'Notes' }, children: [], parentId: null });
+if (room) roomMode(room);
+else loopbackMode();
 
-const seed = [
-  heading(rootId, 'Réunion de lancement'),
-  paragraph(rootId, 'Tapez dans un volet et regardez l’autre. Les deux sont de vrais pairs.'),
-  paragraph(rootId, 'Sélectionnez une phrase, puis « Commenter » — l’ancre suit le texte.'),
-];
-for (const block of seed) alice.set(block.id, block);
-alice.set(rootId, { ...alice.get(rootId)!, children: seed.map((block) => block.id) });
-
-const basile = new LoroBlockStore();
-connect(alice, left);
-connect(basile, right);
-
-/*
- * Basile starts empty and receives the document, which is the honest order —
- * a peer joining a session is exactly this, and seeding both sides would hide
- * whether the handshake works.
+/**
+ * One editor per browser, joined by a relay — `nbe relay` or `nbe serve`.
+ *
+ * @remarks
+ * The transport is the only difference from the loopback demo below: same
+ * store, same panes, same presence. Open the page twice with the same `?room=`
+ * and the second tab is a peer, not a mirror.
  */
-setTimeout(() => {
-  pane(app, PEOPLE[0], PEOPLE[1], alice, left, rootId, new LoroComments(alice.doc), new LoroHistory(alice));
-  pane(app, PEOPLE[1], PEOPLE[0], basile, right, rootId, new LoroComments(basile.doc), new LoroHistory(basile));
-}, 50);
+function roomMode(name: string): void {
+  const url = params.get('relay') ?? `ws://${location.hostname || 'localhost'}:8787`;
+  const me: Person = {
+    id: uuidv7(),
+    name: params.get('name') ?? `Invité ${Math.floor(Math.random() * 900 + 100)}`,
+    color: `hsl(${Math.floor(Math.random() * 360)} 65% 45%)`,
+  };
+  const anyone: Person = { id: '', name: 'Quelqu’un', color: 'rgb(120, 120, 120)' };
+
+  document.querySelector('.bar p')!.textContent = `Salon « ${name} » — ${me.name}. Ouvrez la même adresse ailleurs.`;
+  app.style.gridTemplateColumns = '1fr';
+
+  const store = new LoroBlockStore();
+  const transport = connectToRelay(url, name);
+  connect(store, transport);
+
+  /*
+   * The root has to be the same block for everyone, so it is derived from the
+   * room rather than generated — two peers generating their own would render
+   * two different pages that both sync correctly, which is the confusing kind
+   * of broken. The delay lets an existing document arrive before we decide the
+   * room is empty; a relay with no persistence has nothing to send, and then
+   * whoever is first creates it.
+   *
+   * ponytail: a fixed delay, not a handshake. Move to a "synced" event from
+   * `connect` if a slow link ever makes an empty page flash.
+   */
+  const id = `${name}-root`;
+  setTimeout(() => {
+    if (!store.get(id)) {
+      store.set(id, { id, type: 'page', version: 1, props: { title: name }, children: [], parentId: null });
+      // one empty paragraph, because a page with no block has nowhere to type
+      const first = paragraph(id, '');
+      store.set(first.id, first);
+      store.set(id, { ...store.get(id)!, children: [first.id] });
+    }
+    pane(app, me, anyone, store, transport, id, new LoroComments(store.doc), new LoroHistory(store));
+  }, 400);
+}
+
+/** Two peers in one page, no server — what a static site can demonstrate. */
+function loopbackMode(): void {
+  const [left, right] = loopback();
+
+  const alice = new LoroBlockStore();
+  const rootId = uuidv7();
+  alice.set(rootId, { id: rootId, type: 'page', version: 1, props: { title: 'Notes' }, children: [], parentId: null });
+
+  const seed = [
+    heading(rootId, 'Réunion de lancement'),
+    paragraph(rootId, 'Tapez dans un volet et regardez l’autre. Les deux sont de vrais pairs.'),
+    paragraph(rootId, 'Sélectionnez une phrase, puis « Commenter » — l’ancre suit le texte.'),
+  ];
+  for (const block of seed) alice.set(block.id, block);
+  alice.set(rootId, { ...alice.get(rootId)!, children: seed.map((block) => block.id) });
+
+  const basile = new LoroBlockStore();
+  connect(alice, left);
+  connect(basile, right);
+
+  /*
+   * Basile starts empty and receives the document, which is the honest order —
+   * a peer joining a session is exactly this, and seeding both sides would hide
+   * whether the handshake works.
+   */
+  setTimeout(() => {
+    pane(app, PEOPLE[0], PEOPLE[1], alice, left, rootId, new LoroComments(alice.doc), new LoroHistory(alice));
+    pane(app, PEOPLE[1], PEOPLE[0], basile, right, rootId, new LoroComments(basile.doc), new LoroHistory(basile));
+  }, 50);
+}

@@ -1,4 +1,4 @@
-import type { Change, Editor, Point, Selection } from '@nbe/core';
+import type { BlockId, Change, Editor, Point, Selection } from '@nbe/core';
 import { ancestors, getBlock, selectedBlocks, textCaret } from '@nbe/core';
 import { renderBlock } from './render';
 import { leafOf, modelPointToDom } from './selection';
@@ -7,12 +7,28 @@ import { plainText } from '@nbe/core';
 import { domTextSelection } from './caret';
 import { perBlockTopology, type EditableTopology } from './topology';
 import type { ActiveGesture, GestureRecognizer } from './gestures';
+import type { GutterItem } from './controls';
+
 import { defaultRecognizers } from './recognizers';
 import { defaultFeatures, type EditorFeature } from './features';
 import { resolveLabels, type EditorLabels } from './labels';
 import { builtinBlocks } from './blocks';
 import { injectBlockStyles, viewOf, type DomBlockPlugin } from './block-view';
 import { PluginRegistry } from '@nbe/core';
+
+/**
+ * A person, for display beside what they said.
+ *
+ * @category Configuration
+ */
+export interface CommentAuthor {
+  /** Stable across sessions; what the host stores on the thread. */
+  id: string;
+  /** What to show. */
+  name: string;
+  /** A URL or data URI. Display only — the editor never fetches it. */
+  avatar?: string;
+}
 
 /**
  * Everything a host can change when mounting an editor.
@@ -48,6 +64,62 @@ export interface EditorViewOptions {
   resolvePageTitle?: (pageId: string) => string | null;
   /** Create a page in the host workspace (slash menu "Page" item). */
   onCreatePage?: () => { pageId: string; title: string } | null;
+  /**
+   * Open a comment on a block, from the button in the right-hand gutter.
+   *
+   * @remarks
+   * **A comment is on a block**, never on a hand-picked range. That is why it
+   * hangs off the gutter rather than the selection toolbar, and it is what
+   * makes the affordance discoverable: hovering a block shows everything you
+   * can do to it, and one of those things is discuss it.
+   *
+   * The threads themselves are the host's: `@nbe/core` has the model and
+   * `@nbe/collab` puts it in the CRDT, but *where a discussion is displayed* is
+   * a layout decision the editor cannot make — a sidebar, a popover, a panel in
+   * another pane. So the editor contributes the affordance and nothing else,
+   * and without this host the button is not rendered at all rather than
+   * rendered dead.
+   *
+   * @param blockId - The block the pointer was on.
+   * @param author - `commentAuthor`, or `null` when nobody was named.
+   */
+  onComment?: (blockId: BlockId, author: CommentAuthor | null) => void;
+  /**
+   * Who is commenting.
+   *
+   * @remarks
+   * Absent, comments are anonymous — which is a real mode, not a degraded one:
+   * a shared machine, a kiosk, a review link with no login. The editor never
+   * invents an identity to fill the gap, it passes `null` and lets the host
+   * decide what "anonymous" looks like.
+   *
+   * The editor does not persist this. It hands it to `onComment` and the host
+   * stores `id` and `name` on the thread; `avatar` is display only.
+   */
+  commentAuthor?: CommentAuthor;
+  /**
+   * What the two hover gutters contain.
+   *
+   * @remarks
+   * Both sides are lists you can add to, reorder, or empty — see
+   * {@link GutterItem}. The defaults are `['add', 'handle']` on the left and
+   * `['comment']` on the right.
+   *
+   * @example
+   * ```ts
+   * import { defaultLeftGutter } from '@nbe/dom'
+   * new EditorView(el, editor, {
+   *   gutter: {
+   *     left: defaultLeftGutter,
+   *     right: [
+   *       'comment',
+   *       { name: 'approve', icon: 'check', title: 'Valider', onClick: (id) => approve(id) },
+   *     ],
+   *   },
+   * })
+   * ```
+   */
+  gutter?: { left?: readonly GutterItem[]; right?: readonly GutterItem[] };
   /**
    * Store a pasted/dropped binary and return the opaque src to persist
    * (convention: `asset:<content-hash>`). Without it, file paste/drop is ignored.
@@ -112,23 +184,26 @@ export interface EditorViewOptions {
    */
   readOnly?: boolean;
   /**
-   * Whether dropping a block beside another creates a column.
+   * **Experimental.** Whether dropping a block beside another creates a column.
    *
    * @remarks
-   * Columns are ordinary nested blocks (§2.3), so turning this off removes
-   * only the *gesture* — a document that already has columns still renders and
-   * still reorders. What it buys is a drag with one meaning: every drop is a
-   * reorder, and the side bands are neither drawn nor tested for.
+   * Off by default, and the default is the interesting part. Columns are
+   * ordinary nested blocks (§2.3), so this flag governs only the *gesture* — a
+   * document that already has columns still renders and still reorders, and
+   * columns stay reachable from the slash menu either way.
    *
-   * Worth turning off for a comment box, a single-column embed, or any host
-   * whose layout cannot accommodate side-by-side content. Columns stay
-   * reachable from the slash menu regardless.
+   * What the default buys is a drag with one meaning. Two answers to the same
+   * gesture is what made dragging feel unreliable: aiming for "move below" and
+   * getting a two-column layout is not a near miss, it is a different document,
+   * and the side bands have to be tuned rather than merely correct. Until that
+   * is settled, a drag reorders — vertically, always — and side-by-side layout
+   * is something you ask for explicitly.
    *
-   * @defaultValue true
+   * @defaultValue false
    *
    * @example
    * ```ts
-   * new EditorView(el, editor, { columns: false })
+   * new EditorView(el, editor, { columns: true })
    * ```
    */
   columns?: boolean;
@@ -159,10 +234,44 @@ export interface EditorViewOptions {
   theme?: Record<string, string>;
 }
 
+/**
+ * A document, projected into the DOM, and everything that makes editing it
+ * feel like an editor.
+ *
+ * @remarks
+ * The view owns the element it creates and nothing else: it appends a
+ * `.nbe-editor` div to the container you give it, renders the document into it,
+ * attaches the {@link EditorFeature}s you asked for, and unbinds all of it on
+ * {@link EditorView.destroy}. **The DOM is a projection, never the source of
+ * truth** — the model is in {@link Editor}, and a view can be thrown away and
+ * rebuilt without the document noticing.
+ *
+ * The content is *uncontrolled*. Re-mounting on every render would destroy the
+ * caret, the selection and the undo stack, so the initial document is read once
+ * and the editor owns it from then on; a host observes with `editor.on(…)`.
+ *
+ * @example The whole of a minimal integration
+ * ```ts
+ * import { Editor, createDoc } from '@nbe/core'
+ * import { EditorView } from '@nbe/dom'
+ * import '@nbe/dom/style.css'
+ *
+ * const editor = new Editor({ doc: createDoc() })
+ * const view = new EditorView(document.getElementById('app')!, editor)
+ * // …later
+ * view.destroy()
+ * ```
+ *
+ * @category Rendering
+ */
 export class EditorView {
+  /** The model this view projects. */
   readonly editor: Editor;
+  /** The `.nbe-editor` element this view created and owns. */
   readonly content: HTMLElement;
+  /** The options it was mounted with, verbatim. */
   readonly options: EditorViewOptions;
+  /** Where the editable boundary sits: one host per block, or one at the root. */
   readonly topology: EditableTopology;
   private _composing = false;
   /** A full re-render that arrived mid-composition and is owed. */
@@ -220,6 +329,13 @@ export class EditorView {
 
   private unbinders: Array<() => void> = [];
 
+  /**
+   * @param container - The view appends its own element here. The container is
+   * not emptied and not otherwise touched.
+   * @param editor - The model. Several views may project the same one.
+   * @param options - See {@link EditorViewOptions}. Everything is optional; the
+   * defaults are a full editor.
+   */
   constructor(container: HTMLElement, editor: Editor, options: EditorViewOptions = {}) {
     this.editor = editor;
     this.options = options;
@@ -327,25 +443,48 @@ export class EditorView {
     }
   }
 
+  /**
+   * Detach every feature, stop listening to the editor, and remove the element.
+   *
+   * @remarks
+   * The document survives: `destroy()` disposes of a *projection*. Call it when
+   * the host unmounts, or the feature listeners outlive the page they were for.
+   */
   destroy(): void {
     for (const un of this.unbinders) un();
     this.content.remove();
   }
 
   /** Run `cb` after every pointer gesture settles. Returns an unsubscribe. */
+  /**
+   * Called once a pointer gesture has fully settled.
+   *
+   * @returns An unsubscribe.
+   */
   onGestureEnd(cb: (name: string, committed: boolean) => void): () => void {
     this.gestureEndListeners.add(cb);
     return () => this.gestureEndListeners.delete(cb);
   }
 
+  /** The element rendering a block, or `null` if it is not on screen. */
   blockEl(id: string): HTMLElement | null {
     return this.content.querySelector(`.nbe-block[data-block-id="${CSS.escape(id)}"]`);
   }
 
+  /** The editable leaf inside a block, where its text lives. */
   leafEl(id: string): HTMLElement | null {
     return this.content.querySelector(`.nbe-leaf[data-block-id="${CSS.escape(id)}"]`);
   }
 
+  /**
+   * Rebuild the whole surface from the document.
+   *
+   * @remarks
+   * The escape hatch for a change the view did not see — a remote edit landing
+   * straight in the store, or a document swapped underneath. Ordinary edits do
+   * not need it: `dispatch` repaints only what it touched. Deferred while an
+   * IME is composing, and paid back the moment the word is committed.
+   */
   renderAll(): void {
     // a remote edit must not rebuild the surface under a half-typed word; the
     // setter above pays this back the moment composition ends
@@ -421,6 +560,13 @@ export class EditorView {
   }
 
   /** Push the model selection into the browser (after re-renders and focus moves). */
+  /**
+   * Push the model's selection into the browser, after changing it in code.
+   *
+   * @remarks
+   * Needed only when a host moves the caret itself; every edit that goes
+   * through `dispatch` already does this.
+   */
   syncDomSelection(): void {
     const sel = this.editor.selection;
     if (sel?.kind !== 'text') return;
@@ -440,6 +586,7 @@ export class EditorView {
   }
 
   /** Move the caret to a block (used by keyboard navigation). */
+  /** Put the caret in a block, at a character offset, and focus it. */
   focusBlock(id: string, offset: number): void {
     this.editor.setSelection(textCaret(id, offset));
     this.syncDomSelection();
@@ -448,6 +595,13 @@ export class EditorView {
   private announcer: HTMLElement | null = null;
 
   /** Screen-reader announcement (polite live region, ARCHITECTURE §8). */
+  /**
+   * Say something in the live region, for screen readers.
+   *
+   * @remarks
+   * For changes a sighted user sees happen and a blind one otherwise would not
+   * — a block moved by drag, a column layout created.
+   */
   announce(message: string): void {
     if (!this.announcer) {
       this.announcer = document.createElement('div');

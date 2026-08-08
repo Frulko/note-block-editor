@@ -23,6 +23,7 @@ interface Reflection {
   comment?: Comment;
   children?: Reflection[];
   signatures?: Reflection[];
+  getSignature?: Reflection;
   parameters?: Reflection[];
   type?: TypeNode;
   flags?: { isOptional?: boolean };
@@ -46,8 +47,10 @@ const KIND = {
   Function: 64,
   Class: 128,
   Interface: 256,
+  Constructor: 512,
   Property: 1024,
   Method: 2048,
+  Accessor: 262144,
   TypeAlias: 2097152,
 } as const;
 
@@ -127,7 +130,7 @@ export interface Entry {
 
 function toEntry(r: Reflection, prefix: string): Entry {
   const optional = r.flags?.isOptional === true;
-  const type = typeText(r.type ?? r.signatures?.[0]?.type);
+  const type = typeText(r.type ?? r.signatures?.[0]?.type ?? r.getSignature?.type);
   const path = prefix ? `${prefix}-${r.name}` : r.name;
   return {
     name: r.name,
@@ -156,7 +159,7 @@ export function options(moduleName: string, typeName: string): Entry[] {
   const decl = findIn(findModule(moduleName), typeName);
   const members = decl?.children ?? decl?.type?.declaration?.children ?? [];
   return members
-    .filter((m) => m.kind === KIND.Property || m.kind === KIND.Method)
+    .filter((m) => m.kind === KIND.Property || m.kind === KIND.Method || m.kind === KIND.Accessor)
     .map((m) => toEntry(m, typeName));
 }
 
@@ -170,12 +173,20 @@ export interface MethodEntry {
   anchor: string;
 }
 
-/** Methods of a class, or standalone functions of a module. */
+/**
+ * Methods of a class, or standalone functions of a module.
+ *
+ * @remarks
+ * A class's constructor is included, under the name `constructor` — how you
+ * build the thing is part of its interface, and a reference that lists every
+ * method but not the one call you have to make first is a reference with a
+ * hole in it.
+ */
 export function methods(moduleName: string, className?: string): MethodEntry[] {
   const mod = findModule(moduleName);
   const source = className ? findIn(mod, className)?.children : mod?.children;
   return (source ?? [])
-    .filter((m) => m.kind === KIND.Method || m.kind === KIND.Function)
+    .filter((m) => m.kind === KIND.Method || m.kind === KIND.Function || m.kind === KIND.Constructor)
     .filter((m) => summary(m.signatures?.[0]) || summary(m))
     .map((m) => {
       const sig = m.signatures?.[0];

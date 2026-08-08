@@ -20,7 +20,7 @@ async function grabHandle(page: Page, index: number): Promise<{ x: number; y: nu
   const block = page.locator('.nbe-editor > .nbe-block').nth(index);
   const box = (await block.boundingBox())!;
   await page.mouse.move(box.x + 40, box.y + box.height / 2);
-  const handle = page.locator('.nbe-controls button').nth(1);
+  const handle = page.locator('.nbe-handle');
   await handle.waitFor({ state: 'visible' });
   const hb = (await handle.boundingBox())!;
   const point = { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 };
@@ -119,8 +119,33 @@ test.describe('vertical reordering', () => {
   });
 });
 
-test.describe('horizontal drop makes columns', () => {
+/*
+ * The default: a drag has one meaning. The far edge of a block used to build a
+ * column; now it reorders like everywhere else, and the side bands are not
+ * drawn at all. `columns` is opt-in and experimental — see the describe below.
+ */
+test.describe('the edge of a block reorders too', () => {
+  test('the far edge shows a horizontal indicator, not a side one', async ({ page, editor }) => {
+    await editor.setDocument(['premier', 'deuxieme', 'troisieme']);
+    await grabHandle(page, 2);
+    await hoverBlock(page, 0, 0.99, 0.2);
+    expect((await guide(page))!.side).toBe(false);
+    await page.mouse.up();
+    expect(await editor.types()).not.toContain('column_list');
+    expect(await editor.texts()).toEqual(['troisieme', 'premier', 'deuxieme']);
+  });
+});
+
+test.describe('columns can be turned on', () => {
+  test.use({ baseURL: 'http://localhost:5173' });
+
+  const openWithColumns = async (page: Page) => {
+    await page.goto('/?columns=on');
+    await page.waitForSelector('.nbe-editor .nbe-leaf');
+  };
+
   test('the far edge shows a vertical indicator', async ({ page, editor }) => {
+    await openWithColumns(page);
     await editor.setDocument(['premier', 'deuxieme', 'troisieme']);
     await grabHandle(page, 2);
     await hoverBlock(page, 0, 0.99, 0.5);
@@ -131,28 +156,13 @@ test.describe('horizontal drop makes columns', () => {
   });
 
   test('dropping there builds a column layout', async ({ page, editor }) => {
+    await openWithColumns(page);
     await editor.setDocument(['premier', 'deuxieme', 'troisieme']);
     await grabHandle(page, 2);
     await hoverBlock(page, 0, 0.99, 0.5);
     await page.mouse.up();
     expect(await editor.types()).toContain('column_list');
     expect(editor.errors()).toEqual([]);
-  });
-});
-
-test.describe('columns can be turned off', () => {
-  test.use({ baseURL: 'http://localhost:5173' });
-
-  test('the same edge drop reorders instead', async ({ page, editor }) => {
-    await page.goto('/?columns=off');
-    await page.waitForSelector('.nbe-editor .nbe-leaf');
-    await editor.setDocument(['premier', 'deuxieme', 'troisieme']);
-    await grabHandle(page, 2);
-    await hoverBlock(page, 0, 0.99, 0.2);
-    expect((await guide(page))!.side).toBe(false);
-    await page.mouse.up();
-    expect(await editor.types()).not.toContain('column_list');
-    expect(await editor.texts()).toEqual(['troisieme', 'premier', 'deuxieme']);
   });
 });
 

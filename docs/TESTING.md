@@ -137,8 +137,8 @@ in `docs/ARCHITECTURE.md` is waiting on.
 both faults it was written for were invisible to the model — the document was
 fine, the interaction was not. It covers the indicator being a *coloured* line,
 the gap between blocks having an answer, vertical reorder in both directions,
-Escape cancelling a drag, the side drop building columns, `columns: false`
-reordering instead, and the whole block-mode key contract (Escape, arrows,
+Escape cancelling a drag, the far edge reordering by default, `columns: true`
+building a column layout instead, and the whole block-mode key contract (Escape, arrows,
 Shift+arrows, Backspace, Meta+Shift+arrows).
 
 What still needs hands, on top of the matrix below:

@@ -1,0 +1,103 @@
+---
+import Docs from '../../../layouts/Docs.astro';
+import MethodList from '../../../components/api/MethodList.astro';
+import OptionsTable from '../../../components/api/OptionsTable.astro';
+import { methods, options } from '../../../lib/api';
+
+const editorMembers = options('@nbe/core', 'Editor');
+const editorMethods = methods('@nbe/core', 'Editor');
+const viewMembers = options('@nbe/dom', 'EditorView');
+const viewMethods = methods('@nbe/dom', 'EditorView');
+
+const events = `// une transaction, une notification — un collage de quarante blocs
+// n'appelle ce listener qu'une fois
+const offChange = editor.on((change) => {
+  change.origin;      // 'ui' | 'paste' | 'history' | ce que l'appelant a passé
+  change.ops;         // les opérations appliquées
+  change.dirty;       // les ids des blocs touchés
+  change.selectionSet;
+});
+
+// déplacer le caret n'est pas une édition : c'est un autre canal
+const offSelection = editor.onSelection((selection, origin) => {
+  render(selection);
+});
+
+// la vue publie la fin d'un geste pointeur, une fois qu'il est retombé
+const offGesture = view.onGestureEnd((name, committed) => {});
+
+offChange(); offSelection(); offGesture();`;
+
+const dispatchExample = `import { insertText, toggleMarkRange, moveBlocks } from '@nbe/core';
+
+// une commande : du sucre au-dessus de dispatch
+insertText(editor, 'bonjour');
+
+// ou la transaction à la main
+editor.dispatch(
+  (tx) => {
+    tx.op({ type: 'delete_block', id });
+    tx.op({ type: 'insert_block', block, index: 0 });
+  },
+  { origin: 'ui', selection: textCaret(block.id, 0) },
+);
+
+editor.undo();  // → false s'il n'y avait rien à annuler
+editor.redo();`;
+---
+<Docs title="Éditeur : constructeur, méthodes, événements" wide>
+  <p>
+    Deux objets, et la frontière entre eux est tout le modèle&nbsp;:
+    <code>Editor</code> est le document et la seule façon de le changer, sans
+    une ligne de DOM&nbsp;; <code>EditorView</code> est une <em>projection</em>
+    de cet objet dans une page. Supprimez la vue, le document est toujours là.
+  </p>
+
+  <h2 id="editor"><code>Editor</code> — le cœur, sans DOM</h2>
+  <p>
+    Rien ici n'importe le navigateur, et c'est ce qui laisse le même éditeur
+    tourner dans un onglet, dans un test Node, dans un plugin Obsidian et dans
+    une fenêtre Tauri.
+  </p>
+  <h3 id="editor-membres">Propriétés</h3>
+  <OptionsTable entries={editorMembers} />
+  <h3 id="editor-methodes">Constructeur et méthodes</h3>
+  <MethodList methods={editorMethods} />
+
+  <h2 id="evenements">Écouter</h2>
+  <p>
+    Trois canaux, séparés parce qu'ils ne signifient pas la même chose. Chacun
+    renvoie sa fonction de désabonnement&nbsp;: un écouteur qui survit à son
+    hôte est une fuite.
+  </p>
+  <pre><code class="language-ts">{events}</code></pre>
+
+  <h2 id="ecrire">Écrire</h2>
+  <p>
+    <code>dispatch</code> est le seul chemin. Il applique la transaction,
+    enregistre son inverse pour l'annulation, valide uniquement les blocs
+    touchés, puis notifie une fois. Une mutation qui le contourne n'est ni
+    annulable, ni validée, ni observée.
+  </p>
+  <pre><code class="language-ts">{dispatchExample}</code></pre>
+
+  <h2 id="editorview"><code>EditorView</code> — la projection</h2>
+  <p>
+    La vue crée son propre élément dans le conteneur que vous lui donnez, y rend
+    le document, attache les fonctionnalités demandées, et détache tout à
+    <code>destroy()</code>. Le contenu est <em>non contrôlé</em>&nbsp;: le
+    document initial est lu une seule fois: le remonter à chaque rendu
+    détruirait le caret, la sélection et l'historique.
+  </p>
+  <h3 id="view-membres">Propriétés</h3>
+  <OptionsTable entries={viewMembers} />
+  <h3 id="view-methodes">Constructeur et méthodes</h3>
+  <MethodList methods={viewMethods} />
+
+  <div class="note">
+    <p>
+      Les options de montage ont leur propre page&nbsp;:
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/api/configuration/`}>Configuration</a>.
+    </p>
+  </div>
+</Docs>

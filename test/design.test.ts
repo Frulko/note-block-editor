@@ -46,6 +46,7 @@ const BASE_CHANNELS = new Set([
   '--nbe-ink-warm',
   '--nbe-accent-rgb',
   '--nbe-danger-rgb',
+  '--nbe-note-rgb',
   '--nbe-shadow-rgb',
   '--nbe-success-rgb',
   '--nbe-surface',

@@ -4,6 +4,7 @@ import { callout } from '@nbe/blocks-callout/dom';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
+import { createComments, ME } from './comments';
 import { allAssetBytes, resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
 import { Workspace as PageTree, pageTitle, referencedAssets } from '@nbe/workspace';
 import { createDatabaseHost, type CollectionRecord, type CollectionStore } from '@nbe/workspace/database';
@@ -50,8 +51,9 @@ function seedPage(): BlockJSON {
       ]),
       b('heading', 'Essaie', { level: 2 }),
       b('to_do', 'Taper "/" pour le menu de blocs', { checked: false }),
-      b('to_do', 'Survoler un bloc : + et ⋮⋮ (menu, drag & drop)', { checked: false }),
-      b('to_do', 'Glisser un bloc sur le bord droit d\'un autre → colonnes', { checked: false }),
+      b('to_do', 'Survoler un bloc : + et ⋮⋮ à gauche, 💬 à droite (marges configurables)', { checked: false }),
+      b('to_do', 'Commenter un bloc, puis l\'onglet Commentaires à droite', { checked: false }),
+      b('to_do', 'Glisser un bloc : toute la largeur réordonne (colonnes : ?columns=on)', { checked: false }),
       b('to_do', 'Escape pour sélectionner le bloc, flèches, Backspace', { checked: false }),
       b('to_do', 'Copier/coller depuis Google Docs ou du markdown', { checked: false }),
       b('toggle', 'Un toggle avec des enfants', { collapsed: false }, [
@@ -86,6 +88,17 @@ let detachInspector: (() => void) | null = null;
  */
 const tree = new PageTree(pageStorage(ws));
 await tree.load();
+
+/*
+ * Threads are shared by every page and saved with the metadata, like the
+ * collections: infrequent, deliberate, and flushed rather than debounced, so a
+ * reload inside the 300ms typing window cannot drop one.
+ */
+const comments = createComments(ws.threads ?? [], (threads) => {
+  ws.threads = threads;
+  saveWorkspace(ws);
+  flushWorkspace();
+});
 
 /**
  * Collection schemas and views, in the workspace metadata.
@@ -383,8 +396,8 @@ function openPage(pageId: string): void {
       new URLSearchParams(location.search).get('topology') === 'single-host'
         ? singleHostTopology
         : perBlockTopology,
-    // ?columns=off to exercise the reorder-only drag
-    columns: new URLSearchParams(location.search).get('columns') !== 'off',
+    // ?columns=on to exercise the experimental side-drop that builds columns
+    columns: new URLSearchParams(location.search).get('columns') === 'on',
     // activation is an import plus an array entry
     blocks: [callout],
     onOpenPage: (id) => openPage(id),
@@ -410,11 +423,16 @@ function openPage(pageId: string): void {
     onStoreAsset: storeAsset,
     resolveAssetUrl: resolveAsset,
     database: dbHost,
+    // comments are on blocks: the affordance is the right-hand gutter
+    onComment: (blockId, author) => comments.comment(editor!, blockId, author),
+    commentAuthor: ME,
   });
   detachInspector = attachInspector(editor);
+  comments.render(editor);
   editor.on(() => {
     persistCurrentPage();
     void renderSidebar();
+    comments.render(editor);
   });
   void renderSidebar();
 

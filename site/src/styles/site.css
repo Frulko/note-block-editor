@@ -283,11 +283,30 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   gap: 1rem;
   padding: 2rem 0 5rem;
 }
+.cards-tight {
+  padding: 0 0 1rem;
+}
 .card {
+  display: block;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.2rem 1.3rem;
   background: var(--bg-raised);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+a.card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+.band {
+  padding: 1.5rem 0 4rem;
+  border-top: 1px solid var(--border);
+}
+.band-lede {
+  max-width: var(--measure);
+  color: var(--text-muted);
 }
 .card h3 {
   margin: 0 0 0.4rem;
@@ -336,6 +355,12 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   min-height: 240px;
   max-height: 460px;
   overflow: auto;
+  /* the editor's `min-height: 100%` resolves against a definite height, and a
+     block child of an auto-height box has none — so it stopped at its content
+     and the frame's own background showed below it. A grid row stretches. */
+  display: grid;
+  align-content: stretch;
+  grid-template-rows: minmax(min-content, 1fr);
 }
 .demo-bar-actions {
   display: flex;
@@ -361,54 +386,173 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   border-color: var(--accent);
   color: var(--accent);
 }
-.settings-panel {
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-sunken);
-  padding: 0.6rem 0.85rem;
-  display: grid;
-  gap: 0.35rem;
+/* --- the settings dropdown ---------------------------------------------- */
+
+.settings-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.settings-anchor .chevron {
+  font-size: 0.65em;
+  opacity: 0.6;
+}
+.settings-menu {
+  /* fixed, not absolute: the demo frame clips its overflow to round its
+     corners, and nothing here establishes a containing block, so this is what
+     lets the menu leave the frame instead of being cut off inside it. The
+     component carries the coordinates. */
+  position: fixed;
+  z-index: 60;
+  width: 20rem;
+  max-height: min(70vh, 30rem);
+  overflow: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg, 10px);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
   font-size: 0.78rem;
   color: var(--text-muted);
+  text-align: left;
+  animation: settings-in 120ms ease-out;
+}
+@keyframes settings-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.settings-group {
+  margin: 0.5rem 0 0.15rem;
+  padding: 0 0.4rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.settings-group:first-child {
+  margin-top: 0.15rem;
 }
 .settings-row {
   display: grid;
   grid-template-columns: 8.5rem 1fr auto;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--radius);
+}
+label.settings-row {
+  cursor: pointer;
+}
+label.settings-row:hover {
+  background: var(--bg-sunken);
+}
+.settings-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.settings-label em {
+  font-style: normal;
+  font-size: 0.68rem;
+  color: var(--text-faint);
 }
 .settings-row output {
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
-  min-width: 3.5rem;
+  min-width: 3.2rem;
   text-align: right;
 }
 .settings-row input[type='range'] {
   width: 100%;
   accent-color: var(--accent);
 }
-.settings-row input[type='checkbox'] {
-  justify-self: start;
-  accent-color: var(--accent);
-}
 .settings-row select {
   font: inherit;
+  font-size: 0.78rem;
   padding: 0.15rem 0.4rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: inherit;
-  justify-self: start;
+  grid-column: 2 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+/* a checkbox, dressed as a switch: the input still is the control, so keyboard
+   and screen readers get the real thing */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 15px;
+  grid-column: 2 / -1;
+  justify-self: end;
+}
+.switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background 140ms ease;
+  pointer-events: none;
+}
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 140ms ease;
+}
+.switch input:checked + .switch-track {
+  background: var(--accent);
+}
+.switch input:checked + .switch-track::after {
+  transform: translateX(11px);
+}
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .settings-features {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem 0.9rem;
+  padding: 0.2rem 0.4rem 0.4rem;
 }
 .settings-features label {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   cursor: pointer;
+}
+.settings-features input {
+  accent-color: var(--accent);
+}
+
+.demo-comments {
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+  padding: 0.7rem 0.85rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.demo-comments p {
+  margin: 0.3rem 0 0;
 }
 
 .debug-panel {

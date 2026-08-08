@@ -1,12 +1,20 @@
 ---
 import Base from '../layouts/Base.astro';
-const pillars = [
-  { t: 'Un schéma intermédiaire', d: "Le document est une donnée, pas du HTML. Le DOM n'est qu'une projection jetable — jamais la source de vérité." },
-  { t: 'Lisible sans l\'outil', d: 'Markdown, CSV, SQLite. Supprimez l\'éditeur, vos fichiers restent ouvrables et modifiables ailleurs.' },
-  { t: 'Sept opérations', d: 'Tout changement passe par sept opérations inversibles. L\'annulation, la persistance et la sync future en découlent.' },
-  { t: 'TypeScript vanilla', d: 'Le cœur ne connaît ni le DOM ni React. Les liaisons React, Vue et Svelte sont des montages minces.' },
-];
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const pillars = [
+  { t: 'Un schéma intermédiaire', d: "Le document est une donnée, pas du HTML. Le DOM n'est qu'une projection jetable — jamais la source de vérité.", href: `${base}/docs/concepts/projections/` },
+  { t: 'Lisible sans l\'outil', d: 'Markdown, CSV, SQLite. Supprimez l\'éditeur, vos fichiers restent ouvrables et modifiables ailleurs.', href: `${base}/docs/markdown/` },
+  { t: 'Sept opérations', d: 'Tout changement passe par sept opérations inversibles. L\'annulation, la persistance et la synchronisation en découlent.', href: `${base}/docs/concepts/operations/` },
+  { t: 'TypeScript vanilla', d: 'Le cœur ne connaît ni le DOM ni React. Les liaisons React, Vue et Svelte sont des montages minces.', href: `${base}/docs/api/editor/` },
+];
+
+/** The same editor, in four shapes. Each one links to how it is actually done. */
+const shapes = [
+  { t: 'Une bibliothèque', d: 'Un éditeur de texte sans interface, à embarquer dans un produit qui a déjà le sien. Cinq lignes pour la version minimale.', href: `${base}/docs/examples/#minimal` },
+  { t: 'Une app de bureau', d: 'Carnet : une fenêtre Tauri dont le stockage est un dossier lisible — un vault Markdown à côté des documents canoniques.', href: `${base}/docs/hosts/#desktop` },
+  { t: 'Un plugin Obsidian', d: 'L\'édition par blocs sur une note à la fois. Le fichier reste du Markdown, et Obsidian garde la main sur tout le reste.', href: `${base}/docs/hosts/#obsidian` },
+  { t: 'Un relais headless', d: 'nbe relay : un WebSocket, un port, aucune base de données. Plusieurs navigateurs sur un même document.', href: `${base}/docs/examples/#relais` },
+];
 ---
 <Base title="nbe — un éditeur de blocs qui ne séquestre pas vos données">
   <div class="shell">
@@ -20,14 +28,29 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       <div class="cta-row">
         <a class="btn btn-primary" href={`${base}/docs/getting-started/`}>Démarrer</a>
         <a class="btn btn-ghost" href={`${base}/demo/`}>Voir la démo</a>
+        <a class="btn btn-ghost" href={`${base}/docs/examples/`}>Exemples</a>
         <a class="btn btn-ghost" href={`${base}/docs/why/`}>Pourquoi</a>
       </div>
     </section>
 
     <section class="cards">
       {pillars.map((p) => (
-        <div class="card"><h3>{p.t}</h3><p>{p.d}</p></div>
+        <a class="card" href={p.href}><h3>{p.t}</h3><p>{p.d}</p></a>
       ))}
+    </section>
+
+    <section class="band">
+      <h2>Le même éditeur, sous quatre formes</h2>
+      <p class="band-lede">
+        Le cœur ne connaît ni le DOM, ni React, ni un serveur — c'est ce qui
+        rend ces quatre formes possibles sans qu'aucune soit le portage d'une
+        autre.
+      </p>
+      <div class="cards cards-tight">
+        {shapes.map((s) => (
+          <a class="card" href={s.href}><h3>{s.t}</h3><p>{s.d}</p></a>
+        ))}
+      </div>
     </section>
   </div>
 </Base>

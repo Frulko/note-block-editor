@@ -39,6 +39,8 @@ export interface EditorLabels {
   addBlock: string;
   /** Tooltip on the ⋮⋮ handle. Two lines: drag, and click. */
   dragHandle: string;
+  /** Tooltip on the right-hand comment button. */
+  addComment: string;
 
   // --- format toolbar ---
   /** Bold. Format toolbar, and the ⌘B tooltip. */
@@ -246,6 +248,7 @@ export const defaultLabels: EditorLabels = {
 
   addBlock: 'Ajouter un bloc en dessous',
   dragHandle: 'Glisser pour déplacer\nCliquer pour ouvrir le menu',
+  addComment: 'Commenter ce bloc',
 
   bold: 'Gras',
   italic: 'Italique',

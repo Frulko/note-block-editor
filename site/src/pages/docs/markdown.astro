@@ -1,0 +1,96 @@
+---
+import Docs from '../../layouts/Docs.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const roundtrip = `import { markdownToBlocks, blocksToMarkdown } from '@nbe/markdown';
+
+// entrer : votre fichier, tel qu'il est sur le disque
+const blocks = markdownToBlocks(await readFile('note.md', 'utf8'));
+
+// sortir : du Markdown que n'importe quel autre outil relit
+await writeFile('note.md', blocksToMarkdown(blocks));`;
+---
+<Docs title="Markdown : mieux édité, jamais réécrit">
+  <p>
+    Le Markdown a gagné parce qu'il est du texte&nbsp;: lisible sans logiciel,
+    comparable dans un <code>git diff</code>, durable au-delà de l'outil qui l'a
+    produit. Son défaut n'a jamais été le format — c'est <em>l'édition</em>. On
+    tape des astérisques, on compte des espaces d'indentation, on déplace un
+    paragraphe en coupant-collant des lignes, et on prévisualise dans un second
+    volet pour vérifier ce qu'on a écrit.
+  </p>
+  <p>
+    L'ambition tient en une phrase&nbsp;: <strong>apporter une meilleure édition
+    et une meilleure vision du Markdown, sans toucher au format ni à son
+    stockage.</strong>
+  </p>
+
+  <h2 id="ce-quon-ne-change-pas">Ce qu'on ne change pas</h2>
+  <ul>
+    <li>
+      <strong>Le format.</strong> Pas de dialecte propriétaire, pas de
+      métadonnées injectées dans vos titres, pas d'attributs cachés au bout des
+      lignes. Ce qui sort est du Markdown ordinaire.
+    </li>
+    <li>
+      <strong>Le stockage.</strong> Vos fichiers restent des fichiers, à
+      l'endroit où vous les avez mis. Aucun verrou de base de données, aucun
+      format binaire, aucune migration à subir pour rouvrir une note de l'an
+      dernier.
+    </li>
+    <li>
+      <strong>La propriété.</strong> Dans le plugin Obsidian, c'est Obsidian qui
+      charge, enregistre, renomme et gère les conflits. L'éditeur fournit une
+      surface d'édition et se tient à l'écart du reste.
+    </li>
+  </ul>
+
+  <h2 id="ce-quon-change">Ce qu'on change</h2>
+  <p>
+    L'édition devient <em>par blocs</em>&nbsp;: un titre, un paragraphe, une
+    liste, un tableau sont des objets qu'on attrape, qu'on déplace, qu'on
+    duplique et qu'on commente. Le menu «&nbsp;/&nbsp;» remplace la syntaxe qu'il
+    fallait connaître, l'autoformat garde la syntaxe pour ceux qui la préfèrent,
+    et il n'y a plus de volet d'aperçu parce qu'il n'y a plus rien à prévisualiser.
+  </p>
+  <p>
+    Le fichier, lui, ne bouge pas de forme. Vous éditez comme dans Notion et vous
+    versionnez comme du texte.
+  </p>
+  <pre><code class="language-ts">{roundtrip}</code></pre>
+
+  <h2 id="projection">Pourquoi le Markdown n'est pas le stockage</h2>
+  <p>
+    Le Markdown est une <strong>projection</strong>, pas une base de données —
+    et c'est une distinction honnête, pas une échappatoire. Il a des pertes
+    documentées&nbsp;: il ne sait pas écrire un bloc vide, et il replie
+    volontairement les paragraphes coupés à la main. Si le Markdown était l'unique
+    copie, ces pertes s'accumuleraient à chaque enregistrement.
+  </p>
+  <p>
+    D'où les deux régimes, choisis selon ce que l'hôte peut garantir&nbsp;:
+  </p>
+  <ul>
+    <li>
+      <strong>Une note à la fois</strong> (le plugin Obsidian)&nbsp;: le Markdown
+      est la seule copie, et la perte est acceptée et documentée. Les mises en
+      colonnes s'aplatissent&nbsp;; ce qui n'a pas d'équivalent Markdown est écrit
+      en commentaire HTML plutôt que perdu.
+    </li>
+    <li>
+      <strong>Un espace de travail</strong> (l'application de bureau)&nbsp;: le
+      JSON fait foi dans <code>.nbe/</code>, et le Markdown de <code>pages/</code>
+      est régénéré. Vous gardez un vault lisible <em>et</em> un document sans perte.
+    </li>
+  </ul>
+
+  <div class="note">
+    <p>
+      «&nbsp;Supprimez l'application, lisez les fichiers&nbsp;» est une propriété
+      qu'on vérifie, pas une promesse&nbsp;: <code>nbe check</code> échoue si une
+      page cesse d'être lisible sans l'outil. Voir
+      <a href={`${base}/docs/why/`}>Pourquoi cet éditeur</a> et
+      <a href={`${base}/docs/hosts/`}>Où ça tourne</a>.
+    </p>
+  </div>
+</Docs>

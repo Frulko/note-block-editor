@@ -1,0 +1,173 @@
+---
+import Docs from '../../layouts/Docs.astro';
+
+const minimal = `import { Editor, createDoc } from '@nbe/core';
+import { EditorView } from '@nbe/dom';
+import '@nbe/dom/style.css';
+
+const editor = new Editor({ doc: createDoc() });
+new EditorView(document.getElementById('app')!, editor);`;
+
+const readOnly = `// un lecteur : rend le document, n'attache rien, aucun caret n'apparaît
+new EditorView(el, editor, { readOnly: true, features: [] });`;
+
+const commentBox = `import { minimalFeatures } from '@nbe/dom';
+
+// un champ de commentaire : on tape, on colle, on annule — aucun chrome
+new EditorView(el, editor, {
+  features: minimalFeatures,
+  gutter: { left: [], right: [] },
+  maxWidth: '100%',
+  padding: { top: '8px', bottom: '8px', x: '10px' },
+});`;
+
+const persist = `import { docToJSON, docFromJSON } from '@nbe/core';
+
+const saved = localStorage.getItem('doc');
+const editor = new Editor({ doc: saved ? docFromJSON(JSON.parse(saved)) : createDoc() });
+
+// une transaction, une notification : pas de debounce par frappe à écrire
+editor.on((change) => {
+  if (change.origin === 'history') return;
+  localStorage.setItem('doc', JSON.stringify(docToJSON(editor.doc)));
+});`;
+
+const complete = `import { Editor, docFromJSON, docToJSON } from '@nbe/core';
+import {
+  EditorView,
+  defaultFeatures,
+  defaultLeftGutter,
+  singleHostTopology,
+} from '@nbe/dom';
+import { callout } from '@nbe/blocks-callout/dom';
+import '@nbe/dom/style.css';
+
+const editor = new Editor({ doc: docFromJSON(saved), validation: 'warn' });
+
+const view = new EditorView(container, editor, {
+  // — ce qui existe ————————————————————————————————
+  blocks: [callout],                                    // + les blocs de base
+  features: defaultFeatures.filter((f) => f.name !== 'slash-menu'),
+  topology: singleHostTopology,                         // ou perBlockTopology
+
+  // — les marges d'action, à gauche et à droite ————————
+  gutter: {
+    left: defaultLeftGutter,                            // ['add', 'handle']
+    right: [
+      'comment',
+      { name: 'approve', icon: 'check', title: 'Valider', onClick: (id) => approve(id) },
+    ],
+  },
+
+  // — ce que l'hôte fournit ————————————————————————
+  onOpenPage: (id) => router.push(\`/p/\${id}\`),
+  onSearchPages: (q) => index.search(q),
+  resolvePageTitle: (id) => index.title(id),
+  onCreatePage: () => index.create(),
+  onStoreAsset: (blob) => uploads.put(blob),            // → 'asset:<hash>'
+  resolveAssetUrl: (src) => uploads.url(src),
+  onComment: (blockId, author) => threads.open(blockId, author),
+  commentAuthor: { id: me.id, name: me.name, avatar: me.avatar },
+  database: myDatabaseHost,
+
+  // — apparence et langue ——————————————————————————
+  maxWidth: '760px',
+  padding: { top: '32px', bottom: '30vh', x: '24px' },
+  spellcheck: true,
+  columns: false,                                       // expérimental
+  theme: { '--nbe-accent-rgb': '41 78 199' },
+  labels: { bold: 'Bold', italic: 'Italic' },
+});
+
+const stop = editor.on((change) => save(docToJSON(editor.doc), change.origin));
+
+// au démontage
+stop();
+view.destroy();`;
+
+const relay = `# @nbe/cli fournit la commande \`nbe\`
+
+# un relais : il recopie des octets entre les pairs d'un salon,
+# ne comprend rien à ce qu'il transporte, ne garde rien
+nbe relay --port 8787
+
+# un nœud : relais *et* pair permanent — un salon vide sert quand même
+# le document, ce qui est le cas d'usage d'un NAS
+nbe serve --port 8787 --root ./mon-carnet
+
+# 12 facteurs : le port, le dossier, rien d'autre. Pas de base de données,
+# pas de fichier de configuration, TLS au reverse proxy.`;
+
+const relayClient = `import { LoroBlockStore, connect, connectToRelay, createPresence } from '@nbe/collab';
+
+const store = new LoroBlockStore();
+const transport = connectToRelay('ws://localhost:8787', 'mon-salon');
+connect(store, transport);
+
+const editor = new Editor({ doc: { blocks: store, rootId } });
+
+// la présence passe sur le même socket et n'entre jamais dans le document
+const presence = createPresence(transport, { id: myId });
+presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
+---
+<Docs title="Exemples : du minimum au complet" wide>
+  <p>
+    Chaque exemple ci-dessous fonctionne tel quel. Ils vont du plus petit
+    éditeur qui édite jusqu'à une intégration qui branche tout&nbsp;: aucune
+    étape n'est un détour, chacune n'ajoute que ce qu'elle nomme.
+  </p>
+
+  <h2 id="minimal">Le minimum</h2>
+  <p>Cinq lignes, et c'est un éditeur complet : menu «&nbsp;/&nbsp;», poignées, sélection de blocs, presse-papiers.</p>
+  <pre><code class="language-ts">{minimal}</code></pre>
+
+  <h2 id="lecteur">Un lecteur</h2>
+  <p>
+    <code>readOnly</code> retire <code>contenteditable</code> et le point
+    d'entrée du tabulateur, donc aucun caret n'apparaît — la différence entre un
+    lecteur et un éditeur qui ignore silencieusement les frappes.
+  </p>
+  <pre><code class="language-ts">{readOnly}</code></pre>
+
+  <h2 id="champ">Un champ de commentaire</h2>
+  <p>
+    Ce que vous n'importez pas n'est pas dans votre bundle&nbsp;:
+    <code>minimalFeatures</code> n'embarque ni le menu de blocs, ni les barres
+    d'outils, ni les marges d'action.
+  </p>
+  <pre><code class="language-ts">{commentBox}</code></pre>
+
+  <h2 id="persistance">Persister</h2>
+  <p>
+    Une transaction, une notification&nbsp;: un collage de quarante blocs
+    n'appelle l'écouteur qu'une fois, donc il n'y a pas de <em>debounce</em> par
+    frappe à écrire soi-même.
+  </p>
+  <pre><code class="language-ts">{persist}</code></pre>
+
+  <h2 id="complet">Complet</h2>
+  <p>
+    Tout ce qu'un hôte peut brancher, au même endroit. Rien n'est obligatoire&nbsp;:
+    une option absente désactive proprement ce qu'elle sert — sans
+    <code>onSearchPages</code> le déclencheur «&nbsp;@&nbsp;» reste inerte, sans
+    <code>onComment</code> le bouton de commentaire n'est pas rendu du tout
+    plutôt que rendu mort.
+  </p>
+  <pre><code class="language-ts">{complete}</code></pre>
+
+  <h2 id="relais">À plusieurs, sans serveur applicatif</h2>
+  <p>
+    Le transport est un WebSocket, jamais du SSE&nbsp;: la synchronisation va
+    dans les deux sens. Le relais se lance <strong>en headless</strong>, sans
+    base de données ni configuration&nbsp;:
+  </p>
+  <pre><code class="language-bash">{relay}</code></pre>
+  <p>
+    Il ne sait pas ce qu'il transporte, et c'est délibéré&nbsp;: un relais
+    incapable de comprendre les données est incapable de les corrompre, n'a pas
+    besoin d'être mis à jour quand le format du document change, et peut être
+    remplacé par n'importe quel tuyau qui déplace des octets. Le contrôle
+    d'accès se met devant, dans un proxy qui authentifie.
+  </p>
+  <pre><code class="language-ts">{relayClient}</code></pre>
+</Docs>

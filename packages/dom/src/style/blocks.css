@@ -293,6 +293,13 @@
   border-radius: 3px;
   padding: 0.1em 0.3em;
 }
+/* a commented block, marked over its whole text: a tint and an underline, so
+   it reads as annotated without competing with a selection or a highlight */
+.nbe-m-comment {
+  background: rgb(var(--nbe-note-rgb) / 0.16);
+  box-shadow: inset 0 -2px 0 rgb(var(--nbe-note-rgb) / 0.5);
+  cursor: pointer;
+}
 a.nbe-m-link {
   color: inherit;
   text-decoration: underline;

@@ -463,3 +463,99 @@ body {
     display: none;
   }
 }
+
+/* --- comments panel ------------------------------------------------------ */
+
+.tab-badge:empty {
+  display: none;
+}
+.tab-badge {
+  display: inline-block;
+  min-width: 15px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(191, 141, 38, 0.22);
+  color: rgb(126, 92, 20);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+#panel-comments {
+  font-family: inherit;
+  font-size: 12.5px;
+  display: none;
+}
+#panel-comments.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.panel-empty {
+  margin: 0;
+  color: rgba(55, 53, 47, 0.5);
+  line-height: 1.5;
+}
+.thread {
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  border-radius: 7px;
+  background: #fff;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.thread:hover {
+  border-color: rgba(55, 53, 47, 0.2);
+  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.06);
+}
+.thread.resolved {
+  opacity: 0.55;
+  background: #fbfbfa;
+}
+.thread.orphan {
+  border-style: dashed;
+  border-color: rgba(199, 58, 52, 0.4);
+}
+.orphan-note {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: rgb(199, 58, 52);
+}
+.message + .message {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(55, 53, 47, 0.06);
+}
+.message-who {
+  font-weight: 600;
+}
+.message-at {
+  margin-left: 6px;
+  font-size: 10.5px;
+  color: rgba(55, 53, 47, 0.4);
+}
+.message-body {
+  margin: 3px 0 0;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.thread-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.thread-btn {
+  font: inherit;
+  font-size: 11px;
+  border: 1px solid rgba(55, 53, 47, 0.14);
+  border-radius: 4px;
+  background: #fff;
+  padding: 2px 7px;
+  cursor: pointer;
+  color: rgba(55, 53, 47, 0.7);
+}
+.thread-btn:hover {
+  background: rgba(55, 53, 47, 0.05);
+  color: rgb(55, 53, 47);
+}

@@ -380,10 +380,15 @@ Two faults it exists to prevent, both reported as "the editor is unusable":
   (a constant 16px pushes the midpoint outside a 28px paragraph, which made
   "drop above" unreachable from below).
 
-**Side drops are optional** (`EditorViewOptions.columns`, default `true`).
-Off, every drop is a reorder and the bands are neither drawn nor tested for —
-columns remain reachable from the slash menu, and documents that already have
-them still render.
+**Side drops are experimental and off** (`EditorViewOptions.columns`, default
+`false`). Off, every drop is a reorder and the bands are neither drawn nor
+tested for — columns remain reachable from the slash menu, and documents that
+already have them still render. The default is a judgement about the gesture,
+not about columns: one drag answering with two different documents ("moved
+below" vs. "now a two-column layout") is a miss the user cannot undo by aiming
+better, and the band tuning above is what it costs to make the two coexist.
+Until that reads as reliable, layout is something you ask for, not something a
+drag can produce by accident.
 
 **The indicator is a 2px line with a head dot**, horizontal between blocks and
 vertical against the edge that would become a column — Atlassian's documented

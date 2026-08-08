@@ -8,10 +8,10 @@ remembered.
 
 | Suite | State |
 | --- | --- |
-| Unit (`pnpm test`) | 851 passing, 66 files |
-| Browser, Chromium (`pnpm e2e --project=chromium`) | 116/116, **gates CI** |
-| Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 111/111, **gates CI** |
-| Browser, WebKit (`pnpm e2e --project=webkit`) | 108/108, 8 skipped, **gates CI** |
+| Unit (`pnpm test`) | 915 passing, 79 files |
+| Browser, Chromium (`pnpm e2e --project=chromium`) | 133/133, **gates CI** |
+| Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 128/128, 5 skipped, **gates CI** |
+| Browser, WebKit (`pnpm e2e --project=webkit`) | 125/125, 8 skipped, **gates CI** |
 | Touch, mobile viewports (`--project=mobile-safari --project=mobile-chrome`) | 6+7 passing, **gates CI** |
 | Performance (`e2e/performance.spec.ts`) | keystroke 8.3ms / 8.4ms at 500 blocks, render 205ms |
 | Swift (`cd native/swift && swift test`) | 49 passing |
@@ -20,6 +20,28 @@ remembered.
 Three clients share one document, proven end to end: a keystroke typed into an
 `NSTextView` in Swift merges into a TypeScript peer, and a desktop snapshot
 reopened in a new process converges with a browser holding nothing.
+
+## Shipped since, 2026-08-08
+
+- **Both hover gutters are configurable lists** (`EditorViewOptions.gutter`).
+  `'add' | 'handle' | 'comment'` are named built-ins a host can reorder or
+  drop, alongside its own `GutterAction`s. The right-hand one is new and holds
+  the comment button, which is not rendered at all without an `onComment` host
+  rather than rendered dead.
+- **Comments are on blocks**, from that button. The anchor is still the mark
+  §2.2 documents, laid over the block's whole text; `commentAuthor` is optional
+  and anonymous is a real mode, not a degraded one.
+- **Side drops are off by default** and marked experimental
+  (`columns`, was `true`). A drag now has one meaning. `?columns=on` in the
+  demo, and the e2e describes swapped accordingly.
+- **The collab demo joins a real relay** with `?room=<nom>`: `nbe relay` or
+  `nbe serve`, several browsers, named carets. Verified across two browsers,
+  not only in the loopback.
+- **`Editor` and `EditorView` are documented at the class level**, so TypeDoc
+  stops excluding them and the generated reference finally carries the
+  constructor, the methods and the event surface. `site/src/lib/api.ts` learned
+  constructors and accessors; new pages: `/docs/examples/`, `/docs/markdown/`,
+  `/docs/hosts/`, `/docs/api/editor/`.
 
 ## WebKit: closed
 

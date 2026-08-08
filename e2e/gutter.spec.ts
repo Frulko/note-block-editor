@@ -101,7 +101,7 @@ test.describe('the gutter belongs to the editor', () => {
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
     await page.mouse.move(box.x + 60, box.y + box.height / 2);
     await page.waitForTimeout(150);
-    await page.locator('.nbe-controls button').first().click();
+    await page.locator('.nbe-plus').click();
     await page.waitForTimeout(150);
     expect((await editor.texts()).length).toBe(3);
     expect(editor.errors()).toEqual([]);
@@ -113,5 +113,52 @@ test.describe('the gutter belongs to the editor', () => {
     await page.mouse.move(box.x + 60, box.y + box.height / 2);
     await page.waitForTimeout(150);
     expect(await editor.texts()).toEqual(['premier', 'deuxieme']);
+  });
+});
+
+/**
+ * The right-hand gutter, and the comment it opens.
+ *
+ * @remarks
+ * The demo wires `onComment` to a thread store and a panel, so this drives the
+ * whole path the way a user does: hover a block, click the bubble, type, and
+ * find the thread anchored to the block it was opened on. The mark laid over
+ * the block's text is what makes the anchor survive editing, so it is asserted
+ * rather than assumed.
+ */
+test.describe('the right gutter comments on a block', () => {
+  test('the bubble appears beside the block, opposite the handle', async ({ page, editor }) => {
+    await editor.setDocument(['premier', 'deuxieme']);
+    const box = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
+    await page.mouse.move(box.x + 60, box.y + box.height / 2);
+    await page.waitForTimeout(150);
+
+    const sides = await page.evaluate(() => {
+      const left = document.querySelector('.nbe-plus')?.getBoundingClientRect().left;
+      const right = document.querySelector('.nbe-comment')?.getBoundingClientRect().left;
+      const block = document.querySelector('.nbe-editor > .nbe-block')!.getBoundingClientRect();
+      return { left, right, blockLeft: block.left, blockRight: block.right };
+    });
+    expect(sides.left!).toBeLessThan(sides.blockLeft);
+    expect(sides.right!).toBeGreaterThanOrEqual(sides.blockRight);
+  });
+
+  test('it creates a thread, anchored by a mark on the block', async ({ page, editor }) => {
+    await editor.setDocument(['premier', 'deuxieme']);
+    page.on('dialog', (d) => void d.accept('à revoir'));
+
+    const box = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
+    await page.mouse.move(box.x + 60, box.y + box.height / 2);
+    await page.waitForTimeout(150);
+    await page.locator('.nbe-comment').click();
+    await page.waitForTimeout(150);
+
+    // the anchor is the mark, and it covers the block's whole text
+    await expect(page.locator('.nbe-editor > .nbe-block').nth(0).locator('.nbe-m-comment')).toHaveText('premier');
+
+    await page.locator('[data-tab="comments"]').click();
+    await expect(page.locator('#panel-comments .thread')).toHaveCount(1);
+    await expect(page.locator('#panel-comments .message-body')).toHaveText('à revoir');
+    expect(editor.errors()).toEqual([]);
   });
 });

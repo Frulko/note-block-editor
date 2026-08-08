@@ -20,6 +20,16 @@ import CollabDemo from '../components/demos/CollabDemo.tsx';
         vivent dans le même document, donc ils arrivent avec le texte plutôt que
         par un second canal qui pourrait prendre du retard.
       </p>
+      <p>
+        <strong>Et entre deux navigateurs&nbsp;?</strong> Un WebSocket, jamais
+        du SSE&nbsp;: la synchronisation va dans les deux sens et le SSE ne
+        descend que. Lancez <code>nbe relay</code> (ou <code>nbe serve</code>,
+        qui garde aussi les documents), puis ouvrez la démo avec
+        <code>?room=mon-salon</code> dans autant de fenêtres que vous voulez —
+        les curseurs des autres apparaissent avec leur nom. Le relais ne
+        comprend rien à ce qu’il transporte&nbsp;: il recopie des octets d’un
+        pair à l’autre, donc il ne peut pas les corrompre.
+      </p>
     </div>
     <div class="demo-frame" style="max-height:none;">
       <CollabDemo client:only="react" />
