@@ -1,8 +1,18 @@
 # Design note — simple table block (AQ#3)
 
-Status: **designed, deliberately not implemented** (post-v1 by design; the
-research flags tables as historically among the hardest editor features).
-This note fixes the model so nothing built meanwhile forecloses it.
+Status: **shipped 2026-08-06** — the note below was written when it was
+deliberately deferred, and was never updated when it landed two days later.
+Corrected 2026-08-08.
+
+The model below is the one that shipped, unchanged, which is the useful part of
+having written it down first: `table` / `table_row` / `table_cell`, blocks all
+the way down, with cells as inline hosts carrying the same runs as a paragraph.
+24 tests across `core` and `markdown`.
+
+**What is still deferred**, and was correctly predicted to be the hard part:
+cell-range selection, column resize and cell merging. The research flags tables
+as historically among the hardest editor features and that remains true of
+those three specifically, not of the block model.
 
 ## Model: blocks all the way down
 
