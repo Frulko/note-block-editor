@@ -12,5 +12,17 @@
   "dependencies": {
     "@nbe/core": "workspace:*",
     "loro-crdt": "^1.8.0"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "directory": "packages/collab"
+  },
+  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/note-block-editor/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "Collaboration : CRDT Loro, synchronisation, présence, commentaires, historique."
 }

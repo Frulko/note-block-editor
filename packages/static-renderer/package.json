@@ -11,5 +11,17 @@
   },
   "dependencies": {
     "@nbe/core": "workspace:*"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "directory": "packages/static-renderer"
+  },
+  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/note-block-editor/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "Rendu statique en HTML, sans DOM."
 }

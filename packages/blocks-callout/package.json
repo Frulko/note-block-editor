@@ -20,6 +20,20 @@
     "@nbe/dom": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@nbe/dom": { "optional": true }
-  }
+    "@nbe/dom": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "directory": "packages/blocks-callout"
+  },
+  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/note-block-editor/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "Le bloc encadré, en exemple de greffon."
 }

@@ -15,5 +15,17 @@
   },
   "peerDependencies": {
     "svelte": "^4.0.0 || ^5.0.0"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "directory": "packages/svelte"
+  },
+  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/note-block-editor/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "Liaison Svelte, fine : le travail est dans @nbe/dom."
 }
