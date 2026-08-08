@@ -130,3 +130,37 @@ describe('the files stay the truth', () => {
     }
   });
 });
+
+describe('D8: the drag is ours, the file drop is the browser’s', () => {
+  const DOM = CONTENTS.filter(({ path }) => path.startsWith('packages/dom/src'));
+
+  it('no block drag goes through HTML5 drag-and-drop', () => {
+    /*
+     * D8 chose an in-house pointer-events primitive because native HTML5 DnD
+     * cannot start from touch, cannot style its preview, gives no data during
+     * `dragover`, and auto-scrolls badly — the four limits that made Pragmatic
+     * unsuitable too, since it builds on the same API.
+     *
+     * The reason to test rather than trust: `draggable` is the obvious thing a
+     * contributor reaches for, and it would work on a desktop mouse and quietly
+     * fail on every phone.
+     */
+    const offenders: string[] = [];
+    for (const { path, text } of DOM) {
+      // our own primitive is *called* `draggable`; the attribute is the banned one
+      if (/\bdraggable\s*=\s*["']?true|setAttribute\(\s*['"]draggable/.test(text)) {
+        offenders.push(`${path}: draggable attribute`);
+      }
+      if (/addEventListener\(\s*['"]dragstart/.test(text)) offenders.push(`${path}: dragstart`);
+      if (/dataTransfer\.setData/.test(text)) offenders.push(`${path}: dataTransfer.setData`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('the native drop listeners exist only where OS files arrive', () => {
+    // the documented exception: a file dragged in from the desktop is the one
+    // thing only the browser can tell us about
+    const withNativeDrop = DOM.filter(({ text }) => /addEventListener\(\s*['"]drop['"]/.test(text)).map((f) => f.path);
+    expect(withNativeDrop.sort()).toEqual(['packages/dom/src/clipboard.ts', 'packages/dom/src/ui/upload.ts']);
+  });
+});

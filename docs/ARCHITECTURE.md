@@ -582,11 +582,36 @@ phase begins:
    browser owns inside a leaf (§5.1), and normalisation between NFC and NFD,
    which is a storage-policy question rather than an editing one.
 
-5. **Markdown parser/serializer engineering.** remark/mdast vs markdown-it vs
-   custom; deterministic diff-stable serialization; ID-preserving re-import.
-6. **Editor test automation.** Simulating IME composition/clipboard/drag in CI
-   (Playwright/CDP limits), headless op-layer tests vs real-browser matrix,
-   non-US layouts (AZERTY dead keys vs shortcut collisions).
+5. **Markdown parser/serializer engineering.** *Resolved by shipping, recorded
+   2026-08-08.* **Custom**, in `@nbe/markdown`, and the reason is the same one
+   as D2: remark and markdown-it both produce their own AST, so adopting either
+   means maintaining a translation to our blocks *and* inheriting their idea of
+   what a document is. The parser is line-based — a line is a block, which is
+   how Notion's own paste behaves — and the serializer is deterministic.
+   Diff-stability is the **idempotence** property under test in D7, not equality
+   with the source. ID-preserving re-import works through frontmatter and is
+   verified end to end (`e2e/vault.spec.ts`). The remaining known cost, stated
+   rather than discovered: our parser is not CommonMark, and a construct it does
+   not know becomes a paragraph rather than an error.
+6. **Editor test automation.** *Largely resolved 2026-08-08; what is left needs
+   devices.* The answer to "Playwright/CDP limits" turned out to be: CDP does
+   more than expected and covers less than needed, and knowing which is which is
+   most of the value.
+   - **Composition** is drivable — `Input.imeSetComposition` runs Chromium's
+     genuine pipeline, and AppKit's `NSTextInputClient` is callable directly in
+     the Swift suite. Both found real bugs (`e2e/ime.spec.ts`,
+     `BlockTextViewTests`).
+   - **Clipboard and drag** are covered, and the two tests that cannot exist
+     outside Chromium say so explicitly rather than failing red — a red build on
+     a known gap teaches people to ignore red builds.
+   - **The matrix is real now**: Chromium, WebKit (Safari's engine, therefore
+     iOS's), a `singleHostTopology` variant, and touch at iPhone and Pixel
+     viewports — four browser projects, all gating. WebKit found a data-loss bug
+     in its first run.
+   - **Still needs hardware**, and nothing simulates it: a particular IME's
+     behaviour, the software keyboard, and non-US layouts with dead keys. The
+     keyboard's *effect* is simulated (`packages/dom/test/viewport.test.ts`);
+     its input stack is not.
 7. **Touch/mobile interaction design.** *Largely resolved 2026-08-07; the
    device half remains.* The first measurement was not about gestures: at 390px
    the editor was **not on screen at all**, because the demo's three fixed
