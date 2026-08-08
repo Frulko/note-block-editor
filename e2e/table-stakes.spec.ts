@@ -112,4 +112,15 @@ test.describe('the slash menu opens only when asked', () => {
     await expect(page.locator('.nbe-menu')).toHaveCount(0);
     expect((await editor.texts())[0]).toBe('/head');
   });
+
+  test('Enter converts in place and leaves the caret in the new block', async ({ page, editor }) => {
+    // with a block following it, the caret used to land on that one instead
+    await editor.setDocument(['one', '', 'three']);
+    await editor.caret(1, 0);
+    await page.keyboard.type('/head');
+    await expect(page.locator('.nbe-menu')).toBeVisible();
+    await page.keyboard.press('Enter');
+    expect(await editor.types()).toEqual(['paragraph', 'heading', 'paragraph']);
+    expect(await editor.caretAt()).toEqual({ index: 1, offset: 0 });
+  });
 });

@@ -50,6 +50,7 @@ export {
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,
+  tableUIFeature,
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';

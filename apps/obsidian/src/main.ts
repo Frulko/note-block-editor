@@ -1,5 +1,16 @@
-import { Plugin, PluginSettingTab, Setting, TextFileView, type App, type WorkspaceLeaf } from 'obsidian';
-import { Editor, docFromJSON, docToJSON, uuidv7, type BlockJSON } from '@nbe/core';
+import {
+  Keymap,
+  Notice,
+  Plugin,
+  PluginSettingTab,
+  Setting,
+  TextFileView,
+  WorkspaceLeaf,
+  normalizePath,
+  type App,
+  type ViewState,
+} from 'obsidian';
+import { Editor, docFromJSON, docToJSON, getBlock, uuidv7, type BlockJSON } from '@nbe/core';
 import { EditorView, defaultFeatures, type EditorViewOptions } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 
@@ -28,9 +39,11 @@ import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
  * of loading, saving, renaming, conflict handling and the file explorer; we
  * supply an editing surface and stay out of everything else.
  *
- * **It does not hijack Markdown.** Registering as the handler for every `.md`
- * file would take Obsidian's own editor away from people who did not ask, so
- * the view is opt-in per file, through a command and the view switcher.
+ * **It does not hijack Markdown uninvited.** Taking over every `.md` file
+ * would remove Obsidian's own editor from people who did not ask, so by
+ * default the view is opt-in per file, through a command and the view
+ * switcher. The « éditeur par défaut » setting flips that for people who did
+ * ask; the escape hatch (per-file « revenir à Markdown ») always works.
  *
  * **Block ids are per session.** Markdown has no place to keep them and this
  * plugin adds no sidecar, so ids are regenerated on load. Undo lives in the
@@ -55,6 +68,8 @@ interface CarnetSettings {
   spellcheck: boolean;
   columns: boolean;
   readOnly: boolean;
+  /** Open every Markdown file in Carnet instead of Obsidian's editor. */
+  defaultEditor: boolean;
   /** One CSS custom property per line: `--nbe-accent-rgb: 220 38 38`. */
   theme: string;
   /** Chrome features toggled off, by feature name; absent means on. */
@@ -69,6 +84,7 @@ const DEFAULT_SETTINGS: CarnetSettings = {
   spellcheck: false,
   columns: false,
   readOnly: false,
+  defaultEditor: false,
   theme: '',
   features: {},
 };
@@ -182,6 +198,55 @@ class CarnetView extends TextFileView {
 
   async onOpen(): Promise<void> {
     this.mount = this.contentEl.createDiv({ cls: 'carnet-host' });
+    this.registerDomEvent(this.mount, 'click', (e) => this.followLink(e));
+    // an external rename (file explorer, sync) must reach the inline title;
+    // Obsidian mutates the TFile in place, so identity survives the rename
+    this.registerEvent(
+      this.app.vault.on('rename', (file) => {
+        if (file === this.file && this.titleEl) this.titleEl.textContent = this.file.basename;
+      }),
+    );
+  }
+
+  /**
+   * Obsidian-style navigation: a wikilink opens the note, a plain link the
+   * browser, and Cmd/Ctrl+click opens in a new pane ({@link Keymap.isModEvent}).
+   *
+   * @remarks
+   * `openLinkText` is the vault's own resolver — shortest-path matching,
+   * unresolved-link creation, everything — so we hand it the link text and
+   * stay out of the rest. The editor's `onOpenPage` hook is not the right
+   * seam here: it speaks page ids, and a vault has none.
+   */
+  private followLink(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    const open = (linktext: string) => {
+      e.preventDefault();
+      void this.app.workspace.openLinkText(linktext, this.file?.path ?? '', Keymap.isModEvent(e));
+    };
+    const mention = target.closest('.nbe-m-mention') as HTMLElement | null;
+    if (mention) {
+      const linktext = mention.dataset['target'] || mention.dataset['pageId'] || mention.textContent || '';
+      if (linktext) open(linktext);
+      return;
+    }
+    const pageLink = target.closest('.nbe-t-link_to_page') as HTMLElement | null;
+    if (pageLink && this.editor) {
+      const p = getBlock(this.editor.doc, pageLink.dataset['blockId']!).props;
+      const linktext = String(p['target'] || p['title'] || '');
+      if (linktext) open(linktext);
+      return;
+    }
+    const anchor = target.closest('a.nbe-m-link') as HTMLAnchorElement | null;
+    if (anchor) {
+      const href = anchor.getAttribute('href') ?? '';
+      if (!href) return;
+      e.preventDefault();
+      // a scheme means the outside world; anything else is a vault-relative
+      // path, which is Obsidian's to resolve
+      if (/^[a-z][a-z0-9+.-]*:/i.test(href)) window.open(href);
+      else open(decodeURI(href).replace(/\.md$/, ''));
+    }
   }
 
   async onClose(): Promise<void> {
@@ -190,14 +255,79 @@ class CarnetView extends TextFileView {
     this.editor = null;
   }
 
+  private titleEl: HTMLElement | null = null;
+
+  /** The inline title: the filename, edited in place like Obsidian's own. */
+  private buildTitle(host: HTMLElement): void {
+    const title = host.createDiv({ cls: 'carnet-title' });
+    this.titleEl = title;
+    title.textContent = this.file?.basename ?? '';
+    try {
+      title.contentEditable = 'plaintext-only';
+    } catch {
+      title.contentEditable = 'true';
+    }
+    title.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        title.blur();
+        this.mount?.querySelector<HTMLElement>('.nbe-leaf')?.focus();
+      } else if (e.key === 'Escape') {
+        title.textContent = this.file?.basename ?? '';
+        title.blur();
+      }
+    });
+    title.addEventListener('blur', () => void this.commitTitle());
+  }
+
+  /** Rename the file to match the edited title; revert the text on refusal. */
+  private async commitTitle(): Promise<void> {
+    const title = this.titleEl;
+    if (!title || !this.file) return;
+    const name = (title.textContent ?? '').trim();
+    if (!name || name === this.file.basename) {
+      title.textContent = this.file.basename;
+      return;
+    }
+    const folder = this.file.parent?.path ?? '';
+    try {
+      // fileManager, not vault: this is the rename that updates backlinks
+      await this.app.fileManager.renameFile(this.file, normalizePath(`${folder}/${name}.${this.file.extension}`));
+    } catch (err) {
+      new Notice(err instanceof Error ? err.message : String(err));
+    }
+    title.textContent = this.file.basename;
+  }
+
   private build(markdown: string): void {
     if (!this.mount) return;
     this.loading = true;
     this.view?.destroy();
     this.mount.empty();
+    this.buildTitle(this.mount);
+
+    const opts = viewOptions(this.plugin.settings);
+    // the title supplies the top spacing; keep the editor close under it
+    if (!this.plugin.settings.padTop.trim()) opts.padding = { ...opts.padding, top: '12px' };
 
     this.editor = new Editor({ doc: docFromJSON(pageOf(markdown)) });
-    this.view = new EditorView(this.mount, this.editor, viewOptions(this.plugin.settings));
+    this.view = new EditorView(this.mount, this.editor, {
+      ...opts,
+      // the `@` picker completes against the vault's notes; the id IS the
+      // link text, because a vault resolves by name, not by uuid
+      onSearchPages: (query) => {
+        const q = query.toLowerCase();
+        return this.app.vault
+          .getMarkdownFiles()
+          .filter((f) => f.basename.toLowerCase().includes(q))
+          .slice(0, 10)
+          .map((f) => ({ pageId: f.basename, title: f.basename }));
+      },
+      // a pasted or dropped image is an attachment, and the vault already has
+      // a policy for where those go — so we ask it rather than invent a folder
+      onStoreAsset: (blob) => this.storeAttachment(blob),
+      resolveAssetUrl: (src) => this.resolveAttachment(src),
+    });
     /*
      * `requestSave` is Obsidian's debounced writer, and letting it own the
      * timing is the point: it already knows about conflicts, external changes
@@ -211,6 +341,49 @@ class CarnetView extends TextFileView {
     this.loading = false;
   }
 
+  /**
+   * Write a pasted/dropped binary into the vault, return the link to persist.
+   *
+   * @remarks
+   * The src that goes in the document is the **vault path**, not an opaque
+   * `asset:` ref, and that is the whole point of this host: the file is the
+   * document (§10 inverted, as the module note explains), so an image has to
+   * be a file Obsidian can see, back up and sync like any other attachment.
+   * `getAvailablePathForAttachment` is the vault's own policy — the user's
+   * attachment folder, the collision suffix — so nothing here decides where
+   * images live.
+   *
+   * URL-encoded because the path is going into `![](…)`, where a `)` or a `#`
+   * in a folder name would end the link early. {@link resolveAttachment}
+   * decodes on the way back, as {@link followLink} already does for links.
+   */
+  private async storeAttachment(blob: Blob): Promise<string> {
+    const ext = blob.type.split('/')[1]?.replace(/\+xml$/, '') || 'png';
+    const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    const name = (blob as File).name || `Pasted image ${stamp}.${ext}`;
+    const path = await this.app.fileManager.getAvailablePathForAttachment(name, this.file?.path);
+    await this.app.vault.createBinary(path, await blob.arrayBuffer());
+    return encodeURI(path);
+  }
+
+  /**
+   * A stored src as something an `<img>` can load.
+   *
+   * @remarks
+   * Also what makes images in *existing* notes appear: `![](attachments/x.png)`
+   * is a vault path, which a browser cannot fetch — it needs `app://`, and only
+   * the vault can produce it. Link resolution is Obsidian's (shortest-path
+   * matching), so a bare filename works the way it does everywhere else.
+   *
+   * ponytail: `![[x.png]]` embeds are still text — the Markdown parser has no
+   * wikilink-image rule. Add one there if vaults full of them need it.
+   */
+  private resolveAttachment(src: string): string {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return src; // http(s), data:, already resolved
+    const file = this.app.metadataCache.getFirstLinkpathDest(decodeURI(src), this.file?.path ?? '');
+    return file ? this.app.vault.getResourcePath(file) : src;
+  }
+
   /** Rebuild with the current settings, keeping the document being edited. */
   refresh(): void {
     this.build(this.getViewData());
@@ -219,11 +392,46 @@ class CarnetView extends TextFileView {
 
 export default class CarnetPlugin extends Plugin {
   settings: CarnetSettings = { ...DEFAULT_SETTINGS };
+  /** Files the user explicitly sent back to Obsidian's Markdown editor. */
+  private readonly asMarkdown = new Set<string>();
 
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) ?? {}) };
     this.registerView(VIEW_TYPE, (leaf: WorkspaceLeaf) => new CarnetView(leaf, this));
     this.addSettingTab(new CarnetSettingTab(this.app, this));
+    this.syncTheme();
+    this.registerEvent(this.app.workspace.on('css-change', () => this.syncTheme()));
+
+    /*
+     * « Éditeur par défaut » : Obsidian refuses a second view for `.md`, so
+     * the only seam is the one every open goes through — `setViewState` —
+     * rewritten from `markdown` to Carnet when the setting says so. The same
+     * approach as the Kanban plugin. `asMarkdown` is the per-file escape
+     * hatch, session-scoped on purpose: "montre-moi le Markdown" is a request
+     * about now, not a preference to persist.
+     *
+     * ponytail: a bare prototype patch, restored on unload. If another plugin
+     * patches the same method after us, unload order decides who wins —
+     * monkey-around if that ever bites someone.
+     */
+    const plugin = this;
+    const original = WorkspaceLeaf.prototype.setViewState;
+    WorkspaceLeaf.prototype.setViewState = function (state: ViewState, eState?: unknown) {
+      const file = (state.state as Record<string, unknown> | undefined)?.['file'];
+      if (
+        plugin.settings.defaultEditor &&
+        state.type === 'markdown' &&
+        typeof file === 'string' &&
+        file.endsWith('.md') &&
+        !plugin.asMarkdown.has(file)
+      ) {
+        return original.call(this, { ...state, type: VIEW_TYPE }, eState);
+      }
+      return original.call(this, state, eState);
+    };
+    this.register(() => {
+      WorkspaceLeaf.prototype.setViewState = original;
+    });
 
     this.addCommand({
       id: 'open-in-carnet',
@@ -232,7 +440,10 @@ export default class CarnetPlugin extends Plugin {
         const leaf = this.app.workspace.getMostRecentLeaf();
         const file = this.app.workspace.getActiveFile();
         if (!leaf || !file || file.extension !== 'md') return false;
-        if (!checking) void leaf.setViewState({ type: VIEW_TYPE, state: { file: file.path } });
+        if (!checking) {
+          this.asMarkdown.delete(file.path);
+          void leaf.setViewState({ type: VIEW_TYPE, state: { file: file.path } });
+        }
         return true;
       },
     });
@@ -244,10 +455,32 @@ export default class CarnetPlugin extends Plugin {
         const leaf = this.app.workspace.getMostRecentLeaf();
         const file = this.app.workspace.getActiveFile();
         if (!leaf || leaf.view.getViewType() !== VIEW_TYPE || !file) return false;
-        if (!checking) void leaf.setViewState({ type: 'markdown', state: { file: file.path } });
+        if (!checking) {
+          this.asMarkdown.add(file.path);
+          void leaf.setViewState({ type: 'markdown', state: { file: file.path } });
+        }
         return true;
       },
     });
+  }
+
+  onunload(): void {
+    delete document.body.dataset.nbeTheme;
+  }
+
+  /**
+   * Tell the token layer which way Obsidian is pointing.
+   *
+   * @remarks
+   * Carnet's channels flip on `prefers-color-scheme` unless a host says
+   * otherwise, and a vault's theme has nothing to do with the OS's — someone
+   * running a light system and a dark vault was getting dark ink on a dark
+   * page. `data-nbe-theme` is the documented hook for saying so, and putting it
+   * on `<body>` is what reaches the menus portaled out there as well as the
+   * editor. `css-change` is the event Obsidian fires when the theme changes.
+   */
+  private syncTheme(): void {
+    document.body.dataset.nbeTheme = document.body.hasClass('theme-dark') ? 'dark' : 'light';
   }
 
   /** Persist the settings and rebuild every open Carnet view with them. */
@@ -272,6 +505,16 @@ class CarnetSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const save = () => void this.plugin.saveSettings();
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Éditeur par défaut')
+      .setDesc('Ouvre les fichiers Markdown dans Carnet plutôt que dans l’éditeur d’Obsidian. « Revenir à l’éditeur Markdown » reste disponible fichier par fichier.')
+      .addToggle((t) =>
+        t.setValue(s.defaultEditor).onChange((v) => {
+          s.defaultEditor = v;
+          save();
+        }),
+      );
 
     new Setting(containerEl)
       .setName('Largeur du texte')

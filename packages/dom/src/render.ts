@@ -34,6 +34,10 @@ function renderRun(view: EditorView, run: Run): Node {
     const live = view.options.resolvePageTitle?.(pageId);
     span.textContent = live ?? run.text;
     span.dataset['pageId'] = pageId;
+    // a wikilink's original target (may differ from the shown text); hosts
+    // that navigate by name — a vault, not a workspace — read it from here
+    const target = String(mention.attrs?.['target'] ?? '');
+    if (target) span.dataset['target'] = target;
     if (live === null) span.classList.add('nbe-m-mention-missing');
     return span;
   }

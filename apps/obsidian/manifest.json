@@ -1,7 +1,7 @@
 {
   "id": "carnet",
   "name": "Carnet",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "minAppVersion": "1.4.0",
   "description": "Édite une note dans un éditeur par blocs, à la Notion. Le fichier reste du Markdown.",
   "author": "Guillaume Dumoulin",

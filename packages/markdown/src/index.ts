@@ -148,7 +148,13 @@ function atomicRun(run: Run): string {
    * trade. Re-import matches the title back to a page, which is exactly how
    * Obsidian itself behaves when a note is renamed.
    */
-  if (has('mention')) return wikilink(run.text);
+  if (has('mention')) {
+    // a parsed wikilink carries its original target; emitting it verbatim is
+    // what keeps `[[target|alias]]` from corrupting on a save
+    const target = String(marks.find((m) => m.type === 'mention')?.attrs?.['target'] ?? '');
+    if (target) return target === run.text ? `[[${target}]]` : `[[${target}|${run.text}]]`;
+    return wikilink(run.text);
+  }
 
   let s: string;
   if (has('code')) {
@@ -250,10 +256,16 @@ function parseInline(text: string, marks: Mark[]): Run[] {
       const wm = /^\[\[([^\]]+)\]\]/.exec(text.slice(i));
       if (wm) {
         flush();
-        // `[[target|display]]` — the display half is the title, which is what
-        // a mention shows and what a vault import matches a page against
-        const shown = wm[1]!.slice(wm[1]!.indexOf('|') + 1);
-        runs.push({ text: shown, marks: [...marks.map((m) => ({ ...m })), { type: 'mention' }] });
+        // `[[target|display]]` — the display half is what a mention shows; the
+        // target half is kept in the mark so navigation and re-export resolve
+        // the note the author actually pointed at, alias intact
+        const raw = wm[1]!;
+        const pipe = raw.indexOf('|');
+        const target = pipe === -1 ? raw : raw.slice(0, pipe);
+        runs.push({
+          text: raw.slice(pipe + 1),
+          marks: [...marks.map((m) => ({ ...m })), { type: 'mention', attrs: { target } }],
+        });
         i += wm[0].length;
         continue;
       }
@@ -450,11 +462,15 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
     case 'image':
       return [pad + `![${text}](${String(p['src'] ?? '')})`];
     case 'link_to_page':
-    case 'sub_page':
+    case 'sub_page': {
       // documented loss (D7): both become a wikilink, so a re-import cannot
       // tell "the page lives here" from "the page is mentioned here". In a
       // vault the hierarchy is the folder layout, which is phase 4b's job.
-      return [pad + wikilink(String(p['title'] || 'page'))];
+      const title = String(p['title'] || 'page');
+      const target = String(p['target'] ?? '');
+      if (target) return [pad + (target === title ? `[[${target}]]` : `[[${target}|${title}]]`)];
+      return [pad + wikilink(title)];
+    }
     case 'table': {
       const rows = (b.children ?? []).filter((r) => r.type === 'table_row');
       if (!rows.length) return [];
@@ -775,7 +791,14 @@ function parseLevel(
 
     // wikilink alone on a line
     if ((m = /^\[\[(.+?)\]\]\s*$/.exec(content))) {
-      out.push(mk('link_to_page', { title: m[1]! }));
+      const raw = m[1]!;
+      const pipe = raw.indexOf('|');
+      out.push(
+        mk('link_to_page', {
+          title: raw.slice(pipe + 1),
+          target: pipe === -1 ? raw : raw.slice(0, pipe),
+        }),
+      );
       pos++;
       continue;
     }

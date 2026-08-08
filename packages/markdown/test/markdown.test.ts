@@ -122,6 +122,24 @@ describe('blocksToMarkdown', () => {
     expect(blocksToMarkdown([b('quote', { text: [{ text: 'wise' }] })])).toBe('> wise');
   });
 
+  it('aliased wikilinks keep their target, inline and as a block', () => {
+    // `[[target|alias]]` used to collapse onto the alias, breaking the link on save
+    expect(stripIds(markdownToBlocks('a [[folder/note|nice name]] b'))).toEqual(
+      stripIds([
+        b('paragraph', {
+          text: [
+            { text: 'a ' },
+            { text: 'nice name', marks: [{ type: 'mention', attrs: { target: 'folder/note' } }] },
+            { text: ' b' },
+          ],
+        }),
+      ]),
+    );
+    expect(blocksToMarkdown(markdownToBlocks('a [[folder/note|nice name]] b'))).toBe('a [[folder/note|nice name]] b');
+    expect(blocksToMarkdown(markdownToBlocks('[[folder/note|nice name]]'))).toBe('[[folder/note|nice name]]');
+    expect(blocksToMarkdown(markdownToBlocks('[[Plain]]'))).toBe('[[Plain]]');
+  });
+
   it('separates blocks with blank lines except consecutive list items', () => {
     const md = blocksToMarkdown([
       b('heading', { props: { level: 1 }, text: [{ text: 'H' }] }),
@@ -254,7 +272,7 @@ describe('markdownToBlocks', () => {
     expect(blocks[10]!.props).toEqual({ language: 'js' });
     expect(blocks[10]!.text).toEqual([{ text: 'console.log("hi");' }]);
     expect(blocks[12]!.props).toEqual({ src: 'http://img/d.png' });
-    expect(blocks[13]!.props).toEqual({ title: 'Other Page' });
+    expect(blocks[13]!.props).toEqual({ title: 'Other Page', target: 'Other Page' });
     for (const blk of blocks) expect(typeof blk.id).toBe('string');
     expect(new Set(blocks.map((x) => x.id)).size).toBe(blocks.length);
   });
@@ -331,7 +349,7 @@ describe('block round-trip', () => {
       b('code', { props: { language: 'ts' }, text: [{ text: 'const a = 1;\nconst b = 2;' }] }),
       b('divider'),
       b('image', { props: { src: 'http://img/x.png' }, text: [{ text: 'a caption' }] }),
-      b('link_to_page', { props: { title: 'Linked Page' } }),
+      b('link_to_page', { props: { title: 'Linked Page', target: 'Linked Page' } }),
     ];
     const md = blocksToMarkdown(doc);
     expect(stripIds(markdownToBlocks(md))).toEqual(stripIds(doc));

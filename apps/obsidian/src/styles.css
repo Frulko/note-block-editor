@@ -1,0 +1,156 @@
+/* Carnet inside Obsidian.
+
+   Obsidian loads exactly one stylesheet per plugin (styles.css), so the
+   editor's own stylesheet is bundled here by esbuild — the @import below is
+   inlined at build time. The rest of this file does two things: it maps
+   Carnet's tokens onto Obsidian's, which is what makes the plugin follow the
+   user's chosen theme instead of imposing ours, and it undoes app.css's own
+   styling of bare elements, which otherwise lands on top of the editor's. */
+
+@import '@nbe/dom/style.css';
+
+.carnet-host {
+  height: 100%;
+  overflow: auto;
+}
+
+/* The inline title: the filename, edited in place like Obsidian's own.
+   ponytail: the horizontal formula copies .nbe-editor's defaults (24px pad,
+   58px gutter, 708px measure); a custom maxWidth/padX vault setting will
+   shift the body but not the title — wire the settings through if that bites. */
+.carnet-title {
+  padding: 40px max(24px, 58px, calc((100% - 708px) / 2)) 0;
+  background: var(--background-primary);
+  font-family: var(--font-text);
+  font-size: var(--inline-title-size, 1.875em);
+  font-weight: var(--inline-title-weight, 700);
+  line-height: 1.3;
+  color: var(--text-normal);
+  outline: none;
+  word-break: break-word;
+  cursor: text;
+  user-select: text;
+}
+
+/* ==========================================================================
+   The vault's theme wins.
+   ========================================================================== */
+
+.carnet-host .nbe-editor,
+/* the floating chrome is portaled to <body>, outside `.carnet-host`, so it
+   needs the mapping too — and it needs to outrank the token layer's own theme
+   blocks by the same margin `.carnet-host` gives the editor, or a menu ends up
+   painted a different dark from the page it is floating over */
+body[data-nbe-theme] .nbe-portal {
+  /* a plugin that repainted the app would be rude, and Obsidian's variables
+     are already the user's stated preference */
+  --nbe-surface: var(--background-primary);
+  --nbe-surface-sunken: var(--background-secondary);
+  /* `--font-text`, not `--font-interface`: this is a note being read and
+     written, which is the face the vault chose for exactly that */
+  --nbe-font-sans: var(--font-text);
+  --nbe-font-mono: var(--font-monospace);
+}
+
+.carnet-host .nbe-editor {
+  min-height: 100%;
+  /* app.css turns selection off on <body> and back on for `contenteditable`;
+     the editor's own chrome and its read-only blocks are neither */
+  user-select: text;
+}
+
+/* ==========================================================================
+   Undoing app.css.
+
+   Obsidian styles bare elements, and at a specificity Carnet's component
+   classes cannot outrank: `button:not(.clickable-icon)` is (0,1,1) against
+   `.nbe-menu-item`'s (0,1,0). That is the whole of what the screenshots showed
+   — the slash menu arriving as a column of centred grey pills, the gutter as
+   two grey chips, an unticked checkbox as a filled grey square.
+
+   So each rule below is written at the specificity its job needs and no more:
+   `:where()` where a Carnet class must still win, `:is()` where it must not.
+   ========================================================================== */
+
+/* (0,0,1) — ties app.css's bare `button`/`select` rules and takes them on
+   source order, loses to every Carnet class. Geometry Carnet never states. */
+:where(.carnet-host, .nbe-portal) :is(button, select) {
+  height: auto;
+  justify-content: flex-start;
+  white-space: normal;
+  box-shadow: none;
+  /* app.css removes the native arrow and paints its own as a background image,
+     which Carnet's `background` shorthand then wipes — leaving a select with
+     no affordance at all. Take the native one back instead. */
+  appearance: auto;
+}
+
+/* (0,1,1) — the paint app.css puts above Carnet's classes. A Carnet button is
+   transparent and takes its ink from the surface it sits on, which is what the
+   components already do; the three that carry a fill of their own get it back
+   below, and the surfaces state the ink at the end of this file. */
+:is(.carnet-host, .nbe-portal) button {
+  color: inherit;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* (0,1,1) as well — but a Carnet `:hover` is (0,2,0) and still wins, so this
+   only reaches the controls with no hover of their own (a checkbox, a swatch),
+   which app.css would otherwise fill grey under the pointer. */
+:where(.carnet-host, .nbe-portal) button:hover {
+  background-color: transparent;
+}
+
+/* Text fields, same story — `input[type='text']` is (0,1,1). Neutral first… */
+:where(.carnet-host, .nbe-portal) input:not([type='checkbox']) {
+  height: auto;
+  color: inherit;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  font: inherit;
+}
+/* …then the framed field, a class above it. Checkboxes are left out entirely:
+   app.css draws a good one and a native-looking checkbox is not a defect. */
+:is(.carnet-host, .nbe-portal) :is(.nbe-input, .nbe-db-input, .nbe-iconpicker-search) {
+  background-color: var(--nbe-surface);
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm);
+  padding: 4px 7px;
+  font-size: 13px;
+}
+
+/* The fills the button rule above flattens. */
+:is(.carnet-host, .nbe-portal) :is(.nbe-swatch, .nbe-dropzone-btn) {
+  background-color: var(--nbe-surface);
+}
+:is(.carnet-host, .nbe-portal) .nbe-db-selectbtn {
+  background-color: rgb(var(--nbe-ink-warm) / 0.15);
+}
+
+/* And the ink. `color: inherit` on the buttons means each surface states it
+   once and every control on it follows — which also survives a control being
+   added later, where a list of button class names would not. Order matters:
+   floating chrome carries `.nbe-portal` on the element itself, so the
+   specific surfaces have to come after the generic one.
+
+   ponytail: this flattens the few controls that were a shade lighter than
+   their container (the icon picker's tabs, a database's toolbar buttons). Give
+   them a rule here if the difference turns out to matter. */
+.nbe-portal,
+.nbe-menu,
+.nbe-popover {
+  color: var(--nbe-text);
+}
+.nbe-blocktoolbar,
+.nbe-linkcard {
+  color: var(--nbe-text-muted);
+}
+.nbe-controls {
+  color: var(--nbe-text-faint);
+}
+.nbe-seltoolbar {
+  color: var(--nbe-inverse-text);
+}

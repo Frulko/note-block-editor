@@ -100,6 +100,10 @@ export function attachSlashMenu(view: EditorView): () => void {
     const caret = editor.selection?.kind === 'text' ? editor.selection.head.offset : triggerOffset + 1;
     const queryEnd = caret;
     const willBeEmpty = textLength(block.text) - (queryEnd - triggerOffset) === 0;
+    // snapshot: `block` is the live doc object, so after the tx converts it in
+    // place `block.type` already reads the new type — testing it later sent the
+    // caret to the next block instead of the one just created
+    const convertInPlace = willBeEmpty && block.type === 'paragraph';
 
     const newBlock = (type: string, props: Record<string, unknown> = {}): Block => ({
       id: uuidv7(),
@@ -141,7 +145,7 @@ export function attachSlashMenu(view: EditorView): () => void {
     editor.dispatch(
       (tx) => {
         tx.op({ type: 'delete_text', id: blockId, from: triggerOffset, to: queryEnd });
-        if (willBeEmpty && block.type === 'paragraph') {
+        if (convertInPlace) {
           tx.op({ type: 'update_block', id: blockId, patch: { type: target.type, props } });
           if (target.extraParagraph) {
             tx.op({ type: 'insert_block', block: newBlock('paragraph'), index: childIndex(editor.doc, blockId) + 1 });
@@ -161,7 +165,7 @@ export function attachSlashMenu(view: EditorView): () => void {
     const doc = editor.doc;
     const focusTarget = (() => {
       const converted = doc.blocks.get(blockId);
-      if (willBeEmpty && block.type === 'paragraph' && converted && editor.schema.get(converted.type).inline)
+      if (convertInPlace && converted && editor.schema.get(converted.type).inline)
         return converted.id;
       const parent = converted ? getBlock(doc, converted.parentId ?? doc.rootId) : getBlock(doc, doc.rootId);
       const after = parent.children

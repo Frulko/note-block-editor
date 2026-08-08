@@ -149,9 +149,12 @@
   display: grid;
   /* grid-template-columns comes from render.ts (columnWidths or equal fractions) */
   margin: 4px 0;
+  /* the base .nbe-block padding would open a white gutter between the outer
+     border and the cells — the "floating chips" look */
+  padding: 0;
   overflow-x: auto;
   border: 1px solid var(--nbe-border-strong);
-  border-radius: 3px;
+  border-radius: 0;
   /* cell borders are drawn on the top/left edges only, so the outer border
      stays single-width instead of doubling up */
   border-right: 0;
@@ -164,6 +167,8 @@
 .nbe-t-table_cell {
   min-width: 0;
   padding: 6px 9px;
+  /* undo the base block radius: a cell is a grid tile, not a chip */
+  border-radius: 0;
   border-right: 1px solid var(--nbe-border-strong);
   border-bottom: 1px solid var(--nbe-border-strong);
 }
