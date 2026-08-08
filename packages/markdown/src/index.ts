@@ -152,8 +152,19 @@ function atomicRun(run: Run): string {
 
   let s: string;
   if (has('code')) {
-    // ponytail: code content emitted raw; a backtick inside a code run breaks — use runs without backticks in code
-    s = '`' + run.text + '`';
+    /*
+     * CommonMark's rule, because a user types what they type: fence with more
+     * backticks than the content contains, and pad with a space when the
+     * content starts or ends with one — otherwise the pad is what closes the
+     * span. The parser strips a single symmetric pad back off.
+     *
+     * This replaces a `ponytail:` note that told callers to avoid backticks in
+     * code, which is not advice a person writing about Markdown can follow.
+     */
+    const longest = Math.max(0, ...[...run.text.matchAll(/`+/g)].map((m) => m[0].length));
+    const fence = '`'.repeat(longest + 1);
+    const pad = run.text.startsWith('`') || run.text.endsWith('`') ? ' ' : '';
+    s = fence + pad + run.text + pad + fence;
   } else {
     s = escapeMd(run.text);
     for (const wrapper of [...WRAPPERS].reverse()) {
@@ -204,12 +215,29 @@ function parseInline(text: string, marks: Mark[]): Run[] {
 
     // code span: no nesting inside
     if (ch === '`') {
-      const close = text.indexOf('`', i + 1);
-      if (close > i + 1) {
-        flush();
-        runs.push({ text: text.slice(i + 1, close), marks: [...marks.map((m) => ({ ...m })), { type: 'code' }] });
-        i = close + 1;
-        continue;
+      // a run of n backticks closes on the next run of exactly n
+      const open = /^`+/.exec(text.slice(i))![0];
+      const closeAt = text.indexOf(open, i + open.length);
+      const runsOn = closeAt >= 0 && text[closeAt + open.length] === '`';
+      if (closeAt > i && !runsOn) {
+        let content = text.slice(i + open.length, closeAt);
+        /*
+         * Undo the pad, but only where the serializer would have added one:
+         * when the content beneath it starts or ends with a backtick. CommonMark
+         * strips a symmetric pad unconditionally, which is right for rendering
+         * and wrong here — `` ` x ` `` would lose the spaces a person typed, and
+         * this parser feeds an editor that has to give them back.
+         */
+        if (content.length > 2 && content.startsWith(' ') && content.endsWith(' ')) {
+          const inner = content.slice(1, -1);
+          if (inner.startsWith('`') || inner.endsWith('`')) content = inner;
+        }
+        if (content) {
+          flush();
+          runs.push({ text: content, marks: [...marks.map((m) => ({ ...m })), { type: 'code' }] });
+          i = closeAt + open.length;
+          continue;
+        }
       }
       buf += ch;
       i++;
