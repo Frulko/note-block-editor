@@ -42,7 +42,17 @@ import type { CollectionRecord, CollectionStore } from '@nbe/workspace/database'
 /** Where the canonical documents live, beside the Markdown a person reads. */
 export const PAGES_DIRECTORY = '.nbe';
 
-/** Reject an id that would write outside the folder it belongs to. */
+/**
+ * Reject an id that would write outside the folder it belongs to.
+ *
+ * @remarks
+ * The same rule lives in `@nbe/cli`'s storage, because the two runtimes expose
+ * different filesystem APIs and only the *interface* is shared. This particular
+ * function is pure string logic and could be shared — it is not, and
+ * `test/restraint.test.ts` asserts the two copies stay identical instead. A
+ * security rule kept in two places drifts in the direction that matters:
+ * someone tightens one against a new traversal vector and the other stays open.
+ */
 function safeName(id: string): string {
   if (!/^[\w.-]+$/.test(id) || id === '.' || id === '..') {
     throw new Error(`identifiant de page invalide : ${JSON.stringify(id)}`);

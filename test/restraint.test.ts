@@ -210,3 +210,38 @@ describe('the interaction core keeps its single arbiter', () => {
     expect(suspicious).toEqual([]);
   });
 });
+
+describe('the two page stores agree on what a safe id is', () => {
+  /** The `safeName` guard as written in a storage module. */
+  function guard(path: string): string {
+    const source = readFileSync(join(ROOT, path), 'utf8');
+    const fn = /function safeName\(id: string\): string \{([\s\S]*?)\n\}/.exec(source);
+    if (!fn) throw new Error(`${path} should define safeName`);
+    // the rule, without the human-facing message, which is allowed to differ
+    return fn[1]!.replace(/`[^`]*`/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  it('the desktop and CLI implementations are the same rule', () => {
+    /*
+     * This is the path-traversal boundary — the check that stops a page id
+     * called `..` from writing outside the vault — and it exists twice, once
+     * over `node:fs` and once over Tauri's plugin. The duplication is
+     * deliberate and documented: the two runtimes expose different APIs, so
+     * only the *interface* is shared.
+     *
+     * But `safeName` is pure string logic, and a security rule kept in two
+     * places drifts in the direction that matters: someone tightens one against
+     * a new traversal vector and the other stays open, in the build nobody was
+     * looking at.
+     *
+     * They are identical today. This says so, and fails the day they are not.
+     */
+    expect(guard('apps/desktop/src/storage.ts')).toBe(guard('packages/cli/src/storage.ts'));
+  });
+
+  it('and that rule actually rejects traversal', () => {
+    const rule = guard('packages/cli/src/storage.ts');
+    expect(rule).toContain("'..'");
+    expect(rule).toMatch(/\[\\w\.-\]/);
+  });
+});
