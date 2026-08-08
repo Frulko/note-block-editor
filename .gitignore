@@ -8,3 +8,9 @@ site/.astro
 site/.data
 test-results
 playwright-report
+
+# Native build output. Both of these were committed by accident: `cargo check`
+# and `swift test` create them, and `git add -A` does not know better. The
+# history was rewritten to remove 764 MB of it.
+apps/desktop/src-tauri/target/
+native/swift/.build/
