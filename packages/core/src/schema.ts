@@ -92,7 +92,21 @@ export class Schema {
   }
 }
 
-// ponytail: no allowedChildren grammar yet — columns land with it (ARCHITECTURE §2.3)
+/*
+ * ponytail: still no `allowedChildren` grammar. The note used to say "columns
+ * land with it"; they landed and it did not, so what the gap permits is now
+ * measured rather than deferred (`test/grammar.test.ts`).
+ *
+ * **Types are validated at apply; relationships are not.** An unknown block
+ * type is rejected, and a `column` parented straight to the page is accepted —
+ * a document §2.3 does not describe and the wrapper normaliser does not expect.
+ * Not currently harmful, because nothing constructs one. Recorded because the
+ * architecture says validation happens at apply, and a reader would take that
+ * to include structure.
+ *
+ * The upgrade path is a per-spec `allowedChildren` checked in `validate.ts`
+ * alongside the type check, which is one place rather than a new pass.
+ */
 export function baseSchema(): Schema {
   const s = new Schema();
   const inline = (type: string, extra?: Partial<BlockSpec>): BlockSpec => ({
