@@ -164,3 +164,49 @@ describe('D8: the drag is ours, the file drop is the browser’s', () => {
     expect(withNativeDrop.sort()).toEqual(['packages/dom/src/clipboard.ts', 'packages/dom/src/ui/upload.ts']);
   });
 });
+
+describe('the interaction core keeps its single arbiter', () => {
+  const DOM = CONTENTS.filter(({ path }) => path.startsWith('packages/dom/src'));
+
+  it('exactly one pointerdown listener is attached to the editing surface', () => {
+    /*
+     * `docs/design/interaction-core.md` measured five independent pointer
+     * listeners on one surface, each deciding on its own whether a press was
+     * theirs, and replaced them with one router that classifies a press once.
+     * That is the whole of the rebuild, and it regresses the moment a new
+     * feature adds "just one more listener" — which reads as a two-line change
+     * and reintroduces the arbitration bug the router exists to prevent.
+     *
+     * Listeners on `document` are a different thing and are allowed: overlay
+     * dismissal and caret tracking are not competing for the press, they are
+     * observing it.
+     */
+    const onSurface: string[] = [];
+    for (const { path, text } of DOM) {
+      for (const match of text.matchAll(/(\w+(?:\.\w+)*)\.addEventListener\(\s*['"]pointerdown/g)) {
+        const target = match[1]!;
+        if (/content$/.test(target)) onSurface.push(`${path}: ${target}`);
+      }
+    }
+    expect(onSurface).toHaveLength(1);
+    expect(onSurface[0]).toContain('gestures.ts');
+  });
+
+  it('no module coordinates by waiting a fixed number of milliseconds', () => {
+    /*
+     * The rebuild removed three wall-clock windows (500/300/400 ms) that
+     * modules used to guess whether another had finished. Hover delays are not
+     * that — a 250 ms grace before hiding a toolbar is a *UX* decision about
+     * the person, not a guess about another module — so this looks only for the
+     * long ones that smell like arbitration.
+     */
+    const suspicious: string[] = [];
+    for (const { path, text } of DOM) {
+      for (const match of text.matchAll(/setTimeout\([^,]+,\s*(\d{3,})\s*\)/g)) {
+        const ms = Number(match[1]);
+        if (ms >= 400 && !/revokeObjectURL|focus/.test(match[0])) suspicious.push(`${path}: ${ms}ms`);
+      }
+    }
+    expect(suspicious).toEqual([]);
+  });
+});

@@ -90,6 +90,12 @@ instead of impossible.
 
 ### 2.2 `GestureRouter` — one press, one owner
 
+**Held under test since 2026-08-08** (`test/restraint.test.ts`): exactly one
+`pointerdown` listener is attached to the editing surface, and no module waits
+a fixed 400ms-plus to guess whether another has finished. Both regress the same
+way — a new feature adds "just one more listener", which reads as a two-line
+change and reintroduces the arbitration bug this design exists to prevent.
+
 A single `pointerdown` listener on the content classifies the press once and
 hands it to exactly one recognizer:
 
