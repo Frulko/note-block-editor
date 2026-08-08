@@ -8,7 +8,7 @@ remembered.
 
 | Suite | State |
 | --- | --- |
-| Unit (`pnpm test`) | 846 passing, 65 files |
+| Unit (`pnpm test`) | 851 passing, 66 files |
 | Browser, Chromium (`pnpm e2e --project=chromium`) | 116/116, **gates CI** |
 | Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 111/111, **gates CI** |
 | Browser, WebKit (`pnpm e2e --project=webkit`) | 108/108, 8 skipped, **gates CI** |
@@ -42,9 +42,14 @@ and failed on both engines in the full run.
 
 ## What needs something this machine does not have
 
-- **An Android device and an iPhone.** WebKit covers Safari's *engine*, and the
-  mobile-viewport projects now cover touch at phone size on both engines — but
-  neither covers the input stack:
+- **An Android device and an iPhone**, and this is now a narrow ask rather than
+  a broad one. Three things that looked like "needs hardware" turned out to be
+  two things each, and the reachable half of every one is done: the *engine* is
+  covered by WebKit, *touch and viewport* by the mobile projects, and the
+  software keyboard's *effect* by `packages/dom/test/viewport.test.ts`, which
+  simulates the `visualViewport` shrink the keyboard causes.
+
+  What is genuinely left has no simulable half:
   the software keyboard, touch selection, and a particular IME's behaviour
   (GBoard actively lies about `beforeinput`). This is **the decisive question**,
   not a residual one: see `docs/research/per-block-contenteditable-evidence.md`.
