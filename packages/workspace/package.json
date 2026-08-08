@@ -1,6 +1,6 @@
 {
   "name": "@nbe/workspace",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -52,5 +52,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "L'espace de travail : arbre de pages, vault, bases de données."
+  "description": "L'espace de travail : arbre de pages, vault, bases de donn\u00e9es."
 }

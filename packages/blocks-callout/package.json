@@ -1,6 +1,6 @@
 {
   "name": "@nbe/blocks-callout",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -35,5 +35,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "Le bloc encadré, en exemple de greffon."
+  "description": "Le bloc encadr\u00e9, en exemple de greffon."
 }

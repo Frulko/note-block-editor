@@ -1,6 +1,6 @@
 {
   "name": "@nbe/cli",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
   "bin": {
@@ -34,5 +34,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "Le vault en ligne de commande, et le nœud de synchronisation."
+  "description": "Le vault en ligne de commande, et le n\u0153ud de synchronisation."
 }

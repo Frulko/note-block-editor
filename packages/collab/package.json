@@ -1,6 +1,6 @@
 {
   "name": "@nbe/collab",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -24,5 +24,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "Collaboration : CRDT Loro, synchronisation, présence, commentaires, historique."
+  "description": "Collaboration : CRDT Loro, synchronisation, pr\u00e9sence, commentaires, historique."
 }

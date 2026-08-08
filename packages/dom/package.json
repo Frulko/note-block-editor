@@ -1,6 +1,6 @@
 {
   "name": "@nbe/dom",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "sideEffects": [
     "*.css"
@@ -27,5 +27,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "L'éditeur : rendu, saisie, menus, glisser-déposer."
+  "description": "L'\u00e9diteur : rendu, saisie, menus, glisser-d\u00e9poser."
 }

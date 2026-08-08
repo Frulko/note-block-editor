@@ -1,6 +1,6 @@
 {
   "name": "@nbe/core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -20,5 +20,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "Le modèle de document : blocs, opérations, sélection, historique."
+  "description": "Le mod\u00e8le de document : blocs, op\u00e9rations, s\u00e9lection, historique."
 }
