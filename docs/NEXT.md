@@ -19,7 +19,7 @@ Three clients share one document, proven end to end: a keystroke typed into an
 `NSTextView` in Swift merges into a TypeScript peer, and a desktop snapshot
 reopened in a new process converges with a browser holding nothing.
 
-## The one open WebKit failure
+## The one open WebKit failure — investigated to a decision
 
 Two of the original four were closed on the way out. One was a test that
 cannot be expressed on WebKit at all (`Input.dispatchTouchEvent` is CDP), and
@@ -75,17 +75,34 @@ not under Chromium.
   the scrolled container and travels with the content for free. Nothing
   re-writes `style.top` on scroll by design.
 
-**The one explanation left standing**, and the next session should test it
-first: scrolling under a stationary pointer puts a *different block* under the
-cursor. If WebKit re-fires the hover on a programmatic scroll and Chromium does
-not, then `showControlsFor` runs again on WebKit for the newly-hovered block —
-and lands the gutter at the same screen position, which is exactly the `218`
-before and `218` after that was measured.
+**Confirmed, and it is not a test bug — it is a product question.** Measured
+after a 300px scroll under a stationary pointer:
 
-If that is it, **the product behaviour on WebKit is arguably the correct one**
-(the gutter follows the pointer) and the test encodes Chromium's. So the fix is
-probably to the test's expectation, not to `controls.ts` — but confirm the
-re-hover before changing either. Log inside `showControlsFor` and scroll.
+| | `style.top` | screen `top` | block beside it |
+| --- | --- | --- | --- |
+| Chromium | `141px` (unchanged) | 218 → **−82** | "ligne 3" → *off-screen* |
+| WebKit | `141px` → **`441px`** | 218 → 218 | "ligne 3" → **"ligne 13"** |
+
+WebKit re-fires the hover on a programmatic scroll; Chromium does not. So
+`showControlsFor` runs again on WebKit for the block now under the cursor, and
+the gutter stays beside the pointer.
+
+**WebKit's behaviour is the better one.** The gutter belongs to the block you
+are pointing at. Chromium leaves it attached to a block that has scrolled away
+— at `−82`, above the viewport, decorating nothing.
+
+So the open item is a decision, not a defect hunt:
+
+1. **Adopt WebKit's behaviour** — reposition the gutter on scroll for the block
+   actually under the pointer, on both engines. Correct, and makes the test's
+   current assertion (`top` decreases, same block) wrong: it should assert the
+   gutter stays beside *whatever* is under the cursor.
+2. **Keep Chromium's** — hide the gutter on scroll instead, since a gutter
+   pointing at nothing is worse than no gutter.
+
+Either way `controls.ts` changes and so does the test. Option 1 is more work
+and is what a reader would expect. Do not "fix the WebKit failure" — decide
+first.
 
 **And the standing rule, learned twice here.** An earlier fix scrolled
 `.nbe-editor` with a fallback to the document — neither of the elements
