@@ -125,7 +125,14 @@ export function attachControls(view: EditorView): () => void {
   const HOVER_RIGHT = 80; // reserved for right-side actions (comments…)
   const HOVER_Y = 8;
 
+  /**
+   * The last pointer position, so a scroll can re-answer "which block is under
+   * the cursor" without waiting for the pointer to move.
+   */
+  let lastPointer: MouseEvent | null = null;
+
   const resolveBlock = (e: MouseEvent): HTMLElement | null => {
+    lastPointer = e;
     const c = view.content.getBoundingClientRect();
     if (e.clientX < c.left - HOVER_LEFT || e.clientX > c.right + HOVER_RIGHT) return null;
     if (e.clientY < c.top - HOVER_Y || e.clientY > c.bottom + HOVER_Y) return null;
@@ -163,6 +170,31 @@ export function attachControls(view: EditorView): () => void {
     onTarget: showControlsFor,
     onClear: hideControls,
   });
+
+  /*
+   * Re-answer the hover on scroll.
+   *
+   * The gutter belongs to the block you are *pointing at*, and scrolling under
+   * a stationary cursor changes which block that is. Without this the gutter
+   * stays welded to the block it was opened on and rides it out of the
+   * viewport — measured at 300px of scroll it sat at `top: -82`, above the
+   * screen, decorating nothing.
+   *
+   * It surfaced as a WebKit-only test failure, which was misleading: WebKit
+   * re-fires the hover on a programmatic scroll and Chromium does not, so
+   * Chromium was simply hiding the bug rather than not having it. Doing it
+   * ourselves makes both engines behave the way a reader expects.
+   *
+   * Client coordinates survive a scroll unchanged, so the stored event stays
+   * valid; capture is needed because scroll does not bubble.
+   */
+  const onScroll = (): void => {
+    if (!lastPointer || !hoveredId) return;
+    const block = resolveBlock(lastPointer);
+    if (block) showControlsFor(block);
+    else hideControls();
+  };
+  document.addEventListener('scroll', onScroll, { capture: true, passive: true });
 
   // --- plus button: new paragraph below + slash menu ---
   function insertBelow() {
@@ -526,6 +558,7 @@ export function attachControls(view: EditorView): () => void {
   });
 
   return () => {
+    document.removeEventListener('scroll', onScroll, { capture: true });
     hover.destroy();
     menu.close();
     unDrag();

@@ -59,7 +59,7 @@ test.describe('the gutter belongs to the editor', () => {
     }
   });
 
-  test('it follows the scroll, still beside its own block', async ({ page, editor }) => {
+  test('it stays beside the block under the cursor when the page scrolls', async ({ page, editor }) => {
     await editor.setDocument(lines(50));
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(3).boundingBox())!;
     await page.mouse.move(box.x + 60, box.y + box.height / 2);
@@ -67,28 +67,31 @@ test.describe('the gutter belongs to the editor', () => {
     const before = (await gutter(page))!;
 
     /*
-     * Scroll the container that actually scrolls, rather than dispatching a
-     * wheel. Measured: `mouse.wheel` moves `.page-scroll` by 300px on Chromium
-     * and moves nothing at all on WebKit — the gutter is `position: absolute`
-     * inside that container, so it travels with the content either way. The
-     * test is about the gutter tracking its block, not about wheel dispatch.
-     *
-     * An earlier attempt at this scrolled `.nbe-editor` with a fallback to the
-     * document, which is neither of the elements involved, and was flaky for
-     * that reason.
+     * Scroll the container that actually scrolls. `mouse.wheel` moves
+     * `.page-scroll` on Chromium and moves nothing on WebKit, and this test is
+     * about the gutter, not about wheel dispatch.
      */
     await page.evaluate(() => {
       const scroller = document.querySelector('.page-scroll');
       if (!scroller) throw new Error('.page-scroll introuvable — le démonstrateur a changé');
       scroller.scrollTop += 300;
     });
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(250);
     const after = (await gutter(page))!;
 
-    // it moved with the content rather than staying pinned to the viewport
-    expect(after.top).toBeLessThan(before.top - 100);
-    // and it is still the same distance from the same block
-    expect(after.blockText).toBe(before.blockText);
+    /*
+     * The gutter belongs to the block you are *pointing at*, so with the cursor
+     * still it stays put on screen and re-targets whatever scrolled under it.
+     *
+     * This used to assert the opposite — that it rode the content upwards,
+     * keeping the same block. That let it end up at `top: -82`, above the
+     * viewport, decorating nothing. Chromium passed and WebKit did not, purely
+     * because WebKit re-fires the hover on a programmatic scroll; the editor
+     * now does that itself on both.
+     */
+    expect(Math.abs(after.top - before.top)).toBeLessThan(24);
+    expect(after.blockText).not.toBe(before.blockText);
+    // and it is genuinely beside its new block, not merely parked
     expect(Math.abs(after.offsetFromBlock - before.offsetFromBlock)).toBeLessThan(2);
   });
 

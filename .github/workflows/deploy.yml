@@ -36,11 +36,11 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm e2e --project=chromium
       # WebKit is Safari's engine and therefore iOS's, and the D1 evidence says
-      # per-block contenteditable is exactly where iOS breaks. Four known
-      # differences remain (docs/TESTING.md), so this reports rather than gates
-      # — a red build on a known gap teaches people to ignore red builds.
-      - name: Browser suite on WebKit (informational)
-        continue-on-error: true
+      # per-block contenteditable is exactly where iOS breaks. It found a real
+      # bug on its first day (Blobs in IndexedDB) and a real product decision on
+      # its second (the gutter). All four original differences are closed, so it
+      # gates.
+      - name: Browser suite on WebKit
         run: pnpm e2e --project=webkit
       # The alternative editable boundary, gated like the default one.
       # External evidence says per-block contenteditable is what Notion left
