@@ -129,7 +129,12 @@ temporary shim.
 versioning, sandboxing), a priority/event-bus system, or any rewrite of
 `core` — the op layer is already type-agnostic.
 
-### R7 — make the three bindings agree on their options
+### R7 — make the three bindings agree on their options — **done; verified 2026-08-08**
+
+All three now extend `EditorViewOptions` and add exactly the same three members
+— `initialContent`, `onChange`, `onReady` — which is a test rather than a
+convention (`test/packaging.test.ts`). The *mount* still differs per framework,
+because that is the idiom and the point; the option contract does not.
 Found while building the site's integration page: `@nbe/react`'s `BlockEditor`
 *spreads* `EditorViewOptions` as props, `@nbe/vue`'s nests them under an
 `options` prop, and `@nbe/svelte`'s action takes them in its argument object.

@@ -121,3 +121,32 @@ describe('source layering', () => {
     }
   });
 });
+
+describe('R7: the three bindings agree on one option contract', () => {
+  /** The members an interface declares beyond what it extends. */
+  function members(source: string, name: string): string[] {
+    const body = new RegExp(`export interface ${name} extends EditorViewOptions \\{([\\s\\S]*?)\\n\\}`).exec(source);
+    if (!body) throw new Error(`${name} should extend EditorViewOptions`);
+    return [...body[1]!.matchAll(/^\s{2}(\w+)\??:/gm)].map((match) => match[1]!).sort();
+  }
+
+  it('all three extend EditorViewOptions and add exactly the same members', () => {
+    /*
+     * The plan's own finding: React spread the options as props, Vue nested
+     * them under an `options` prop and Svelte took them in an action argument —
+     * three shapes for one contract, in packages whose whole promise is being
+     * interchangeable thin mounts. The docs could not state one rule.
+     *
+     * The *shape* of the mount is allowed to differ, because that is the
+     * framework's idiom. The option contract is not.
+     */
+    const read = (pkg: string) => readFileSync(join(__dirname, '..', 'packages', pkg, 'src', 'index.ts'), 'utf8');
+    const react = members(read('react'), 'UseEditorOptions');
+    const vue = members(read('vue'), 'UseEditorOptions');
+    const svelte = members(read('svelte'), 'BlockEditorActionOptions');
+
+    expect(react).toEqual(['initialContent', 'onChange', 'onReady']);
+    expect(vue).toEqual(react);
+    expect(svelte).toEqual(react);
+  });
+});
