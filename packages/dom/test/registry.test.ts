@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { Editor, docFromJSON, type BlockJSON } from '@nbe/core';
-import { EditorView } from '../src/view';
+import { EditorView, type EditorViewOptions } from '../src/view';
 // the *DOM* plugin, from `dom.ts`. `index.ts` exports the static-renderer one,
 // which contributes an HTML string and nothing to a live view.
 import { callout } from '../../blocks-callout/src/dom';
@@ -28,10 +28,10 @@ const WITH_CALLOUT: BlockJSON = {
   children: [{ id: 'c', type: 'callout', version: 1, props: { icon: '!' }, children: [] }],
 };
 
-function mount(blocks?: Parameters<typeof EditorView>[2] extends infer O ? O : never) {
+function mount(options: EditorViewOptions = {}) {
   const container = document.createElement('div');
   document.body.append(container);
-  const view = new EditorView(container, new Editor({ doc: docFromJSON(WITH_CALLOUT) }), blocks ?? {});
+  const view = new EditorView(container, new Editor({ doc: docFromJSON(WITH_CALLOUT) }), options);
   return { view, container, destroy: () => { view.destroy(); container.remove(); } };
 }
 
