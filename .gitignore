@@ -14,3 +14,9 @@ playwright-report
 # history was rewritten to remove 764 MB of it.
 apps/desktop/src-tauri/target/
 native/swift/.build/
+
+# The iOS project is generated from `project.yml` by xcodegen, and its build
+# directory holds a 40 MB WebRTC xcframework. The yml is the source of truth;
+# the pbxproj is output, and a committed one is a merge conflict waiting.
+apps/ios/Carnet.xcodeproj/
+apps/ios/build/

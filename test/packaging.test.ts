@@ -38,7 +38,17 @@ describe('package layering', () => {
     // handshake plus framing is a protocol rather than a few lines.
     // `collab` because `nbe serve` is a *peer*: it runs the same `connect()`
     // as every client rather than reimplementing sync inside the relay.
-    expect(deps('cli').sort()).toEqual(['@nbe/collab', '@nbe/core', '@nbe/markdown', '@nbe/workspace', 'ws']);
+    // `node-datachannel` because Node has no `RTCPeerConnection` and `nbe peer`
+    // needs a real one — and this is the layer allowed to have it, precisely so
+    // that `collab` stays at core+CRDT and every client injects its own.
+    expect(deps('cli').sort()).toEqual([
+      '@nbe/collab',
+      '@nbe/core',
+      '@nbe/markdown',
+      '@nbe/workspace',
+      'node-datachannel',
+      'ws',
+    ]);
   });
 
   it('workspace depends on core and markdown (the vault is a markdown projection)', () => {

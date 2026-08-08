@@ -1,0 +1,58 @@
+name: Carnet
+options:
+  bundleIdPrefix: fr.myrole
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+# The Swift package is referenced by path, not by version: this app is the
+# consumer that proves `native/swift` is usable, so it must build against the
+# working copy rather than a published tag.
+packages:
+  NbeModel:
+    path: ../../native/swift
+  # Google's WebRTC as an xcframework. `native/swift` deliberately does not
+  # depend on this — it injects a `PeerLink` instead — so `swift test` stays a
+  # 40MB-lighter, dependency-free check of the protocol.
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    from: "151.0.0"
+
+targets:
+  Carnet:
+    type: application
+    platform: iOS
+    sources:
+      - path: Carnet
+    dependencies:
+      - package: NbeModel
+        product: NbeSync
+      - package: WebRTC
+        product: WebRTC
+    info:
+      path: Carnet/Info.plist
+      properties:
+        CFBundleDisplayName: Carnet
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # A relay on the LAN or on the host machine is plain `ws://`, which iOS
+        # blocks by default. This permits it for local names only — an arbitrary
+        # loads exception would also permit it for the whole internet.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: >-
+          Pour rejoindre un relais de synchronisation sur votre réseau local.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.myrole.carnet
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.9"
+        # Unsigned: this runs in the simulator, and demanding a team id would
+        # make the project unbuildable for anyone but its author.
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""

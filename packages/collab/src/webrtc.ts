@@ -108,10 +108,33 @@ export function p2pTransport(signalling: Transport, opts: P2POptions = {}): Tran
   const links = new Map<string, Link>();
   const handlers = new Set<(message: Uint8Array) => void>();
   let open = true;
+  /**
+   * How many peers the relay says are in the room besides us, when it says.
+   *
+   * @remarks
+   * This is what stops a silent data loss, and it is worth spelling out.
+   * Without it the rule would be "go direct once every peer that greeted me has
+   * a channel" — and a peer that cannot do WebRTC never greets anybody. Two
+   * browsers would mesh, stop touching the relay, and the `nbe serve` node
+   * sitting in the same room would quietly stop receiving the document while
+   * everything on screen looked healthy. Counting greeters cannot see a peer
+   * that does not greet; only the relay can.
+   *
+   * `undefined` means nobody told us — an older relay, or a loopback in a test.
+   * Then we fall back to counting greeters, which is right for those cases and
+   * is why this is optional rather than required.
+   */
+  let expected: number | undefined;
+
+  const meshed = (): boolean => {
+    const all = [...links.values()];
+    if (!all.length || !all.every((link) => link.channel?.readyState === 'open')) return false;
+    return expected === undefined ? true : links.size >= expected;
+  };
 
   const state = (): P2PState => {
     const direct = [...links.values()].filter((link) => link.channel?.readyState === 'open').length;
-    return { peers: links.size, direct, relayed: !links.size || direct < links.size };
+    return { peers: Math.max(links.size, expected ?? 0), direct, relayed: !meshed() };
   };
   const announce = (): void => opts.onState?.(state());
 
@@ -153,7 +176,14 @@ export function p2pTransport(signalling: Transport, opts: P2POptions = {}): Tran
     links.set(id, link);
 
     pc.onicecandidate = (event) => {
-      if (event.candidate) signal({ to: id, kind: 'ice', ice: event.candidate.toJSON() });
+      const candidate = event.candidate;
+      if (!candidate) return;
+      // `toJSON` is standard but not universal outside browsers; the two fields
+      // below are the whole of what the other side needs
+      const ice = candidate.toJSON
+        ? candidate.toJSON()
+        : { candidate: candidate.candidate, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex };
+      signal({ to: id, kind: 'ice', ice });
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') drop(id);
@@ -204,6 +234,12 @@ export function p2pTransport(signalling: Transport, opts: P2POptions = {}): Tran
         // answer, or two peers greet each other until one of them leaves
         if (!message.reply) signal({ to: message.from, kind: 'hello', reply: true });
         linkTo(message.from);
+        return;
+      }
+      case 'members': {
+        // the relay counts itself out and us in; what we want is "the others"
+        expected = Math.max(0, (message.count ?? 1) - 1);
+        announce();
         return;
       }
       case 'bye':
@@ -279,9 +315,10 @@ export function p2pTransport(signalling: Transport, opts: P2POptions = {}): Tran
      */
     send(message) {
       if (!open) return;
-      const all = [...links.values()];
-      if (all.length && all.every((link) => link.channel?.readyState === 'open')) {
-        for (const link of all) link.channel!.send(message as unknown as ArrayBufferView);
+      if (meshed()) {
+        // `send` is overloaded per buffer type and none of them is a
+        // `Uint8Array<ArrayBufferLike>`; the bytes are what they are
+        for (const link of links.values()) (link.channel!.send as (data: Uint8Array) => void)(message);
       } else {
         signalling.send(message);
       }

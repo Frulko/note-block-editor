@@ -3,3 +3,8 @@ packages:
   - examples/*
   - apps/*
   - site
+
+# `node-datachannel` ships a native addon and downloads a prebuilt one in a
+# postinstall. It is the only dependency in this repo allowed to run a script.
+onlyBuiltDependencies:
+  - node-datachannel

@@ -34,11 +34,28 @@ shutdown behave exactly as they do everywhere else in the app.
   flatten, and anything with no Markdown equivalent is written as an HTML
   comment marker rather than dropped. This is the documented D7 loss.
 
+## Settings
+
+Everything data-shaped in `EditorViewOptions` is in the plugin's settings tab:
+text column width, page margins, spellcheck, experimental drag-to-columns,
+read-only mode, per-feature toggles (slash menu, mentions, gutter, toolbars,
+link hover, databases) and theme overrides as CSS custom properties. The
+function-shaped options (page hosts, asset stores, custom blocks, labels) are
+code, not settings. Changes apply immediately to open Carnet views.
+
 ## Build
 
 ```sh
 pnpm --filter @nbe/obsidian build
 ```
 
-Then copy `main.js`, `manifest.json` and `styles.css` into
-`<vault>/.obsidian/plugins/carnet/`.
+Every build assembles `dist/carnet/` — the ready-to-drop plugin folder
+(`main.js`, `manifest.json`, `styles.css`, with the editor's stylesheet
+bundled in). Copy it to `<vault>/.obsidian/plugins/carnet/`, or let the build
+do it:
+
+```sh
+pnpm --filter @nbe/obsidian build --vault ~/Documents/MyVault
+```
+
+`--watch` works with both.

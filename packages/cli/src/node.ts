@@ -1,7 +1,7 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
 import { LoroBlockStore, connect } from '@nbe/collab';
 import { startRelay, type Relay, type RelayOptions, type RoomTransport } from './relay';
+import { fileFor, loadSnapshot, persistSnapshot } from './snapshot';
 
 /**
  * A headless node: the peer that is always there.
@@ -61,19 +61,6 @@ export interface NodeOptions extends Omit<RelayOptions, 'onRoomOpen'> {
 }
 
 /**
- * A room name as a filename.
- *
- * @remarks
- * Percent-encoding rather than a slug: a room name is an identifier chosen by
- * a client, not a title shown to anyone, so it must round-trip exactly and two
- * different rooms must never land on one file. `encodeURIComponent` escapes
- * `/` and every separator, and is reversible — a slug is neither.
- */
-function fileFor(dir: string, room: string): string {
-  return join(dir, `${encodeURIComponent(room)}.loro`);
-}
-
-/**
  * Start a relay that also keeps every room's document.
  *
  * @param opts - {@link NodeOptions}. `dir` is required; everything else has a
@@ -94,49 +81,20 @@ export function startNode(opts: NodeOptions): Promise<Relay> {
   const onRoomOpen = (room: string, transport: RoomTransport): (() => void) => {
     const store = new LoroBlockStore();
     const path = fileFor(dir, room);
+    const onError = (error: unknown): void => report(room, error);
 
-    if (existsSync(path)) {
-      try {
-        store.import(readFileSync(path));
-      } catch (error) {
-        /*
-         * A snapshot we cannot read must not take the room down with it. The
-         * node starts empty and the first client to connect will hand over the
-         * document it still holds — which is the whole reason a local-first
-         * design survives losing the server's copy. The file is left in place
-         * rather than deleted, because it is the only evidence of what broke.
-         */
-        report(room, error);
-      }
-    }
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const save = (): void => {
-      timer = undefined;
-      try {
-        const bytes = store.doc.export({ mode: 'snapshot' });
-        const temporary = `${path}.${process.pid}.tmp`;
-        writeFileSync(temporary, bytes);
-        renameSync(temporary, path);
-        opts.onSave?.(room, bytes.length);
-      } catch (error) {
-        report(room, error);
-      }
-    };
-
-    const unsubscribe = store.doc.subscribe(() => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(save, saveDebounceMs);
+    loadSnapshot(store, path, onError);
+    const flush = persistSnapshot(store, path, {
+      debounceMs: saveDebounceMs,
+      onSave: (bytes) => opts.onSave?.(room, bytes),
+      onError,
     });
-
     const stop = connect(store, transport);
 
     return () => {
-      unsubscribe();
       stop();
       // the room is emptying: write now rather than lose the pending window
-      if (timer) clearTimeout(timer);
-      save();
+      flush();
     };
   };
 

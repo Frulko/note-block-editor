@@ -13,15 +13,16 @@
     }
   },
   "dependencies": {
+    "@nbe/collab": "workspace:*",
     "@nbe/core": "workspace:*",
     "@nbe/markdown": "workspace:*",
     "@nbe/workspace": "workspace:*",
-    "ws": "^8.18.0",
-    "@nbe/collab": "workspace:*"
+    "node-datachannel": "^0.32.3",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.13",
-    "@nbe/collab": "workspace:*"
+    "@nbe/collab": "workspace:*",
+    "@types/ws": "^8.5.13"
   },
   "license": "MIT",
   "repository": {
@@ -34,5 +35,5 @@
     "url": "https://github.com/Frulko/note-block-editor/issues"
   },
   "author": "Guillaume Dumoulin",
-  "description": "Le vault en ligne de commande, et le n\u0153ud de synchronisation."
+  "description": "Le vault en ligne de commande, et le nœud de synchronisation."
 }

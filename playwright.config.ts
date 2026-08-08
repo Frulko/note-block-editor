@@ -83,5 +83,17 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 60_000,
     },
+    /*
+     * A relay, for `p2p.spec.ts` only. It is a server in the same sense a STUN
+     * server is: the peers use it to find each other and then stop sending the
+     * document through it, which is the thing that spec exists to prove. A plain
+     * GET returns 200, so Playwright can wait for it like any other.
+     */
+    {
+      command: 'pnpm --filter @nbe/cli exec tsx src/bin.ts relay --port 8788',
+      url: 'http://localhost:8788',
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
   ],
 });

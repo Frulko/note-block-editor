@@ -72,6 +72,22 @@ public final class DocumentWriter {
         return id
     }
 
+    /// Replace a block's text with `text`.
+    ///
+    /// **Diffed, not rewritten.** Deleting the old string and inserting the new
+    /// one is one line shorter and wrong for a CRDT: it makes every keystroke a
+    /// whole-paragraph replacement, so two people typing in one paragraph lose
+    /// each other's sentence instead of merging. `LoroText.update` computes the
+    /// minimal edit, which is what a `TextField` binding needs — the view hands
+    /// over the finished string and the ops stay small.
+    public func setText(_ text: String, forBlock id: String) throws {
+        guard let target = try node(withId: id) else { throw WriterError.missingParent(id) }
+        let meta = try tree.getMeta(target: target)
+        let container = try meta.get(key: "text")?.asLoroText() ?? meta.insertContainer(key: "text", child: LoroText())
+        try container.update(s: text, options: UpdateOptions(timeoutMs: nil, useRefinedDiff: true))
+        doc.commit()
+    }
+
     /// Everything since `from`, or a whole snapshot — the bytes a peer wants.
     public func snapshot() throws -> Data {
         try doc.export(mode: .snapshot)

@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { docFromJSON, docToJSON, Editor, type BlockJSON } from '@nbe/core';
-import { LoroBlockStore, connect, connectToRelay, redrawOnRemote, seedFromJSON } from '@nbe/collab';
+import { LoroBlockStore, connect, connectToRelay, p2pTransport, redrawOnRemote, seedFromJSON } from '@nbe/collab';
 import { EditorView } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { Workspace, pageTitle } from '@nbe/workspace';
@@ -374,6 +374,13 @@ const relayUrl = (): string | null => localStorage.getItem(RELAY_KEY);
  * Failure here is never fatal. The document is on disk and the editor works;
  * a relay that is down means "not syncing right now", which is exactly what
  * offline-first is supposed to survive.
+ *
+ * **The relay is only the way in.** `p2pTransport` uses it to negotiate a
+ * WebRTC data channel with the other peers and then stops sending the document
+ * through it — see `docs/research/p2p-any-sync.md`. Nothing here has to change
+ * for that: the webview already has `RTCPeerConnection`, and the transport is
+ * still one transport. The status line is what makes the difference visible,
+ * because a silent optimisation nobody can observe is one nobody can debug.
  */
 function joinRoom(pageId: string, store: LoroBlockStore): void {
   stopSync?.();
@@ -382,7 +389,20 @@ function joinRoom(pageId: string, store: LoroBlockStore): void {
   if (!url) return void showRelayState();
 
   try {
-    const stop = connect(store, connectToRelay(url, pageId));
+    const host = new URL(url).host;
+    const stop = connect(
+      store,
+      p2pTransport(connectToRelay(url, pageId), {
+        onState: ({ peers, direct, relayed }) =>
+          showRelayState(
+            !peers
+              ? `Synchronisé — ${host}`
+              : relayed
+                ? `Synchronisé via ${host} — ${peers} pair(s)`
+                : `Pair-à-pair — ${direct} pair(s) en direct`,
+          ),
+      }),
+    );
     const stopRedraw = redrawOnRemote(store.doc, () => {
       // a remote edit never passes through this editor, so nothing repaints it
       view?.renderAll();

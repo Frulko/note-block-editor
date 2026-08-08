@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { Message, envelope } from '@nbe/collab';
 
 /**
  * A relay: it forwards bytes between the peers in a room.
@@ -68,6 +69,29 @@ export interface Relay {
 /** Rooms hold sockets, and nothing else. */
 type Rooms = Map<string, Set<WebSocket>>;
 
+/**
+ * The one thing the relay says rather than forwards.
+ *
+ * @remarks
+ * A room's membership is the only fact in this system that *only* the relay
+ * knows, and peers need it to decide whether going peer-to-peer is safe.
+ * `webrtc.ts` has the failure it prevents: two browsers mesh, stop using the
+ * relay, and a peer that cannot speak WebRTC — the `nbe serve` node, an older
+ * client — stops receiving the document while every screen still looks fine.
+ * Peers counting each other cannot see a peer that never announces itself.
+ *
+ * This does not make the relay understand documents, which is the property
+ * worth keeping: it is a count of sockets, in the same category as presence,
+ * and it travels as a `Signal` message that older peers already ignore.
+ */
+function announceMembers(peers: Set<WebSocket>, extra: number): void {
+  const payload = new TextEncoder().encode(JSON.stringify({ from: 'relay', kind: 'members', count: peers.size + extra }));
+  const frame = envelope(Message.Signal, payload);
+  for (const peer of peers) {
+    if (peer.readyState === peer.OPEN) peer.send(frame, { binary: true });
+  }
+}
+
 function roomOf(url: string | undefined): string {
   try {
     return new URL(url ?? '/', 'http://relay').searchParams.get('room') ?? 'default';
@@ -116,6 +140,7 @@ export function startRelay(opts: RelayOptions = {}): Promise<Relay> {
     }
 
     opts.onChange?.(room, peers.size);
+    announceMembers(peers, local.has(room) ? 1 : 0);
 
     socket.on('message', (data: Buffer, isBinary: boolean) => {
       if (!isBinary) return; // not ours; some proxies send text keepalives
@@ -139,6 +164,7 @@ export function startRelay(opts: RelayOptions = {}): Promise<Relay> {
         local.delete(room);
       }
       opts.onChange?.(room, peers.size);
+      announceMembers(peers, local.has(room) ? 1 : 0);
     };
     socket.on('close', leave);
     socket.on('error', leave);

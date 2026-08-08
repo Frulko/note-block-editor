@@ -7,6 +7,7 @@ import { WorkspaceIndex } from './index-db';
 import { LockedError, withLock } from './lock';
 import { startRelay } from './relay';
 import { startNode } from './node';
+import { startPeer } from './peer';
 
 /**
  * `nbe` — a workspace on the command line.
@@ -34,8 +35,10 @@ const USAGE = `nbe — un espace de travail en Markdown
   nbe import <dossier>      un vault ou un export Notion
   nbe watch                 reprend les modifications faites dans un autre éditeur
   nbe check                 vérifie que tout est lisible sans cet outil
-  nbe relay [--port <n>]    relais de synchronisation entre pairs
+  nbe relay [--port <n>]    relais de synchronisation *et* de signalisation
   nbe serve [--port <n>]    nœud permanent : relaie *et* conserve les documents
+  nbe peer --room <nom>     rejoint un salon en pair-à-pair (WebRTC)
+            [--relay ws://…] [--no-store]
 
   --root <dossier>          l'espace de travail (défaut : le dossier courant)
 `;
@@ -197,6 +200,28 @@ async function main(argv: string[]): Promise<number> {
         onSave: (room, bytes) => process.stdout.write(`${room} : ${bytes} o enregistrés\n`),
       });
       process.stdout.write(`nœud sur ws://localhost:${node.port} — Ctrl+C pour arrêter\n`);
+      await new Promise(() => {});
+      return 0;
+    }
+
+    case 'peer': {
+      const name = flags['room'] ?? positional[0];
+      if (!name) return fail('nbe peer --room <nom> [--relay ws://…]');
+      const peer = startPeer({
+        relay: flags['relay'] ?? 'ws://localhost:8787',
+        room: name,
+        dir: flags['no-store'] !== undefined ? undefined : join(root, '.nbe', 'rooms'),
+        onConnect: (attempt) =>
+          process.stdout.write(attempt === 1 ? `connexion au relais…\n` : `reconnexion (essai ${attempt})…\n`),
+        onState: ({ peers, direct, relayed }) =>
+          process.stdout.write(`${peers} pair(s), ${direct} en direct — ${relayed ? 'via le relais' : 'pair-à-pair'}\n`),
+        onSave: (bytes) => process.stdout.write(`${bytes} o enregistrés\n`),
+      });
+      process.stdout.write(`salon « ${name} » — Ctrl+C pour arrêter\n`);
+      process.on('SIGINT', () => {
+        peer.stop();
+        process.exit(0);
+      });
       await new Promise(() => {});
       return 0;
     }

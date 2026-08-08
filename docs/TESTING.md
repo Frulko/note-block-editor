@@ -318,3 +318,39 @@ stated.
 Persistence across reloads is `persistence.spec.ts`'s job and is deliberately
 not repeated here — this file's fixture re-seeds its document on every load, so
 testing it here would fight the harness rather than the product.
+
+
+## Peer-to-peer — added 2026-08-08
+
+Three files, and each exists because the other two cannot cover its layer.
+The shared idea is that **convergence is not the assertion** — two peers
+converge just as well over the relay, so a test that only checked the text
+arrived would pass on a design that never went direct. Each one therefore takes
+the relay away first.
+
+- **`packages/cli/test/p2p.test.ts`** — real libdatachannel (`node-datachannel`),
+  a real relay, and `await relay.close()` in the middle. The edit after that
+  can only have crossed the data channel. This is the closest thing to an
+  integration test of the whole stack, and it runs in `pnpm test`.
+- **`e2e/p2p.spec.ts`** — two browser tabs, Chromium's own ICE agent. Every
+  `WebSocket` the page opens is recorded by an init script and closed once the
+  mesh is up; the transport deliberately exposes no way to break its socket,
+  which is right for the product and inconvenient exactly once, here. Chromium
+  only: WebKit's WebRTC wants a capture prompt this cannot answer headlessly,
+  and the state machine is covered twice over elsewhere.
+- **`native/swift`'s `P2PTests`** — the mesh with a pair of fake `PeerLink`s
+  wired to each other, so `swift test` checks who offers, who answers and when
+  it is safe to leave the relay without downloading a 40MB WebRTC binary.
+
+**The third test in each file is the one that would have caught the real bug.**
+A peer that cannot speak WebRTC never announces itself, so peers counting
+greetings mesh, stop using the relay, and leave it receiving nothing — with
+every screen still healthy. All three assert that a room holding such a peer
+stays on the relay, which is why the relay reports its membership count.
+
+**What none of them cover, and no amount of local testing will:** a network
+where the direct path *fails*. Every mesh here succeeds because every peer is on
+this machine. The fallback path is exercised; the carrier NAT that forces it is
+not. That is the same category as the device matrix above — see
+`docs/research/p2p-any-sync.md` for why the fallback is the original transport
+rather than a degraded mode, which is what makes the untested case the safe one.

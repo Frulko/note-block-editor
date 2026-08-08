@@ -8,20 +8,61 @@ remembered.
 
 | Suite | State |
 | --- | --- |
-| Unit (`pnpm test`) | 915 passing, 79 files |
-| Browser, Chromium (`pnpm e2e --project=chromium`) | 133/133, **gates CI** |
-| Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 128/128, 5 skipped, **gates CI** |
-| Browser, WebKit (`pnpm e2e --project=webkit`) | 125/125, 8 skipped, **gates CI** |
+| Unit (`pnpm test`) | 917 passing, 80 files |
+| Browser, Chromium (`pnpm e2e --project=chromium`) | 137/137, **gates CI** |
+| Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 132/132, 5 skipped, **gates CI** |
+| Browser, WebKit (`pnpm e2e --project=webkit`) | 127/127, 10 skipped, **gates CI** |
 | Touch, mobile viewports (`--project=mobile-safari --project=mobile-chrome`) | 6+7 passing, **gates CI** |
 | Performance (`e2e/performance.spec.ts`) | keystroke 8.3ms / 8.4ms at 500 blocks, render 205ms |
-| Swift (`cd native/swift && swift test`) | 49 passing |
+| Swift (`cd native/swift && swift test`) | 52 passing |
+| iOS app (`cd apps/ios && xcodegen generate && xcodebuild …`) | builds and runs in the simulator |
 | `pnpm typecheck` | clean, and now covers `apps/` |
 
 Three clients share one document, proven end to end: a keystroke typed into an
 `NSTextView` in Swift merges into a TypeScript peer, and a desktop snapshot
 reopened in a new process converges with a browser holding nothing.
 
-## Shipped since, 2026-08-08
+**And now with no server in the path.** Typed in Chrome, read on an iPhone in the
+simulator, stored to disk by `nbe peer` — three peers, three languages, a full
+WebRTC mesh, and the relay watching none of it go by. Run it: `apps/ios/README.md`.
+
+## Peer-to-peer, 2026-08-08
+
+The question was "any-sync's p2p tooling — we want a fully p2p WebRTC system,
+no?". The answer to the second half is **no, and neither does any-sync**, which
+is the useful part: `docs/research/p2p-any-sync.md` has what its code actually
+says (yamux, QUIC, WebTransport, no WebRTC, no NAT traversal, mDNS in the client
+and an always-on node off the LAN) and D9 in `ARCHITECTURE.md` has the decision.
+
+What shipped, and the shape is one sentence: **the relay signals, then gets out
+of the way, and is also the fallback.**
+
+- **`packages/collab/src/webrtc.ts`** — `p2pTransport(signalling, opts)` wraps
+  any transport and returns one, so `connect()` never learns it went direct.
+  `Message.Signal = 3` rides the relay room, which was already a broadcast bus,
+  so **the relay needed no signalling server** — only the membership count,
+  which is the one fact peers cannot learn by themselves.
+- **`nbe peer`** — a headless WebRTC client, `node-datachannel` for the
+  `RTCPeerConnection` Node lacks. The dependency lives in the CLI, not in
+  `collab`, which stays at core+CRDT.
+- **`apps/ios`** — SwiftUI, xcodegen, real Google WebRTC. The protocol is in
+  `native/swift` (`SyncSession`, `P2PTransport`, `RelayTransport`) and injects
+  its `PeerLink`, so `swift test` checks the state machine without downloading a
+  40MB binary. One file in the app imports WebRTC.
+- **Desktop and the web demo** show which path is live, because an optimisation
+  nobody can observe is one nobody can debug.
+
+**The trap, written down because it is silent:** a peer that cannot speak WebRTC
+never says hello, so peers counting greetings would mesh, stop using the relay,
+and leave `nbe serve` receiving nothing while every screen looked healthy. Both
+implementations take the count from the relay, and both have the test.
+
+**What is still not proven:** a network where the direct path *fails*. The
+simulator shares the Mac's stack and CI is a loopback, so every mesh here
+succeeded. The fallback is exercised (the third test in each file), the NAT that
+would force it is not.
+
+## Shipped earlier, 2026-08-08
 
 - **Both hover gutters are configurable lists** (`EditorViewOptions.gutter`).
   `'add' | 'handle' | 'comment'` are named built-ins a host can reorder or

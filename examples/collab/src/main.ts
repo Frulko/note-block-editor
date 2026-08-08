@@ -20,6 +20,7 @@ import {
   connectToRelay,
   createPresence,
   loopback,
+  p2pTransport,
   redrawOnRemote,
 } from '@nbe/collab';
 import '@nbe/dom/style.css';
@@ -315,11 +316,32 @@ function roomMode(name: string): void {
   };
   const anyone: Person = { id: '', name: 'Quelqu’un', color: 'rgb(120, 120, 120)' };
 
-  document.querySelector('.bar p')!.textContent = `Salon « ${name} » — ${me.name}. Ouvrez la même adresse ailleurs.`;
+  const bar = document.querySelector('.bar p')!;
+  const say = (suffix: string): void => {
+    bar.textContent = `Salon « ${name} » — ${me.name}. ${suffix}`;
+  };
+  say('Ouvrez la même adresse ailleurs.');
   app.style.gridTemplateColumns = '1fr';
 
   const store = new LoroBlockStore();
-  const transport = connectToRelay(url, name);
+  /*
+   * The relay gets you in and then gets out of the way: `p2pTransport` uses it
+   * to negotiate a WebRTC data channel with the other tabs and stops sending
+   * the document over it once every peer has one. Which path is live is on
+   * screen on purpose — an optimisation nobody can observe is one nobody can
+   * debug, and the honest version of "peer-to-peer" is a ladder with a visible
+   * rung (`docs/research/p2p-any-sync.md`).
+   */
+  const transport = p2pTransport(connectToRelay(url, name), {
+    onState: ({ peers, direct, relayed }) =>
+      say(
+        !peers
+          ? 'Ouvrez la même adresse ailleurs.'
+          : relayed
+            ? `${peers} pair(s), via le relais.`
+            : `${direct} pair(s) en direct — le relais ne voit plus rien.`,
+      ),
+  });
   connect(store, transport);
 
   /*

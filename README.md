@@ -23,9 +23,15 @@ See `docs/research/competitive-landscape.md` for who fails at which half.
 - **Collaboration** — Loro CRDT, comments anchored to text rather than offsets,
   document history with restore, live carets, and `nbe serve`: a headless node
   you can run on a NAS.
-- **Four clients** — the web editor, a Tauri desktop app, an Obsidian plugin
-  (the editor alone: no comments, no sync), and a Swift package that reads
-  *and writes* the same CRDT document.
+- **Peer-to-peer over WebRTC** — the relay negotiates the connection and then
+  stops carrying the document. It doubles as the fallback, so there is no TURN
+  server to host: one port, one service, and a status line that says which path
+  is live. Why not "fully p2p", and what any-sync does instead:
+  `docs/research/p2p-any-sync.md`.
+- **Five clients** — the web editor, a Tauri desktop app, an iOS app, an
+  Obsidian plugin (the editor alone: no comments, no sync), and a Swift package
+  that reads *and writes* the same CRDT document. A browser, an iPhone and a
+  command line hold one document with the relay out of the path.
 
 **Six gating test suites**: ~870 unit tests, Chromium, WebKit (Safari's engine),
 an alternative editable topology, touch at phone viewports, and the Swift port.
@@ -93,11 +99,13 @@ packages/
   workspace/         the notes app: page tree, backlinks, search, Markdown vault,
                      Notion import, collections. Zero DOM.
   collab/            Loro CRDT: block store, text merging, sync transport,
-                     presence, comments, document history
-  cli/               `nbe` — the vault from a terminal, an SQLite index, and
-                     `nbe serve`, a headless sync node for a NAS
+                     WebRTC mesh, presence, comments, document history
+  cli/               `nbe` — the vault from a terminal, an SQLite index,
+                     `nbe relay`/`nbe serve` (relay, signalling, sync node) and
+                     `nbe peer`, a headless WebRTC peer
 apps/
   desktop/           Carnet as a Tauri app: a vault in a folder you choose
+  ios/               the third client, in the simulator: SwiftUI + real WebRTC
   obsidian/          the editor alone, as an Obsidian view. No sync, by design
 examples/
   vanilla/           full demo — multi-page workspace, databases, inspector
