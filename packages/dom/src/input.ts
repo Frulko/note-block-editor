@@ -162,6 +162,23 @@ export function attachInput(view: EditorView): () => void {
         else if (!deleteBackward(editor)) mergeBackward(editor);
         break;
       }
+      case 'insertReplacementText': {
+        /*
+         * What a browser fires when someone accepts a spellcheck correction, or
+         * an autocorrect on a phone. It arrives with the misspelling already
+         * selected and the replacement in `data`, which is exactly what
+         * `handleInsertText` does with a range — so this is the existing path,
+         * not a new one.
+         *
+         * It used to fall through to the default and be blocked outright:
+         * right-clicking a typo and choosing the fix did nothing at all, in
+         * every browser, with spellcheck on by default in a contenteditable.
+         */
+        ev.preventDefault();
+        const replacement = ev.data ?? ev.dataTransfer?.getData('text/plain') ?? '';
+        if (replacement) handleInsertText(view, replacement);
+        break;
+      }
       case 'insertFromPaste':
         ev.preventDefault(); // the 'paste' event pipeline in clipboard.ts owns pasting
         break;
@@ -191,8 +208,15 @@ export function attachInput(view: EditorView): () => void {
       case 'insertCompositionText':
         break; // non-cancelable by spec; reconciled at compositionend
       default:
-        // ponytail: unknown input types are blocked to protect the model;
-        // insertReplacementText (spellcheck) support comes with the MutationObserver path
+        /*
+         * ponytail: an input type this editor does not recognise is blocked
+         * rather than let through — the model is the document, and a browser
+         * writing into the DOM behind its back is the failure mode D2 exists to
+         * avoid. The MutationObserver defence catches what slips past.
+         *
+         * `insertReplacementText` used to land here, which silently broke
+         * accepting a spellcheck correction; it has its own case now.
+         */
         ev.preventDefault();
     }
   };
