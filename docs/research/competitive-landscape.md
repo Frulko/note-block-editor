@@ -91,8 +91,11 @@ to readable Markdown is unclaimed.
 
 ## Table stakes, from the survey
 
-Missing two of these reads as "not a block editor" immediately. Recorded here
-so they can be checked against what we ship rather than assumed:
+Missing two of these reads as "not a block editor" immediately. **Checked
+2026-08-08** rather than assumed (`e2e/table-stakes.spec.ts`) — all of the
+claims below that were testable hold, which is worth knowing given that the
+last assumed-true claim in this project (the topology switch) turned out to be
+false when finally run:
 
 - **Slash menu** opens only on a literally typed `/` — never on paste, undo, or
   programmatic insertion; filters as you type; deletes the query text before
