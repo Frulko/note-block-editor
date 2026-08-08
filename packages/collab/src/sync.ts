@@ -54,6 +54,18 @@ export const enum Message {
    * cannot end up in the document or in history.
    */
   Presence = 2,
+  /**
+   * "Here is how to reach me directly." WebRTC negotiation, and the relay's
+   * count of who is in the room (`webrtc.ts`).
+   *
+   * @remarks
+   * It rides this channel because signalling *is* opaque bytes broadcast to a
+   * room, and a relay room already is one — so peer-to-peer cost us no
+   * signalling server. A peer that predates this kind falls into the `default`
+   * branch below and ignores it, which is exactly right: it keeps syncing over
+   * the relay while newer peers go direct around it.
+   */
+  Signal = 3,
 }
 
 export function envelope(kind: Message, payload: Uint8Array): Uint8Array {

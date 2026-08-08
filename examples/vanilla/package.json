@@ -12,6 +12,7 @@
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
     "@nbe/blocks-callout": "workspace:*",
+    "@nbe/markdown": "workspace:*",
     "@nbe/workspace": "workspace:*"
   },
   "devDependencies": {

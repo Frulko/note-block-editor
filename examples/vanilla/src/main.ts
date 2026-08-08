@@ -8,7 +8,8 @@ import { createComments, ME } from './comments';
 import { allAssetBytes, resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
 import { Workspace as PageTree, pageTitle, referencedAssets } from '@nbe/workspace';
 import { createDatabaseHost, type CollectionRecord, type CollectionStore } from '@nbe/workspace/database';
-import { exportVault, importVault } from '@nbe/workspace/vault';
+import { exportVault, importVault, slugify } from '@nbe/workspace/vault';
+import { blocksToMarkdown } from '@nbe/markdown';
 import { importNotion } from '@nbe/workspace/notion';
 import { download, unzip, zip } from './zip';
 import {
@@ -69,6 +70,21 @@ function seedPage(): BlockJSON {
     ],
   };
 }
+
+/*
+ * Theme, before the await below: `data-nbe-theme` on <html> is the editor's
+ * documented host hook and the demo tokens read the same attribute, so one
+ * property themes both. Applied first so a saved choice never flashes.
+ */
+const themeEl = document.getElementById('theme') as HTMLSelectElement;
+themeEl.value = localStorage.getItem('nbe-demo-theme') ?? '';
+const applyTheme = (): void => {
+  if (themeEl.value) document.documentElement.dataset['nbeTheme'] = themeEl.value;
+  else delete document.documentElement.dataset['nbeTheme'];
+  localStorage.setItem('nbe-demo-theme', themeEl.value);
+};
+applyTheme();
+themeEl.addEventListener('change', applyTheme);
 
 // top-level await: pages now live in IndexedDB, and the shell has nothing
 // useful to show before they arrive
@@ -554,6 +570,20 @@ scrim.addEventListener('click', () => setDrawer(null));
 document.getElementById('sidebar')!.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest('.page-item, .result')) setDrawer(null);
 });
+
+/*
+ * The open page leaves on its own: the JSON is the document itself, the
+ * Markdown is its L1 projection — the same two views the inspector shows.
+ */
+function exportPage(extension: 'json' | 'md'): void {
+  const json = docToJSON(editor.doc);
+  const body =
+    extension === 'json' ? JSON.stringify(json, null, 2) : blocksToMarkdown(json.children ?? []);
+  const type = extension === 'json' ? 'application/json' : 'text/markdown';
+  download(new Blob([body], { type }), `${slugify(pageTitle(json) || 'page')}.${extension}`);
+}
+document.getElementById('export-json')!.addEventListener('click', () => exportPage('json'));
+document.getElementById('export-md')!.addEventListener('click', () => exportPage('md'));
 
 document.getElementById('undo')!.addEventListener('click', () => editor.undo());
 document.getElementById('redo')!.addEventListener('click', () => editor.redo());

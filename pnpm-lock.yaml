@@ -199,6 +199,9 @@ importers:
       '@nbe/dom':
         specifier: workspace:*
         version: link:../../packages/dom
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../../packages/markdown
       '@nbe/workspace':
         specifier: workspace:*
         version: link:../../packages/workspace
