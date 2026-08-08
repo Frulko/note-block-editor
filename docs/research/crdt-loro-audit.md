@@ -182,8 +182,21 @@ specifically under the CRDT store: keystroke to paint is 8.3ms on a small
 document and 8.4ms with five hundred blocks — flat, which is the property that
 matters.
 
-**Still not evaluated:** memory under a long-lived document, and how the
-oplog grows in practice. AFFiNE reports 10k modifications peaking at 1 GB and
-100 MB of Postgres per 1,000 documents, which is the cost Loro's shallow
-snapshots are supposed to answer — and shallow snapshots are the specific
-feature nobody here has exercised.
+**Oplog growth: measured 2026-08-08** (`packages/collab/test/growth.test.ts`).
+Ten thousand single-character edits to one paragraph leave a **1.4 KB**
+snapshot holding ten thousand characters. That is smaller than the plain text,
+because Loro compresses the snapshot and the test's alphabet cycles — so the
+absolute figure flatters real prose. What it does settle is the question that
+was actually open: **the oplog does not accumulate per edit.** AFFiNE reports 1
+GB memory peaks at the same modification count, and this is five orders of
+magnitude away; no amount of compressibility explains five orders.
+
+**Shallow snapshots work, and save less here than advertised** — 38% against
+the 70–90% the survey quotes. Not a contradiction: the full snapshot is already
+tiny, so there is little history left to drop. The feature is worth having when
+a document has genuinely long history; it is not what keeps this one small.
+Verified that a shallow snapshot still reopens as the same document, since
+compaction that lost content would be worse than growth.
+
+**Still not evaluated:** memory under a long-lived document in a real browser
+session, which needs a profiler rather than a test.
