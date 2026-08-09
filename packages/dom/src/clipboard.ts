@@ -512,7 +512,12 @@ export function attachClipboard(view: EditorView): () => void {
     );
     e.clipboardData.setData(
       'text/plain',
-      slice.inline ? runsToMarkdown(slice.blocks[0]!.text) : blocksToMarkdown(slice.blocks),
+      slice.inline
+        ? runsToMarkdown(slice.blocks[0]!.text)
+        : // with the registry, or a plugin's block serializes to the
+          // `<!-- nbe:code -->` marker that means "this format cannot say it":
+          // copying a code block put *that* on the clipboard, not the code
+          blocksToMarkdown(slice.blocks, { plugins: view.plugins }),
     );
     return slice;
   };
@@ -546,6 +551,19 @@ export function attachClipboard(view: EditorView): () => void {
 
     const plainRequested = Date.now() - plainPasteAt < 600;
     const plain = data.getData('text/plain');
+
+    /*
+     * Into a block that holds literal text, everything is text. Pasting a
+     * shell script into a code block used to run it through the Markdown
+     * parser: `# setup` became a heading and the block was cut in three.
+     * Checked before every other flavour, including our own slice — what you
+     * paste into code is code.
+     */
+    const into = editor.selection?.kind === 'text' ? editor.selection.head.blockId : null;
+    if (into && editor.schema.get(getBlock(editor.doc, into).type).literal) {
+      if (plain) insertBlocksAt(view, [{ id: uuidv7(), type: 'paragraph', version: 1, text: [{ text: plain.replace(/\r/g, '') }] }], true);
+      return;
+    }
 
     // a bare URL is an intent, not a string: link the selection, or drop an
     // image block when the URL points at one (Notion / Medium behaviour)
@@ -592,7 +610,7 @@ export function attachClipboard(view: EditorView): () => void {
     }
     const md = data.getData('text/markdown') || plain;
     if (md) {
-      const blocks = markdownToBlocks(md.replace(/\r/g, ''));
+      const blocks = markdownToBlocks(md.replace(/\r/g, ''), { plugins: view.plugins });
       if (blocks.length) insertBlocksAt(view, blocks, blocks.length === 1 && blocks[0]!.type === 'paragraph');
     }
   };

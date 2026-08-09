@@ -30,6 +30,21 @@ export interface BlockSpec {
    * become a plugin.
    */
   standalone?: boolean;
+  /**
+   * The block's text is literal characters, not markup.
+   *
+   * @remarks
+   * A code block holds what was typed and nothing else: `#` at the start of a
+   * line is a comment, not a heading, and pasting a file into one must insert
+   * the file. Two places used to test `type === 'code'` by name to get this
+   * right — the autoformat gate and, by omission, nothing in the clipboard, so
+   * pasting a shell script into a code block turned its comments into
+   * headings. Declaring it is what let the code block become a plugin, the
+   * same argument as {@link BlockSpec.standalone}.
+   *
+   * @defaultValue false
+   */
+  literal?: boolean;
   defaultProps?: Record<string, unknown>;
   /** Placeholder shown by the view when the block is empty and focused. */
   placeholder?: string;

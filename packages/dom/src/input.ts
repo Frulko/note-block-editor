@@ -99,7 +99,7 @@ function handleInsertText(view: EditorView, data: string): void {
       return;
     }
   }
-  if (after.type === 'code') return; // a code block holds literal text
+  if (editor.schema.get(after.type).literal) return; // the block holds literal text
   const inline = matchInlineFormat(before);
   if (inline) {
     applyInlineFormat(editor, at.id, inline);

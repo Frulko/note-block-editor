@@ -114,6 +114,8 @@ export const codePlugin: BlockPlugin = {
     type: 'code',
     version: 1,
     inline: true,
+    // what is typed is what is stored: no autoformat, no Markdown on paste
+    literal: true,
     defaultProps: { language: 'plain' },
     placeholder: 'Code',
   },

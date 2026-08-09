@@ -93,4 +93,69 @@ test.describe('the code block', () => {
     expect((await editor.texts())[0]).toBe('def f(): pass');
     expect(editor.errors()).toEqual([]);
   });
+
+  test('Shift+Enter adds a line too — both spellings of "new line"', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.keyboard.type('un');
+    await page.keyboard.press('Shift+Enter');
+    await page.keyboard.type('deux');
+    expect(await editor.types()).toEqual(['code']);
+    expect((await editor.texts())[0]).toBe('un\ndeux');
+  });
+});
+
+/**
+ * The clipboard, which the extraction into `@nbe/blocks-code` broke in both
+ * directions: the copy path serialised through Markdown with no plugin
+ * registry, and the paste path ran the Markdown parser over text going *into*
+ * a block that holds literal characters.
+ */
+test.describe('the code block and the clipboard', () => {
+  test('copying it puts the code on the clipboard, not a placeholder', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.keyboard.type('const x = 1;');
+    await page.keyboard.press('ControlOrMeta+a');
+
+    const copied = await page.evaluate(() => {
+      const dt = new DataTransfer();
+      document.activeElement?.dispatchEvent(
+        new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true }),
+      );
+      return { plain: dt.getData('text/plain'), html: dt.getData('text/html') };
+    });
+    expect(copied.plain).toContain('const x = 1;');
+    expect(copied.plain).not.toContain('nbe:code'); // the "cannot say it" marker
+    expect(copied.html).toContain('<pre><code>const x = 1;</code></pre>');
+  });
+
+  test('pasting into it inserts text, and does not parse Markdown', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', '#!/bin/sh\n# setup\necho ok');
+      document.activeElement?.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
+      );
+    });
+
+    // one block, still code, `#` intact — it used to become a heading
+    expect(await editor.types()).toEqual(['code']);
+    expect((await editor.texts())[0]).toBe('#!/bin/sh\n# setup\necho ok');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('the language filter keeps the focus while you type in it', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.locator('.nbe-t-code').hover();
+    await page.locator('.nbe-blocktoolbar-btn').first().click();
+    const input = page.locator('.nbe-menu input');
+    await input.click();
+    // one character at a time: `fill()` sets the value in one shot and would
+    // never have caught this — it took one character per click
+    await page.keyboard.type('jav', { delay: 20 });
+
+    await expect(input).toHaveValue('jav');
+    await expect(input).toBeFocused();
+    await expect(page.locator('.nbe-menu button', { hasText: 'JavaScript' })).toBeVisible();
+  });
 });

@@ -82,6 +82,20 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     const items = selectable();
     active = Math.min(active, Math.max(0, items.length - 1));
     let itemIndex = -1;
+    /*
+     * `replaceChildren` detaches every child, and detaching the focused
+     * element blurs it. A custom entry hosting a text field — the code block's
+     * language filter, a database's value filter — therefore lost focus on the
+     * *first* keystroke, because typing re-renders the filtered list. The
+     * symptom is unmistakable and was reported as such: one character per
+     * click. Custom entries are re-appended as the same node, so the fix is to
+     * put the caret back where the browser took it from.
+     */
+    const focused = el.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
+    const caret =
+      focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement
+        ? ([focused.selectionStart, focused.selectionEnd, focused.selectionDirection] as const)
+        : null;
     el.replaceChildren(
       ...entries.map((entry) => {
         if (entry.kind === 'section') {
@@ -127,6 +141,12 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
         return btn;
       }),
     );
+    if (focused?.isConnected && document.activeElement !== focused) {
+      focused.focus({ preventScroll: true });
+      if (caret && (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)) {
+        focused.setSelectionRange(caret[0], caret[1], caret[2] ?? undefined);
+      }
+    }
     el.querySelector('.nbe-active')?.scrollIntoView({ block: 'nearest' });
     // reposition synchronously after the content changed: a menu anchored
     // above its trigger is placed from its own height, so filtering a long
