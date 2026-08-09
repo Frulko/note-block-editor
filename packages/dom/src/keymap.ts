@@ -24,7 +24,7 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { viewOf } from './block-view';
-import { leafOf } from './selection';
+import { domToModelPoint, leafOf } from './selection';
 import { caretClientX, offsetAtX, syncCaretFromDom } from './caret';
 
 /**
@@ -53,13 +53,37 @@ function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
   const range = s.getRangeAt(0);
   const leaf = leafOf(range.startContainer);
   if (!leaf) return null;
+
+  /*
+   * Two answers, and both have to agree.
+   *
+   * A hard line break is a fact: a `\n` before the caret means it is not on
+   * the first line whatever the geometry says. That is what the geometry got
+   * wrong — a collapsed range sitting after a *trailing* newline reports no
+   * rect at all in Chromium and a top-of-the-leaf rect in WebKit, so both read
+   * as "first line" and ArrowUp left the block from the empty line Enter had
+   * just made.
+   *
+   * The rect is a fact too, and the only one that can see *wrapping*: a long
+   * line with no break in it is still several lines on screen. So neither
+   * alone: a line is the first when there is no break above it and nothing
+   * above it on screen.
+   */
+  const text = leaf.textContent ?? '';
+  const at = domToModelPoint(range.startContainer, range.startOffset);
+  const breakBefore = at ? text.slice(0, at.offset).includes('\n') : false;
+  const breakAfter = at ? text.slice(at.offset).includes('\n') : false;
+
   const rect = range.getBoundingClientRect();
-  if (rect.width === 0 && rect.height === 0 && rect.top === 0) return { first: true, last: true }; // empty leaf
+  // no rect: an empty leaf, or a caret past a trailing break — the breaks decide
+  if (rect.width === 0 && rect.height === 0 && rect.top === 0) {
+    return { first: !breakBefore, last: !breakAfter };
+  }
   const leafRect = leaf.getBoundingClientRect();
   const line = parseFloat(getComputedStyle(leaf).lineHeight) || 24;
   return {
-    first: rect.top - leafRect.top < line * 0.75,
-    last: leafRect.bottom - rect.bottom < line * 0.75,
+    first: !breakBefore && rect.top - leafRect.top < line * 0.75,
+    last: !breakAfter && leafRect.bottom - rect.bottom < line * 0.75,
   };
 }
 
