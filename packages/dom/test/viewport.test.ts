@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { attachViewportGuard } from '../src/viewport';
+import { attachViewportGuard, reveal } from '../src/viewport';
 import type { EditorView } from '../src/view';
 
 /**
@@ -114,5 +114,70 @@ describe('the caret stays above the keyboard', () => {
   it('is a no-op where visualViewport does not exist', () => {
     Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true });
     expect(() => attachViewportGuard(fakeView(500))()).not.toThrow();
+  });
+});
+
+/**
+ * `reveal` moves one scroller.
+ *
+ * @remarks
+ * The whole point of the function, and the half that `scrollIntoView` was
+ * still undoing: a caret genuinely below the fold used to scroll the document's
+ * scroller *and* every scrollable ancestor above it — which inside Obsidian is
+ * the pane, the split and the window. Two scrollers is the smallest arrangement
+ * where that is visible at all, so that is what this builds.
+ */
+describe('reveal scrolls the scrollport the block is in, and nothing above it', () => {
+  /** A div that `findScrollParent` will accept: overflow, and content to scroll. */
+  function scrollable(parent: Element, rect: { top: number; bottom: number }): HTMLElement {
+    const el = document.createElement('div');
+    el.style.overflowY = 'auto';
+    Object.defineProperty(el, 'scrollHeight', { value: 4000, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: rect.bottom - rect.top, configurable: true });
+    el.getBoundingClientRect = () => ({ ...rect, height: rect.bottom - rect.top }) as DOMRect;
+    parent.append(el);
+    return el;
+  }
+
+  function block(parent: Element, rect: { top: number; bottom: number }): HTMLElement {
+    const box = document.createElement('div');
+    const leaf = document.createElement('p');
+    leaf.getBoundingClientRect = () => ({ ...rect, height: rect.bottom - rect.top }) as DOMRect;
+    box.append(leaf);
+    parent.append(box);
+    return leaf;
+  }
+
+  it('scrolls the inner scroller only, by the distance that was hidden', () => {
+    const outer = scrollable(document.body, { top: 0, bottom: 800 });
+    const inner = scrollable(outer, { top: 100, bottom: 500 });
+    const leaf = block(inner, { top: 560, bottom: 580 });
+    const into = vi.spyOn(leaf, 'scrollIntoView');
+
+    reveal(leaf);
+
+    expect(inner.scrollTop).toBe(80); // 580 bottom - 500 port bottom
+    expect(outer.scrollTop).toBe(0);
+    expect(into).not.toHaveBeenCalled();
+  });
+
+  it('brings a block above the port back down to its top edge', () => {
+    const inner = scrollable(document.body, { top: 100, bottom: 500 });
+    inner.scrollTop = 300;
+    const leaf = block(inner, { top: 40, bottom: 60 });
+
+    reveal(leaf);
+
+    expect(inner.scrollTop).toBe(240); // 300 + (40 - 100)
+  });
+
+  it('does not touch a scroller showing the block already', () => {
+    const inner = scrollable(document.body, { top: 100, bottom: 500 });
+    inner.scrollTop = 300;
+    const leaf = block(inner, { top: 200, bottom: 220 });
+
+    reveal(leaf);
+
+    expect(inner.scrollTop).toBe(300);
   });
 });

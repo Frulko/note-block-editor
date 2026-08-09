@@ -37,10 +37,15 @@ const MARGIN = 24;
  * what "the page scrolls oddly on a reorder" and "stop the re-scroll on Enter"
  * both were.
  *
- * Asking first costs one rect read and removes the whole class: if the target
- * is inside its scrollport, nobody scrolls anything. When it genuinely is off
- * screen the browser's own implementation still does the work, because getting
- * `block: 'nearest'` right across nested scrollers is not worth reimplementing.
+ * Asking first costs one rect read and removes half the class: if the target is
+ * inside its scrollport, nobody scrolls anything.
+ *
+ * The other half is *when it genuinely is off screen*, and deferring to
+ * `scrollIntoView` there left the original bug intact — a caret below the fold
+ * still moved Obsidian's pane, its split and its window along with the
+ * document. So the scroll is done by hand, on the one scroller that shows the
+ * block: `block: 'nearest'` is two cases, align the top edge or align the
+ * bottom one, which is cheaper to write than to keep explaining.
  *
  * @category Interaction
  */
@@ -54,7 +59,11 @@ export function reveal(el: HTMLElement): void {
     ? { top: 0, bottom: window.visualViewport?.height ?? window.innerHeight }
     : scroller.getBoundingClientRect();
   if (rect.top >= port.top && rect.bottom <= port.bottom) return;
-  el.scrollIntoView({ block: 'nearest' });
+  // above the port: bring its top down to the top. Below (or taller than the
+  // port, which the first test catches): bring its bottom up to the bottom.
+  const top = rect.top < port.top ? rect.top - port.top : rect.bottom - port.bottom;
+  if (paging) window.scrollBy({ top });
+  else scroller.scrollTop += top;
 }
 
 export function attachViewportGuard(view: EditorView): () => void {
