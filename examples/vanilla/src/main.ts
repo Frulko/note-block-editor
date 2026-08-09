@@ -4,6 +4,7 @@ import {
   createExport,
   defaultFeatures,
   findFeature,
+  fr,
   perBlockTopology,
   singleHostTopology,
   wordCountFeature,
@@ -472,6 +473,8 @@ function openPage(pageId: string): void {
      */
     features: extraFeatures.length ? [...defaultFeatures, ...extraFeatures] : undefined,
     // activation is an import plus an array entry
+    // the editor's default is English now; Carnet is French and says so
+    labels: fr,
     blocks: BLOCKS,
     onOpenPage: (id) => openPage(id),
     // @ mentions: the workspace is the page store, so it answers both hooks

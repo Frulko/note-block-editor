@@ -69,4 +69,6 @@ export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';
 export type { TriggerMenuOptions } from './trigger-menu';
 export { format, defaultLabels, resolveLabels } from './labels';
+export { LOCALES, LOCALE_NAMES, labelsFor, en, fr, es, it, de } from './i18n';
+export type { LocaleCode } from './i18n';
 export type { EditorLabels } from './labels';

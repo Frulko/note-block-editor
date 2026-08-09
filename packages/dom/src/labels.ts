@@ -13,6 +13,8 @@
  *
  * @category Configuration
  */
+import { en } from './i18n/en';
+
 export interface EditorLabels {
   // --- block menu (the ⋮⋮ gutter) ---
   /** Duplicate the block. Shown in the ⋮⋮ gutter menu. */
@@ -270,130 +272,17 @@ export interface EditorLabels {
  *
  * @category Configuration
  */
-export const defaultLabels: EditorLabels = {
-  duplicate: 'Dupliquer',
-  delete: 'Supprimer',
-  copyBlockLink: 'Copier le lien du bloc',
-  moveUp: 'Déplacer vers le haut',
-  moveDown: 'Déplacer vers le bas',
-  thisBlock: 'Ce bloc',
-  turnInto: 'Transformer en',
-  textColor: 'Couleur du texte',
-  backgroundColor: 'Couleur de fond',
-
-  addBlock: 'Ajouter un bloc en dessous',
-  dragHandle: 'Glisser pour déplacer\nCliquer pour ouvrir le menu',
-  addComment: 'Commenter ce bloc',
-  openComments: '{n} commentaire(s) sur ce bloc',
-  find: 'Rechercher…',
-  findPrevious: 'Résultat précédent',
-  findNext: 'Résultat suivant',
-  findClose: 'Fermer la recherche',
-  findNone: 'Aucun résultat',
-  wordCount: '{words} mots · {characters} caractères · ~{minutes} min de lecture',
-
-  bold: 'Gras',
-  italic: 'Italique',
-  underline: 'Souligné',
-  strikethrough: 'Barré',
-  superscript: 'Exposant',
-  subscript: 'Indice',
-  inlineCode: 'Code',
-  link: 'Lien',
-  removeLink: 'Retirer le lien',
-  editLink: 'Modifier le lien',
-  openLink: 'Ouvrir le lien',
-
-  text: 'Texte',
-  heading1: 'Titre 1',
-  heading2: 'Titre 2',
-  heading3: 'Titre 3',
-  bulletedList: 'Liste à puces',
-  numberedList: 'Liste numérotée',
-  todo: 'Case à cocher',
-  toggle: 'Toggle',
-  quote: 'Citation',
-  code: 'Code',
-  image: 'Image',
-  chooseFile: 'Choisir un fichier',
-  fileFallbackName: 'Fichier',
-  table: 'Tableau',
-  divider: 'Séparateur',
-  page: 'Page',
-  database: 'Base de données',
-
-  emptyParagraph: 'Écris quelque chose…',
-  placeholders: {
-    heading: 'Titre',
-    bulleted_list_item: 'Élément',
-    numbered_list_item: 'Élément',
-    to_do: 'À faire',
-    toggle: 'Bascule',
-    quote: 'Citation',
-    code: 'Code',
-    callout: 'Encadré',
-  },
-  untitled: 'Sans titre',
-  unknownBlock: 'Bloc « {type} » non reconnu — son extension n’est pas chargée.',
-
-  blockDuplicated: 'Bloc dupliqué',
-  blockDeleted: 'Bloc supprimé',
-  blockMovedUp: 'Bloc déplacé vers le haut',
-  blockMovedDown: 'Bloc déplacé vers le bas',
-  linkCopied: 'Lien copié',
-
-  addCaption: 'Ajouter une légende',
-  editCaption: 'Modifier la légende',
-  captionPlaceholder: 'Légende…',
-  alignLeft: 'Aligner à gauche',
-  alignCenter: 'Centrer',
-  alignRight: 'Aligner à droite',
-  downloadImage: "Télécharger l'image",
-  replaceImage: "Remplacer l'image",
-
-  check: 'Cocher',
-  uncheck: 'Décocher',
-  insertRowAbove: 'Insérer une ligne au-dessus',
-  insertRowBelow: 'Insérer une ligne en dessous',
-  deleteRow: 'Supprimer la ligne',
-  insertColumnLeft: 'Insérer une colonne à gauche',
-  insertColumnRight: 'Insérer une colonne à droite',
-  deleteColumn: 'Supprimer la colonne',
-  headerRow: "Ligne d'en-tête",
-  headerColumn: "Colonne d'en-tête",
-  fullWidth: 'Pleine largeur',
-  mergeCells: 'Fusionner les cellules',
-  unmergeCells: 'Séparer les cellules',
-  rowN: 'Ligne {n}',
-  columnN: 'Colonne {n}',
-
-  language: 'Langage',
-
-  blockMoved: 'Bloc déplacé',
-  columnsCreated: 'Colonnes créées',
-
-  dbUnavailable: 'Base de données indisponible',
-  dbProperties: 'Propriétés',
-  dbNewProperty: 'Nouvelle propriété',
-  dbDeleteProperty: 'Supprimer la propriété',
-  dbPickGrouping: 'Choisis une propriété de groupement pour le board.',
-  dbNeedsRelation: 'Crée d’abord une propriété Relation',
-  dbPickCollection: 'Choisis une collection cible dans le menu de la propriété',
-  dbRolledUpProperty: 'Propriété agrégée',
-  dbDownloadCsv: 'Télécharger le CSV',
-  dbDownloadBase: 'Télécharger la vue (.base)',
-  dbFormulaHint: 'Entrée pour valider',
-  turnedInto: 'Transformé en {type}',
-  colorDefault: 'Défaut',
-  calloutNote: 'Note',
-  calloutInfo: 'Info',
-  calloutTip: 'Astuce',
-  calloutSuccess: 'Succès',
-  calloutWarning: 'Attention',
-  calloutDanger: 'Erreur',
-  calloutQuote: 'Citation',
-  dbFormulaPlaceholder: 'ex: prop("Prix") * prop("Quantité")',
-};
+/**
+ * The labels an editor uses when a host names none.
+ *
+ * @remarks
+ * English — and it used to be French, which is the interesting part. The
+ * editor was written in French because its first host is; a library whose
+ * defaults are one team's language is one everyone else must translate before
+ * they can read their own screen. The French pack is still here, complete, and
+ * Carnet asks for it by name (`labels: fr`). See `./i18n`.
+ */
+export const defaultLabels: EditorLabels = en;
 
 /**
  * Merge a partial override over the defaults.

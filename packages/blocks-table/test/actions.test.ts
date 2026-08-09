@@ -59,6 +59,8 @@ function entries(editor: Editor, tableId: string, caretBlockId: string | null) {
 const labels = (list: ReturnType<typeof entries>) =>
   list.map((e) => ('label' in e ? e.label : '')).filter(Boolean);
 const run = (list: ReturnType<typeof entries>, label: string) => {
+  // English: the editor's default language, which is what an editor built
+  // with no `labels` speaks. Carnet asks for `fr` by name.
   const entry = list.find((e) => 'label' in e && e.label === label);
   (entry as { onSelect: () => void }).onSelect();
 };
@@ -70,21 +72,21 @@ describe('table block actions', () => {
     const { editor, tableId } = setup();
     const cell = cellAt(editor.doc, tableId, 1, 2)!;
     const list = entries(editor, tableId, cell.id);
-    expect(list.some((e) => 'label' in e && e.label === 'Ligne 2')).toBe(true);
-    expect(list.some((e) => 'label' in e && e.label === 'Colonne 3')).toBe(true);
+    expect(list.some((e) => 'label' in e && e.label === 'Row 2')).toBe(true);
+    expect(list.some((e) => 'label' in e && e.label === 'Column 3')).toBe(true);
   });
 
   it('falls back to the first cell when the caret was never in the table', () => {
     const { editor, tableId } = setup();
     const list = entries(editor, tableId, 'anchor');
-    expect(list.some((e) => 'label' in e && e.label === 'Ligne 1')).toBe(true);
-    expect(list.some((e) => 'label' in e && e.label === 'Colonne 1')).toBe(true);
+    expect(list.some((e) => 'label' in e && e.label === 'Row 1')).toBe(true);
+    expect(list.some((e) => 'label' in e && e.label === 'Column 1')).toBe(true);
   });
 
   it('deletes the row the caret is in, not the first one', () => {
     const { editor, tableId } = setup();
     const cell = cellAt(editor.doc, tableId, 1, 0)!;
-    run(entries(editor, tableId, cell.id), 'Supprimer la ligne');
+    run(entries(editor, tableId, cell.id), 'Delete row');
     expect(grid(editor, tableId)).toEqual([
       ['00', '01', '02'],
       ['20', '21', '22'],
@@ -94,7 +96,7 @@ describe('table block actions', () => {
   it('deletes the column the caret is in', () => {
     const { editor, tableId } = setup();
     const cell = cellAt(editor.doc, tableId, 0, 1)!;
-    run(entries(editor, tableId, cell.id), 'Supprimer la colonne');
+    run(entries(editor, tableId, cell.id), 'Delete column');
     expect(grid(editor, tableId)).toEqual([
       ['00', '02'],
       ['10', '12'],
@@ -105,15 +107,15 @@ describe('table block actions', () => {
   it('inserts above and below relative to the caret row', () => {
     const { editor, tableId } = setup();
     const cell = cellAt(editor.doc, tableId, 1, 0)!;
-    run(entries(editor, tableId, cell.id), 'Insérer une ligne au-dessus');
+    run(entries(editor, tableId, cell.id), 'Insert row above');
     expect(grid(editor, tableId).map((r) => r[0])).toEqual(['00', '', '10', '20']);
   });
 
   it('toggles the header row both ways', () => {
     const { editor, tableId } = setup();
-    run(entries(editor, tableId, null), "Ligne d'en-tête");
+    run(entries(editor, tableId, null), 'Header row');
     expect(editor.doc.blocks.get(tableId)!.props['headerRow']).toBe(false);
-    run(entries(editor, tableId, null), "Ligne d'en-tête");
+    run(entries(editor, tableId, null), 'Header row');
     expect(editor.doc.blocks.get(tableId)!.props['headerRow']).toBe(true);
   });
 

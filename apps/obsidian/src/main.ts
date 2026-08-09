@@ -17,6 +17,8 @@ import {
   defaultFeatures,
   exportFeature,
   findFeature,
+  labelsFor,
+  LOCALE_NAMES,
   wordCountFeature,
   type EditorViewOptions,
 } from '@nbe/dom';
@@ -94,6 +96,8 @@ interface CarnetSettings {
   themeMode: 'vault' | 'light' | 'dark';
   /** Which syntax palette code blocks use. See `CODE_THEMES`. */
   codeTheme: string;
+  /** The editor's interface language. `LOCALE_NAMES` lists what ships. */
+  locale: string;
   /** One CSS custom property per line: `--nbe-accent-rgb: 220 38 38`. */
   theme: string;
   /** Chrome features toggled off, by feature name; absent means on. */
@@ -111,6 +115,9 @@ const DEFAULT_SETTINGS: CarnetSettings = {
   defaultEditor: false,
   themeMode: 'vault',
   codeTheme: 'one',
+  // the vault is most likely French if this plugin is installed; the editor's
+  // own default is English and every other language is one setting away
+  locale: 'fr',
   theme: '',
   features: {},
 };
@@ -133,6 +140,7 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
 /** Project the vault settings onto the editor's options, defaults preserved. */
 function viewOptions(s: CarnetSettings): EditorViewOptions {
   const opts: EditorViewOptions = {
+    labels: labelsFor(s.locale),
     spellcheck: s.spellcheck,
     columns: s.columns,
     readOnly: s.readOnly,
@@ -598,6 +606,19 @@ class CarnetSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const save = () => void this.plugin.saveSettings();
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Langue')
+      .setDesc('La langue de l’interface de l’éditeur — menus, infobulles, messages. Elle ne touche pas au contenu des notes.')
+      .addDropdown((d) =>
+        d
+          .addOptions(LOCALE_NAMES)
+          .setValue(s.locale)
+          .onChange((v) => {
+            s.locale = v;
+            save();
+          }),
+      );
 
     new Setting(containerEl)
       .setName('Thème')

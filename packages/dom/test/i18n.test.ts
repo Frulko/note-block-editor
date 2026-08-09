@@ -16,10 +16,15 @@ const SRC = join(import.meta.dirname, '..', 'src');
 /** Every UI-facing module. Excluded files carry no on-screen strings. */
 function uiSources(): string[] {
   const skip = new Set(['labels.ts', 'icons.ts', 'icon-picker.ts', 'database.ts']);
+  // `src/i18n/` is nothing but dictionaries: scanning them for on-screen
+  // strings would report every translation as a hardcoded one
+  const skipDir = new Set(['i18n']);
   const walk = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory()
-        ? walk(join(dir, e.name))
+        ? skipDir.has(e.name)
+          ? []
+          : walk(join(dir, e.name))
         : e.name.endsWith('.ts') && !skip.has(e.name)
           ? [join(dir, e.name)]
           : [],

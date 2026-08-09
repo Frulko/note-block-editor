@@ -3,7 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { docFromJSON, docToJSON, Editor, type BlockJSON } from '@nbe/core';
 import { LoroBlockStore, connect, connectToRelay, p2pTransport, redrawOnRemote, seedFromJSON } from '@nbe/collab';
-import { EditorView } from '@nbe/dom';
+import { EditorView, fr } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
@@ -498,6 +498,7 @@ async function openPage(pageId: string): Promise<void> {
   liveStore = store;
   joinRoom(pageId, store);
   view = new EditorView(editorEl, editor, {
+    labels: fr,
     blocks: [callout, code, toc, ...tableDomBlocks],
     database: database ?? undefined,
     onOpenPage: (id) => goTo(id),
