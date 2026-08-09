@@ -260,3 +260,70 @@ test.describe('the code block, in the frame it is typed in', () => {
     expect(Math.abs(after.gap - before.gap)).toBeLessThan(12);
   });
 });
+
+/**
+ * Tab in a code block is an indent. A caret indents where it is; a selection
+ * indents every line it touches, which is what anyone reaches for after
+ * pasting. Outdent takes a real tab or spaces, because a file written
+ * elsewhere is indented with whichever its author used.
+ */
+test.describe('the code block indents like an editor', () => {
+  const write = async (page: Page, editor: { setDocument(p: string[]): Promise<void> }, lines: string[]) => {
+    await makeCode(page, editor);
+    for (const [i, line] of lines.entries()) {
+      if (i) await page.keyboard.press('Enter');
+      await page.keyboard.type(line);
+    }
+  };
+
+  test('a selection indents every line it touches, and outdents them back', async ({ page, editor }) => {
+    await write(page, editor, ['un', 'deux', 'trois']);
+    // select from inside line 1 to inside line 2
+    // the code block is the only block: one leaf, index 0
+    await editor.selectRange([0, 1], [0, 8]);
+    await page.keyboard.press('Tab');
+    expect((await editor.texts())[0]).toBe('  un\n  deux\ntrois');
+
+    await page.keyboard.press('Shift+Tab');
+    expect((await editor.texts())[0]).toBe('un\ndeux\ntrois');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('the selection still covers the same lines afterwards', async ({ page, editor }) => {
+    await write(page, editor, ['un', 'deux']);
+    await editor.selectRange([0, 0], [0, 7]);
+    await page.keyboard.press('Tab');
+    expect(await editor.selectionText()).toBe('  un\n  deux');
+  });
+
+  test('outdent takes a real tab as readily as spaces', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    // a tab typed as a character, the way a paste from a file arrives
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', '\tune ligne');
+      document.activeElement?.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
+      );
+    });
+    expect((await editor.texts())[0]).toBe('\tune ligne');
+
+    await editor.caret(0, 3);
+    await page.keyboard.press('Shift+Tab');
+    expect((await editor.texts())[0]).toBe('une ligne');
+  });
+
+  test('a caret still indents where it is, not at the line start', async ({ page, editor }) => {
+    await write(page, editor, ['abcd']);
+    await editor.caret(0, 2);
+    await page.keyboard.press('Tab');
+    expect((await editor.texts())[0]).toBe('ab  cd');
+  });
+
+  test('outdenting a line with no indent left changes nothing', async ({ page, editor }) => {
+    await write(page, editor, ['un', 'deux']);
+    await editor.selectRange([0, 0], [0, 7]);
+    await page.keyboard.press('Shift+Tab');
+    expect((await editor.texts())[0]).toBe('un\ndeux');
+  });
+});

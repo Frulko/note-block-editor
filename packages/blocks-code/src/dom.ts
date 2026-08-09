@@ -109,26 +109,85 @@ export const code: DomBlockPlugin = {
         );
         return true;
       },
-      // Tab indents rather than moving focus or nesting the block
+      /*
+       * Tab is an indent, never a focus move and never a nest.
+       *
+       * A caret indents where it is, which is what every editor does. A
+       * *selection* indents every line it touches, which is the one people
+       * reach for after pasting — and the reason the edits are applied from
+       * the last line backwards: an insertion at line 1 would move every
+       * offset computed for the lines below it.
+       *
+       * Outdent takes one real tab or up to `INDENT` spaces, because a file
+       * written elsewhere is indented with whichever its author used and both
+       * survive the Markdown round trip intact.
+       */
       Tab: ({ view, block, event }) => {
         event.preventDefault();
-        const sel = view.editor.selection;
-        if (sel?.kind !== 'text') return true;
+        const editor = view.editor;
+        const sel = editor.selection;
+        if (sel?.kind !== 'text' || sel.head.blockId !== block.id) return true;
         const text = plainText(block.text);
-        const caret = sel.head.offset;
-        const lineStart = text.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
-        if (event.shiftKey) {
-          const outdent = text.slice(lineStart, lineStart + INDENT.length) === INDENT ? INDENT.length : 0;
-          if (!outdent) return true;
-          view.editor.dispatch(
-            (tx) => tx.op({ type: 'delete_text', id: block.id, from: lineStart, to: lineStart + outdent }),
-            { origin: 'input', selection: textCaret(block.id, Math.max(lineStart, caret - outdent)) },
+        const from = Math.min(sel.anchor.offset, sel.head.offset);
+        const to = Math.max(sel.anchor.offset, sel.head.offset);
+
+        if (from === to && !event.shiftKey) {
+          editor.dispatch(
+            (tx) => tx.op({ type: 'insert_text', id: block.id, offset: from, runs: [{ text: INDENT }] }),
+            { origin: 'input', selection: textCaret(block.id, from + INDENT.length) },
           );
           return true;
         }
-        view.editor.dispatch(
-          (tx) => tx.op({ type: 'insert_text', id: block.id, offset: caret, runs: [{ text: INDENT }] }),
-          { origin: 'input', selection: textCaret(block.id, caret + INDENT.length) },
+
+        const starts: number[] = [];
+        for (let i = text.lastIndexOf('\n', Math.max(0, from - 1)) + 1; i <= to; ) {
+          // a selection that ends exactly at a line's start does not reach it
+          if (i > from && i === to) break;
+          starts.push(i);
+          const next = text.indexOf('\n', i);
+          if (next === -1 || next >= to) break;
+          i = next + 1;
+        }
+
+        /** How much this line's indentation changes, in characters. */
+        const shift = (start: number): number => {
+          if (!event.shiftKey) return INDENT.length;
+          const line = text.slice(start);
+          if (line.startsWith('\t')) return -1;
+          const spaces = line.length - line.replace(/^ +/, '').length;
+          return -Math.min(INDENT.length, spaces);
+        };
+
+        const edits = starts.map((start) => ({ start, by: shift(start) })).filter((e) => e.by !== 0);
+        if (!edits.length) return true;
+
+        const head = edits[0]!.by;
+        const total = edits.reduce((n, e) => n + e.by, 0);
+        editor.dispatch(
+          (tx) => {
+            for (const { start, by } of [...edits].reverse()) {
+              if (by > 0) tx.op({ type: 'insert_text', id: block.id, offset: start, runs: [{ text: INDENT }] });
+              else tx.op({ type: 'delete_text', id: block.id, from: start, to: start - by });
+            }
+          },
+          {
+            origin: 'input',
+            selection: {
+              kind: 'text',
+              /*
+               * A selection that started at a line's start keeps it: the
+               * indent goes *inside* what was selected, so whole lines stay
+               * whole. Otherwise the anchor rides its own line's change, and
+               * never before that line's start — an outdent must not pull it
+               * up into the line above.
+               */
+              anchor: {
+                blockId: block.id,
+                offset: from === starts[0] ? starts[0]! : Math.max(starts[0]!, from + head),
+              },
+              head: { blockId: block.id, offset: Math.max(starts[0]!, to + total) },
+            },
+          },
         );
         return true;
       },
