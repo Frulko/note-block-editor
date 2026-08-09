@@ -1,5 +1,6 @@
 ---
 import Docs from '../../../layouts/Docs.astro';
+import Code from '../../../components/Code.astro';
 const shape = `interface Block {
   id: BlockId;          // UUIDv7 — triable par date de création
   type: string;         // 'paragraph', 'heading', 'table_cell', le vôtre…
@@ -24,7 +25,7 @@ const spec = `s.register({
     repos, c'est un arbre JSON imbriqué. La carte plate rend les recherches et
     les modifications en O(1) ; l'arbre rend le fichier lisible par un humain.
   </p>
-  <pre><code class="language-ts">{shape}</code></pre>
+  <Code code={shape} lang="ts" />
 
   <h2>Le registre de schéma</h2>
   <p>
@@ -32,7 +33,7 @@ const spec = `s.register({
     C'est délibéré : le rendu statique et un futur portage Swift consomment la
     même déclaration sans exécuter le moindre comportement JavaScript.
   </p>
-  <pre><code class="language-ts">{spec}</code></pre>
+  <Code code={spec} lang="ts" />
 
   <h2>Trois catégories</h2>
   <ul>

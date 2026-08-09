@@ -1,0 +1,22 @@
+---
+/**
+ * Un bloc de code coloré, partout pareil.
+ *
+ * Shiki tourne à la *construction* : la page sort avec ses couleurs déjà
+ * dedans et n'embarque pas un colorateur côté client — sur un site dont
+ * l'argument est « pas de JavaScript sauf si une île en demande », un
+ * highlighter au runtime serait la première contradiction.
+ *
+ * Les deux thèmes sont émis en même temps (variables CSS `--shiki-dark`), et
+ * c'est `site.css` qui bascule sur `prefers-color-scheme`. Un seul bloc dans le
+ * DOM, donc un copier-coller ne rapporte pas deux fois le code.
+ */
+import { Code as Shiki } from 'astro:components';
+
+interface Props {
+  code: string;
+  lang?: string;
+}
+const { code, lang = 'ts' } = Astro.props;
+---
+<Shiki code={code.trim()} lang={lang} themes={{ light: 'github-light', dark: 'github-dark' }} wrap />

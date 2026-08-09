@@ -1,5 +1,6 @@
 ---
 import Docs from '../../layouts/Docs.astro';
+import Code from '../../components/Code.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const embed = `// aucune dépendance au DOM dans le cœur : le même objet
@@ -41,7 +42,7 @@ editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)))
     Vous l'embarquez comme vous embarqueriez un moteur de rendu ou un parseur —
     y compris à l'intérieur d'un produit qui a déjà son propre cadre.
   </p>
-  <pre><code class="language-ts">{embed}</code></pre>
+  <Code code={embed} lang="ts" />
   <p>
     Les couches sont séparées pour être remplaçables&nbsp;: <code>@nbe/dom</code>
     projette dans un navigateur, <code>@nbe/static-renderer</code> projette en
@@ -58,14 +59,14 @@ editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)))
     l'éditeur, dont le stockage est un dossier que vous pouvez lire. Vous en
     choisissez un au premier lancement, et il contient exactement deux choses&nbsp;:
   </p>
-  <pre><code class="language-txt">{`mon-carnet/
+  <Code code={`mon-carnet/
   pages/                ← le vault Markdown : c'est ça que vous lisez
     Projets.md
     Projets/
       Éditeur.md
   .nbe/                 ← les documents canoniques, en JSON
     019fdbe8-….json
-    collections.json    ← schémas et vues des bases de données`}</code></pre>
+    collections.json    ← schémas et vues des bases de données`} lang="txt" />
   <p>
     <code>pages/</code> <strong>est</strong> un vault Obsidian&nbsp;: ouvrez-le
     dans Obsidian et tout y est, la hiérarchie étant l'arborescence des dossiers.
@@ -84,7 +85,7 @@ editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)))
     Obsidian garde la propriété du chargement, de l'enregistrement, du renommage
     et des conflits.
   </p>
-  <pre><code class="language-ts">{obsidian}</code></pre>
+  <Code code={obsidian} lang="ts" />
   <div class="note">
     <p>
       Ce n'est <strong>pas</strong> un espace de travail&nbsp;: ni commentaires,
@@ -146,12 +147,12 @@ editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)))
     <a href={`${base}/docs/examples/#relais`}>servir un relais de synchronisation</a>
     en headless, avec un port pour toute configuration.
   </p>
-  <pre><code class="language-bash">{`nbe ls                    # les pages
+  <Code code={`nbe ls                    # les pages
 nbe cat <id>              # une page, en Markdown
 nbe search <requête>      # recherche classée (index SQLite)
 nbe sync                  # régénère le miroir Markdown
 nbe check                 # vérifie que tout est lisible sans cet outil
 nbe relay --port 8787     # relais entre pairs
 nbe serve --port 8787     # relais + pair permanent (un NAS)
-nbe peer <salle>          # un pair WebRTC sans écran, qui écrit sur le disque`}</code></pre>
+nbe peer <salle>          # un pair WebRTC sans écran, qui écrit sur le disque`} lang="bash" />
 </Docs>

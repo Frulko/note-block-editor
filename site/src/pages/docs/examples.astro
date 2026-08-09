@@ -1,5 +1,6 @@
 ---
 import Docs from '../../layouts/Docs.astro';
+import Code from '../../components/Code.astro';
 
 const minimal = `import { Editor, createDoc } from '@nbe/core';
 import { EditorView } from '@nbe/dom';
@@ -119,7 +120,7 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
 
   <h2 id="minimal">Le minimum</h2>
   <p>Cinq lignes, et c'est un éditeur complet : menu «&nbsp;/&nbsp;», poignées, sélection de blocs, presse-papiers.</p>
-  <pre><code class="language-ts">{minimal}</code></pre>
+  <Code code={minimal} lang="ts" />
 
   <h2 id="lecteur">Un lecteur</h2>
   <p>
@@ -127,7 +128,7 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
     d'entrée du tabulateur, donc aucun caret n'apparaît — la différence entre un
     lecteur et un éditeur qui ignore silencieusement les frappes.
   </p>
-  <pre><code class="language-ts">{readOnly}</code></pre>
+  <Code code={readOnly} lang="ts" />
 
   <h2 id="champ">Un champ de commentaire</h2>
   <p>
@@ -135,7 +136,7 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
     <code>minimalFeatures</code> n'embarque ni le menu de blocs, ni les barres
     d'outils, ni les marges d'action.
   </p>
-  <pre><code class="language-ts">{commentBox}</code></pre>
+  <Code code={commentBox} lang="ts" />
 
   <h2 id="persistance">Persister</h2>
   <p>
@@ -143,7 +144,7 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
     n'appelle l'écouteur qu'une fois, donc il n'y a pas de <em>debounce</em> par
     frappe à écrire soi-même.
   </p>
-  <pre><code class="language-ts">{persist}</code></pre>
+  <Code code={persist} lang="ts" />
 
   <h2 id="complet">Complet</h2>
   <p>
@@ -153,7 +154,7 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
     <code>onComment</code> le bouton de commentaire n'est pas rendu du tout
     plutôt que rendu mort.
   </p>
-  <pre><code class="language-ts">{complete}</code></pre>
+  <Code code={complete} lang="ts" />
 
   <h2 id="relais">À plusieurs, sans serveur applicatif</h2>
   <p>
@@ -161,7 +162,7 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
     dans les deux sens. Le relais se lance <strong>en headless</strong>, sans
     base de données ni configuration&nbsp;:
   </p>
-  <pre><code class="language-bash">{relay}</code></pre>
+  <Code code={relay} lang="bash" />
   <p>
     Il ne sait pas ce qu'il transporte, et c'est délibéré&nbsp;: un relais
     incapable de comprendre les données est incapable de les corrompre, n'a pas
@@ -169,5 +170,5 @@ presence.set({ name: 'Alice', color: 'rgb(41, 78, 199)', selection: null });`;
     remplacé par n'importe quel tuyau qui déplace des octets. Le contrôle
     d'accès se met devant, dans un proxy qui authentifie.
   </p>
-  <pre><code class="language-ts">{relayClient}</code></pre>
+  <Code code={relayClient} lang="ts" />
 </Docs>

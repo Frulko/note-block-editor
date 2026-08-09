@@ -1,5 +1,6 @@
 ---
 import Docs from '../../../layouts/Docs.astro';
+import Code from '../../../components/Code.astro';
 import MethodList from '../../../components/api/MethodList.astro';
 import OptionsTable from '../../../components/api/OptionsTable.astro';
 import { methods, options } from '../../../lib/api';
@@ -70,7 +71,7 @@ editor.redo();`;
     renvoie sa fonction de désabonnement&nbsp;: un écouteur qui survit à son
     hôte est une fuite.
   </p>
-  <pre><code class="language-ts">{events}</code></pre>
+  <Code code={events} lang="ts" />
 
   <h2 id="ecrire">Écrire</h2>
   <p>
@@ -79,7 +80,7 @@ editor.redo();`;
     touchés, puis notifie une fois. Une mutation qui le contourne n'est ni
     annulable, ni validée, ni observée.
   </p>
-  <pre><code class="language-ts">{dispatchExample}</code></pre>
+  <Code code={dispatchExample} lang="ts" />
 
   <h2 id="editorview"><code>EditorView</code> — la projection</h2>
   <p>

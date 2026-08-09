@@ -1,5 +1,6 @@
 ---
 import Docs from '../../layouts/Docs.astro';
+import Code from '../../components/Code.astro';
 const vanilla = `import { Editor, createDoc } from '@nbe/core';
 import { EditorView } from '@nbe/dom';
 import '@nbe/dom/style.css';
@@ -43,24 +44,24 @@ const svelte = `<script lang="ts">
 
   <h2>Vanilla</h2>
   <p>Le chemin de référence : les liaisons de frameworks font exactement ceci.</p>
-  <pre><code class="language-ts">{vanilla}</code></pre>
+  <Code code={vanilla} lang="ts" />
 
   <h2>React</h2>
-  <pre><code class="language-tsx">{react}</code></pre>
+  <Code code={react} lang="tsx" />
   <p>
     Le hook <code>useEditor()</code> est disponible si vous voulez fournir le
     conteneur vous-même ; il renvoie <code>{'{ editor, ref }'}</code>.
   </p>
 
   <h2>Vue</h2>
-  <pre><code class="language-vue">{vue}</code></pre>
+  <Code code={vue} lang="vue" />
 
   <h2>Svelte</h2>
   <p>
     La liaison Svelte est une <em>action</em>, pas un composant : c'est la forme
     idiomatique pour un élément dont un tiers possède le contenu.
   </p>
-  <pre><code class="language-svelte">{svelte}</code></pre>
+  <Code code={svelte} lang="svelte" />
 
   <div class="note">
     <p>

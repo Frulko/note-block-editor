@@ -1,5 +1,6 @@
 ---
 import Docs from '../../../layouts/Docs.astro';
+import Code from '../../../components/Code.astro';
 const css = `/* n'importe où après la feuille de l'éditeur */
 .nbe-editor {
   --nbe-accent-rgb: 220 38 38;   /* canal, pas couleur : les alphas suivent */
@@ -45,9 +46,9 @@ const dark = `<html data-nbe-theme="dark">`;
 
   <h2 id="surcharge">Surcharger</h2>
   <p>En CSS, si votre thème est statique :</p>
-  <pre><code class="language-css">{css}</code></pre>
+  <Code code={css} lang="css" />
   <p>Ou depuis JavaScript, si votre thème est dynamique :</p>
-  <pre><code class="language-ts">{js}</code></pre>
+  <Code code={js} lang="ts" />
 
   <h2 id="sombre">Mode sombre</h2>
   <p>
@@ -57,7 +58,7 @@ const dark = `<html data-nbe-theme="dark">`;
     <code>&lt;html&gt;</code> — cette seconde forme est ce qui atteint les
     menus et infobulles sortis dans le <code>body</code>.
   </p>
-  <pre><code class="language-html">{dark}</code></pre>
+  <Code code={dark} lang="html" />
 
   <h2 id="palette">La palette de blocs</h2>
   <p>

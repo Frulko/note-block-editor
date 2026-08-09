@@ -1,5 +1,6 @@
 ---
 import Docs from '../../../layouts/Docs.astro';
+import Code from '../../../components/Code.astro';
 const ops = `insert_block | delete_block | move_block | update_block
 insert_text  | delete_text  | format_text`;
 const tx = `editor.dispatch((tx) => {
@@ -26,7 +27,7 @@ editor.undo();  // l'inverse a été calculé au moment de l'application`;
     signifierait écrire son inverse, sa sérialisation et sa fusion : le coût
     réel d'un raccourci apparent.
   </p>
-  <pre><code class="language-ts">{tx}</code></pre>
+  <Code code={tx} lang="ts" />
 
   <div class="note">
     <p>

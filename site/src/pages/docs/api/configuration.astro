@@ -1,5 +1,6 @@
 ---
 import Docs from '../../../layouts/Docs.astro';
+import Code from '../../../components/Code.astro';
 import OptionsTable from '../../../components/api/OptionsTable.astro';
 import { options } from '../../../lib/api';
 const viewOptions = options('@nbe/dom', 'EditorViewOptions');
@@ -44,7 +45,7 @@ new EditorView(el, editor, { features: minimalFeatures });`;
   </p>
 
   <h2 id="instanciation">Instanciation</h2>
-  <pre><code class="language-ts">{mount}</code></pre>
+  <Code code={mount} lang="ts" />
   <p>
     Le document est <em>non contrôlé</em> : reconstruire la vue à chaque rendu
     détruirait le caret et l'historique. <code>destroy()</code> détache toutes
@@ -52,7 +53,7 @@ new EditorView(el, editor, { features: minimalFeatures });`;
   </p>
 
   <h2 id="recettes">Deux recettes</h2>
-  <pre><code class="language-ts">{viewer}</code></pre>
+  <Code code={viewer} lang="ts" />
 
   <h2 id="editorviewoptions"><code>EditorViewOptions</code></h2>
   <OptionsTable entries={viewOptions} />
