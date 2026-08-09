@@ -119,6 +119,26 @@ export const defaultExportFormats: readonly ExportFormat[] = [markdownFormat, te
  * createExport([{ id: 'html', label: 'HTML', text: (v) => renderToHTML(docToJSON(v.editor.doc)) }])
  * ```
  */
+/** Every mounted view's opener — see {@link openExport}. */
+const openers = new WeakMap<EditorView, () => void>();
+
+/**
+ * Open the export menu on a mounted view, from outside the keyboard.
+ *
+ * @remarks
+ * The sibling of `openFind`, and for the same reason: a host with its own
+ * command system owns `⌘P` more legitimately than a capture-phase listener
+ * does, and should be able to point it here rather than race it.
+ *
+ * @returns `false` when {@link exportFeature} is not attached to this view.
+ */
+export function openExport(view: EditorView): boolean {
+  const open = openers.get(view);
+  if (!open) return false;
+  open();
+  return true;
+}
+
 export function createExport(extra: readonly ExportFormat[] = []): EditorFeature {
   const formats = [...defaultExportFormats, ...extra];
   return {
@@ -131,6 +151,14 @@ export function createExport(extra: readonly ExportFormat[] = []): EditorFeature
         if (!format.text) return;
         const mime = format.id === 'html' ? 'text/html' : format.id === 'md' ? 'text/markdown' : 'text/plain';
         download(`${baseName()}.${format.id}`, format.text(view), mime);
+      };
+
+      const open = () => {
+        menu.update(formats.map((format) => ({ label: format.label, onSelect: () => choose(format) })));
+        menu.open(() => {
+          const rect = view.content.getBoundingClientRect();
+          return new DOMRect(rect.right - 12, rect.top + 8, 0, 0);
+        }, { placement: 'bottom-end' });
       };
 
       /*
@@ -147,16 +175,14 @@ export function createExport(extra: readonly ExportFormat[] = []): EditorFeature
         if (!isMod(e) || e.key.toLowerCase() !== 'p' || e.altKey || e.shiftKey || !mine()) return;
         e.preventDefault();
         e.stopPropagation();
-        menu.update(formats.map((format) => ({ label: format.label, onSelect: () => choose(format) })));
-        menu.open(() => {
-          const rect = view.content.getBoundingClientRect();
-          return new DOMRect(rect.right - 12, rect.top + 8, 0, 0);
-        }, { placement: 'bottom-end' });
+        open();
       };
 
       document.addEventListener('keydown', onKeyDown, true);
+      openers.set(view, open);
       return () => {
         document.removeEventListener('keydown', onKeyDown, true);
+        openers.delete(view);
         menu.close();
       };
     },

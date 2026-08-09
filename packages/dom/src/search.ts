@@ -61,6 +61,38 @@ function rangeOf(view: EditorView, hit: Hit): Range | null {
   return range;
 }
 
+/**
+ * Every mounted view's opener, so a host can raise the bar itself.
+ *
+ * @remarks
+ * A `WeakMap` rather than a field on the view, because this is the feature's
+ * state and a view that never attached it should not carry a dead entry point.
+ */
+const openers = new WeakMap<EditorView, () => void>();
+
+/**
+ * Open the find bar on a mounted view, from outside the keyboard.
+ *
+ * @remarks
+ * The reason this exists is Obsidian, and it generalises. `⌘F` is dispatched
+ * here in the capture phase precisely because a host may already own the key —
+ * but a host that owns it *properly*, through its own command system, cannot
+ * be out-captured and should not be: fighting an application for its own
+ * shortcut is how a plugin ends up with two search bars. So the host registers
+ * a command and calls this, and the key stays rebindable where the user
+ * expects to rebind it.
+ *
+ * @returns `false` when {@link findFeature} is not attached to this view.
+ *
+ * @category Interaction
+ */
+export function openFind(view: EditorView): boolean {
+  const open = openers.get(view);
+  if (!open) return false;
+  open();
+  return true;
+}
+
 export function attachFind(view: EditorView): () => void {
   const highlights = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights;
   const Ctor = (globalThis as unknown as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight;
@@ -197,6 +229,7 @@ export function attachFind(view: EditorView): () => void {
   };
 
   document.addEventListener('keydown', onKeyDown, true);
+  openers.set(view, open);
   // the document changed under the matches: re-measure rather than leave ranges
   // pointing at text nodes a re-render replaced
   const unsubscribe = view.editor.on(() => {
@@ -205,6 +238,7 @@ export function attachFind(view: EditorView): () => void {
 
   return () => {
     document.removeEventListener('keydown', onKeyDown, true);
+    openers.delete(view);
     unsubscribe();
     clear();
     popover.close();

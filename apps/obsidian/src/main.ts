@@ -20,6 +20,8 @@ import {
   findFeature,
   labelsFor,
   LOCALE_NAMES,
+  openExport,
+  openFind,
   wordCountFeature,
   type DocumentSize,
   type EditorViewOptions,
@@ -517,6 +519,16 @@ class CarnetView extends TextFileView {
   size(): DocumentSize | null {
     return this.editor ? documentSize(this.view!) : null;
   }
+
+  /** Raise the find bar. False when the feature is switched off. */
+  find(): boolean {
+    return !!this.view && openFind(this.view);
+  }
+
+  /** Raise the export menu. False when the feature is switched off. */
+  exportNote(): boolean {
+    return !!this.view && openExport(this.view);
+  }
 }
 
 export default class CarnetPlugin extends Plugin {
@@ -611,6 +623,34 @@ export default class CarnetPlugin extends Plugin {
         return true;
       },
     });
+
+    /*
+     * ⌘F and ⌘P as Obsidian *commands*, not only as capture-phase listeners.
+     *
+     * The editor takes both keys before the document sees them, which is what
+     * a plugin has to do when the application already owns a shortcut — and it
+     * is a race the application should win, because it is the application's
+     * hotkey table the user opens to rebind it. Obsidian dispatching to the
+     * editor is the same feature reached the right way round: it survives
+     * whatever else is bound to the key, it appears in the palette, and it is
+     * rebindable. `checkCallback` answers false when the feature is off, so a
+     * disabled setting greys the command out instead of doing nothing.
+     */
+    const noteCommand = (id: string, name: string, key: string, run: (view: CarnetView) => boolean) =>
+      this.addCommand({
+        id,
+        name,
+        hotkeys: [{ modifiers: ['Mod'], key }],
+        checkCallback: (checking) => {
+          const view = this.app.workspace.getActiveViewOfType(CarnetView);
+          if (!view) return false;
+          // asking costs nothing and is the only way to know the feature is on
+          if (checking) return true;
+          return run(view);
+        },
+      });
+    noteCommand('find', 'Rechercher dans la note', 'f', (view) => view.find());
+    noteCommand('export', 'Exporter la note', 'p', (view) => view.exportNote());
 
     this.addCommand({
       id: 'back-to-markdown',
