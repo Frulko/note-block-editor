@@ -408,3 +408,53 @@ describe('checklists', () => {
     expect(stripIds(markdownToBlocks(md))).toEqual(stripIds(doc));
   });
 });
+
+/**
+ * The marks Markdown has no spelling for. They are written as the HTML both
+ * Obsidian and every renderer already understand — and, until now, never read
+ * back: underline round-tripped to the literal text `<u>x</u>`.
+ */
+describe('the marks Markdown cannot spell', () => {
+  const trip = (runs: Run[]) => markdownToRuns(runsToMarkdown(runs));
+
+  it('round-trips underline, which it used to lose', () => {
+    const runs: Run[] = [{ text: 'sous', marks: [{ type: 'underline' }] }];
+    expect(runsToMarkdown(runs)).toBe('<u>sous</u>');
+    expect(trip(runs)).toEqual(runs);
+  });
+
+  it('round-trips superscript and subscript', () => {
+    expect(runsToMarkdown([{ text: '2', marks: [{ type: 'superscript' }] }])).toBe('<sup>2</sup>');
+    expect(trip([{ text: 'n', marks: [{ type: 'subscript' }] }])).toEqual([
+      { text: 'n', marks: [{ type: 'subscript' }] },
+    ]);
+  });
+
+  it('keeps the text around them', () => {
+    const runs: Run[] = [{ text: 'x' }, { text: '2', marks: [{ type: 'superscript' }] }, { text: ' m' }];
+    expect(runsToMarkdown(runs)).toBe('x<sup>2</sup> m');
+    expect(trip(runs)).toEqual(runs);
+  });
+
+  it('reads `==` as a highlight, and writes one back', () => {
+    const highlighted = markdownToRuns('un ==mot== ici');
+    expect(highlighted).toEqual([
+      { text: 'un ' },
+      { text: 'mot', marks: [{ type: 'background', attrs: { color: 'yellow' } }] },
+      { text: ' ici' },
+    ]);
+    expect(runsToMarkdown(highlighted)).toBe('un ==mot== ici');
+  });
+
+  it('reads `<mark>` too, which is what other tools write', () => {
+    expect(markdownToRuns('<mark>x</mark>')).toEqual([
+      { text: 'x', marks: [{ type: 'background', attrs: { color: 'yellow' } }] },
+    ]);
+  });
+
+  it('leaves prose that merely contains `<` alone', () => {
+    expect(markdownToRuns('a < b and <span>c')).toEqual([{ text: 'a < b and <span>c' }]);
+    // an unclosed tag is text, not a mark that swallows the rest of the line
+    expect(markdownToRuns('<u>oubli')).toEqual([{ text: '<u>oubli' }]);
+  });
+});

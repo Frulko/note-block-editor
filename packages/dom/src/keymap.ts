@@ -305,6 +305,12 @@ export function attachKeymap(view: EditorView): () => void {
         toggleMarkRange(editor, 'strike');
         return;
       }
+      // ⌘. / ⌘, — the pair every word processor uses for the shifted marks
+      if (!e.shiftKey && (e.key === '.' || e.key === ',')) {
+        e.preventDefault();
+        toggleMarkRange(editor, e.key === '.' ? 'superscript' : 'subscript');
+        return;
+      }
       return;
     }
 

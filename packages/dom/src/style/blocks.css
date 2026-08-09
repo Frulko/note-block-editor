@@ -240,6 +240,19 @@
 .nbe-m-underline.nbe-m-strike {
   text-decoration: underline line-through;
 }
+/* the two shifted marks: `vertical-align` rather than <sup>/<sub> elements,
+   because a run is a span and the line box must not grow around one */
+.nbe-m-superscript,
+.nbe-m-subscript {
+  font-size: 0.72em;
+  line-height: 0;
+}
+.nbe-m-superscript {
+  vertical-align: super;
+}
+.nbe-m-subscript {
+  vertical-align: sub;
+}
 .nbe-m-code {
   font-family: var(--nbe-font-mono);
   font-size: 0.85em;

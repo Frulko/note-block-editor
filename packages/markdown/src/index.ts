@@ -103,7 +103,25 @@ const WRAPPERS: Array<{ type: string; open: string; close: string }> = [
   { type: 'strike', open: '~~', close: '~~' },
   { type: 'bold', open: '**', close: '**' },
   { type: 'italic', open: '*', close: '*' },
-  { type: 'underline', open: '<u>', close: '</u>' }, // no markdown equivalent
+  // `==` is Obsidian's highlight, and the nearest thing Markdown has to the
+  // background mark. The palette colour is lost — Markdown has one highlight —
+  // which is still strictly more than the nothing that was written before.
+  { type: 'background', open: '==', close: '==' },
+  // no Markdown equivalent, so the HTML both Obsidian and every renderer
+  // already understand. `INLINE_TAGS` reads them back; without that half,
+  // underline was written and never read, and came back as literal `<u>` text.
+  { type: 'underline', open: '<u>', close: '</u>' },
+  { type: 'superscript', open: '<sup>', close: '</sup>' },
+  { type: 'subscript', open: '<sub>', close: '</sub>' },
+];
+
+/** The inline HTML `WRAPPERS` emits, read back as marks. */
+const INLINE_TAGS: Array<{ tag: string; mark: Mark }> = [
+  { tag: 'u', mark: { type: 'underline' } },
+  { tag: 'sup', mark: { type: 'superscript' } },
+  { tag: 'sub', mark: { type: 'subscript' } },
+  // what a Markdown file written elsewhere uses for `==`
+  { tag: 'mark', mark: { type: 'background', attrs: { color: 'yellow' } } },
 ];
 
 /** True when both runs carry the same mark of this type, with the same attrs. */
@@ -202,12 +220,15 @@ export function markdownToRuns(text: string): Run[] {
   return parseInline(text, []);
 }
 
-const DELIMS: [string, string[]][] = [
-  ['***', ['bold', 'italic']],
-  ['**', ['bold']],
-  ['~~', ['strike']],
-  ['*', ['italic']],
-  ['_', ['italic']],
+const DELIMS: [string, Mark[]][] = [
+  ['***', [{ type: 'bold' }, { type: 'italic' }]],
+  ['**', [{ type: 'bold' }]],
+  ['~~', [{ type: 'strike' }]],
+  // Obsidian's highlight. The palette has ten backgrounds and Markdown has
+  // one, so a file says "highlighted" and the editor picks the highlighter.
+  ['==', [{ type: 'background', attrs: { color: 'yellow' } }]],
+  ['*', [{ type: 'italic' }]],
+  ['_', [{ type: 'italic' }]],
 ];
 
 function parseInline(text: string, marks: Mark[]): Run[] {
@@ -297,6 +318,28 @@ function parseInline(text: string, marks: Mark[]): Run[] {
       continue;
     }
 
+    /*
+     * The inline HTML the serializer emits for the marks Markdown cannot
+     * spell. Only these tags, only when closed: everything else stays the
+     * literal text someone typed, because a note is prose and `a < b` is not
+     * an open tag.
+     */
+    if (ch === '<') {
+      const tag = INLINE_TAGS.find((t) => text.startsWith(`<${t.tag}>`, i));
+      if (tag) {
+        const closeTag = `</${tag.tag}>`;
+        const closeAt = text.indexOf(closeTag, i + tag.tag.length + 2);
+        if (closeAt > 0) {
+          flush();
+          runs.push(
+            ...parseInline(text.slice(i + tag.tag.length + 2, closeAt), [...marks, { ...tag.mark }]),
+          );
+          i = closeAt + closeTag.length;
+          continue;
+        }
+      }
+    }
+
     // emphasis delimiters; unmatched markers stay literal
     for (const [d, types] of DELIMS) {
       if (text.startsWith(d, i)) {
@@ -305,7 +348,7 @@ function parseInline(text: string, marks: Mark[]): Run[] {
         while (close > 0 && text[close + d.length] === d[0]) close++;
         if (close > i + d.length) {
           flush();
-          runs.push(...parseInline(text.slice(i + d.length, close), [...marks, ...types.map((t) => ({ type: t }))]));
+          runs.push(...parseInline(text.slice(i + d.length, close), [...marks, ...types.map((m) => ({ ...m }))]));
           i = close + d.length;
           continue outer;
         }

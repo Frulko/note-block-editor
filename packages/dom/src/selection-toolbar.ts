@@ -44,6 +44,8 @@ const formats = (labels: EditorLabels): FormatButton[] => [
   { mark: 'italic', label: 'i', title: `${labels.italic} · ⌘I`, className: 'nbe-fmt-italic' },
   { mark: 'underline', label: 'U', title: `${labels.underline} · ⌘U`, className: 'nbe-fmt-underline' },
   { mark: 'strike', label: 'S', title: `${labels.strikethrough} · ⌘⇧S`, className: 'nbe-fmt-strike' },
+  { mark: 'superscript', label: 'x²', title: `${labels.superscript} · ⌘.`, className: 'nbe-fmt-superscript' },
+  { mark: 'subscript', label: 'x₂', title: `${labels.subscript} · ⌘,`, className: 'nbe-fmt-subscript' },
   { mark: 'code', label: '<>', title: `${labels.inlineCode} · ⌘E`, className: 'nbe-fmt-code' },
 ];
 

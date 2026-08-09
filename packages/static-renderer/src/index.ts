@@ -50,6 +50,8 @@ const MARK_TAGS: Record<string, string> = {
   italic: 'em',
   underline: 'u',
   strike: 's',
+  superscript: 'sup',
+  subscript: 'sub',
   code: 'code',
 };
 

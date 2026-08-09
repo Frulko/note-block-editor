@@ -55,6 +55,8 @@ export const MARKS: readonly MarkSpec[] = [
   { type: 'italic', expand: 'after' },
   { type: 'underline', expand: 'after' },
   { type: 'strike', expand: 'after' },
+  { type: 'superscript', expand: 'after' },
+  { type: 'subscript', expand: 'after' },
   { type: 'color', expand: 'after' },
   { type: 'background', expand: 'after' },
   { type: 'code', expand: 'none' },

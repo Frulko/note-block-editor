@@ -51,6 +51,10 @@ export interface EditorLabels {
   underline: string;
   /** Strikethrough. Format toolbar. */
   strikethrough: string;
+  /** Superscript. Format toolbar. */
+  superscript: string;
+  /** Subscript. Format toolbar. */
+  subscript: string;
   /** Inline code. Format toolbar. */
   inlineCode: string;
   /** Add or edit a link. Format toolbar. */
@@ -262,6 +266,8 @@ export const defaultLabels: EditorLabels = {
   italic: 'Italique',
   underline: 'Souligné',
   strikethrough: 'Barré',
+  superscript: 'Exposant',
+  subscript: 'Indice',
   inlineCode: 'Code',
   link: 'Lien',
   removeLink: 'Retirer le lien',
