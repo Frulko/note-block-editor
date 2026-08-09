@@ -419,12 +419,33 @@ function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean):
   }
 }
 
-async function insertImageFiles(view: EditorView, files: File[]): Promise<void> {
+/**
+ * Files in, blocks out — the one funnel both paste and drop use.
+ *
+ * @remarks
+ * The MIME decides the block type here, once, rather than each caller
+ * filtering for images and dropping everything else on the floor. `name`,
+ * `size` and `mime` are read off the `File` because `onStoreAsset` returns a
+ * content-addressed `asset:<hash>` that carries none of them, and a file block
+ * with no name is a grey box.
+ */
+async function insertFiles(view: EditorView, files: File[]): Promise<void> {
   const store = view.options.onStoreAsset;
   if (!store) return;
   const blocks: BlockJSON[] = [];
   for (const file of files) {
-    blocks.push({ id: uuidv7(), type: 'image', version: 1, props: { src: await store(file) }, text: [] });
+    const src = await store(file);
+    blocks.push(
+      file.type.startsWith('image/')
+        ? { id: uuidv7(), type: 'image', version: 1, props: { src }, text: [] }
+        : {
+            id: uuidv7(),
+            type: 'file',
+            version: 1,
+            props: { src, name: file.name, size: file.size, mime: file.type },
+            text: [],
+          },
+    );
   }
   insertBlocksAt(view, blocks, false);
 }
@@ -542,10 +563,20 @@ export function attachClipboard(view: EditorView): () => void {
     if (!inEditableText(e.target as Node) && editor.selection?.kind !== 'block') return;
     e.preventDefault();
 
-    // image files first (screenshots, copied images) — asset pipeline (AQ#2)
-    const imageFiles = [...(data.files ?? [])].filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length && view.options.onStoreAsset) {
-      void insertImageFiles(view, imageFiles);
+    /*
+     * Files first (screenshots, copied images, an attachment) — asset pipeline
+     * (AQ#2). Images unconditionally; anything else only when the clipboard
+     * carries no text flavour, because Safari and Office attach a `.webloc` or
+     * an `.emf` *beside* a real HTML paste and that must stay a text paste.
+     */
+    const files = [...(data.files ?? [])];
+    const pastedFiles = files.some((f) => f.type.startsWith('image/'))
+      ? files.filter((f) => f.type.startsWith('image/'))
+      : data.getData('text/plain') || data.getData('text/html')
+        ? []
+        : files;
+    if (pastedFiles.length && view.options.onStoreAsset) {
+      void insertFiles(view, pastedFiles);
       return;
     }
 
@@ -620,13 +651,23 @@ export function attachClipboard(view: EditorView): () => void {
   };
 
   // OS file drop — the one place native DnD is used by design (D8)
+  /*
+   * A file dropped on the editor is ours, always — even with no asset store
+   * and nothing to anchor to. `dragover` was already cancelled, so bailing out
+   * of `drop` without cancelling it handed the drop back to the browser, whose
+   * default action is to *navigate the tab to the file*: the page the user was
+   * writing went off screen and the editor with it. Cancelling first and
+   * deciding after is the difference between "nothing happened" and "I lost
+   * my note".
+   */
   const onDragOver = (e: DragEvent) => {
-    if (e.dataTransfer?.types.includes('Files') && view.options.onStoreAsset) e.preventDefault();
+    if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
   };
   const onDrop = (e: DragEvent) => {
-    const files = [...(e.dataTransfer?.files ?? [])].filter((f) => f.type.startsWith('image/'));
-    if (!files.length || !view.options.onStoreAsset) return;
+    if (!e.dataTransfer?.types.includes('Files')) return;
     e.preventDefault();
+    const files = [...(e.dataTransfer.files ?? [])];
+    if (!files.length || !view.options.onStoreAsset) return;
     const under = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
     const anchorId =
       (under?.closest?.('.nbe-block') as HTMLElement | null)?.dataset['blockId'] ??
@@ -634,7 +675,7 @@ export function attachClipboard(view: EditorView): () => void {
     if (!anchorId) return;
     const anchor = getBlock(editor.doc, anchorId);
     editor.setSelection(textCaret(anchorId, textLength(anchor.text)), 'api');
-    void insertImageFiles(view, files);
+    void insertFiles(view, files);
   };
 
   view.content.addEventListener('copy', onCopy);

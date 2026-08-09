@@ -140,3 +140,42 @@ describe('block rendering', () => {
     expect(renderBlocksToHTML([b('paragraph', 'ok')])).toContain('ok');
   });
 });
+
+/**
+ * The file block: an attachment that is not an image. A PDF gets the browser's
+ * own viewer with the link as fallback content, so "no viewer here" degrades to
+ * a download rather than a blank box.
+ */
+describe('the file block', () => {
+  it('renders a download link with the recorded name', () => {
+    const html = renderBlocksToHTML([
+      b('file', undefined, { src: 'asset:abc', name: 'notes.txt', size: 12, mime: 'text/plain' }),
+    ]);
+    expect(html).toContain('<a class="nbe-file-link" href="asset:abc" download="notes.txt">notes.txt</a>');
+    expect(html).not.toContain('<object');
+  });
+
+  it('previews a pdf, and keeps the link inside it as fallback', () => {
+    const html = renderBlocksToHTML([
+      b('file', undefined, { src: 'guide.pdf', name: 'guide.pdf', mime: 'application/pdf' }),
+    ]);
+    expect(html).toContain('type="application/pdf"');
+    expect(html).toContain('data="guide.pdf"');
+    expect(html).toContain('<a href="guide.pdf" download="guide.pdf">guide.pdf</a>');
+  });
+
+  it('recognises a pdf by its extension when no mime was recorded', () => {
+    expect(renderBlocksToHTML([b('file', undefined, { src: 'a/b/rapport.pdf', name: 'rapport.pdf' })])).toContain(
+      'type="application/pdf"',
+    );
+  });
+
+  it('renders nothing at all for a file with no source', () => {
+    expect(renderBlocksToHTML([b('file', undefined, { name: 'vide' })])).toBe('');
+  });
+
+  it('escapes a hostile name', () => {
+    const html = renderBlocksToHTML([b('file', undefined, { src: 'x', name: '"><script>x</script>' })]);
+    expect(html).not.toContain('<script>');
+  });
+});

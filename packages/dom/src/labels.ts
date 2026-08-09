@@ -89,6 +89,10 @@ export interface EditorLabels {
   code: string;
   /** Image. Slash menu. */
   image: string;
+  /** Attach a file. Slash menu, and the empty file block's drop zone. */
+  chooseFile: string;
+  /** Shown instead of a file's name when the name was not recorded. */
+  fileFallbackName: string;
   /** Table. Slash menu. */
   table: string;
   /** Horizontal rule. Slash menu. */
@@ -285,6 +289,8 @@ export const defaultLabels: EditorLabels = {
   quote: 'Citation',
   code: 'Code',
   image: 'Image',
+  chooseFile: 'Choisir un fichier',
+  fileFallbackName: 'Fichier',
   table: 'Tableau',
   divider: 'Séparateur',
   page: 'Page',

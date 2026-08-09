@@ -511,6 +511,17 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
       return [pad + '---'];
     case 'image':
       return [pad + `![${text}](${String(p['src'] ?? '')})`];
+    /*
+     * A plain link, and a documented loss of the same class as `toggle` and
+     * `link_to_page` (D7): re-importing gives a paragraph carrying a working
+     * link, never a dangling one. There is deliberately no parser rule —
+     * anything broad enough to read a lone link back as a file block would
+     * claim every paragraph that happens to be a link. `rewriteAssets` turns
+     * the `asset:` ref into `../assets/<hash>` on vault export, so the link
+     * resolves in Obsidian and the bytes are in the vault beside it.
+     */
+    case 'file':
+      return [pad + `[${String(p['name'] ?? 'fichier')}](${String(p['src'] ?? '')})`];
     case 'link_to_page':
     case 'sub_page': {
       // documented loss (D7): both become a wikilink, so a re-import cannot

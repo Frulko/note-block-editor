@@ -154,6 +154,9 @@ export function baseSchema(): Schema {
   s.register(inline('callout', { defaultProps: { icon: '💡' }, placeholder: 'Callout' }));
   s.register({ type: 'divider', version: 1, inline: false });
   s.register({ type: 'image', version: 1, inline: false, defaultProps: { src: '', caption: '' } });
+  // any attachment that is not an image: the name and size come from the File,
+  // because `asset:<hash>` is content-addressed and carries neither
+  s.register({ type: 'file', version: 1, inline: false, defaultProps: { src: '', name: '', size: 0, mime: '' } });
   s.register({ type: 'link_to_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
   // a sub-page: the child page *lives* here, where a link_to_page only points
   // at it. The workspace tree is derived from these (@nbe/workspace).

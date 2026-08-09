@@ -147,6 +147,18 @@ function renderOne(block: BlockJSON, opts: RenderOptions, page?: readonly BlockJ
     }
     case 'divider':
       return `<hr${attrs()}>`;
+    case 'file': {
+      const raw = String(props['src'] ?? '');
+      if (!raw) return '';
+      const href = escapeHtml(opts.resolveAssetUrl?.(raw) ?? raw);
+      const name = escapeHtml(String(props['name'] ?? 'fichier'));
+      const mime = String(props['mime'] ?? '');
+      // a PDF gets the browser's own viewer, with the link as fallback content
+      if (mime === 'application/pdf' || /\.pdf(?:[?#]|$)/i.test(raw)) {
+        return `<div${attrs()}><object class="${p}-file-preview" type="application/pdf" data="${href}"><a href="${href}" download="${name}">${name}</a></object><a class="${p}-file-link" href="${href}" download="${name}">${name}</a></div>`;
+      }
+      return `<div${attrs()}><a class="${p}-file-link" href="${href}" download="${name}">${name}</a></div>`;
+    }
     case 'image': {
       const rawSrc = String(props['src'] ?? '');
       const src = escapeHtml(opts.resolveAssetUrl?.(rawSrc) ?? rawSrc);

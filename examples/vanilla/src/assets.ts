@@ -81,14 +81,24 @@ export async function storeAsset(blob: Blob): Promise<string> {
   const bytes = await blob.arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
-  await inTx('readwrite', (store) => store.put(bytes, hash));
+  // the type travels with the bytes: an `<img>` sniffs its own format, but a
+  // PDF viewer is chosen by Content-Type, and an object URL rebuilt from a
+  // bare ArrayBuffer has none. Third shape; the two older ones still read.
+  await inTx('readwrite', (store) => store.put({ bytes, type: blob.type }, hash));
   return `asset:${hash}`;
 }
 
-/** A stored value as a `Blob`, whichever shape it was written in. */
-function asBlob(value: Blob | ArrayBuffer | undefined): Blob | undefined {
+interface StoredAsset {
+  bytes: ArrayBuffer;
+  type: string;
+}
+
+/** A stored value as a `Blob`, whichever of the three shapes it was written in. */
+function asBlob(value: Blob | ArrayBuffer | StoredAsset | undefined): Blob | undefined {
   if (!value) return undefined;
-  return value instanceof Blob ? value : new Blob([value]);
+  if (value instanceof Blob) return value;
+  if (value instanceof ArrayBuffer) return new Blob([value]);
+  return new Blob([value.bytes], value.type ? { type: value.type } : undefined);
 }
 
 const urlCache = new Map<string, string>();
@@ -106,9 +116,9 @@ export async function resolveAsset(src: string): Promise<string> {
   if (!src.startsWith('asset:')) return src;
   const cached = urlCache.get(src);
   if (cached) return cached;
-  const stored = await inTx<Blob | ArrayBuffer | undefined>(
+  const stored = await inTx<Blob | ArrayBuffer | StoredAsset | undefined>(
     'readonly',
-    (store) => store.get(src.slice(6)) as IDBRequest<Blob | ArrayBuffer | undefined>,
+    (store) => store.get(src.slice(6)) as IDBRequest<Blob | ArrayBuffer | StoredAsset | undefined>,
   );
   const blob = asBlob(stored);
   if (!blob) return '';
@@ -136,9 +146,9 @@ export async function allAssetBytes(refs: Iterable<string>): Promise<Map<string,
   const out = new Map<string, Uint8Array>();
   for (const ref of refs) {
     if (!ref.startsWith('asset:')) continue;
-    const stored = await inTx<Blob | ArrayBuffer | undefined>(
+    const stored = await inTx<Blob | ArrayBuffer | StoredAsset | undefined>(
       'readonly',
-      (store) => store.get(ref.slice(6)) as IDBRequest<Blob | ArrayBuffer | undefined>,
+      (store) => store.get(ref.slice(6)) as IDBRequest<Blob | ArrayBuffer | StoredAsset | undefined>,
     );
     const blob = asBlob(stored);
     if (blob) out.set(ref, new Uint8Array(await blob.arrayBuffer()));

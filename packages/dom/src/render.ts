@@ -12,6 +12,14 @@ function el(tag: string, className?: string): HTMLElement {
   return e;
 }
 
+/** Bytes, as a person reads them. Base 10, because that is what a file manager shows. */
+function formatBytes(n: number): string {
+  if (n < 1000) return `${n} o`;
+  if (n < 1000 * 1000) return `${(n / 1000).toFixed(0)} Ko`;
+  if (n < 1000 * 1000 * 1000) return `${(n / 1e6).toFixed(1)} Mo`;
+  return `${(n / 1e9).toFixed(1)} Go`;
+}
+
 function renderRun(view: EditorView, run: Run): Node {
   if (!run.marks?.length) return document.createTextNode(run.text);
   const link = run.marks.find((m) => m.type === 'link');
@@ -156,6 +164,84 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
         }),
       );
     }
+    return root;
+  }
+
+  if (block.type === 'file') {
+    root.setAttribute('contenteditable', 'false');
+    const src = String(block.props['src'] ?? '');
+    const name = String(block.props['name'] ?? '') || view.labels.fileFallbackName;
+    const mime = String(block.props['mime'] ?? '');
+    if (!src) {
+      const setSrc = (props: Record<string, unknown>) =>
+        view.editor.dispatch((tx) => tx.op({ type: 'update_block', id: block.id, patch: { props } }), {
+          origin: 'ui',
+        });
+      root.append(
+        createDropZone({
+          label: view.labels.chooseFile,
+          icon: 'file-text',
+          accept: '*/*',
+          onFile: async (file) => {
+            const store = view.options.onStoreAsset;
+            setSrc({
+              src: store ? await store(file) : await fileToDataUrl(file),
+              name: file.name,
+              size: file.size,
+              mime: file.type,
+            });
+          },
+          onUrl: (url) => setSrc({ src: url }),
+        }),
+      );
+      return root;
+    }
+    /*
+     * A PDF previews in the browser's own viewer. `<object>` rather than
+     * `<iframe>` for two reasons: it is the only one of the three with native
+     * fallback content, so "no viewer here" degrades to the download link
+     * with no JavaScript — and it takes an explicit `type`, which matters
+     * because an object URL built from stored bytes may carry no Content-Type
+     * at all.
+     */
+    const isPdf = mime === 'application/pdf' || /\.pdf(?:[?#]|$)/i.test(src);
+    const card = el('div', 'nbe-file');
+    const link = document.createElement('a');
+    link.className = 'nbe-file-link';
+    link.download = name;
+    link.append(icon('file-text', { size: 18 }), Object.assign(document.createElement('span'), { textContent: name }));
+    const size = Number(block.props['size'] ?? 0);
+    if (size > 0) {
+      const tag = el('span', 'nbe-file-size');
+      tag.textContent = formatBytes(size);
+      link.append(tag);
+    }
+    card.append(link);
+
+    const preview = isPdf ? document.createElement('object') : null;
+    if (preview) {
+      preview.className = 'nbe-file-preview';
+      preview.type = 'application/pdf';
+      // the fallback child, shown by the browser when it has no viewer
+      const alt = document.createElement('a');
+      alt.className = 'nbe-file-link';
+      alt.textContent = name;
+      preview.append(alt);
+      root.append(preview);
+      // `<object data>` does not reliably re-fetch when the attribute is set
+      // on a live element, so the resolved URL is applied before it is attached
+      const attach = (url: string) => {
+        preview.data = url;
+        alt.href = url;
+      };
+      const resolved = view.options.resolveAssetUrl?.(src) ?? src;
+      if (typeof resolved === 'string') attach(resolved);
+      else void resolved.then((url) => attach(url));
+    }
+    const resolvedHref = view.options.resolveAssetUrl?.(src) ?? src;
+    if (typeof resolvedHref === 'string') link.href = resolvedHref;
+    else void resolvedHref.then((url) => (link.href = url));
+    root.append(card);
     return root;
   }
 
