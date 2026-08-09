@@ -1,4 +1,5 @@
 import type { EditorView } from './view';
+import { findScrollParent } from './ui/drag';
 
 /**
  * Keeping the caret visible when the virtual keyboard opens.
@@ -24,6 +25,38 @@ import type { EditorView } from './view';
 /** Space kept between the caret and the top of the keyboard. */
 const MARGIN = 24;
 
+/**
+ * Put an element on screen — and *only* when it is not already there.
+ *
+ * @remarks
+ * Every edit re-asserts the caret, and re-asserting it used to call
+ * `Element.scrollIntoView` unconditionally. That call scrolls **every**
+ * scrollable ancestor, not just the one showing the document, so inside a host
+ * with its own scrollers — Obsidian's pane, stacked inside a workspace, inside
+ * a window — a keystroke could move something far above the editor. That is
+ * what "the page scrolls oddly on a reorder" and "stop the re-scroll on Enter"
+ * both were.
+ *
+ * Asking first costs one rect read and removes the whole class: if the target
+ * is inside its scrollport, nobody scrolls anything. When it genuinely is off
+ * screen the browser's own implementation still does the work, because getting
+ * `block: 'nearest'` right across nested scrollers is not worth reimplementing.
+ *
+ * @category Interaction
+ */
+export function reveal(el: HTMLElement): void {
+  const rect = el.getBoundingClientRect();
+  const scroller = findScrollParent(el.parentElement ?? el);
+  const paging = scroller === document.scrollingElement || scroller === document.documentElement;
+  // the page's own scrollport is the visual viewport, not the documentElement
+  // box — which on a phone is the one the keyboard shrinks
+  const port = paging
+    ? { top: 0, bottom: window.visualViewport?.height ?? window.innerHeight }
+    : scroller.getBoundingClientRect();
+  if (rect.top >= port.top && rect.bottom <= port.bottom) return;
+  el.scrollIntoView({ block: 'nearest' });
+}
+
 export function attachViewportGuard(view: EditorView): () => void {
   const viewport = window.visualViewport;
   if (!viewport) return () => {};
@@ -41,7 +74,7 @@ export function attachViewportGuard(view: EditorView): () => void {
     return element?.getBoundingClientRect() ?? null;
   };
 
-  const reveal = () => {
+  const revealCaret = () => {
     const caret = caretRect();
     if (!caret) return;
     const bottom = viewport.offsetTop + viewport.height;
@@ -55,7 +88,7 @@ export function attachViewportGuard(view: EditorView): () => void {
 
   // the resize lands before the layout settles on some engines; one frame later
   // the caret rect is trustworthy
-  const onResize = () => requestAnimationFrame(reveal);
+  const onResize = () => requestAnimationFrame(revealCaret);
   viewport.addEventListener('resize', onResize);
   document.addEventListener('selectionchange', onResize);
 

@@ -6,6 +6,7 @@ import { reconcileLeaf } from './input';
 import { plainText } from '@nbe/core';
 import { domTextSelection } from './caret';
 import { perBlockTopology, type EditableTopology } from './topology';
+import { reveal } from './viewport';
 import type { ActiveGesture, GestureRecognizer } from './gestures';
 import type { GutterItem } from './controls';
 
@@ -581,7 +582,8 @@ export class EditorView {
       // leaf holds it can make the browser drop a caret, which then reads as
       // an intent to leave block mode
       if (!this.content.contains(document.activeElement)) this.content.focus({ preventScroll: true });
-      this.blockEl(sel.head)?.scrollIntoView({ block: 'nearest' });
+      const head = this.blockEl(sel.head);
+      if (head) reveal(head);
     }
   }
 
@@ -608,7 +610,7 @@ export class EditorView {
     } catch {
       /* nodes replaced by a concurrent render; the next commit re-syncs */
     }
-    leaf?.scrollIntoView({ block: 'nearest' });
+    if (leaf) reveal(leaf);
   }
 
   /** Move the caret to a block (used by keyboard navigation). */

@@ -26,9 +26,19 @@ test.describe('the command modifier', () => {
     expect(await editor.texts()).toEqual(['deux']);
   });
 
-  test('a selection spanning blocks deletes all of them', async ({ editor }) => {
+  test('a selection spanning blocks deletes all of them', async ({ page, editor }) => {
     await editor.setDocument(['un', 'deux', 'trois', 'quatre']);
-    await editor.selectRange([1, 1], [2, 2]);
+    // dragged rather than set with `setBaseAndExtent`, which WebKit clamps to
+    // the block it started in — the same reason cross-block-selection.spec.ts
+    // drives this with a mouse
+    const box = async (i: number) => (await page.locator('.nbe-editor .nbe-leaf').nth(i).boundingBox())!;
+    const a = await box(1);
+    const b = await box(2);
+    await page.mouse.move(a.x + 4, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + 20, a.y + a.height / 2, { steps: 4 });
+    await page.mouse.move(b.x + b.width - 4, b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
     await editor.press('ControlOrMeta+Backspace');
 
     expect(await editor.texts()).toEqual(['un', 'quatre']);
@@ -85,7 +95,15 @@ test.describe('macOS Control bindings reach the browser', () => {
     expect(await editor.selectionText()).toBe('');
   });
 
-  test('Ctrl+K kills to the end of the line', async ({ editor }) => {
+  test('Ctrl+K kills to the end of the line', async ({ editor, browserName }) => {
+    /*
+     * Measured: Playwright's WebKit answers `^K` with `deleteContentForward` —
+     * one character, not a kill. Which key produces which `beforeinput` is the
+     * engine's decision and not ours; what this asserts is that we honour a
+     * hard-line delete when we are handed one, and only Chromium hands one over
+     * on this key.
+     */
+    test.skip(browserName === 'webkit', 'WebKit sends deleteContentForward for ^K');
     await editor.setDocument(['bonjour tout le monde']);
     await editor.caret(0, 8);
     await editor.press('Control+k');
