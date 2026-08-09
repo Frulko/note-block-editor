@@ -333,9 +333,14 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     case 'toggle': {
       const btn = el('button', 'nbe-toggle-arrow') as HTMLButtonElement;
       btn.type = 'button';
-      btn.setAttribute('aria-expanded', String(block.props['collapsed'] !== true));
-      btn.textContent = '▶';
-      if (block.props['collapsed'] !== true) btn.classList.add('nbe-open');
+      const open = block.props['collapsed'] !== true;
+      btn.setAttribute('aria-expanded', String(open));
+      btn.setAttribute('aria-label', view.labels.toggle);
+      // the same chevron the slash menu offers this block under, drawn rather
+      // than typed: a glyph inherits whatever face the host set and lands at a
+      // different size and baseline in each one
+      btn.append(icon('chevron-right', { size: 16 }));
+      if (open) btn.classList.add('nbe-open');
       row.append(btn);
       break;
     }

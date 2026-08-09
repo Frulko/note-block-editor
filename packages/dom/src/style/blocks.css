@@ -79,24 +79,46 @@
   transition: color var(--nbe-slow) var(--nbe-ease);
 }
 
+/* The toggle: a summary you can fold, and its contents.
+   The summary carries a little more weight than the prose around it, because
+   it is a heading for what it hides — and the arrow is chrome, so it sits back
+   until the pointer is on the block. */
 .nbe-toggle-arrow {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 0.7em;
-  color: var(--nbe-text);
+  color: var(--nbe-text-light);
   border-radius: 4px;
-  transition: transform var(--nbe-slow) var(--nbe-ease), background var(--nbe-fast) var(--nbe-ease);
+  transition: transform var(--nbe-slow) var(--nbe-ease), background var(--nbe-fast) var(--nbe-ease),
+    color var(--nbe-fast) var(--nbe-ease);
   padding: 0;
+}
+.nbe-t-toggle:hover > .nbe-row > .nbe-toggle-arrow {
+  color: var(--nbe-text);
 }
 .nbe-toggle-arrow:hover {
   background: var(--nbe-hover-strong);
+  color: var(--nbe-text);
 }
 .nbe-toggle-arrow.nbe-open {
   transform: rotate(90deg);
+}
+.nbe-t-toggle > .nbe-row > .nbe-leaf {
+  font-weight: 550;
+}
+/* what the toggle holds, marked as held: a line down the left, aligned under
+   the arrow, so an open toggle shows where its contents stop */
+.nbe-t-toggle > .nbe-children {
+  margin-left: 11px;
+  padding-left: 13px;
+  border-left: 1px solid var(--nbe-border);
 }
 
 .nbe-t-quote {

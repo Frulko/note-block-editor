@@ -124,3 +124,50 @@ test.describe('Enter at the start of a block', () => {
     expect(await editor.caretAt()).toEqual({ index: 1, offset: 0 });
   });
 });
+
+/**
+ * What a toggle looks like. The arrow is drawn, not typed — a glyph inherits
+ * whatever face the host set and lands at a different size in each one — and
+ * an open toggle shows where its contents stop.
+ */
+test.describe('the toggle reads as a toggle', () => {
+  test('the arrow is an icon, and it says whether it is open', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await page.keyboard.type('> Mon toggle');
+
+    const arrow = page.locator('.nbe-toggle-arrow');
+    await expect(arrow.locator('svg')).toHaveCount(1);
+    await expect(arrow).toHaveAttribute('aria-expanded', 'true');
+    await expect(arrow).toHaveAttribute('aria-label', /.+/);
+
+    await arrow.click();
+    await expect(arrow).toHaveAttribute('aria-expanded', 'false');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('its contents are marked as held, and the summary carries more weight', async ({
+    page,
+    editor,
+  }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await page.keyboard.type('> Mon toggle');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('dedans');
+
+    const style = await page.evaluate(() => {
+      const toggle = document.querySelector('.nbe-t-toggle')!;
+      const summary = toggle.querySelector(':scope > .nbe-row > .nbe-leaf')!;
+      const children = toggle.querySelector(':scope > .nbe-children')!;
+      const para = document.createElement('p');
+      return {
+        weight: Number(getComputedStyle(summary).fontWeight),
+        border: getComputedStyle(children).borderLeftWidth,
+        _: para,
+      };
+    });
+    expect(style.weight).toBeGreaterThan(400);
+    expect(style.border).not.toBe('0px');
+  });
+});
