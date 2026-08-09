@@ -1,7 +1,7 @@
 import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
-import { createActionButton, createMenu, toContainerPoint, type IconName, type MenuEntry } from './ui';
+import { createActionButton, createMenu, openOverlays, toContainerPoint, type IconName, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
 import type { EditorLabels } from './labels';
 
@@ -242,6 +242,16 @@ export function attachBlockToolbar(view: EditorView): () => void {
   };
 
   const onMove = (e: MouseEvent) => {
+    /*
+     * A menu opened from this bar is anchored to one of its buttons. Scrolling
+     * under a stationary cursor fires `mousemove`, the pointer is now over a
+     * different block, and the bar is rebuilt or hidden — which detaches that
+     * button. A detached element measures as an all-zero rect, `autoUpdate`
+     * only guards against `null`, and the menu jumps to the corner of the
+     * viewport and stays there. So the bar freezes while anything it opened is
+     * still up.
+     */
+    if (openOverlays().length) return;
     const target = e.target as HTMLElement | null;
     if (target && (bar.contains(target) || target.closest?.('.nbe-menu'))) {
       clearTimeout(hideTimer);

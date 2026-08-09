@@ -107,7 +107,9 @@ export function autoUpdate(
 ): () => void {
   const update = () => {
     const rect = getAnchor();
-    if (rect) positionFloating(el, rect, opts);
+    // a detached anchor measures all-zero, which is truthy and would clamp the
+    // floater to the viewport corner — leave it where it was instead
+    if (rect && (rect.bottom !== rect.top || rect.right !== rect.left)) positionFloating(el, rect, opts);
   };
   update();
 

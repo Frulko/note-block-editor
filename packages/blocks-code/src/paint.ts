@@ -127,9 +127,18 @@ export function attachCodeHighlight(view: EditorView): () => void {
   /*
    * A re-render replaces the text nodes the ranges pointed at, so this runs
    * after *every* change — but it only re-tokenizes the blocks the change
-   * touched, and a document with no code block does nothing at all. Registered
-   * after the view's own listener, which is what guarantees the elements exist
-   * by the time the ranges are built.
+   * touched, and a document with no code block does nothing at all.
+   *
+   * A block plugin's features are attached *before* the view registers its own
+   * change listener (`view.ts`), and `Editor.emit` calls listeners in
+   * registration order — so on paper this measures the DOM as it stood before
+   * the edit and its ranges die when `handleChange` replaces the leaf.
+   * Measured in Chromium and WebKit, per keystroke: it does not. Every range
+   * comes out attached to the live document either way, with or without a
+   * microtask between. Left as it is rather than guarded against a failure
+   * that cannot be produced — `e2e/code-block.spec.ts` asserts the property
+   * (`isConnected` on every registered range) so the day it starts to matter
+   * is a red build rather than grey code.
    */
   const unsubscribe = editor.on((change) => {
     const dirty = [...change.dirty].filter((id) => {

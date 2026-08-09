@@ -73,6 +73,18 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
     if (block.type !== 'paragraph') leaf.dataset['phAlways'] = '';
   }
   for (const run of block.text ?? []) leaf.append(renderRun(view, run));
+  /*
+   * A newline at the very end of the text generates no line box — CSS says an
+   * empty last line is not rendered, which is the same reason a contenteditable
+   * traditionally needs a trailing `<br>`. Measured: pressing Enter at the end
+   * of a code block left the leaf exactly one line tall and the caret with **no
+   * client rect at all**, so "Enter does nothing" was literally what it looked
+   * like. The zero-width space is a `::after`, not a node: it gives the last
+   * line something to be, and `textContent` — which the reconciler and the
+   * foreign-mutation defence both compare against the model — does not see a
+   * pseudo-element.
+   */
+  if ((block.text ?? []).at(-1)?.text.endsWith('\n')) leaf.dataset['trailingBreak'] = '';
   return leaf;
 }
 

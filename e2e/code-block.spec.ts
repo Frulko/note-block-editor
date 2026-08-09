@@ -159,3 +159,104 @@ test.describe('the code block and the clipboard', () => {
     await expect(page.locator('.nbe-menu button', { hasText: 'JavaScript' })).toBeVisible();
   });
 });
+
+/**
+ * What the colours actually depend on, and what the hover toolbar's menus do
+ * when the page moves under them.
+ */
+test.describe('the code block, in the frame it is typed in', () => {
+  test('a language written the way people write it still colours', async ({ page, editor }) => {
+    // the demo seeds a block with `language: 'ts'`. `ts` is what a TypeScript
+    // file's own README writes and it is an *alias* — it loaded no grammar at
+    // all, so that block was never coloured. Not "late": never.
+    await editor.reset();
+    await page.locator('.nbe-t-code').first().waitFor();
+    await expect.poll(async () => Object.keys(await painted(page)).length, { timeout: 5000 }).toBeGreaterThan(0);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('every painted range is anchored in the live document', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.locator('.nbe-t-code').hover();
+    await page.locator('.nbe-blocktoolbar-btn').first().click();
+    await page.locator('.nbe-menu input').fill('javas');
+    await page.locator('.nbe-menu button', { hasText: 'JavaScript' }).first().click();
+    await page.locator('.nbe-t-code .nbe-leaf').click();
+    await page.keyboard.type('const x = 1;');
+    await expect.poll(async () => Object.keys(await painted(page)).length).toBeGreaterThan(1);
+    await page.keyboard.type(' let y = 2;');
+
+    /*
+     * The ranges live in `CSS.highlights`, not in the DOM, so a re-render that
+     * replaced the text nodes under them would leave the colours registered and
+     * invisible — and `Highlight.size` would still read as painted. This is the
+     * assertion that can tell the difference.
+     */
+    const live = await page.evaluate(() => {
+      let total = 0;
+      let connected = 0;
+      for (const [name, highlight] of (CSS as unknown as { highlights: Map<string, Set<Range>> }).highlights) {
+        if (!name.startsWith('nbe-code-')) continue;
+        for (const range of highlight) {
+          total++;
+          if (range.startContainer.isConnected) connected++;
+        }
+      }
+      return { total, connected };
+    });
+    expect(live.total).toBeGreaterThan(0);
+    expect(live.connected).toBe(live.total);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('Enter really adds a line — the last one used to render as nothing', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.keyboard.type('un');
+    const height = () =>
+      page.evaluate(() => document.querySelector('.nbe-t-code .nbe-leaf')!.getBoundingClientRect().height);
+    const one = await height();
+
+    await page.keyboard.press('Enter');
+    const two = await height();
+    await page.keyboard.press('Shift+Enter');
+    const three = await height();
+
+    // a newline at the very end generates no line box unless something is on
+    // it: the block stayed exactly one line tall and the caret had no rect
+    expect(two).toBeGreaterThan(one + 5);
+    expect(three).toBeGreaterThan(two + 5);
+    expect((await editor.texts())[0]).toBe('un\n\n');
+  });
+
+  test('the language menu stays glued to its button when the page scrolls', async ({ page, editor }) => {
+    // an empty first block for the ``` shortcut, then enough page to scroll
+    await editor.setDocument(['', ...Array.from({ length: 40 }, (_, i) => `paragraphe ${i}`)]);
+    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    await page.keyboard.type('```');
+    await expect(page.locator('.nbe-t-code')).toBeVisible();
+
+    await page.locator('.nbe-t-code').hover();
+    await page.locator('.nbe-blocktoolbar-btn').first().click();
+    await expect(page.locator('.nbe-menu')).toBeVisible();
+
+    const read = async () => {
+      const button = (await page.locator('.nbe-blocktoolbar-btn').first().boundingBox())!;
+      const menu = (await page.locator('.nbe-menu').boundingBox())!;
+      return { gap: menu.y - button.y, buttonY: button.y };
+    };
+    const before = await read();
+
+    await page.mouse.wheel(0, 120);
+    // what a real browser does under a stationary cursor once the page moves —
+    // and what used to rebuild the toolbar, orphaning the menu's anchor
+    await page.evaluate(() => {
+      const el = document.elementFromPoint(200, 400);
+      el?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 200, clientY: 400 }));
+    });
+    await page.waitForTimeout(400); // past the toolbar's 250ms hide timer
+
+    const after = await read();
+    expect(Math.abs(after.buttonY - before.buttonY)).toBeGreaterThan(40);
+    expect(Math.abs(after.gap - before.gap)).toBeLessThan(12);
+  });
+});

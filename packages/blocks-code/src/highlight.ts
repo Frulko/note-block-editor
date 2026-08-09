@@ -149,7 +149,44 @@ export function isLoaded(language: string): boolean {
  * for `plain`, and for one we do not ship — the caller then gets uncoloured
  * text rather than an error, which is the right failure for a code block.
  */
-export async function loadLanguage(language: string): Promise<void> {
+/**
+ * What people actually write in a fence, mapped to the grammar that answers it.
+ *
+ * @remarks
+ * ` ```ts ` is what a TypeScript file's own README says, and it loaded
+ * nothing: `BY_ID` is keyed by the id in {@link LANGUAGES}, so an alias found
+ * no `load` and the block stayed grey. Only the load side needs this —
+ * lowlight's own `registered()` already matches aliases, so tokenising starts
+ * working the moment the real grammar is in memory.
+ */
+const ALIASES: Record<string, string> = {
+  'c++': 'cpp',
+  cs: 'csharp',
+  docker: 'dockerfile',
+  golang: 'go',
+  htm: 'html',
+  js: 'javascript',
+  jsx: 'javascript',
+  kt: 'kotlin',
+  md: 'markdown',
+  py: 'python',
+  rb: 'ruby',
+  rs: 'rust',
+  sh: 'shell',
+  ts: 'typescript',
+  tsx: 'typescript',
+  yml: 'yaml',
+  zsh: 'shell',
+};
+
+/** The grammar id a fence's language name resolves to. */
+export function resolveLanguage(language: string): string {
+  const id = language.toLowerCase().trim();
+  return ALIASES[id] ?? id;
+}
+
+export async function loadLanguage(name: string): Promise<void> {
+  const language = resolveLanguage(name);
   if (language === 'plain' || isLoaded(language)) return;
   const spec = BY_ID.get(language);
   if (!spec?.load) return;

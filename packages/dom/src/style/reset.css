@@ -78,6 +78,12 @@
   caret-color: var(--nbe-text);
 }
 
+/* the last line of a text ending in a newline, which the browser would
+   otherwise not render at all — see `renderLeaf` */
+.nbe-leaf[data-trailing-break]::after {
+  content: "\200b";
+}
+
 /* placeholders: caret-only for paragraphs, always-when-empty for typed blocks */
 .nbe-leaf:empty::before {
   content: "";
