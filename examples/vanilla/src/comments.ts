@@ -12,7 +12,7 @@ import {
   type CommentThread,
   type Editor,
 } from '@nbe/core';
-import type { CommentAuthor } from '@nbe/dom';
+import { createPopover, type CommentAuthor } from '@nbe/dom';
 
 /**
  * Comments, on blocks, in the third inspector tab.
@@ -58,6 +58,60 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
 const time = (at: number): string =>
   new Date(at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+
+/**
+ * Ask for a comment in a bubble, not in `prompt()`.
+ *
+ * @remarks
+ * A `prompt()` is a modal the operating system draws: it steals focus, it
+ * cannot show what you are commenting on, it has no formatting, and on a phone
+ * it is a full-screen sheet. This is the same floating panel the code block's
+ * language picker uses — `createPopover` from `@nbe/dom`, which is exported
+ * precisely so a host can build its own chrome out of the editor's parts
+ * rather than out of raw DOM.
+ *
+ * Enter sends, Shift+Enter is a new line, Escape gives up — the shape every
+ * comment box has, so nobody has to be told.
+ */
+function askForText(
+  anchor: () => DOMRect | null,
+  labels: { placeholder: string; submit: string },
+  onSubmit: (body: string) => void,
+): void {
+  const popover = createPopover({ className: 'comment-compose' });
+  const form = el('div', 'compose');
+  const field = document.createElement('textarea');
+  field.className = 'compose-field';
+  field.rows = 3;
+  field.placeholder = labels.placeholder;
+  const send = button(labels.submit, () => submit());
+  send.classList.add('compose-send');
+
+  const submit = () => {
+    const body = field.value.trim();
+    popover.close();
+    if (body) onSubmit(body);
+  };
+
+  field.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      submit();
+    }
+    // the overlay stack closes on Escape; stop it reaching the editor's keymap
+    if (event.key === 'Escape') event.stopPropagation();
+  });
+
+  form.append(field, send);
+  popover.setContent(form);
+  popover.open(anchor, { placement: 'bottom-end' });
+  requestAnimationFrame(() => field.focus());
+}
+
+/** The block on screen, re-read on every reposition so a re-render cannot orphan it. */
+const blockAnchor = (blockId: BlockId) => () =>
+  document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`)?.getBoundingClientRect() ?? null;
+
 export interface DemoComments {
   store: CommentStore;
   /** Wire to `EditorViewOptions.onComment`. */
@@ -79,26 +133,26 @@ export function createComments(initial: CommentThread[], onSave: (threads: Comme
   let current: Editor | null = null;
 
   const comment = (editor: Editor, blockId: BlockId, author: CommentAuthor | null): void => {
-    const body = prompt('Votre commentaire');
-    if (!body?.trim()) return;
-    const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
-    const thread = newThread(message, blockId);
-    store.create(thread);
+    askForText(blockAnchor(blockId), { placeholder: 'Votre commentaire…', submit: 'Commenter' }, (body) => {
+      const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
+      const thread = newThread(message, blockId);
+      store.create(thread);
 
-    const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
-    if (length > 0) {
-      editor.dispatch((tx) =>
-        tx.op({
-          type: 'format_text',
-          id: blockId,
-          from: 0,
-          to: length,
-          mark: { type: 'comment', attrs: { threadId: thread.id } },
-          add: true,
-        }),
-      );
-    }
-    render(editor);
+      const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
+      if (length > 0) {
+        editor.dispatch((tx) =>
+          tx.op({
+            type: 'format_text',
+            id: blockId,
+            from: 0,
+            to: length,
+            mark: { type: 'comment', attrs: { threadId: thread.id } },
+            add: true,
+          }),
+        );
+      }
+      render(editor);
+    });
   };
 
   const card = (thread: CommentThread, orphan: boolean): HTMLElement => {
@@ -115,8 +169,12 @@ export function createComments(initial: CommentThread[], onSave: (threads: Comme
     const actions = el('div', 'thread-actions');
     actions.append(
       button('Répondre', () => {
-        const body = prompt('Votre réponse');
-        if (body?.trim()) store.addMessage(thread.id, newMessage(ME.id, body, ME.name));
+        const at = current ? anchoredThreads(current.doc).get(thread.id) : undefined;
+        askForText(
+          at ? blockAnchor(at) : () => node.getBoundingClientRect(),
+          { placeholder: 'Votre réponse…', submit: 'Répondre' },
+          (body) => store.addMessage(thread.id, newMessage(ME.id, body, ME.name)),
+        );
       }),
       button(thread.resolved ? 'Rouvrir' : 'Résoudre', () => store.setResolved(thread.id, !thread.resolved)),
       button('Supprimer', () => store.delete(thread.id)),

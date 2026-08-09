@@ -590,3 +590,38 @@ body {
   background: rgb(var(--ink) / 0.05);
   color: rgb(var(--ink));
 }
+
+/* --- the comment bubble ---------------------------------------------------
+   The same floating panel the code block's language picker uses, because
+   `createPopover` is exported for exactly this: a host builds its chrome out
+   of the editor's parts. The panel itself is themed by `.nbe-popover`; only
+   what is inside it is the demo's. */
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  padding: 4px;
+}
+.compose-field {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 60px;
+  padding: 7px 9px;
+  border: 1px solid var(--nbe-border-strong, rgb(0 0 0 / 0.17));
+  border-radius: var(--nbe-radius-sm, 4px);
+  background: var(--nbe-surface, #fff);
+  color: var(--nbe-text, inherit);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.compose-field:focus {
+  outline: 2px solid var(--nbe-accent, rgb(35 131 226));
+  outline-offset: -1px;
+}
+.compose-send {
+  align-self: flex-end;
+}
