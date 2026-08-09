@@ -113,7 +113,10 @@ function fill(view: import('@nbe/dom').EditorView, list: HTMLElement, placeholde
         e.preventDefault();
         const target = view.blockEl(entry.id);
         if (!target) return;
-        reveal(target);
+        // `start`, not `nearest`: following a contents entry means arriving at
+        // the section, and a heading left clinging to the bottom edge with its
+        // section off screen is not arriving anywhere
+        reveal(target, 'start');
         view.focusBlock(entry.id, 0);
       });
       item.append(link);

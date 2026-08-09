@@ -6,7 +6,7 @@ import { reconcileLeaf } from './input';
 import { plainText } from '@nbe/core';
 import { domTextSelection } from './caret';
 import { perBlockTopology, type EditableTopology } from './topology';
-import { reveal } from './viewport';
+import { holdScroll, reveal } from './viewport';
 import type { ActiveGesture, GestureRecognizer } from './gestures';
 import type { GutterItem } from './controls';
 
@@ -681,6 +681,26 @@ export class EditorView {
   }
 
   private handleChange(change: Change): void {
+    /*
+     * Nothing but `reveal` may move the page across an edit.
+     *
+     * The editor's own scrolling has been narrowed to one function that asks
+     * first, and the page kept moving anyway — because the editor is not the
+     * only thing on it. The browser scrolls on focus, a host scrolls when a
+     * pane's content changes height, and Chromium's scroll anchoring picks a
+     * new anchor when the DOM above the fold is replaced. All three read to
+     * the person typing as "it scrolled by itself", and none is reachable from
+     * here. So the outcome is guarded rather than the causes chased.
+     */
+    const release = holdScroll(this.content);
+    try {
+      this.applyChange(change);
+    } finally {
+      release();
+    }
+  }
+
+  private applyChange(change: Change): void {
     const doc = this.editor.doc;
     // DOM-truth snapshot: re-renders destroy the live caret; if the
     // transaction didn't move the selection we put the caret back where the

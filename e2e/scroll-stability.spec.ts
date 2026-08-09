@@ -102,6 +102,66 @@ test.describe('editing does not scroll the page', () => {
     expect(editor.errors()).toEqual([]);
   });
 
+  test('a scroll that comes from somewhere else is put back', async ({ page, editor }) => {
+    /*
+     * The point of the guard, and the reason it exists at all: the editor's own
+     * scrolling was narrowed to `reveal`, and the page kept moving — because
+     * the editor is not the only thing on it. A browser scrolls on focus, a
+     * host scrolls when a pane's content changes height, scroll anchoring picks
+     * a new anchor when the DOM above the fold is replaced. This stands in for
+     * all three: something else moves the scroller during an edit.
+     */
+    const before = await settle(page, editor);
+    await page.evaluate(() => {
+      const scroller = document.querySelector('.page-scroll')!;
+      // reacting to the DOM change is how the real culprits work — focus,
+      // scroll anchoring, a host measuring a pane that just changed height —
+      // and it lands after the synchronous part of the edit, which is why the
+      // guard also re-checks on the next frame
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        scroller.scrollTop = scroller.scrollHeight;
+      });
+      observer.observe(document.querySelector('.nbe-editor')!, { subtree: true, childList: true, characterData: true });
+    });
+    await editor.type('x');
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
+
+    expect(await scrollTop(page)).toBe(before);
+    expect((await editor.texts())[CARET_AT]).toBe('paraxgraphe 30');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('following a contents entry puts the heading at the top, not at the bottom edge', async ({
+    page,
+    editor,
+  }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('/sommaire');
+    await page.locator('.nbe-menu-item', { hasText: 'Sommaire' }).first().waitFor();
+    await editor.press('Enter');
+    await editor.press('ArrowDown');
+    for (let i = 0; i < 30; i++) await editor.type(`ligne ${i}\n`);
+    await editor.type('# Loin en bas\n');
+    // room *under* it, or the scroller clamps and the heading cannot reach the
+    // top however hard anyone scrolls
+    for (let i = 0; i < 40; i++) await editor.type(`suite ${i}\n`);
+
+    await page.evaluate(() => (document.querySelector('.page-scroll')!.scrollTop = 0));
+    await page.locator('.nbe-toc-list a', { hasText: 'Loin en bas' }).click();
+
+    // at the top of the scrollport with a little room, not clinging to the
+    // bottom edge with its section off screen
+    const offset = await page.evaluate(() => {
+      const port = document.querySelector('.page-scroll')!.getBoundingClientRect();
+      const heading = [...document.querySelectorAll('.nbe-t-heading')].at(-1)!.getBoundingClientRect();
+      return heading.top - port.top;
+    });
+    expect(offset).toBeGreaterThanOrEqual(0);
+    expect(offset).toBeLessThan(40);
+  });
+
   test('dropping a dragged block does not chase a caret left elsewhere', async ({ page, editor }) => {
     await editor.setDocument(Array.from({ length: 50 }, (_, i) => `paragraphe ${i}`));
     // a caret left far down the page, then scrolled back to the top

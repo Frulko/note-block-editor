@@ -49,7 +49,7 @@ const MARGIN = 24;
  *
  * @category Interaction
  */
-export function reveal(el: HTMLElement): void {
+export function reveal(el: HTMLElement, align: RevealAlign = 'nearest'): void {
   const rect = el.getBoundingClientRect();
   const scroller = findScrollParent(el.parentElement ?? el);
   const paging = scroller === document.scrollingElement || scroller === document.documentElement;
@@ -58,12 +58,95 @@ export function reveal(el: HTMLElement): void {
   const port = paging
     ? { top: 0, bottom: window.visualViewport?.height ?? window.innerHeight }
     : scroller.getBoundingClientRect();
-  if (rect.top >= port.top && rect.bottom <= port.bottom) return;
+  const visible = rect.top >= port.top && rect.bottom <= port.bottom;
+  if (visible && align === 'nearest') return;
   // above the port: bring its top down to the top. Below (or taller than the
   // port, which the first test catches): bring its bottom up to the bottom.
-  const top = rect.top < port.top ? rect.top - port.top : rect.bottom - port.bottom;
+  const top =
+    align === 'start'
+      ? rect.top - port.top - ANCHOR_MARGIN
+      : rect.top < port.top
+        ? rect.top - port.top
+        : rect.bottom - port.bottom;
+  if (!top) return;
   if (paging) window.scrollBy({ top });
   else scroller.scrollTop += top;
+  // the editor asked for this one; `holdScroll` must not undo it
+  deliberate.set(paging ? (document.scrollingElement ?? document.documentElement) : scroller, Date.now());
+}
+
+/**
+ * Where a revealed block ends up.
+ *
+ * @remarks
+ * `nearest` is the caret's rule — move as little as possible, and not at all
+ * when the block is already on screen. `start` is what *following* something
+ * means: a heading reached from the table of contents belongs at the top of
+ * the screen with the section under it, and "it was technically visible at the
+ * bottom edge" is not arriving anywhere.
+ *
+ * @category Interaction
+ */
+export type RevealAlign = 'nearest' | 'start';
+
+/** Breathing room above a block scrolled to the top on purpose. */
+const ANCHOR_MARGIN = 12;
+
+/**
+ * Scrollers the editor moved on purpose, and when.
+ *
+ * @remarks
+ * A timestamp rather than a position, because what {@link holdScroll} needs to
+ * know is "did `reveal` run during the window I am guarding", not "is the
+ * scroller where `reveal` left it" — the browser may have adjusted it by a
+ * pixel since, and the answer would flip.
+ */
+const deliberate = new WeakMap<Element, number>();
+
+/**
+ * Hold every scroller above `from` where it is, whoever tries to move it.
+ *
+ * @remarks
+ * The editor's own scrolling has been narrowed to `reveal`, which asks first
+ * and moves one scrollport — and the page still moves, because the editor is
+ * not the only thing on it. A browser scrolls on focus. A host scrolls when a
+ * pane's content changes height. Chromium's scroll anchoring picks a different
+ * anchor when the DOM above the fold is replaced. None of those are reachable
+ * from here, and all of them read to the person typing as "it scrolled by
+ * itself".
+ *
+ * So this guards the *outcome* instead of chasing the causes: the positions
+ * are read before an edit, and any that changed are put back after it — except
+ * one `reveal` moved during the same window, which is the editor deliberately
+ * following the caret.
+ *
+ * @param from - Any element in the editor; its scrollable ancestors are what
+ * gets held.
+ * @returns Release, which does the restoring. Call it after the DOM has
+ * settled; it also re-checks on the next frame, because a scroll caused by
+ * focus can land after the current task.
+ */
+export function holdScroll(from: Element): () => void {
+  const at = Date.now();
+  const seen: Array<[Element, number]> = [];
+  for (let n: Element | null = from; n; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight) seen.push([n, n.scrollTop]);
+  }
+  const page = document.scrollingElement;
+  if (page && page !== from) seen.push([page, page.scrollTop]);
+
+  const restore = () => {
+    for (const [el, was] of seen) {
+      // `reveal` moved this one on purpose, during the window being guarded
+      if ((deliberate.get(el) ?? -1) >= at) continue;
+      if (el.scrollTop !== was) el.scrollTop = was;
+    }
+  };
+  return () => {
+    restore();
+    // a scroll caused by focus lands after the current task on some engines
+    requestAnimationFrame(restore);
+  };
 }
 
 export function attachViewportGuard(view: EditorView): () => void {
