@@ -664,9 +664,21 @@ export function attachClipboard(view: EditorView): () => void {
    * my note".
    */
   const onDragOver = (e: DragEvent) => {
-    if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    if (!e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    // say so: until the drop lands there is nothing else telling anyone that
+    // letting go here does something
+    view.content.classList.add('nbe-filedrag');
+  };
+  const endFileDrag = (e?: DragEvent) => {
+    // `dragleave` also fires crossing between children, so only a departure
+    // that lands outside the editor — or nowhere — ends it
+    const to = e?.relatedTarget as Node | null;
+    if (to && view.content.contains(to)) return;
+    view.content.classList.remove('nbe-filedrag');
   };
   const onDrop = (e: DragEvent) => {
+    view.content.classList.remove('nbe-filedrag');
     if (!e.dataTransfer?.types.includes('Files')) return;
     e.preventDefault();
     const files = [...(e.dataTransfer.files ?? [])];
@@ -686,13 +698,16 @@ export function attachClipboard(view: EditorView): () => void {
   view.content.addEventListener('paste', onPaste);
   view.content.addEventListener('keydown', onKeyDown);
   view.content.addEventListener('dragover', onDragOver);
+  view.content.addEventListener('dragleave', endFileDrag);
   view.content.addEventListener('drop', onDrop);
+  window.addEventListener('dragend', () => endFileDrag());
   return () => {
     view.content.removeEventListener('copy', onCopy);
     view.content.removeEventListener('cut', onCut);
     view.content.removeEventListener('paste', onPaste);
     view.content.removeEventListener('keydown', onKeyDown);
     view.content.removeEventListener('dragover', onDragOver);
+    view.content.removeEventListener('dragleave', endFileDrag);
     view.content.removeEventListener('drop', onDrop);
   };
 }

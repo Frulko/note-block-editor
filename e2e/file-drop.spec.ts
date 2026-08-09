@@ -75,4 +75,33 @@ test.describe('dropping a file', () => {
     // viewer a non-event
     await expect(page.locator('.nbe-file-link').first()).toContainText('guide.pdf');
   });
+
+  test('the editor says a file may be let go here, and stops saying it', async ({ page, editor }) => {
+    await editor.setDocument(['une note']);
+    const surface = page.locator('.nbe-editor');
+
+    await page.evaluate(() => {
+      const leaf = document.querySelector('.nbe-editor .nbe-leaf')!;
+      const dt = new DataTransfer();
+      dt.items.add(new File(['x'], 'a.txt', { type: 'text/plain' }));
+      leaf.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    });
+    await expect(surface).toHaveClass(/nbe-filedrag/);
+
+    // leaving for somewhere outside the editor ends it
+    await page.evaluate(() => {
+      const leaf = document.querySelector('.nbe-editor .nbe-leaf')!;
+      leaf.dispatchEvent(
+        new DragEvent('dragleave', { bubbles: true, relatedTarget: document.body } as DragEventInit),
+      );
+    });
+    await expect(surface).not.toHaveClass(/nbe-filedrag/);
+  });
+
+  test('and the drop itself clears it', async ({ page, editor }) => {
+    await editor.setDocument(['une note']);
+    await drop(page, 'notes.txt', 'text/plain');
+    await expect(page.locator('.nbe-editor')).not.toHaveClass(/nbe-filedrag/);
+    await expect(page.locator('.nbe-t-file')).toHaveCount(1);
+  });
 });

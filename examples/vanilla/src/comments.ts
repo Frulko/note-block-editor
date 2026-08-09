@@ -105,6 +105,9 @@ function askForText(
   form.append(field, send);
   popover.setContent(form);
   popover.open(anchor, { placement: 'bottom-end' });
+  // now, and again after a frame: the panel is already mounted, but WebKit
+  // will not focus a node the layout has not settled on yet
+  field.focus();
   requestAnimationFrame(() => field.focus());
 }
 

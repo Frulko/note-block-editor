@@ -174,19 +174,30 @@
 }
 .nbe-ghost-layer {
   background: var(--nbe-surface);
-  border-radius: 4px;
-  padding: 2px 6px;
+  border: 1px solid var(--nbe-border);
+  border-radius: 5px;
+  padding: 4px 8px;
   overflow: hidden;
-  max-height: 90px;
+  max-height: 88px;
+  /* a tall block is cut, and a cut that fades reads as "there is more" where a
+     hard edge reads as "this is the whole thing" */
+  mask-image: linear-gradient(to bottom, #000 62px, transparent);
 }
+/*
+ * The stack. `margin-top` in percent resolves against the *width*, not the
+ * height — so the second card's overlap depended on how wide the block was,
+ * and a full-width paragraph buried it entirely. A fixed offset is what the
+ * effect was always meant to be.
+ */
 .nbe-ghost-layer + .nbe-ghost-layer {
-  margin-top: -60%;
-  opacity: 0.5;
-  transform: rotate(-1.5deg);
+  margin-top: -34px;
+  opacity: 0.55;
+  transform: rotate(-1.5deg) scale(0.985);
 }
 .nbe-ghost-layer + .nbe-ghost-layer + .nbe-ghost-layer {
-  opacity: 0.3;
-  transform: rotate(2deg);
+  margin-top: -38px;
+  opacity: 0.32;
+  transform: rotate(2deg) scale(0.97);
 }
 .nbe-ghost-badge {
   position: absolute;
@@ -407,4 +418,17 @@
 }
 .nbe-comment-count:empty {
   display: none;
+}
+
+/*
+ * A file being dragged over the editor. Until the drop lands there is nothing
+ * else to say "yes, let go here" — and now that every file makes a block, the
+ * silence was the misleading part.
+ */
+.nbe-editor.nbe-filedrag {
+  outline: 2px dashed rgb(var(--nbe-accent-rgb) / 0.55);
+  outline-offset: -6px;
+  border-radius: 6px;
+  background: linear-gradient(rgb(var(--nbe-accent-rgb) / 0.04), rgb(var(--nbe-accent-rgb) / 0.04)),
+    var(--nbe-surface);
 }

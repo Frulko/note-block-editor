@@ -145,13 +145,21 @@ test.describe('the right gutter comments on a block', () => {
 
   test('it creates a thread, anchored by a mark on the block', async ({ page, editor }) => {
     await editor.setDocument(['premier', 'deuxieme']);
-    page.on('dialog', (d) => void d.accept('à revoir'));
+    // no `prompt()` any more: the comment is composed in the editor's own
+    // floating panel, so a dialog appearing at all would be the regression
+    const dialogs: string[] = [];
+    page.on('dialog', (d) => {
+      dialogs.push(d.message());
+      void d.dismiss();
+    });
 
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
     await page.mouse.move(box.x + 60, box.y + box.height / 2);
     await page.waitForTimeout(150);
     await page.locator('.nbe-comment').click();
-    await page.waitForTimeout(150);
+    await expect(page.locator('.comment-compose .compose-field')).toBeFocused();
+    await page.keyboard.type('à revoir');
+    await page.keyboard.press('Enter');
 
     // the anchor is the mark, and it covers the block's whole text
     await expect(page.locator('.nbe-editor > .nbe-block').nth(0).locator('.nbe-m-comment')).toHaveText('premier');
@@ -159,6 +167,7 @@ test.describe('the right gutter comments on a block', () => {
     await page.locator('[data-tab="comments"]').click();
     await expect(page.locator('#panel-comments .thread')).toHaveCount(1);
     await expect(page.locator('#panel-comments .message-body')).toHaveText('à revoir');
+    expect(dialogs).toEqual([]);
     expect(editor.errors()).toEqual([]);
   });
 });
