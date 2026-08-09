@@ -86,9 +86,24 @@ export function attachViewportGuard(view: EditorView): () => void {
     view.content.closest('[data-nbe-scroller], .page-scroll')?.scrollBy?.({ top: overflow });
   };
 
+  /**
+   * True when something has taken part of the screen — a software keyboard.
+   *
+   * @remarks
+   * This guard is what makes the module do what its own comment claims. It
+   * listens to `selectionchange` so the caret stays visible *while the
+   * keyboard is up*, and without asking whether it is, every programmatic
+   * selection change on a desktop was read as "the caret is below the fold,
+   * scroll to it". Restoring a caret after a re-render is exactly that — so
+   * dragging a block at the top of a long page, with a caret left in the last
+   * one, threw the page to the bottom. It took three wrong guesses to find,
+   * because the scroll came from the *mobile keyboard guard*.
+   */
+  const shrunk = (): boolean => viewport.offsetTop + viewport.height < window.innerHeight - 40;
+
   // the resize lands before the layout settles on some engines; one frame later
   // the caret rect is trustworthy
-  const onResize = () => requestAnimationFrame(revealCaret);
+  const onResize = () => requestAnimationFrame(() => shrunk() && revealCaret());
   viewport.addEventListener('resize', onResize);
   document.addEventListener('selectionchange', onResize);
 
