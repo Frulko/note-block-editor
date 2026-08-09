@@ -17,8 +17,14 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# Everything that can run at the same time does. The suites used to be six
+# steps of one job, so the wall clock was their sum — 24 minutes to deploy a
+# typo — and the first red one hid every suite after it: Chromium was broken
+# for six runs, and the WebKit failure underneath was only found once it went
+# green. Now each suite is a job, `fail-fast: false` reports all of them, and
+# the site builds beside them instead of behind them.
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,31 +36,39 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      # the editor's own faults have all been invisible to the model — a
-      # painted-transparent drop indicator, a dead block-mode key contract —
-      # so the browser suite is a gate rather than something run by hand
-      - run: pnpm exec playwright install --with-deps chromium webkit
-      - run: pnpm e2e --project=chromium
-      # WebKit is Safari's engine and therefore iOS's, and the D1 evidence says
-      # per-block contenteditable is exactly where iOS breaks. It found a real
-      # bug on its first day (Blobs in IndexedDB) and a real product decision on
-      # its second (the gutter). All four original differences are closed, so it
-      # gates.
-      - name: Browser suite on WebKit
-        run: pnpm e2e --project=webkit
-      # Touch, at the viewports it ships at. Not devices — no software keyboard
-      # and no IME — but the touch paths run under Mobile Safari and Android
-      # Chrome rather than only under a desktop mouse.
-      - name: Touch suite on mobile viewports
-        run: pnpm e2e --project=mobile-safari --project=mobile-chrome
-      # The alternative editable boundary, gated like the default one.
-      # External evidence says per-block contenteditable is what Notion left
-      # over iOS and Android roadblocks (docs/research/…-evidence.md), so
-      # `singleHostTopology` is the escape hatch — and an escape hatch nobody
-      # runs is a story. It had never been run end to end; the first run found
-      # twelve failures, all now fixed, so it gates.
-      - name: Browser suite under the single-host topology
-        run: TOPOLOGY=single-host pnpm e2e
+
+  # the editor's own faults have all been invisible to the model — a
+  # painted-transparent drop indicator, a dead block-mode key contract — so the
+  # browser suite is a gate rather than something run by hand.
+  #
+  # Two topologies × three engines, because both halves are gated:
+  # `singleHostTopology` is the escape hatch for what the external evidence says
+  # Notion left over iOS and Android roadblocks (docs/research/…-evidence.md),
+  # and an escape hatch nobody runs is a story. WebKit is Safari's engine and
+  # therefore iOS's; the mobile projects are the touch suite at the viewports it
+  # ships at — not devices, no software keyboard and no IME, but the touch paths
+  # run under something other than a desktop mouse.
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        topology: [per-block, single-host]
+        suite: [chromium, webkit, mobile]
+    name: e2e ${{ matrix.suite }} (${{ matrix.topology }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # only the engine this leg runs, rather than every engine in every leg
+      - run: pnpm exec playwright install --with-deps ${{ matrix.suite == 'mobile' && 'chromium webkit' || matrix.suite }}
+      - run: pnpm e2e ${{ matrix.suite == 'mobile' && '--project=mobile-safari --project=mobile-chrome' || format('--project={0}', matrix.suite) }}
+        env:
+          TOPOLOGY: ${{ matrix.topology }}
       # `test-results/`, not `playwright-report/`: CI runs the `line` reporter,
       # which writes no HTML report — the traces, videos and screenshots this
       # step exists for are all under `test-results/`. It had uploaded nothing
@@ -63,9 +77,22 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.topology }}-${{ matrix.suite }}
           path: test-results/
           retention-days: 7
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # the API reference is generated, not versioned: without it the /docs/api/
+      # pages build empty
       - run: pnpm docs:api
       - run: pnpm --filter site build
         env:
@@ -75,7 +102,7 @@ jobs:
           path: site/dist
 
   deploy:
-    needs: build
+    needs: [check, e2e, site]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
