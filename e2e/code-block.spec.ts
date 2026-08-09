@@ -397,3 +397,45 @@ test.describe('the code block indents like an editor', () => {
     expect((await editor.texts())[0]).toBe('un\ndeux');
   });
 });
+
+/**
+ * Nothing floats over a code block offering to make it bold.
+ *
+ * The bar was the visible half; the invisible one is that ⌘B reached
+ * `toggleMarkRange` and wrote a mark the Markdown projection then had to drop
+ * on the next save. Both are one question — a `literal` block holds characters,
+ * not markup — so both are asserted here.
+ */
+test.describe('a code block takes no formatting', () => {
+  const write = async (page: Page, editor: { setDocument(p: string[]): Promise<void> }, line: string) => {
+    await makeCode(page, editor);
+    await page.keyboard.type(line);
+  };
+
+  test('selecting code raises no format toolbar, and selecting prose still does', async ({
+    page,
+    editor,
+  }) => {
+    await write(page, editor, 'une ligne de code');
+    await editor.selectRange([0, 0], [0, 8]);
+    await expect(page.locator('.nbe-seltoolbar')).toHaveCount(0);
+
+    // the same gesture in a paragraph, so this cannot pass by being broken
+    await editor.setDocument(['une ligne de prose']);
+    await editor.selectRange([0, 0], [0, 8]);
+    await expect(page.locator('.nbe-seltoolbar')).toBeVisible();
+  });
+
+  test('⌘B inside it leaves the text unmarked', async ({ page, editor }) => {
+    await write(page, editor, 'const x = 1');
+    await editor.selectRange([0, 0], [0, 5]);
+    await page.keyboard.press('Meta+b');
+    await page.keyboard.press('Control+b');
+
+    // a mark is a `nbe-m-*` span in the leaf; there must be none, and the text
+    // must be exactly what was typed
+    await expect(page.locator('.nbe-t-code .nbe-leaf .nbe-m-bold')).toHaveCount(0);
+    expect((await editor.texts())[0]).toBe('const x = 1');
+    expect(editor.errors()).toEqual([]);
+  });
+});

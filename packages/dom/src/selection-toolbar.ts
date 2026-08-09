@@ -25,6 +25,7 @@ import type { EditorLabels } from "./labels";
 import { isActiveTarget, turnIntoTargets } from "./block-types";
 import { findScrollParent } from "./ui";
 import { isMod } from "./keymap";
+import { viewOf } from "./block-view";
 
 /**
  * Floating format toolbar on text selection (Medium / Notion). It never takes
@@ -61,6 +62,21 @@ export function attachSelectionToolbar(view: EditorView): () => void {
   let visible = false;
   let suppressed = false; // while a sub-menu of the toolbar is open
 
+  /**
+   * Whether a block wants this bar over it.
+   *
+   * @remarks
+   * `BlockView.formatToolbar`, falling back to the schema's `literal`: a block
+   * whose text is characters rather than markup has nothing the bar can do to
+   * it. Every block in the range has to agree — a selection that starts in a
+   * paragraph and ends in a code block is still partly formattable, but a bar
+   * that silently formats half of what is highlighted is the worse answer.
+   */
+  const formattable = (id: string): boolean => {
+    const type = getBlock(editor.doc, id).type;
+    return viewOf(view.plugins.get(type))?.formatToolbar ?? !editor.schema.get(type).literal;
+  };
+
   /** The active text range, single-block or spanning several. */
   const range = (): ResolvedRange | null => {
     const sel = editor.selection;
@@ -69,6 +85,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     if (!resolved) return null;
     if (resolved.single && resolved.startOffset === resolved.endOffset)
       return null;
+    if (!resolved.blocks.every(formattable)) return null;
     return resolved;
   };
 

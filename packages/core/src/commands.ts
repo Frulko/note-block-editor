@@ -418,7 +418,10 @@ export function toggleMarkRange(editor: Editor, markType: string, attrs?: Record
   if (!range) return false;
   const parts = range.blocks
     .map((id) => ({ id, ...rangeInBlock(editor, range, id) }))
-    .filter((p) => p.to > p.from);
+    // a `literal` block holds characters, not markup: there is no such thing as
+    // bold inside a code block, and writing the mark anyway meant the Markdown
+    // projection had to drop it on the next save. ⌘B still reached here.
+    .filter((p) => p.to > p.from && !editor.schema.get(getBlock(editor.doc, p.id).type).literal);
   if (!parts.length) return false;
 
   // "already formatted" means every covered stretch carries the mark

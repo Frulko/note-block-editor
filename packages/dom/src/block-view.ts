@@ -140,6 +140,24 @@ export interface BlockView {
    */
   toolbarPlacement?: 'inside' | 'above';
   /**
+   * Whether selecting text inside this block raises the floating **format**
+   * toolbar (bold, colour, link).
+   *
+   * @remarks
+   * Defaults to the opposite of {@link BlockSpec.literal}, which is the answer
+   * for every block that has one: a code block's text is characters, so a bar
+   * offering to make some of them bold is offering something the document
+   * cannot hold — `toggleMarkRange` now refuses it, and a toolbar whose buttons
+   * do nothing is worse than no toolbar.
+   *
+   * Declared separately because the two are not the same question. A block can
+   * hold perfectly ordinary rich text and still not want a bar floating over
+   * it — a title field, a caption, a cell in a dense table.
+   *
+   * @defaultValue `!schema.literal`
+   */
+  formatToolbar?: boolean;
+  /**
    * Editor-wide behaviour this block needs: a hover chrome, a drag gesture, a
    * selection of its own. Attached when the plugin is registered and unbound
    * with the view.
