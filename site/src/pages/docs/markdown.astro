@@ -1,5 +1,6 @@
 ---
 import Docs from '../../layouts/Docs.astro';
+import Code from '../../components/Code.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const roundtrip = `import { markdownToBlocks, blocksToMarkdown } from '@nbe/markdown';
@@ -9,8 +10,81 @@ const blocks = markdownToBlocks(await readFile('note.md', 'utf8'));
 
 // sortir : du Markdown que n'importe quel autre outil relit
 await writeFile('note.md', blocksToMarkdown(blocks));`;
+
+const vaultTree = `mon-carnet/
+  pages/                     ← le vault : c'est ça qu'on lit sans l'outil
+    Projets.md
+    Projets/                 ← une page qui a des enfants possède un dossier
+      Éditeur.md
+      Éditeur/
+        Notes de version.md
+    assets/                  ← les binaires, à côté de la prose
+      3f9a1c…png
+  .nbe/                      ← les documents canoniques, en JSON
+    019fdbe8-….json
+    collections.json`;
+
+const pageFile = `---
+id: 019fdbe8-7c31-7a4e-9f0b-2c6d1e4a5b70
+title: "Éditeur : notes"
 ---
-<Docs title="Markdown : mieux édité, jamais réécrit">
+
+## Ce qui reste à faire
+
+- [ ] relire la projection
+- [x] mesurer la frappe à 500 blocs
+
+> [!warning] ⚠️ La perte est documentée, pas silencieuse
+
+- Le détail <!-- nbe:toggle -->
+    - Une ligne qui n'apparaît qu'une fois ouvert
+
+\`\`\`ts
+const html = renderToHTML(doc);
+\`\`\`
+
+Un [rapport](assets/3f9a1c…pdf) <!-- nbe:file {"props":{"mime":"application/pdf","size":184320}} -->`;
+
+const parsing = `import { markdownToBlocks } from '@nbe/markdown';
+import { tableBlocks } from '@nbe/blocks-table';
+
+// Les règles des plugins passent avant la table intégrée, dans l'ordre de
+// précédence : un plugin peut donc revendiquer une syntaxe.
+const blocks = markdownToBlocks(text, { plugins: editor.plugins });
+
+// Sans le registre, un tableau revient en commentaire-marqueur : visible,
+// mais plus un tableau. L'export prend la même option — c'est la paire qui
+// rend l'aller-retour stable.`;
+
+const clipboard = `// vers un fichier que cet éditeur relira : les marqueurs, par défaut
+blocksToMarkdown(blocks, { plugins });
+
+// vers l'extérieur (le presse-papiers en texte brut, un aperçu) : sans eux,
+// parce qu'un commentaire invisible au rendu reste visible dans un collage
+blocksToMarkdown(blocks, { plugins, markers: false });`;
+
+const check = `$ nbe check
+page "Éditeur : notes" (019fdbe8-…) has no file in the vault
+pages/Projets.md: no frontmatter, so its id is lost
+asset 3f9a1c… is referenced but not in the vault`;
+
+/** Ce que le format porte, et à quel prix. Mesuré sur le code, pas promis. */
+const fidelity = [
+  ['Titres, listes, cases à cocher, citations, code, séparateurs', '1:1', 'La syntaxe ordinaire suffit à les décrire.'],
+  ['Gras, italique, barré, code, liens', '1:1', 'Syntaxe Markdown standard.'],
+  ['Souligné, exposant, indice', '1:1', "Écrits en <u>, <sup>, <sub> — le HTML qu'Obsidian et tout renderer comprennent déjà, et relus par la même table."],
+  ['Surlignage', 'partiel', "== est le surlignage d'Obsidian, et Markdown n'en a qu'un : la couleur de la palette est perdue, le surlignage non."],
+  ['Tableaux, callouts, blocs de code, sommaire', '1:1 avec le plugin', "Sans le registre passé aux deux appels, le bloc tombe sur le marqueur : rien n'est perdu, mais ce n'est plus un tableau."],
+  ['Toggle, fichier', '1:1 par marqueur', "Leur ligne ne peut pas dire ce qu'ils sont — un toggle s'écrit comme une puce, un fichier comme un lien. Le marqueur est alors la seule chose qui le dit."],
+  ['Images et fichiers joints', '1:1', "La référence asset: est réécrite en chemin relatif vers assets/, donc le vault reste autonome où qu'on le déplace."],
+  ['Sous-page contre lien vers une page', "1:1 dans un vault", "Les deux s'écrivent [[wikilink]]. L'import tranche par le dossier : une cible qui est un fichier du dossier de cette page est un enfant. Hors vault, la distinction est perdue."],
+  ['Colonnes', 'perdu, documenté', "Les contenus sont aplatis à la suite. Markdown n'a pas de mise en colonnes, et en inventer une casserait la lisibilité par un autre outil."],
+  ['Bloc vide', 'perdu', "Markdown ne sait pas écrire « ici il y a un paragraphe, et il est vide »."],
+  ['Paragraphe coupé à la main', 'replié', "Les retours durs d'un même paragraphe sont réunis : le texte est identique, sa mise en page dans le fichier non."],
+  ['Type de bloc inconnu', 'préservé', "<!-- nbe:type {\"props\":…,\"text\":…} --> : props et texte voyagent dans le marqueur, donc un aller-retour dans un hôte qui ne charge pas ce plugin ne le vide pas."],
+];
+---
+<Docs title="Markdown : mieux édité, jamais réécrit" wide>
   <p>
     Le Markdown a gagné parce qu'il est du texte&nbsp;: lisible sans logiciel,
     comparable dans un <code>git diff</code>, durable au-delà de l'outil qui l'a
@@ -57,7 +131,7 @@ await writeFile('note.md', blocksToMarkdown(blocks));`;
     Le fichier, lui, ne bouge pas de forme. Vous éditez comme dans Notion et vous
     versionnez comme du texte.
   </p>
-  <pre><code class="language-ts">{roundtrip}</code></pre>
+  <Code code={roundtrip} lang="ts" />
 
   <h2 id="projection">Pourquoi le Markdown n'est pas le stockage</h2>
   <p>
@@ -84,13 +158,151 @@ await writeFile('note.md', blocksToMarkdown(blocks));`;
     </li>
   </ul>
 
+  <h2 id="stockage">Le stockage&nbsp;: ce qu'il y a sur le disque</h2>
+  <p>
+    La disposition est la convention d'Obsidian, parce qu'un espace de travail
+    exporté doit <em>s'ouvrir</em> comme un vault plutôt que lui ressembler&nbsp;:
+    une page est <code>&lt;Titre&gt;.md</code>, et une page qui a des enfants
+    possède en plus un dossier <code>&lt;Titre&gt;/</code> qui les contient. La
+    hiérarchie est donc l'arborescence des dossiers — lisible avant que quoi que
+    ce soit ne l'analyse.
+  </p>
+  <Code code={vaultTree} lang="txt" />
+  <p>
+    Les binaires vivent dans <code>assets/</code>, à côté de la prose. Une
+    référence interne <code>asset:&lt;empreinte&gt;</code> ne veut rien dire hors
+    de l'application&nbsp;: à l'export elle est réécrite en chemin
+    <em>relatif à la page qui la porte</em>, pour que le vault reste autonome où
+    qu'on le déplace. Un vault avec des images mortes serait la première chose
+    que «&nbsp;lisible sans l'outil&nbsp;» ne peut pas se permettre.
+  </p>
+
+  <h2 id="metadonnees">Les métadonnées&nbsp;: trois endroits, jamais un de plus</h2>
+  <p>
+    Une métadonnée doit aller au seul endroit où elle reste vraie, et il n'y en
+    a que trois.
+  </p>
+  <ol>
+    <li>
+      <strong>Le frontmatter YAML</strong>, pour ce qui appartient à la
+      <em>page</em>&nbsp;: son identifiant et son titre. L'identifiant est ce qui
+      fait qu'un aller-retour par un éditeur de texte garde intacts les ancres,
+      les rétroliens et les liens profonds. Le titre est écrit entre guillemets,
+      parce qu'un titre peut contenir un deux-points et que YAML y lirait une map.
+    </li>
+    <li>
+      <strong>La ligne elle-même</strong>, pour ce que le Markdown sait dire&nbsp;:
+      le niveau d'un titre, l'état d'une case à cocher, la langue d'un bloc de
+      code. Un bloc déclare ces propriétés dans son schéma
+      (<code>spelledProps</code>) et elles ne sont jamais écrites deux fois.
+    </li>
+    <li>
+      <strong>Un marqueur en fin de ligne</strong>,
+      <code>&lt;!-- nbe:type {'{…}'} --&gt;</code>, pour le reste. C'est un
+      commentaire HTML&nbsp;: invisible au rendu de tous les autres outils,
+      inoffensif pour eux, et suffisant pour nous.
+    </li>
+  </ol>
+  <Code code={pageFile} lang="md" />
+  <p>
+    Le marqueur sert deux cas, et le second est celui qu'on oublie. D'abord
+    porter une propriété qu'aucune syntaxe ne dit — le type MIME et la taille
+    d'un fichier joint, que le bloc affiche. Ensuite dire <em>ce que le bloc
+    est</em>&nbsp;: un toggle s'écrit comme une puce, un fichier comme un lien,
+    une sous-page comme un wikilink. Sans marqueur, chacun revient en l'autre
+    bloc — un toggle qui rentre en élément de liste. Un type déclaré
+    <code>markdownAmbiguous</code> écrit donc son marqueur même quand il n'a rien
+    à transporter&nbsp;: le marqueur <em>est</em> le type.
+  </p>
+  <p>
+    Et pour un type dont le plugin n'est pas chargé — un sommaire dans un hôte
+    qui n'a que les blocs de base — le marqueur emporte <strong>les propriétés
+    et le texte</strong>. Markdown étant ici le format de stockage, un marqueur
+    nu ferait de chaque enregistrement une perte de données, pas un détail de
+    rendu.
+  </p>
+  <Code code={clipboard} lang="ts" />
+
+  <h2 id="parsing">Le parsing</h2>
+  <p>
+    <code>markdownToBlocks</code> lit ligne à ligne. Pour chaque bloc candidat,
+    les règles <code>fromMarkdown</code> des plugins sont consultées
+    <strong>avant</strong> la table intégrée, dans l'ordre de précédence, et la
+    première correspondance gagne&nbsp;: un plugin peut donc revendiquer une
+    syntaxe. Chaque règle rend le bloc <em>et</em> le nombre de lignes qu'elle a
+    consommées, ce qui permet aux constructions de plusieurs lignes de coexister
+    sans que l'analyseur les devine.
+  </p>
+  <Code code={parsing} lang="ts" />
+  <p>
+    Puis vient la passe en ligne, qui reconnaît ce qu'elle écrit&nbsp;:
+    <code>**gras**</code>, <code>*italique*</code>, <code>~~barré~~</code>,
+    <code>`code`</code>, <code>[lien](url)</code>, <code>==surlignage==</code>,
+    et les trois balises que Markdown n'a pas —
+    <code>&lt;u&gt;</code>, <code>&lt;sup&gt;</code>, <code>&lt;sub&gt;</code>,
+    plus <code>&lt;mark&gt;</code> parce que c'est ce qu'écrivent les fichiers
+    venus d'ailleurs. La symétrie n'est pas cosmétique&nbsp;: le souligné a été
+    écrit pendant des mois sans jamais être relu, et revenait donc en
+    <code>&lt;u&gt;</code> littéral dans le texte.
+  </p>
+  <p>
+    Enfin l'import d'un vault entier tranche ce qu'une ligne seule ne peut
+    pas&nbsp;: <strong>un wikilink dont la cible est un fichier du dossier de
+    cette page est une sous-page&nbsp;; tout autre wikilink est un lien.</strong>
+    C'est l'inférence qu'une personne ferait en lisant le vault, elle ne demande
+    aucun marqueur à comprendre, et elle a une conséquence qu'on assume&nbsp;:
+    déplacer un fichier à la main dans Obsidian re-parente la page. C'est
+    exactement le sens de «&nbsp;file over app&nbsp;».
+  </p>
+
+  <h2 id="affichage">L'affichage</h2>
+  <p>
+    Il n'y a pas de volet d'aperçu, parce qu'il n'y a rien à prévisualiser&nbsp;:
+    le Markdown n'est jamais l'état affiché. Il est analysé une fois en blocs, et
+    ce sont les blocs qui se rendent — dans l'éditeur, ou en HTML par
+    <code>@nbe/static-renderer</code>, sans navigateur ni instance d'éditeur. Le
+    même arbre alimente les deux, donc une page rendue sur un serveur et la même
+    page à l'écran ne peuvent pas diverger.
+  </p>
+  <Code code={roundtrip} lang="ts" />
+
+  <h2 id="fidelite">1:1&nbsp;: ce qui revient à l'identique, et ce qui ne peut pas</h2>
+  <p>
+    Le tableau est dérivé du code, pas d'une intention. «&nbsp;Perdu&nbsp;» n'y
+    veut jamais dire «&nbsp;silencieusement perdu&nbsp;»&nbsp;: une projection
+    qui ne peut pas représenter un bloc émet quand même quelque chose et déclare
+    ce qu'elle a laissé.
+  </p>
+  <div class="api-scroll">
+    <table class="api-table">
+      <thead><tr><th style="width:22rem">Élément</th><th style="width:9rem">Aller-retour</th><th>Mécanisme, ou raison</th></tr></thead>
+      <tbody>
+        {fidelity.map(([what, level, why]) => (
+          <tr>
+            <td>{what}</td>
+            <td><code class="api-name">{level}</code></td>
+            <td class="api-remarks">{why}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
   <div class="note">
     <p>
       «&nbsp;Supprimez l'application, lisez les fichiers&nbsp;» est une propriété
-      qu'on vérifie, pas une promesse&nbsp;: <code>nbe check</code> échoue si une
-      page cesse d'être lisible sans l'outil. Voir
-      <a href={`${base}/docs/why/`}>Pourquoi cet éditeur</a> et
-      <a href={`${base}/docs/hosts/`}>Où ça tourne</a>.
+      qu'on vérifie, pas une promesse. <code>nbe check</code> est ce test
+      d'acceptation, écrit pour une machine&nbsp;: chaque page doit exister dans
+      le vault, son fichier doit porter son identifiant en frontmatter, il ne
+      doit pas ramener le modèle en fraude sous forme de JSON ou de balises, et
+      chaque asset référencé doit être présent. Il rend <em>ce qui</em> a échoué,
+      pas un booléen — parce qu'un échec ici est la promesse centrale du projet
+      qui casse.
     </p>
   </div>
+  <Code code={check} lang="bash" />
+  <p>
+    Voir aussi <a href={`${base}/docs/why/`}>Pourquoi cet éditeur</a> et
+    <a href={`${base}/docs/hosts/`}>Où ça tourne</a>.
+  </p>
 </Docs>

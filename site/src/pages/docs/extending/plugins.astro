@@ -1,65 +1,339 @@
 ---
 import Docs from '../../../layouts/Docs.astro';
-const target = `import { Editor } from '@nbe/core';
-import { starterBlocks } from '@nbe/blocks';
-import { callout } from '@nbe/blocks-callout';
+import Code from '../../../components/Code.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-const editor = new Editor({ blocks: [starterBlocks, callout] });`;
+const schemaEntry = `// @nbe/blocks-spoiler — l'entrée principale : aucune dépendance au DOM
+import type { BlockPlugin } from '@nbe/core';
+import { PLUGIN_API_VERSION, plainText } from '@nbe/core';
+
+const SPOILER = /^\\|\\|(.*)\\|\\|$/;
+
+export const spoilerPlugin: BlockPlugin = {
+  apiVersion: PLUGIN_API_VERSION,
+
+  // déclaratif, sérialisable en JSON, sans comportement
+  schema: {
+    type: 'spoiler',
+    version: 1,
+    inline: true,                        // le bloc porte du texte enrichi
+    defaultProps: { revealed: false },
+    placeholder: 'Texte masqué…',
+  },
+
+  // les deux sens sont obligatoires : n'écrire que la sérialisation,
+  // c'est livrer un bloc qui se dégrade au réimport
+  markdown: {
+    toMarkdown: (block, ctx) => [\`\${'    '.repeat(ctx.depth)}||\${plainText(block.text)}||\`],
+    fromMarkdown: [
+      {
+        match: SPOILER,
+        parse(lines, start) {
+          const m = SPOILER.exec(lines[start] ?? '');
+          if (!m) return null;
+          return {
+            block: {
+              id: '', type: 'spoiler', version: 1,
+              props: {}, text: [{ text: m[1] ?? '' }], children: [], parentId: null,
+            },
+            consumed: 1,
+          };
+        },
+      },
+    ],
+  },
+
+  // rendu statique : une chaîne, donc pas de navigateur requis
+  html: (block) => \`<span class="nbe-t-spoiler">\${plainText(block.text)}</span>\`,
+};`;
+
+const domEntry = `// @nbe/blocks-spoiler/dom — la seule entrée qui dépend de @nbe/dom
+import type { DomBlockPlugin } from '@nbe/dom';
+import { spoilerPlugin } from './index';
+
+export const spoiler: DomBlockPlugin = {
+  ...spoilerPlugin,
+  view: {
+    // ajuste l'élément produit par le rendu standard, au lieu de le remplacer
+    decorate(ctx, block) {
+      ctx.root.classList.toggle('is-revealed', block.props['revealed'] === true);
+    },
+
+    toolbar: (ctx) => [
+      {
+        icon: ctx.block.props['revealed'] ? 'eye-off' : 'eye',
+        title: 'Révéler',
+        active: ctx.block.props['revealed'] === true,
+        onClick: (c) => c.setProps({ revealed: !c.block.props['revealed'] }),
+      },
+    ],
+
+    slash: { label: 'Spoiler', keywords: ['spoiler', 'masqué'], icon: 'eye-off' },
+    turnInto: { label: 'Spoiler', icon: 'eye-off' },
+
+    // injecté une fois par document, à l'enregistrement
+    styles: \`.nbe-t-spoiler { background: currentColor; border-radius: 3px; }
+             .nbe-t-spoiler.is-revealed { background: none; }\`,
+  },
+};`;
+
+const exportsMap = `{
+  "name": "@nbe/blocks-spoiler",
+  "exports": {
+    ".":     { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./dom": { "types": "./src/dom.ts",   "default": "./src/dom.ts" }
+  },
+  "dependencies": { "@nbe/core": "workspace:*" },
+  "peerDependencies": { "@nbe/dom": "workspace:*" },
+  "peerDependenciesMeta": { "@nbe/dom": { "optional": true } }
+}`;
+
+const mounting = `// 1. le modèle — pour l'autoformat, la normalisation et le schéma
+import { Editor } from '@nbe/core';
+import { spoilerPlugin } from '@nbe/blocks-spoiler';
+const editor = new Editor({ doc, plugins: [spoilerPlugin] });
+
+// 2. la vue — c'est ici que la moitié « dom » arrive
+import { EditorView } from '@nbe/dom';
+import { spoiler } from '@nbe/blocks-spoiler/dom';
+new EditorView(el, editor, { blocks: [spoiler] });
+
+// 3. les projections — le registre se passe par appel, jamais par module
+import { blocksToMarkdown } from '@nbe/markdown';
+import { renderToHTML } from '@nbe/static-renderer';
+blocksToMarkdown(children, { plugins: editor.plugins });
+renderToHTML(json, { plugins: editor.plugins });`;
+
+const precedence = `import { at } from '@nbe/core';
+
+view: {
+  keys: {
+    // gagner le clavier sans rien gagner d'autre
+    Tab: at('high', ({ view, block }) => moveToNextCell(view, block)),
+    Enter: ({ event }) => { event.preventDefault(); return true; },
+  },
+}`;
+
+const normalize = `normalize(doc, tx) {
+  let changed = false;
+  for (const row of rowsMissingCells(doc)) {
+    tx.op(padRow(row));
+    changed = true;
+  }
+  return changed;   // « ai-je réparé quelque chose ? »
+}`;
+
+/** Les contributions de la vue, dans l'ordre où on les rencontre. */
+const contributions = [
+  ['chrome', "Préfixe la ligne standard : une puce, une case à cocher, l'icône d'un callout. C'est ce que veut la plupart des blocs."],
+  ['render', "Remplace entièrement le rendu. Pour ce qui n'est pas une ligne de texte : un tableau, une image, une vue de base de données."],
+  ['decorate', "Ajuste l'élément déjà construit — une classe, un style en ligne. Ni préfixe, ni remplacement."],
+  ['actions', 'Entrées du menu de la poignée ⋮⋮.'],
+  ['toolbar', 'Boutons de la barre flottante du bloc. `toolbarPlacement` la met `inside` ou `above`.'],
+  ['slash', 'Apparition dans le menu « / ». Un tableau quand un même type mérite plusieurs préréglages.'],
+  ['turnInto', 'Apparition dans « Transformer en ».'],
+  ['keys', "Gestionnaires par touche, consultés pour le bloc du caret **et ses ancêtres** : un tableau possède Tab sans que la cellule sache qu'elle est dans un tableau."],
+  ['features', "Comportement à l'échelle de l'éditeur : une chrome hors de la boîte du bloc, un geste de pointeur, une sélection à soi. Même contrat `attach(view) => unbind` que les fonctionnalités du cœur."],
+  ['styles', 'Le CSS du bloc, injecté une fois par document et par type.'],
+];
 ---
-<Docs title="Plugins">
+<Docs title="Écrire un plugin de bloc" wide>
+  <p class="lede">
+    Un bloc est un paquet&nbsp;: son schéma, sa vue, sa projection Markdown dans
+    les deux sens et son rendu HTML statique — <strong>une seule
+    déclaration</strong>. Cette totalité est le sujet de la page&nbsp;: un bloc
+    ne doit pas pouvoir s'afficher sans dire comment il survit à un export.
+  </p>
+
   <div class="note">
     <p>
-      <strong>En cours de conception, pas encore livré.</strong> Cette page
-      décrit la cible et le chemin pour y aller ; l'API n'existe pas encore.
-      Ajouter un type de bloc aujourd'hui demande de modifier
-      <strong>14 fichiers dans 4 paquets</strong>. C'est ce chiffre, mesuré,
-      qui justifie le chantier.
+      Cette page est le guide. Les tables de champs générées depuis le code
+      sont dans <a href={`${base}/docs/api/plugins/`}>API des plugins</a>, et
+      quatre blocs livrés s'écrivent déjà exactement comme ceci&nbsp;:
+      <code>@nbe/blocks-callout</code>, <code>@nbe/blocks-code</code>,
+      <code>@nbe/blocks-table</code>, <code>@nbe/blocks-toc</code>.
     </p>
   </div>
 
-  <h2>La cible</h2>
+  <h2 id="pourquoi">Pourquoi tout déclarer d'un coup</h2>
   <p>
-    Activer une fonctionnalité doit être un import et une entrée de tableau —
-    et ne pas importer un bloc doit le sortir du bundle.
-  </p>
-  <pre><code class="language-ts">{target}</code></pre>
-
-  <h2>Pourquoi ce n'est pas exactement Tiptap</h2>
-  <p>
-    Tiptap a une seule sortie : le HTML, via <code>renderHTML</code>. Nous en
-    avons trois, plus le collage. Un bloc qui s'affiche dans l'éditeur mais ne
-    sait pas se sérialiser en markdown casse silencieusement la promesse
-    « lisible sans l'outil » — c'est-à-dire la seule défaillance que ce projet
-    existe pour empêcher.
+    L'échec qu'on évite est documenté, deux fois. Dans Lexical, un nœud
+    s'enregistre à trois endroits non synchronisés — <code>exportJSON</code> et
+    <code>exportDOM</code> sur la classe, les transformateurs Markdown au point
+    d'appel et pas sur la classe du tout&nbsp;: un nœud peut donc s'afficher
+    parfaitement et <em>disparaître</em> d'un export Markdown sans que rien ne
+    puisse s'en apercevoir. Tiptap a le même trou par l'autre bout&nbsp;: le
+    Markdown bidirectionnel est arrivé des années après le gel de l'API
+    d'extension, donc toute extension écrite avant n'a aucun gestionnaire.
   </p>
   <p>
-    Un plugin de bloc est donc un <strong>manifeste réparti sur plusieurs
-    points d'entrée</strong> : la déclaration de schéma ne dépend que de
-    <code>core</code>, le rendu de <code>dom</code>, la projection de
-    <code>markdown</code>. La déclaration reste sérialisable en JSON, séparée
-    du comportement, parce que le rendu statique et un futur portage Swift la
-    consomment sans exécuter de JavaScript.
+    Ici le type refuse le bloc incomplet. Et quand un format ne peut
+    <em>vraiment</em> pas représenter un bloc, on le déclare avec
+    <code>lossy()</code> — qui émet quand même quelque chose et dit ce qui a été
+    perdu — plutôt que d'omettre la fonction, parce que la perte silencieuse à
+    l'export est la seule défaillance que ce projet existe pour empêcher.
   </p>
 
-  <h2>Ce qui ne sera délibérément pas fourni</h2>
+  <h2 id="entrees">Deux points d'entrée, et la raison</h2>
+  <p>
+    Un paquet de bloc a deux entrées&nbsp;: la principale ne dépend que de
+    <code>@nbe/core</code> et porte le schéma et les projections&nbsp;; l'entrée
+    <code>/dom</code> ajoute le comportement d'édition. C'est ce qui permet à
+    <code>@nbe/markdown</code> et <code>@nbe/static-renderer</code> de consommer
+    le même bloc sans jamais importer la vue — un rendu serveur n'a pas à
+    embarquer un éditeur. La séparation est vérifiée en intégration continue.
+  </p>
+  <Code code={exportsMap} lang="json" />
+
+  <h2 id="schema">1. Le schéma et les projections</h2>
+  <p>
+    <code>schema</code> est déclaratif et sans comportement, exprès&nbsp;: le
+    rendu statique et le portage Swift le consomment sans exécuter de
+    JavaScript, ce qu'ils ne pourraient pas faire si des fonctions de rendu
+    vivaient dedans.
+  </p>
+  <Code code={schemaEntry} lang="ts" />
+  <p>
+    <code>fromMarkdown</code> est une liste de règles consultées dans l'ordre de
+    précédence, première correspondance gagnante&nbsp;; <code>match</code> est
+    testé sur la première ligne du bloc candidat et <code>parse</code> rend le
+    bloc <em>et</em> le nombre de lignes consommées. <code>ctx.child()</code>
+    rend un enfant, pour qu'un conteneur ne réimplémente pas la descente, et
+    <code>ctx.page</code> donne les blocs de premier niveau à un bloc dont le
+    contenu <em>est</em> le document — un sommaire, une liste de rétroliens.
+    <code>ctx.page</code> est absent quand un bloc est rendu seul (un morceau de
+    presse-papiers, un aperçu), donc une projection qui le lit doit se dégrader
+    plutôt que supposer.
+  </p>
+
+  <h2 id="vue">2. La vue</h2>
+  <p>
+    L'entrée <code>/dom</code> reprend la déclaration et lui ajoute
+    <code>view</code>. Chaque contribution remplace un aiguillage fermé qui
+    existait avant elle&nbsp;: <code>render</code> une branche de
+    <code>render.ts</code>, <code>slash</code> une entrée d'un tableau,
+    <code>keys</code> une branche du keymap.
+  </p>
+  <Code code={domEntry} lang="ts" />
+  <table class="api-table" style="min-width:0">
+    <thead><tr><th>Contribution</th><th>Ce qu'elle fait</th></tr></thead>
+    <tbody>
+      {contributions.map(([name, what]) => (
+        <tr><td><code class="api-name">{name}</code></td><td set:html={what.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')} /></tr>
+      ))}
+    </tbody>
+  </table>
+  <p>
+    Garder <code>chrome</code> et <code>render</code> séparés est ce qui empêche
+    tout bloc en forme de texte de réimplémenter la descente ligne-puis-feuille
+    — c'est-à-dire la manière dont une API de plugins accumule du copier-coller.
+  </p>
+
+  <h2 id="precedence">La précédence est nommée, jamais numérique</h2>
+  <p>
+    C'est la décision la mieux étayée du design. Un module isolé ne peut pas
+    savoir quels nombres les autres ont choisis&nbsp;: ce sont des points sur un
+    axe indifférencié, autrement dit un <code>z-index</code>. Lexical a livré
+    cinq seaux numériques, a découvert qu'on ne pouvait pas passer devant un
+    auditeur de son propre niveau, et a dû ajouter des constantes négatives qui
+    retombent dans le même seau par masque de bits. Tiptap a livré son ordre à
+    l'envers pendant longtemps sans que personne ne le remarque, parce que
+    l'ordre obtenu n'est pas observable.
+  </p>
+  <p>
+    Ici&nbsp;: cinq catégories nommées — <code>highest</code>,
+    <code>high</code>, <code>default</code>, <code>low</code>,
+    <code>lowest</code> — et, à catégorie égale, l'ordre d'enregistrement
+    décide, ce qui est observable dans le tableau que l'hôte a écrit. Et la
+    précédence se pose <strong>par contribution</strong>, pas par plugin&nbsp;:
+    le <code>priority</code> unique de Tiptap gouverne à la fois les keymaps,
+    les règles de saisie, les règles de collage et le rendu, donc un bloc qui a
+    besoin de gagner le clavier tout en perdant la règle de saisie ne peut pas
+    le dire.
+  </p>
+  <Code code={precedence} lang="ts" />
+
+  <h2 id="normalize">Réparer le document, pas le valider</h2>
+  <p>
+    <code>normalize</code> est le point d'extension qu'un tableau a forcé à
+    exister, et ce dont aucun bloc à structure <em>interne</em> ne peut se
+    passer&nbsp;: une ligne qui a perdu une cellule, un conteneur resté vide,
+    une fusion qui pointe vers une ligne disparue. Il tourne sur le modèle, à
+    chaque transaction qui a changé la structure, donc un import sans interface
+    est normalisé exactement comme une frappe.
+  </p>
+  <p>
+    Écrivez-le comme une <strong>réparation</strong>&nbsp;: lisez le document,
+    émettez par <code>tx</code> les opérations qui le rendent légal, renvoyez si
+    vous en avez émis. Il doit être idempotent — il verra sa propre sortie à la
+    transaction suivante.
+  </p>
+  <Code code={normalize} lang="ts" />
+
+  <h2 id="monter">3. Monter le plugin</h2>
+  <p>
+    Trois endroits, parce que trois couches consomment la déclaration, et le
+    registre est <strong>par éditeur</strong>, jamais global au module. Deux
+    éditeurs sur une même page est la deuxième démo qu'on écrit&nbsp;; un
+    registre global rendrait impossible d'y avoir des jeux de blocs différents
+    — c'est la panne au long cours de ProseMirror («&nbsp;Adding different
+    instances of a keyed plugin&nbsp;») dès que deux copies d'un paquet se
+    chargent.
+  </p>
+  <Code code={mounting} lang="ts" />
+  <p>
+    <code>apiVersion</code> est vérifié à l'enregistrement&nbsp;: un plugin
+    écrit pour un contrat futur échoue bruyamment, par son nom, au lieu de se
+    comporter mal. C'est aussi ce qui laisserait un plugin v1 et un v2 cohabiter
+    pendant une migration, plutôt que de casser tout le monde le même jour.
+  </p>
+
+  <h2 id="pas-fourni">Ce qui n'est délibérément pas fourni</h2>
   <ul>
     <li>
-      Pas d'équivalent d'<code>addProseMirrorPlugins</code> avant longtemps :
-      Tiptap en a besoin parce que ProseMirror possède la vue. Ici la vue est
-      la nôtre, et une trappe donnant un accès DOM brut deviendrait aussitôt
-      l'API que tout le monde utilise — le moteur de rendu ne pourrait plus
-      jamais changer.
+      <strong>Pas d'équivalent d'<code>addProseMirrorPlugins</code>.</strong>
+      Tiptap en a besoin parce que ProseMirror possède la vue. Ici la vue est la
+      nôtre, et une trappe donnant un accès DOM brut deviendrait aussitôt l'API
+      que tout le monde utilise — le moteur de rendu ne pourrait plus jamais
+      changer. Le besoin réel derrière cette trappe, c'est
+      <code>features</code>&nbsp;: le même contrat que les fonctionnalités du
+      cœur, avec un <code>GestureRecognizer</code> pour qu'une pression garde
+      exactement un propriétaire.
     </li>
-    <li>Pas de système de priorités ni de bus d'événements tant que rien ne l'impose.</li>
+    <li><strong>Pas de bus d'événements ni de priorités numériques</strong> tant que rien ne l'impose.</li>
     <li>
-      Pas d'histoire de distribution (registre, versions, bac à sable) : cela
-      n'a de sens qu'avec un second auteur.
+      <strong>Pas d'histoire de distribution</strong> — registre, versions, bac à
+      sable&nbsp;: cela n'a de sens qu'avec un second auteur.
     </li>
   </ul>
 
+  <h2 id="lire">Quatre plugins à lire</h2>
+  <ul>
+    <li>
+      <strong><code>blocks-callout</code></strong> — le plus petit qui soit
+      complet&nbsp;: chrome, actions, plusieurs entrées «&nbsp;/&nbsp;» pour un
+      seul type, et un aller-retour Markdown sur la convention d'Obsidian.
+    </li>
+    <li>
+      <strong><code>blocks-toc</code></strong> — un bloc dont le contenu est le
+      document&nbsp;: il a fallu <code>ProjectionContext.page</code> et une
+      <code>feature</code> plutôt qu'un crochet de rendu, parce que taper dans
+      un titre salit le sommaire.
+    </li>
+    <li>
+      <strong><code>blocks-code</code></strong> — <code>styles</code>, et une
+      coloration peinte via la CSS Custom Highlight API plutôt qu'injectée en
+      balises dans la feuille éditable.
+    </li>
+    <li>
+      <strong><code>blocks-table</code></strong> — trois types de blocs, deux
+      <code>features</code>, une géométrie, des cellules fusionnées et une
+      sélection qui n'est ni une plage de texte ni un ensemble de blocs.
+    </li>
+  </ul>
   <p>
-    Le détail complet — la recherche, la mesure et le plan par étapes — est
-    dans le dépôt, sous <code>docs/research/plugin-architecture.md</code> et
+    La recherche et le plan qui ont mené à ce contrat sont dans le dépôt&nbsp;:
+    <code>docs/research/plugin-architecture.md</code> et
     <code>docs/design/plugin-refactor-plan.md</code>.
   </p>
 </Docs>
