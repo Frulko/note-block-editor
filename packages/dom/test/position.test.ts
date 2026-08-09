@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { computePosition } from '../src/ui/position';
+import { autoUpdate, computePosition } from '../src/ui/position';
 
 const viewport = { width: 1000, height: 800 };
 const size = { width: 240, height: 300 };
@@ -43,6 +44,23 @@ describe('computePosition', () => {
     const pos = computePosition(anchor(100, 30), size, viewport, { placement: 'left-start' });
     expect(pos.placement).toBe('right-start');
     expect(pos.left).toBe(30 + 200 + 6);
+  });
+
+  it('positions a point anchor, and leaves a detached one alone', () => {
+    // the find bar and the export menu anchor to a corner of the editor: a
+    // rect with no width and no height, which is not the same thing as an
+    // element that is no longer in the document
+    const point = document.createElement('div');
+    document.body.append(point);
+    autoUpdate(point, () => ({ top: 300, left: 500, right: 500, bottom: 300 }), {
+      placement: 'bottom-end',
+    })();
+    expect(point.style.top).toBe('306px');
+
+    const gone = document.createElement('div');
+    document.body.append(gone);
+    autoUpdate(gone, () => ({ top: 0, left: 0, right: 0, bottom: 0 }))();
+    expect(gone.style.top).toBe('');
   });
 
   it('honors custom offset and padding', () => {

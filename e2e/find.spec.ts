@@ -73,6 +73,24 @@ test.describe('find in the page', () => {
     expect(spans).toBe(0);
   });
 
+  test('the bar hangs off the editor, not off a corner of the page', async ({ page }) => {
+    /*
+     * It anchors to a *point* — the editor's top-right corner — and a point
+     * rect has no width and no height. `autoUpdate` used to read that as a
+     * detached anchor and skip positioning entirely, so the bar was mounted
+     * and then left wherever the document flow put it: bottom-left of the
+     * page, nowhere near the text it was searching.
+     */
+    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    await page.keyboard.press('ControlOrMeta+f');
+    const bar = (await page.locator('.nbe-popover.nbe-find').boundingBox())!;
+    const ed = (await page.locator('.nbe-editor').boundingBox())!;
+
+    expect(bar.y).toBeLessThan(ed.y + 120);
+    expect(bar.x + bar.width).toBeGreaterThan(ed.x + ed.width / 2);
+    expect(bar.x + bar.width).toBeLessThanOrEqual(ed.x + ed.width + 8);
+  });
+
   test('and it is off unless a host asks for it', async ({ page, editor }) => {
     await page.goto('/');
     await page.locator('.nbe-editor .nbe-leaf').first().click();

@@ -107,9 +107,17 @@ export function autoUpdate(
 ): () => void {
   const update = () => {
     const rect = getAnchor();
-    // a detached anchor measures all-zero, which is truthy and would clamp the
-    // floater to the viewport corner — leave it where it was instead
-    if (rect && (rect.bottom !== rect.top || rect.right !== rect.left)) positionFloating(el, rect, opts);
+    /*
+     * A detached anchor measures all-zero, which is truthy and would clamp the
+     * floater to the viewport corner — leave it where it was instead.
+     *
+     * All-zero, though, not merely empty: a *point* anchor is legitimate — a
+     * caret, a corner of the editor — and the earlier test (any zero
+     * dimension) rejected every one of them, so the find bar and the export
+     * menu were mounted and then never positioned at all.
+     */
+    const detached = !rect || (!rect.top && !rect.left && !rect.right && !rect.bottom);
+    if (!detached) positionFloating(el, rect, opts);
   };
   update();
 
