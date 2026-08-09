@@ -224,13 +224,13 @@ const BLOCKS = [...builtinBlocks, code, toc, dropZone, embed, ...tableDomBlocks]
 const MARKDOWN_PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 
 /** A page document wrapping freshly parsed blocks. */
-function pageOf(markdown: string): BlockJSON {
+function pageOf(markdown: string, threadIds?: ReadonlySet<string>): BlockJSON {
   return {
     id: uuidv7(),
     type: 'page',
     version: 1,
     props: {},
-    children: applyAnchors(markdownToBlocks(markdown, { plugins: MARKDOWN_PLUGINS })),
+    children: applyAnchors(markdownToBlocks(markdown, { plugins: MARKDOWN_PLUGINS }), threadIds),
   };
 }
 
@@ -515,7 +515,11 @@ class CarnetView extends TextFileView {
         })
       : null;
 
-    this.editor = new Editor({ doc: docFromJSON(pageOf(note.markdown)) });
+    // the ids the note actually carries: an anchor naming anything else is a
+    // badge that opens an empty panel, with no thread to delete to be rid of it
+    this.editor = new Editor({
+      doc: docFromJSON(pageOf(note.markdown, new Set(note.threads.map((t) => t.id)))),
+    });
     this.view = new EditorView(this.mount, this.editor, {
       ...opts,
       // comments live in the note itself, so this host can offer them at all

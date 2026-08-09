@@ -292,8 +292,17 @@ export function attachSelectionToolbar(view: EditorView): () => void {
           const r = range();
           if (!r?.single) return;
           const at = rangeInBlock(editor, r, r.startBlockId);
+          /*
+           * A live `Range` over the selected words, cloned before the panel
+           * takes the selection away. It re-measures on every scroll, which a
+           * captured rect cannot — and the words are what the discussion is
+           * about, so that is where the panel belongs.
+           */
+          const dom = document.getSelection();
+          const live = dom?.rangeCount ? dom.getRangeAt(0).cloneRange() : null;
           view.options.onComment?.(r.startBlockId, view.options.commentAuthor ?? null, {
             range: { from: at.from, to: at.to },
+            getAnchor: () => live?.getBoundingClientRect() ?? null,
           });
         },
         "nbe-seltoolbar-comment",

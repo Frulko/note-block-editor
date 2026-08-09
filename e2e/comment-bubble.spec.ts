@@ -205,3 +205,31 @@ test.describe('the discussion on a block', () => {
     expect(editor.errors()).toEqual([]);
   });
 });
+
+/**
+ * The panel opens beside what was pressed.
+ *
+ * It used to hang off the *block*, which is right for nothing: the affordance
+ * is a 26px bubble in the right margin, and a panel appearing at the far
+ * corner of a six-line paragraph has visibly nothing to do with it.
+ */
+test.describe('where the panel opens', () => {
+  test('beside the margin bubble, not at the corner of the paragraph', async ({ page, editor }) => {
+    await editor.setDocument([
+      'un paragraphe assez long pour que son coin soit loin du bouton qui ouvre la discussion, et même un peu plus',
+    ]);
+    await page.locator('.nbe-editor > .nbe-block').first().hover();
+    await page.locator('.nbe-ctrl-btn.nbe-comment').click();
+    await page.locator('.nbe-comment-field').waitFor();
+
+    const gap = await page.evaluate(() => {
+      const button = document.querySelector('.nbe-ctrl-btn.nbe-comment')!.getBoundingClientRect();
+      const panel = document.querySelector('.nbe-comments')!.getBoundingClientRect();
+      return { dx: Math.abs(panel.right - button.right), dy: Math.abs(panel.top - button.bottom) };
+    });
+    // within the popover's own offset of the button it was opened from
+    expect(gap.dx).toBeLessThan(24);
+    expect(gap.dy).toBeLessThan(24);
+    expect(editor.errors()).toEqual([]);
+  });
+});

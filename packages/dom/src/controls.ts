@@ -131,19 +131,27 @@ export function attachControls(view: EditorView): () => void {
           // the drag session owns the press; the factory's click only opens the menu
           onClick: () => {},
         });
-      case 'comment':
+      case 'comment': {
         // no host to receive it is not a disabled button, it is no button
         if (!view.options.onComment) return null;
-        return createActionButton({
+        const button = createActionButton({
           title: labels.addComment,
           icon: 'message-square',
           iconSize: 16,
           className: 'nbe-ctrl-btn nbe-comment',
           preserveSelection: true,
           onClick: () => {
-            if (hoveredId) view.options.onComment!(hoveredId, view.options.commentAuthor ?? null);
+            // beside the button, not beside the block: this is a 26px bubble in
+            // the margin, and a panel at the far corner of a six-line paragraph
+            // has visibly nothing to do with what was pressed
+            if (hoveredId)
+              view.options.onComment!(hoveredId, view.options.commentAuthor ?? null, {
+                getAnchor: () => (button.isConnected ? button.getBoundingClientRect() : null),
+              });
           },
         });
+        return button;
+      }
       default:
         return null;
     }

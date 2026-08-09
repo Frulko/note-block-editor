@@ -26,14 +26,23 @@ import { icon } from './ui';
  * @category Interaction
  */
 
-/** The distinct comment threads anchored on a block's text. */
+/**
+ * The distinct comment threads anchored on a block's text.
+ *
+ * @remarks
+ * A `comment` mark carrying no `threadId` is not a discussion — it is an
+ * anchor to nothing, which a hand-edited file or a half-applied paste can
+ * leave behind. It used to be counted as one (under the id `''`), so a block
+ * could wear a badge that opened an empty panel, and two such marks counted as
+ * one thread rather than as none.
+ */
 export function commentThreadIds(block: Block | undefined): string[] {
   const ids = new Set<string>();
   for (const run of block?.text ?? []) {
     for (const mark of run.marks ?? []) {
       if (mark.type !== 'comment') continue;
       const id = mark.attrs?.['threadId'];
-      ids.add(typeof id === 'string' ? id : '');
+      if (typeof id === 'string' && id) ids.add(id);
     }
   }
   return [...ids];
@@ -73,7 +82,9 @@ export function attachCommentMarkers(view: EditorView): () => void {
       // `mousedown` would move the caret out of the block being discussed
       button.addEventListener('mousedown', (e) => e.preventDefault());
       button.addEventListener('click', () => {
-        view.options.onComment?.(id, view.options.commentAuthor ?? null);
+        view.options.onComment?.(id, view.options.commentAuthor ?? null, {
+          getAnchor: () => (button.isConnected ? button.getBoundingClientRect() : null),
+        });
       });
       el.append(button);
     }
@@ -105,7 +116,11 @@ export function attachCommentMarkers(view: EditorView): () => void {
     if (!threadId) return;
     const blockId = span!.closest<HTMLElement>('.nbe-block')?.dataset['blockId'];
     if (!blockId || !editor.doc.blocks.has(blockId)) return;
-    view.options.onComment?.(blockId, view.options.commentAuthor ?? null, { threadId });
+    view.options.onComment?.(blockId, view.options.commentAuthor ?? null, {
+      threadId,
+      // the highlighted words themselves: the discussion is about those
+      getAnchor: () => (span!.isConnected ? span!.getBoundingClientRect() : null),
+    });
   };
   view.content.addEventListener('click', onClick);
 

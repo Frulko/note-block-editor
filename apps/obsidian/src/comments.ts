@@ -80,8 +80,17 @@ export function writeComments(markdown: string, threads: readonly CommentThread[
   return `${markdown.replace(/\s*$/, '')}\n\n${OPEN}\n${lines}\n${CLOSE}\n`;
 }
 
-/** Strip the anchors from parsed blocks, turning each into a `comment` mark. */
-export function applyAnchors(blocks: BlockJSON[]): BlockJSON[] {
+/**
+ * Strip the anchors from parsed blocks, turning each into a `comment` mark.
+ *
+ * @param known - The threads the note actually carries. An anchor naming
+ * anything else is dropped rather than turned into a mark: the margin counts
+ * marks, so a `%%^id%%` left behind by a hand-edited `%%carnet-comments%%`
+ * block gave the paragraph a badge that opened an empty panel — and there is
+ * no way to get rid of it from the editor, because there is no thread to
+ * delete. The anchor text still leaves the document, which is the point.
+ */
+export function applyAnchors(blocks: BlockJSON[], known?: ReadonlySet<string>): BlockJSON[] {
   const walk = (list: BlockJSON[]): BlockJSON[] =>
     list.map((block) => {
       const runs = block.text ?? [];
@@ -94,11 +103,14 @@ export function applyAnchors(blocks: BlockJSON[]): BlockJSON[] {
         return cleaned === run.text ? run : { ...run, text: cleaned };
       });
       const kept = text.filter((run) => run.text.length > 0);
-      const marks = [...ids].map((id) => ({ type: 'comment', attrs: { threadId: id } }));
+      const live = [...ids].filter((id) => !known || known.has(id));
+      const marks = live.map((id) => ({ type: 'comment', attrs: { threadId: id } }));
       return {
         ...block,
+        // the anchors always come out of the text; only a *live* one becomes a
+        // mark, so a stale `%%^id%%` disappears from the note on the next save
         ...(ids.size
-          ? { text: kept.map((run) => ({ ...run, marks: [...(run.marks ?? []), ...marks] })) }
+          ? { text: marks.length ? kept.map((run) => ({ ...run, marks: [...(run.marks ?? []), ...marks] })) : kept }
           : { text: runs }),
         ...(block.children?.length ? { children: walk(block.children) } : {}),
       };

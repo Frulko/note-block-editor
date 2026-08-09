@@ -68,6 +68,19 @@ export interface CommentContext {
   range?: { from: number; to: number };
   /** The thread whose highlight was clicked. Show that one, not the block's. */
   threadId?: string;
+  /**
+   * Where the affordance was, so the panel opens beside it.
+   *
+   * @remarks
+   * The panel used to hang off the *block*, which is right for nothing: the
+   * button that opens it is a 26px bubble in the right margin, and a panel that
+   * appears at the bottom-left corner of a six-line paragraph has visibly
+   * nothing to do with the thing that was pressed.
+   *
+   * A function, not a rect, because the popover re-reads it on every scroll —
+   * a static rect would leave the panel behind the moment the page moved.
+   */
+  getAnchor?: () => DOMRect | null;
 }
 
 /**
