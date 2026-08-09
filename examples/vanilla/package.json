@@ -19,7 +19,8 @@
     "@nbe/static-renderer": "workspace:*",
     "@nbe/workspace": "workspace:*",
     "mermaid": "^11.16.1",
-    "@nbe/blocks-mermaid": "workspace:*"
+    "@nbe/blocks-mermaid": "workspace:*",
+    "@nbe/blocks-mdx": "workspace:*"
   },
   "devDependencies": {
     "vite": "^6.0.0"

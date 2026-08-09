@@ -15,7 +15,8 @@
     "@nbe/blocks-code": "workspace:*",
     "@nbe/blocks-toc": "workspace:*",
     "@nbe/blocks-mermaid": "workspace:*",
-    "mermaid": "^11.16.1"
+    "mermaid": "^11.16.1",
+    "@nbe/blocks-mdx": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

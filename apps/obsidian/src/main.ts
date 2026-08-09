@@ -30,6 +30,7 @@ import { CODE_THEMES } from '@nbe/blocks-code';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
 import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { toc } from '@nbe/blocks-toc/dom';
+import { mdx } from '@nbe/blocks-mdx/dom';
 
 /**
  * Carnet inside Obsidian — the editor, and nothing else.

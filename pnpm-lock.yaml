@@ -108,6 +108,9 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../../packages/blocks-code
+      '@nbe/blocks-mdx':
+        specifier: workspace:*
+        version: link:../../packages/blocks-mdx
       '@nbe/blocks-mermaid':
         specifier: workspace:*
         version: link:../../packages/blocks-mermaid
@@ -220,6 +223,9 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../../packages/blocks-code
+      '@nbe/blocks-mdx':
+        specifier: workspace:*
+        version: link:../../packages/blocks-mdx
       '@nbe/blocks-mermaid':
         specifier: workspace:*
         version: link:../../packages/blocks-mermaid
@@ -307,6 +313,19 @@ importers:
       '@nbe/static-renderer':
         specifier: workspace:*
         version: link:../static-renderer
+
+  packages/blocks-mdx:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/dom':
+        specifier: workspace:*
+        version: link:../dom
+    devDependencies:
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
 
   packages/blocks-mermaid:
     dependencies:
