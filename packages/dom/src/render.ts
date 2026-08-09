@@ -13,6 +13,46 @@ function el(tag: string, className?: string): HTMLElement {
   return e;
 }
 
+/**
+ * A URL the sandboxed frame can actually load, whatever the host resolved.
+ *
+ * @remarks
+ * The embed asks for `allow-scripts` **without** `allow-same-origin`, which
+ * gives the frame an opaque origin — and an opaque origin cannot navigate to a
+ * host's private scheme. In the browser the question never came up, because
+ * the asset store already hands back a `blob:`; inside Obsidian
+ * `resolveAssetUrl` returns an `app://` resource path and the frame stayed
+ * blank with nothing in the console to say why.
+ *
+ * So the bytes are fetched once and re-served as a blob. Cached by src, which
+ * is not only about the leak: a fresh object URL per render would reload the
+ * page inside the frame — losing whatever it had on screen — every time the
+ * block was re-rendered.
+ *
+ * @param url - What the host resolved; returned unchanged when it is already
+ * something an opaque origin can read.
+ */
+const sandboxUrls = new Map<string, Promise<string>>();
+
+/** Test seam: the cache is module state, and each case must start from empty. */
+export function __resetSandboxUrls(): void {
+  sandboxUrls.clear();
+}
+
+export function sandboxUrl(url: string): Promise<string> {
+  if (/^(blob|data):/i.test(url)) return Promise.resolve(url);
+  const cached = sandboxUrls.get(url);
+  if (cached) return cached;
+  const promise = fetch(url)
+    .then((r) => r.blob())
+    .then((blob) => URL.createObjectURL(blob.type ? blob : new Blob([blob], { type: 'text/html' })))
+    // a host whose scheme refuses `fetch` too: the frame gets the raw URL, which
+    // is exactly what it got before, rather than nothing at all
+    .catch(() => url);
+  sandboxUrls.set(url, promise);
+  return promise;
+}
+
 /** Bytes, as a person reads them. Base 10, because that is what a file manager shows. */
 function formatBytes(n: number): string {
   if (n < 1000) return `${n} o`;
@@ -281,9 +321,11 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       frame.setAttribute('sandbox', 'allow-scripts');
       frame.setAttribute('loading', 'lazy');
       frame.title = name;
-      const resolvedFrame = view.options.resolveAssetUrl?.(src) ?? src;
-      if (typeof resolvedFrame === 'string') frame.src = resolvedFrame;
-      else void resolvedFrame.then((url) => (frame.src = url));
+      void Promise.resolve(view.options.resolveAssetUrl?.(src) ?? src)
+        .then(sandboxUrl)
+        .then((url) => {
+          frame.src = url;
+        });
       root.append(frame);
     }
 
