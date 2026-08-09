@@ -246,6 +246,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
      * at all.
      */
     const isPdf = mime === 'application/pdf' || /\.pdf(?:[?#]|$)/i.test(src);
+    const isHtml = mime === 'text/html' || /\.html?(?:[?#]|$)/i.test(src);
     const card = el('div', 'nbe-file');
     const link = document.createElement('a');
     link.className = 'nbe-file-link';
@@ -259,7 +260,34 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     }
     card.append(link);
 
-    const preview = isPdf ? document.createElement('object') : null;
+    /*
+     * A dropped HTML page runs, in a box that can reach nothing.
+     *
+     * `sandbox="allow-scripts"` and deliberately **not** `allow-same-origin`:
+     * together those two undo the sandbox entirely, and apart they give exactly
+     * what a dropped prototype needs — its own scripts, its own opaque origin,
+     * no access to the vault, the host's storage, its cookies or its DOM. There
+     * is no message channel either, by decision: an SDK across that boundary is
+     * a protocol, and a protocol is a thing to design rather than to leave
+     * open.
+     *
+     * ponytail: one self-contained file. A folder or a zip needs its relative
+     * assets rewritten to blob URLs before any of it resolves — the next rung,
+     * and a different amount of work.
+     */
+    if (isHtml) {
+      const frame = document.createElement('iframe');
+      frame.className = 'nbe-file-embed';
+      frame.setAttribute('sandbox', 'allow-scripts');
+      frame.setAttribute('loading', 'lazy');
+      frame.title = name;
+      const resolvedFrame = view.options.resolveAssetUrl?.(src) ?? src;
+      if (typeof resolvedFrame === 'string') frame.src = resolvedFrame;
+      else void resolvedFrame.then((url) => (frame.src = url));
+      root.append(frame);
+    }
+
+    const preview = !isHtml && isPdf ? document.createElement('object') : null;
     if (preview) {
       preview.className = 'nbe-file-preview';
       preview.type = 'application/pdf';

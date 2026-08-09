@@ -153,6 +153,11 @@ function renderOne(block: BlockJSON, opts: RenderOptions, page?: readonly BlockJ
       const href = escapeHtml(opts.resolveAssetUrl?.(raw) ?? raw);
       const name = escapeHtml(String(props['name'] ?? 'fichier'));
       const mime = String(props['mime'] ?? '');
+      // a dropped page runs in a box that can reach nothing: `allow-scripts`
+      // without `allow-same-origin`, which is the whole of the sandbox
+      if (mime === 'text/html' || /\.html?(?:[?#]|$)/i.test(raw)) {
+        return `<div${attrs()}><iframe class="${p}-file-embed" sandbox="allow-scripts" loading="lazy" title="${name}" src="${href}"></iframe><a class="${p}-file-link" href="${href}" download="${name}">${name}</a></div>`;
+      }
       // a PDF gets the browser's own viewer, with the link as fallback content
       if (mime === 'application/pdf' || /\.pdf(?:[?#]|$)/i.test(raw)) {
         return `<div${attrs()}><object class="${p}-file-preview" type="application/pdf" data="${href}"><a href="${href}" download="${name}">${name}</a></object><a class="${p}-file-link" href="${href}" download="${name}">${name}</a></div>`;

@@ -179,3 +179,18 @@ describe('the file block', () => {
     expect(html).not.toContain('<script>');
   });
 });
+
+describe('an embedded page', () => {
+  it('runs in a sandbox that cannot reach the document around it', () => {
+    const html = renderBlocksToHTML([
+      b('file', undefined, { src: 'proto.html', name: 'proto.html', mime: 'text/html' }),
+    ]);
+    expect(html).toContain('<iframe');
+    // the whole of the sandbox is these two facts, and the second is a
+    // negative: together the flags undo each other
+    expect(html).toContain('sandbox="allow-scripts"');
+    expect(html).not.toContain('allow-same-origin');
+    // still a file: the way to get it out is still there
+    expect(html).toContain('download="proto.html"');
+  });
+});

@@ -137,7 +137,17 @@ function makeEditor(page: Page, errors: string[]): Editor {
         })),
       };
       await page.addInitScript(
-        ([key, value]) => localStorage.setItem(key as string, value as string),
+        ([key, value]) => {
+          // init scripts run in *every* frame, and a sandboxed one has no
+          // storage to write to — a page dropped into the editor would
+          // otherwise fill `errors()` with SecurityErrors that are the
+          // harness's, not the product's
+          try {
+            localStorage.setItem(key as string, value as string);
+          } catch {
+            /* no storage in this frame */
+          }
+        },
         ['nbe-workspace-v1', JSON.stringify({ pages: [doc], openId: doc.id })] as const,
       );
       await page.reload();
