@@ -1,0 +1,329 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import Code from '../../components/Code.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const setup = `import { Editor, uuidv7 } from '@nbe/core';
+import { EditorView } from '@nbe/dom';
+import { LoroBlockStore, connect, connectToRelay, redrawOnRemote } from '@nbe/collab';
+
+const room = 'reunion-lancement';
+
+// 1. Le document devient un CRDT. \`LoroBlockStore\` implémente \`BlockStore\`,
+//    l'interface que l'éditeur utilise déjà : rien d'autre ne change.
+const store = new LoroBlockStore();
+
+// 2. Le transport. Deux méthodes, \`send\` et \`onMessage\` — ici un WebSocket
+//    vers un relais, mais l'éditeur ne sait pas lequel.
+const transport = connectToRelay('ws://localhost:8787', room);
+const stopSync = connect(store, transport);
+
+// 3. La racine doit être le MÊME bloc chez tout le monde : on la dérive du
+//    salon au lieu de la générer (voir « les deux pièges », plus bas).
+const rootId = \`\${room}-root\`;
+
+// 4. Laisser arriver le document existant avant de décider que le salon est
+//    vide, puis créer la page si personne ne l'a fait.
+setTimeout(() => {
+  if (!store.get(rootId)) {
+    store.set(rootId, {
+      id: rootId, type: 'page', version: 1,
+      props: { title: room }, children: [], parentId: null,
+    });
+    const first = {
+      id: uuidv7(), type: 'paragraph', version: 1,
+      props: {}, text: [], children: [], parentId: rootId,
+    };
+    store.set(first.id, first);
+    store.set(rootId, { ...store.get(rootId)!, children: [first.id] });
+  }
+
+  // 5. À partir d'ici, c'est l'éditeur habituel.
+  const editor = new Editor({ doc: { blocks: store, rootId } });
+  const view = new EditorView(document.querySelector('#editeur')!, editor);
+
+  // 6. Une édition distante n'entre PAS par cet éditeur : sans ceci, la fusion
+  //    serait correcte et l'écran mentirait.
+  const stopRedraw = redrawOnRemote(store.doc, () => view.renderAll());
+}, 400);`;
+
+const presence = `import { attachRemoteCarets, peerSelection, type RemoteSelection } from '@nbe/dom';
+import { createPresence } from '@nbe/collab';
+
+const me = { id: uuidv7(), name: 'Alice', color: 'rgb(41, 78, 199)' };
+
+const carets = attachRemoteCarets(view);          // peint les curseurs et les sélections
+const presence = createPresence(transport, { id: me.id });  // même socket, jamais le document
+
+// Ce que les autres reçoivent de nous
+const announce = () =>
+  presence.set({ name: me.name, color: me.color, selection: peerSelection(editor) });
+
+// Ce qu'on fait de ce qu'ils envoient
+presence.onChange((peers) =>
+  carets.update(
+    Object.entries(peers).map(([id, state]) => ({
+      id,
+      name: String(state.name ?? ''),
+      color: String(state.color ?? ''),
+      selection: (state.selection ?? null) as RemoteSelection | null,
+    })),
+  ),
+);
+
+editor.on(announce);                    // le texte a bougé sous le caret
+editor.onSelection(() => announce());   // la sélection a bougé
+announce();                             // et dire bonjour tout de suite`;
+
+const comments = `import { LoroComments } from '@nbe/collab';
+import { newThread, newMessage, plainText, threadsInDocumentOrder, documentOrder } from '@nbe/core';
+
+const comments = new LoroComments(store.doc);   // dans le document, pas à côté
+
+// L'hôte fournit le geste ; le bouton n'apparaît que s'il le fournit.
+const view = new EditorView(el, editor, {
+  commentAuthor: { id: me.id, name: me.name },   // optionnel : l'anonyme est un vrai mode
+  onComment(blockId, author) {
+    const body = window.prompt('Votre commentaire');
+    if (!body) return;
+    const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
+    const thread = newThread(message, blockId);
+    comments.create(thread);
+
+    // L'ancre est une marque posée sur tout le texte du bloc : elle suit la
+    // phrase quand elle bouge, et se retrouve orpheline si le texte disparaît.
+    const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
+    editor.dispatch((tx) =>
+      tx.op({ type: 'format_text', id: blockId, from: 0, to: length,
+              mark: { type: 'comment', attrs: { threadId: thread.id } }, add: true }),
+    );
+  },
+});
+
+comments.onChange(() => render(threadsInDocumentOrder(editor.doc, comments, documentOrder(editor.doc))));`;
+
+const history = `import { LoroHistory } from '@nbe/collab';
+
+const history = new LoroHistory(store);
+
+history.checkpoint('Avant la relecture');   // nommer l'état courant
+const revisions = history.list();           // les versions, la plus récente d'abord
+const before = history.readAt(revisions[3].frontiers);  // lire le passé sans y aller
+history.restore(revisions[3].frontiers, 'Retour avant relecture');`;
+
+const p2p = `import { p2pTransport, connectToRelay, connect } from '@nbe/collab';
+
+// Le relais négocie, puis sort du chemin — et reste le repli.
+const transport = p2pTransport(connectToRelay(url, room), {
+  onState: ({ peers, direct, relayed }) =>
+    status.textContent = !peers
+      ? 'Seul dans le salon.'
+      : relayed
+        ? \`\${peers} pair(s), via le relais.\`
+        : \`\${direct} pair(s) en direct — le relais ne voit plus rien.\`,
+});
+
+connect(store, transport);   // \`connect\` n'apprendra jamais qu'il est passé en direct`;
+
+const teardown = `stopRedraw();
+carets.destroy();
+presence.leave();   // dire au revoir plutôt que d'expirer au bout de 30 s
+stopSync();         // ferme aussi le transport
+view.destroy();`;
+
+const relay = `nbe relay --port 8787     # un port, aucune base de données
+nbe serve --port 8787     # le même, plus un pair permanent qui garde les documents
+nbe peer <salon>          # un pair WebRTC sans écran, qui écrit sur le disque`;
+---
+<Docs title="Éditer à plusieurs" wide>
+  <p class="lede">
+    Le montage complet, dans l'ordre où on l'écrit&nbsp;: un document CRDT, un
+    transport, les curseurs des autres, les commentaires, l'historique — et les
+    deux pièges qui font perdre une soirée.
+  </p>
+
+  <div class="note">
+    <p>
+      La démo qui tourne dans le navigateur est
+      <a href={`${base}/collab/`}>À plusieurs</a>&nbsp;; le code source complet
+      des deux modes (deux volets sans serveur, et un vrai salon partagé) est
+      dans <code>examples/collab</code>.
+    </p>
+  </div>
+
+  <h2 id="modele">Le modèle, en trois phrases</h2>
+  <p>
+    <strong>Le document fusionne tout seul.</strong> C'est un CRDT (Loro)&nbsp;:
+    les modifications commutent, donc l'ordre d'arrivée n'a pas d'importance et
+    deux personnes peuvent écrire dans la même phrase. Hors ligne n'est pas un
+    cas particulier — c'est le cas général avec une latence plus longue.
+  </p>
+  <p>
+    <strong>Le transport est une interface à deux méthodes</strong>,
+    <code>send</code> et <code>onMessage</code>. Il ne reconnecte pas, ne
+    ré-essaie pas, n'authentifie pas&nbsp;: ces trois choses diffèrent par
+    transport et appartiennent à celui qu'on écrit. Un WebSocket, une boucle
+    locale, un canal WebRTC et un test se ressemblent donc du point de vue du
+    document.
+  </p>
+  <p>
+    <strong>Le contrôle d'accès reste dehors.</strong> Un CRDT fusionne ce
+    qu'on lui donne&nbsp;: un pair qui n'aurait pas dû écrire doit être arrêté
+    <em>avant</em> que ses octets arrivent, pas après.
+  </p>
+
+  <h2 id="montage">Le montage complet</h2>
+  <p>
+    Rien n'est omis ici — c'est le fichier qui marche, pas un extrait.
+  </p>
+  <Code code={setup} lang="ts" />
+
+  <h2 id="pieges">Les deux pièges du démarrage</h2>
+  <p>
+    <strong>L'identifiant de la racine.</strong> Si chaque pair génère le sien,
+    tout se synchronise correctement et chacun regarde une page différente —
+    la forme la plus déroutante de «&nbsp;cassé&nbsp;», parce que rien n'échoue.
+    On le dérive donc du nom du salon, ou on le reçoit de l'hôte&nbsp;; ce qui
+    compte est qu'il ne soit pas tiré au hasard localement.
+  </p>
+  <p>
+    <strong>Le salon vide.</strong> Un relais sans persistance n'a rien à
+    envoyer, donc «&nbsp;le document n'est pas encore arrivé&nbsp;» et
+    «&nbsp;il n'existe pas&nbsp;» se ressemblent pendant un instant. D'où le
+    délai avant de créer la page&nbsp;: le premier arrivé la crée, les suivants
+    la reçoivent. C'est un délai fixe et non une poignée de main — assumé, avec
+    son plafond écrit dans le code&nbsp;: si un lien lent finit par faire
+    clignoter une page vide, il faudra un événement «&nbsp;synchronisé&nbsp;»
+    émis par <code>connect</code>.
+  </p>
+
+  <h2 id="curseurs">Voir les autres</h2>
+  <p>
+    La présence voyage sur le même socket que le document, et n'entre
+    <em>jamais</em> dedans&nbsp;: rien de ce qui suit ne peut finir dans le
+    fichier ni dans l'historique. Elle expire toute seule au bout de trente
+    secondes, donc un onglet fermé brutalement disparaît de lui-même.
+  </p>
+  <Code code={presence} lang="ts" />
+  <div class="note">
+    <p>
+      <strong>Le piège&nbsp;: écouter <code>selectionchange</code> du
+      DOM.</strong> Une sélection qui traverse plusieurs blocs, le navigateur
+      refuse de la tenir — c'est le modèle qui la porte et la CSS Custom
+      Highlight API qui la peint. L'événement du DOM ne part donc jamais pour
+      ce cas, et la sélection du pair semble s'arrêter à la frontière du bloc
+      sur tous les autres écrans. <code>editor.onSelection</code> est celui qui
+      sait.
+    </p>
+  </div>
+  <p>
+    <code>peerSelection(editor)</code> fait la mise à plat une fois pour toutes
+    et porte les deux formes&nbsp;: une plage de texte avec son bloc de tête, et
+    l'ensemble des blocs quand la personne tient des blocs entiers. Les
+    sélections sont peintes par pair, dans sa couleur, jusqu'à huit
+    simultanées&nbsp;; au-delà il reste les curseurs, qui sont la partie qui dit
+    où sont les gens.
+  </p>
+
+  <h2 id="repeindre">Repeindre sur une édition distante</h2>
+  <p>
+    Une édition locale passe par l'éditeur, qui prévient sa vue. Une édition
+    <strong>distante</strong> arrive en important des octets directement dans le
+    store&nbsp;: l'éditeur n'en entend jamais parler et la vue continue de
+    peindre le document tel qu'il était. Tout converge correctement et l'écran
+    ment en silence — la pire des deux pannes, parce qu'elle a l'air de marcher.
+    C'est tout le travail de <code>redrawOnRemote</code>, et c'est pour ça qu'il
+    ignore <code>local</code> (déjà à l'écran) et <code>checkout</code>
+    (l'historique qui lit le passé, et qui ne doit pas repeindre le présent).
+  </p>
+
+  <h2 id="protocole">Le protocole, et pourquoi le relais ne comprend rien</h2>
+  <p>
+    Quatre types de messages, un octet en tête&nbsp;: <code>Have</code> (voici
+    ma version), <code>Update</code> (voici des changements),
+    <code>Presence</code>, <code>Signal</code> (négociation WebRTC). Un pair
+    ouvre en annonçant ce qu'il a, l'autre répond exactement ce qui manque —
+    envoyer un instantané entier serait plus simple et ferait payer chaque
+    reconnexion au prix du document&nbsp;: sur l'échantillon mesuré, 104 octets
+    contre 372, et l'écart grandit avec l'historique.
+  </p>
+  <p>
+    Le relais, lui, recopie des octets d'un pair à l'autre. Il ne les décode
+    pas, donc il ne peut pas les corrompre, et un type de message qu'il ne
+    connaît pas ne le dérange pas.
+  </p>
+  <Code code={relay} lang="bash" />
+
+  <h2 id="p2p">Pair-à-pair, sans TURN</h2>
+  <p>
+    <code>p2pTransport</code> enveloppe un transport et en rend un&nbsp;:
+    <code>connect</code> n'apprend jamais qu'il est passé en direct. Le relais
+    négocie la connexion, puis sort du chemin, et sert de repli — il n'y a donc
+    pas de serveur TURN à héberger.
+  </p>
+  <Code code={p2p} lang="ts" />
+  <div class="note">
+    <p>
+      <strong>Le piège, écrit parce qu'il est silencieux&nbsp;:</strong> un pair
+      qui ne sait pas parler WebRTC ne dit jamais bonjour. Des pairs qui
+      compteraient les bonjours se croiraient donc au complet, cesseraient
+      d'utiliser le relais, et laisseraient <code>nbe serve</code> ne plus rien
+      recevoir pendant que chaque écran a l'air en bonne santé. Le compte vient
+      du relais, qui est le seul à le connaître.
+    </p>
+  </div>
+
+  <h2 id="commentaires">Commentaires</h2>
+  <p>
+    Ils vivent dans le même document que le texte, donc ils arrivent
+    <em>avec</em> lui plutôt que par un second canal qui pourrait prendre du
+    retard. Un commentaire porte sur un bloc, et son ancre est une marque posée
+    sur tout le texte de ce bloc&nbsp;: elle survit aux modifications et aux
+    fusions parce qu'elle suit le texte, et non un décalage numérique.
+  </p>
+  <Code code={comments} lang="ts" />
+  <p>
+    Quand le texte commenté disparaît, le fil devient <em>orphelin</em> —
+    <code>orphanThreads()</code> les liste — plutôt que de pointer vers une
+    position qui ne veut plus rien dire.
+  </p>
+
+  <h2 id="historique">Historique</h2>
+  <p>
+    Le CRDT garde déjà tout ce qu'il faut&nbsp;; l'historique n'est qu'une
+    lecture. <code>readAt()</code> lit un état passé sans y aller,
+    <code>restore()</code> ramène cet état en avant comme une nouvelle
+    modification — ce qui reste fusionnable, contrairement à un retour en
+    arrière destructif.
+  </p>
+  <Code code={history} lang="ts" />
+
+  <h2 id="demonter">Démonter proprement</h2>
+  <p>
+    Dans cet ordre&nbsp;: on cesse de peindre avant de couper le lien, et on dit
+    au revoir plutôt que d'attendre l'expiration.
+  </p>
+  <Code code={teardown} lang="ts" />
+
+  <h2 id="limites">Ce qui n'est pas fourni</h2>
+  <ul>
+    <li>
+      <strong>Ni authentification ni permissions.</strong> Le transport porte
+      des octets&nbsp;; qui a le droit d'écrire se décide avant lui.
+    </li>
+    <li>
+      <strong>Pas de reconnexion automatique</strong> dans
+      <code>websocketTransport</code> — un WebSocket fermé se remplace, et la
+      reprise ne coûte qu'un <code>Have</code>.
+    </li>
+    <li>
+      <strong>Pas de sélection distante annoncée aux lecteurs d'écran.</strong>
+      Un highlight n'est pas une sélection&nbsp;: c'est un manque
+      d'accessibilité réel, écrit dans <code>docs/TESTING.md</code>.
+    </li>
+    <li>
+      <strong>Un réseau où le chemin direct échoue vraiment n'est pas
+      prouvé.</strong> Le repli est testé, la NAT qui l'imposerait ne l'est pas.
+    </li>
+  </ul>
+</Docs>

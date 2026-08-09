@@ -24,6 +24,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </div>
 
     <div class="prose">
+      <p>
+        Le montage complet — document CRDT, transport, curseurs, commentaires,
+        historique, et les deux pièges du démarrage — est sur
+        <a href={`${base}/docs/collaboration/`}>Éditer à plusieurs</a>.
+      </p>
       <ol class="try">
         <li><strong>Tapez à gauche.</strong> Le texte apparaît à droite, et le curseur d'en face porte le nom et la couleur de la personne.</li>
         <li><strong>Coupez un pair</strong> avec le bouton <em>En ligne</em>. Le lien est suspendu, pas rompu&nbsp;: son curseur se fige en face.</li>
@@ -48,7 +53,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <li>Les commentaires sont ancrés au <em>texte</em>, pas à un décalage&nbsp;: ils suivent la phrase quand elle bouge</li>
             <li>L'historique vit dans le document, avec restauration&nbsp;; il arrive donc avec le texte plutôt que par un second canal en retard</li>
           </ul>
-          <a class="feature-link" href={`${base}/docs/examples/#relais`}>L'exemple complet →</a>
+          <a class="feature-link" href={`${base}/docs/collaboration/#commentaires`}>Le code, en détail →</a>
         </div>
         <div class="feature">
           <h3>Entre deux navigateurs</h3>
