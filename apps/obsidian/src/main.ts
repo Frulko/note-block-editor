@@ -520,7 +520,7 @@ class CarnetView extends TextFileView {
       // comments live in the note itself, so this host can offer them at all
       ...(this.comments
         ? {
-            onComment: (blockId, author) => this.comments?.onComment(this.editor!, blockId, author),
+            onComment: (blockId, author, at) => this.comments?.onComment(this.editor!, blockId, author, at),
             commentAuthor: { id: 'obsidian', name: 'Vous' },
           }
         : {}),

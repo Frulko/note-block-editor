@@ -39,6 +39,26 @@ export interface CommentAuthor {
 }
 
 /**
+ * What a comment affordance was pointing at.
+ *
+ * @remarks
+ * Both fields absent is the original meaning and still the default: the whole
+ * block. They are never both set — a click on an existing highlight already
+ * has its thread, and a fresh selection does not have one yet.
+ *
+ * @category Comments
+ */
+export interface CommentContext {
+  /**
+   * Character offsets in the block, for a thread that does not exist yet.
+   * Where the yellow highlight will go when the first message is sent.
+   */
+  range?: { from: number; to: number };
+  /** The thread whose highlight was clicked. Show that one, not the block's. */
+  threadId?: string;
+}
+
+/**
  * Everything a host can change when mounting an editor.
  *
  * @remarks
@@ -73,25 +93,29 @@ export interface EditorViewOptions {
   /** Create a page in the host workspace (slash menu "Page" item). */
   onCreatePage?: () => { pageId: string; title: string } | null;
   /**
-   * Open a comment on a block, from the button in the right-hand gutter.
+   * Open a comment, from any of the three affordances that ask for one.
    *
    * @remarks
-   * **A comment is on a block**, never on a hand-picked range. That is why it
-   * hangs off the gutter rather than the selection toolbar, and it is what
-   * makes the affordance discoverable: hovering a block shows everything you
-   * can do to it, and one of those things is discuss it.
+   * A comment used to be **on a block** and nothing else, which was the right
+   * first shape and too narrow: the thing people want to argue about is
+   * usually a sentence. There are three ways in now, and {@link CommentContext}
+   * is how they differ — the gutter button passes nothing and means the whole
+   * block, the format toolbar passes the selected `range`, and clicking an
+   * existing yellow highlight passes its `threadId`.
    *
    * The threads themselves are the host's: `@nbe/core` has the model and
    * `@nbe/collab` puts it in the CRDT, but *where a discussion is displayed* is
    * a layout decision the editor cannot make — a sidebar, a popover, a panel in
    * another pane. So the editor contributes the affordance and nothing else,
-   * and without this host the button is not rendered at all rather than
-   * rendered dead.
+   * and without this host neither the button nor the toolbar entry is rendered
+   * at all, rather than rendered dead.
    *
-   * @param blockId - The block the pointer was on.
+   * @param blockId - The block the affordance was on.
    * @param author - `commentAuthor`, or `null` when nobody was named.
+   * @param context - Which of the three, and what it was pointing at. Absent
+   * means the whole block, which is what every existing host already handles.
    */
-  onComment?: (blockId: BlockId, author: CommentAuthor | null) => void;
+  onComment?: (blockId: BlockId, author: CommentAuthor | null, context?: CommentContext) => void;
   /**
    * Who is commenting.
    *

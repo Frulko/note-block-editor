@@ -9,7 +9,7 @@ import {
   type CommentThread,
   type Editor,
 } from '@nbe/core';
-import { fr, openCommentThread, removeCommentThread, type CommentAuthor } from '@nbe/dom';
+import { fr, openCommentThread, removeCommentThread, type CommentAuthor, type CommentContext } from '@nbe/dom';
 
 /**
  * Comments, on blocks, in the third inspector tab.
@@ -64,7 +64,7 @@ const time = (at: number): string =>
 export interface DemoComments {
   store: CommentStore;
   /** Wire to `EditorViewOptions.onComment`. */
-  comment: (editor: Editor, blockId: BlockId, author: CommentAuthor | null) => void;
+  comment: (editor: Editor, blockId: BlockId, author: CommentAuthor | null, at?: CommentContext) => void;
   /** Repaint the panel against a document. */
   render: (editor: Editor | null) => void;
   /** How many live threads there are, for the tab's badge. */
@@ -81,8 +81,11 @@ export function createComments(initial: CommentThread[], onSave: (threads: Comme
   const badge = document.getElementById('comments-count')!;
   let current: Editor | null = null;
 
-  const comment = (editor: Editor, blockId: BlockId, author: CommentAuthor | null): void => {
-    openCommentThread({ editor, store, blockId, author, labels: fr, locale: 'fr' });
+  // `at` is the editor saying which affordance was used: nothing for the
+  // gutter (the whole block), a `range` from the format toolbar, a `threadId`
+  // from a click on an existing yellow highlight
+  const comment = (editor: Editor, blockId: BlockId, author: CommentAuthor | null, at?: CommentContext): void => {
+    openCommentThread({ editor, store, blockId, author, labels: fr, locale: 'fr', ...at });
   };
 
   const card = (thread: CommentThread, orphan: boolean): HTMLElement => {

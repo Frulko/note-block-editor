@@ -16,6 +16,7 @@ import {
   attachTooltip,
   createMenu,
   dismissedBy,
+  icon,
   positionFloating,
   type AnchorRect,
   type MenuEntry,
@@ -98,7 +99,10 @@ export function attachSelectionToolbar(view: EditorView): () => void {
   };
 
   const button = (
-    label: string,
+    // a Node as readily as a string: every other control here is a glyph typed
+    // by hand, and the comment one is the editor's own `message-square`, so it
+    // reads as the same affordance as the gutter's bubble
+    label: string | Node,
     title: string,
     onClick: () => void,
     className = "",
@@ -217,6 +221,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
   let turnSep: HTMLElement | null = null;
   const formatBtns = new Map<string, HTMLButtonElement>();
   let linkBtn: HTMLButtonElement | null = null;
+  let commentButton: HTMLButtonElement | null = null;
 
   const build = () => {
     if (built) return;
@@ -268,6 +273,34 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       "nbe-seltoolbar-color",
     );
     bar.append(colorBtn);
+
+    /*
+     * Comment on what is selected.
+     *
+     * The gutter button has always meant "discuss this block", and that is a
+     * real thing to want — but the thing people actually argue about is a
+     * sentence. Only offered with an `onComment` host, and only for a range
+     * inside one block: a highlight that starts in one paragraph and ends in
+     * another is two anchors and one discussion, which is a different feature
+     * and not this one.
+     */
+    if (view.options.onComment) {
+      const commentBtn = button(
+        icon("message-square", { size: 14 }),
+        labels.addComment,
+        () => {
+          const r = range();
+          if (!r?.single) return;
+          const at = rangeInBlock(editor, r, r.startBlockId);
+          view.options.onComment?.(r.startBlockId, view.options.commentAuthor ?? null, {
+            range: { from: at.from, to: at.to },
+          });
+        },
+        "nbe-seltoolbar-comment",
+      );
+      bar.append(divider(), commentBtn);
+      commentButton = commentBtn;
+    }
   };
 
   /** Refresh labels and active states in place — never replace nodes. */
@@ -289,6 +322,14 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       formatBtns.get(fmt.mark)?.classList.toggle("nbe-active", rangeHasMark(editor, fmt.mark));
     }
     linkBtn!.classList.toggle("nbe-active", rangeHasMark(editor, "link"));
+    // a comment anchors in one block; across blocks the button would lie
+    if (commentButton) {
+      commentButton.style.display = r.single ? "" : "none";
+      (commentButton.previousElementSibling as HTMLElement | null)?.style.setProperty(
+        "display",
+        r.single ? "" : "none",
+      );
+    }
   };
 
   const divider = (): HTMLElement => {

@@ -580,8 +580,8 @@ async function openPage(pageId: string): Promise<void> {
     commentAuthor: ME,
     // the bubble is `@nbe/dom`'s, like every other host's — a fourth composer
     // written here is a fourth one to get wrong
-    onComment: (blockId, author) =>
-      void openCommentThread({ editor: editor!, store: comments, blockId, author, labels: fr }),
+    onComment: (blockId, author, at) =>
+      void openCommentThread({ editor: editor!, store: comments, blockId, author, labels: fr, ...at }),
     // a pasted or dropped file becomes a file in the folder, and the document
     // keeps the path — so an image is still an image after this app is gone
     onStoreAsset: (blob) => assets!.store(blob),

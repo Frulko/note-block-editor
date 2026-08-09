@@ -7,7 +7,7 @@ import {
   type Editor,
   type Run,
 } from '@nbe/core';
-import { fr, openCommentThread, type CommentAuthor } from '@nbe/dom';
+import { fr, openCommentThread, type CommentAuthor, type CommentContext } from '@nbe/dom';
 
 /**
  * Comments in a vault, kept in the note itself.
@@ -144,7 +144,7 @@ export function restoreAnchors(blocks: BlockJSON[]): BlockJSON[] {
 export interface NoteCommentHost {
   store: CommentStore;
   /** Wire to `EditorViewOptions.onComment`. */
-  onComment: (editor: Editor, blockId: BlockId, author: CommentAuthor | null) => void;
+  onComment: (editor: Editor, blockId: BlockId, author: CommentAuthor | null, at?: CommentContext) => void;
 }
 
 /**
@@ -162,8 +162,21 @@ export function createNoteComments(initial: CommentThread[], onChange: () => voi
   const store = memoryComments(initial);
   store.onChange(onChange);
 
-  const onComment = (editor: Editor, blockId: BlockId, author: CommentAuthor | null): void => {
-    openCommentThread({ editor, store, blockId, author, labels: fr, locale: 'fr' });
+  /*
+   * `at` is which affordance asked: nothing for the gutter (the whole block),
+   * a `range` from the format toolbar, a `threadId` from a click on a
+   * highlight. The anchor syntax in the note does not change — `%%^id%%` still
+   * rides at the end of the block's line — because a comment's *anchor* is the
+   * block it travels with; the offsets are what the highlight is drawn over,
+   * and those are re-derived from the marks on every open.
+   */
+  const onComment = (
+    editor: Editor,
+    blockId: BlockId,
+    author: CommentAuthor | null,
+    at?: CommentContext,
+  ): void => {
+    openCommentThread({ editor, store, blockId, author, labels: fr, locale: 'fr', ...at });
   };
 
   return { store, onComment };

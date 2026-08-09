@@ -58,16 +58,27 @@ const blockAnchor =
  * no hand-picked range to preserve. A block with no text takes no mark and is
  * held by `CommentThread.blockId` alone; that is the one case the hint is for.
  */
-function anchor(editor: Editor, blockId: BlockId, threadId: string, add: boolean): void {
+function anchor(
+  editor: Editor,
+  blockId: BlockId,
+  threadId: string,
+  add: boolean,
+  range?: { from: number; to: number },
+): void {
   const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
   if (!length) return;
+  // clamped, because the range was measured when the selection was made and
+  // the block may have been edited since — a `format_text` past the end throws
+  const from = Math.max(0, Math.min(range?.from ?? 0, length));
+  const to = Math.max(from, Math.min(range?.to ?? length, length));
+  if (from === to) return;
   editor.dispatch(
     (tx) =>
       tx.op({
         type: 'format_text',
         id: blockId,
-        from: 0,
-        to: length,
+        from,
+        to,
         mark: { type: 'comment', attrs: { threadId } },
         add,
       }),
@@ -117,6 +128,23 @@ export interface CommentThreadOptions {
   locale?: string;
   /** Where to hang the panel. Defaults to the block itself. */
   getAnchor?: () => DOMRect | null;
+  /**
+   * Where a *new* thread's highlight goes, as character offsets in the block.
+   *
+   * @remarks
+   * Absent means the block's whole text, which is what the gutter button has
+   * always meant. Set from the format toolbar, where the point is that the
+   * comment is about the sentence you selected and not about the paragraph.
+   */
+  range?: { from: number; to: number };
+  /**
+   * Show one thread rather than every thread on the block.
+   *
+   * @remarks
+   * A block can carry several inline comments; clicking one highlight has to
+   * open that discussion, not the block's whole correspondence.
+   */
+  threadId?: string;
 }
 
 /**
@@ -164,6 +192,13 @@ export function openCommentThread(options: CommentThreadOptions): PopoverControl
    * no other block has claimed it, so a thread never shows up in two places.
    */
   const threadsHere = (): CommentThread[] => {
+    // one highlight was clicked, or this panel started one: that discussion,
+    // and only that one
+    const only = options.threadId ?? started;
+    if (only) {
+      const one = store.get(only);
+      return one ? [one] : [];
+    }
     const block = editor.doc.blocks.get(blockId);
     const marked = new Set(block ? threadIdsIn(block) : []);
     const anchored = anchoredThreads(editor.doc);
@@ -229,19 +264,37 @@ export function openCommentThread(options: CommentThreadOptions): PopoverControl
   field.className = 'nbe-comment-field';
   field.rows = 2;
 
+  /**
+   * The thread this panel started, if it started one.
+   *
+   * @remarks
+   * Without it the second message typed into a freshly opened composer would
+   * fork a second discussion, because the rule below says a `range` means a new
+   * thread. Once one exists, this panel is about that one.
+   */
+  let started: string | null = null;
+
   const submit = (): void => {
     const body = field.value.trim();
     if (!body) return;
     field.value = '';
     const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
-    // a reply joins the discussion that is still open; a comment on a settled
-    // block starts a new one rather than reopening what someone closed
-    const open = threadsHere().find((thread) => !thread.resolved);
+    /*
+     * A reply joins the discussion that is still open; a comment on a settled
+     * block starts a new one rather than reopening what someone closed.
+     *
+     * And a `range` always starts one. A comment made from the format toolbar
+     * is *about the words that were selected*, so joining whatever else happens
+     * to be anchored on the same paragraph would silently file it under someone
+     * else's subject — and leave the selection with no highlight of its own.
+     */
+    const open = options.range && !started ? undefined : threadsHere().find((thread) => !thread.resolved);
     if (open) store.addMessage(open.id, message);
     else {
       const thread = newThread(message, blockId);
       store.create(thread);
-      anchor(editor, blockId, thread.id, true);
+      anchor(editor, blockId, thread.id, true, options.range);
+      started = thread.id;
     }
     render();
   };

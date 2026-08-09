@@ -6,7 +6,7 @@
  */
 
 export { EditorView } from './view';
-export type { EditorViewOptions, CommentAuthor, SlotName } from './view';
+export type { EditorViewOptions, CommentAuthor, CommentContext, SlotName } from './view';
 export { defaultLeftGutter, defaultRightGutter } from './controls';
 export type { GutterAction, GutterItem } from './controls';
 export { openCommentThread, removeCommentThread } from './comment-thread';

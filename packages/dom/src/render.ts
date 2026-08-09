@@ -68,6 +68,15 @@ function renderRun(view: EditorView, run: Run): Node {
   const span = link ? (el('a') as HTMLAnchorElement) : el('span');
   if (link) (span as HTMLAnchorElement).href = String(link.attrs?.['href'] ?? '#');
   span.className = run.marks.map((m) => `nbe-m-${m.type}`).join(' ');
+  /*
+   * The thread a comment mark points at, in the DOM. It is what makes the
+   * highlight *clickable*: the stylesheet has drawn this span with
+   * `cursor: pointer` since comments shipped, and nothing was listening,
+   * because the mark's `threadId` never reached the element.
+   */
+  const comment = run.marks.find((m) => m.type === 'comment');
+  const threadId = comment?.attrs?.['threadId'];
+  if (typeof threadId === 'string' && threadId) (span as HTMLElement).dataset['threadId'] = threadId;
   const color = textColor(run.marks.find((m) => m.type === 'color')?.attrs?.['color']);
   if (color) (span as HTMLElement).style.color = color;
   const highlight = backgroundColor(run.marks.find((m) => m.type === 'background')?.attrs?.['color']);

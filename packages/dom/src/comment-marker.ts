@@ -84,6 +84,28 @@ export function attachCommentMarkers(view: EditorView): () => void {
     for (const block of visibleBlocks(editor.doc)) apply(block.id);
   };
 
+  /**
+   * Clicking a yellow highlight opens the discussion it stands for.
+   *
+   * @remarks
+   * The stylesheet has drawn this span with `cursor: pointer` since comments
+   * shipped and nothing was listening — the mark's `threadId` did not reach the
+   * DOM, so there was no way to know *which* discussion had been clicked. It
+   * does now (`renderRun`), and a block can carry several.
+   *
+   * `click`, not `mousedown`: a press is also how a caret is placed, and
+   * commented text has to stay editable.
+   */
+  const onClick = (event: MouseEvent): void => {
+    const span = (event.target as HTMLElement | null)?.closest?.('.nbe-m-comment') as HTMLElement | null;
+    const threadId = span?.dataset['threadId'];
+    if (!threadId) return;
+    const blockId = span!.closest<HTMLElement>('.nbe-block')?.dataset['blockId'];
+    if (!blockId || !editor.doc.blocks.has(blockId)) return;
+    view.options.onComment?.(blockId, view.options.commentAuthor ?? null, { threadId });
+  };
+  view.content.addEventListener('click', onClick);
+
   applyAll();
 
   const unsubscribe = editor.on((change) => {
@@ -102,6 +124,7 @@ export function attachCommentMarkers(view: EditorView): () => void {
 
   return () => {
     unsubscribe();
+    view.content.removeEventListener('click', onClick);
     for (const el of view.content.querySelectorAll(`.${CLASS}`)) el.remove();
   };
 }

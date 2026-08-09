@@ -504,7 +504,7 @@ function openPage(pageId: string): void {
     resolveAssetUrl: resolveAsset,
     database: dbHost,
     // comments are on blocks: the affordance is the right-hand gutter
-    onComment: (blockId, author) => comments.comment(editor!, blockId, author),
+    onComment: (blockId, author, at) => comments.comment(editor!, blockId, author, at),
     commentAuthor: ME,
   });
   detachInspector = attachInspector(editor);
