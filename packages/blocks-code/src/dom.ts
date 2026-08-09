@@ -7,7 +7,7 @@
  * @module @nbe/blocks-code/dom
  */
 import { getBlock, plainText, textCaret } from '@nbe/core';
-import { createMenu, type DomBlockPlugin, type MenuEntry } from '@nbe/dom';
+import { createMenu, createMenuFilter, type DomBlockPlugin, type MenuEntry, type MenuFilter } from '@nbe/dom';
 import { codePlugin } from './index';
 import { LANGUAGES, languageLabel, loadLanguage } from './highlight';
 import { attachCodeHighlight } from './paint';
@@ -25,20 +25,20 @@ const INDENT = '  ';
  * label and the id. Picking one loads its grammar before setting the prop, so
  * the colours appear with the choice rather than a frame later.
  */
-function languageMenu(current: string, choose: (id: string) => void): { menu: ReturnType<typeof createMenu>; render: (query: string) => void } {
+function languageMenu(
+  current: string,
+  choose: (id: string) => void,
+): { menu: ReturnType<typeof createMenu>; render: (query: string) => void; filter: MenuFilter } {
   const menu = createMenu({ className: 'nbe-blocktoolbar-menu nbe-code-langmenu' });
-  const field = document.createElement('div');
-  field.className = 'nbe-db-filter';
-  const input = document.createElement('input');
-  input.className = 'nbe-db-input';
-  input.placeholder = 'Langage…';
-  field.append(input);
+  // the shared combobox field: it keeps the typing and hands the arrows and
+  // Enter to the list, which is the only way to choose one without a mouse
+  const filter = createMenuFilter({ placeholder: 'Langage…', onInput: (q) => render(q) });
 
   const render = (query: string) => {
     const q = query.toLowerCase().trim();
     const matches = LANGUAGES.filter((l) => !q || l.label.toLowerCase().includes(q) || l.id.includes(q));
     const entries: MenuEntry[] = [
-      { kind: 'custom', el: field },
+      { kind: 'custom', el: filter.el },
       ...matches.slice(0, 12).map((l) => ({
         label: l.label,
         hintIcon: l.id === current ? 'check' : undefined,
@@ -51,12 +51,11 @@ function languageMenu(current: string, choose: (id: string) => void): { menu: Re
     menu.update(entries);
   };
 
-  input.addEventListener('keydown', (e) => {
-    // the menu owns Enter and the arrows; everything else is typing
+  // everything that is not navigation is typing, and must not reach the editor
+  filter.input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Escape') e.stopPropagation();
   });
-  input.addEventListener('input', () => render(input.value));
-  return { menu, render };
+  return { menu, render, filter };
 }
 
 /**
@@ -146,7 +145,7 @@ export const code: DomBlockPlugin = {
             const picker = languageMenu(language, (id) => setProps({ language: id }));
             picker.render('');
             picker.menu.open(() => button.getBoundingClientRect(), { placement: 'bottom-end' });
-            queueMicrotask(() => picker.menu.el.querySelector('input')?.focus());
+            picker.filter.focus();
           },
         },
         {

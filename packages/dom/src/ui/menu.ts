@@ -52,10 +52,71 @@ export interface MenuOptions {
 const NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', 'Tab']);
 
 /**
+ * The search field of a combobox: a menu you filter by typing.
+ *
+ * @remarks
+ * A menu with a text field in it is the same control three times over — the
+ * code block's language picker, a database's property picker, the block
+ * toolbar's — and each one built it by hand, which is how the keyboard came to
+ * work in none of them. `createMenu`'s key handler deliberately leaves form
+ * controls alone, because a formula editor's Enter is its own; but a *filter*
+ * is the opposite case, and the list has to own the arrows and Enter or there
+ * is no way to choose without the mouse.
+ *
+ * So the field says which it is. Marked with `data-nbe-menu-filter`, it keeps
+ * the typing and hands ArrowUp/ArrowDown/Enter to the list, and carries the
+ * ARIA a combobox needs: the input is the combobox, the menu is its listbox,
+ * and `aria-activedescendant` is how a screen reader is told which option is
+ * highlighted while focus stays in the field.
+ *
+ * @example
+ * ```ts
+ * const filter = createMenuFilter({ placeholder: 'Langage…', onInput: (q) => render(q) })
+ * menu.update([{ kind: 'custom', el: filter.el }, ...items])
+ * menu.open(anchor)
+ * filter.focus()
+ * ```
+ *
+ * @category UI
+ */
+export interface MenuFilter {
+  /** Wrap this in a `{ kind: 'custom' }` entry, first in the list. */
+  readonly el: HTMLElement;
+  readonly input: HTMLInputElement;
+  focus(): void;
+}
+
+export function createMenuFilter(opts: { placeholder: string; onInput: (query: string) => void }): MenuFilter {
+  const el = document.createElement('div');
+  el.className = 'nbe-menu-filter nbe-db-filter';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'nbe-db-input';
+  input.placeholder = opts.placeholder;
+  input.dataset['nbeMenuFilter'] = '';
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-expanded', 'true');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.autocomplete = 'off';
+  input.addEventListener('input', () => opts.onInput(input.value));
+  el.append(input);
+  return {
+    el,
+    input,
+    // a frame later: the menu is mounted and positioned by then, so focusing
+    // cannot scroll the page to where the field used to be
+    focus: () => requestAnimationFrame(() => input.focus()),
+  };
+}
+
+
+/**
  * Floating menu primitive: positioning with flip/clamp, outside-click and
  * Arrow-key navigation (document-level capture so the menu
  * wins over editor keymaps while typing continues to flow to the editor).
  */
+let menuSeq = 0;
+
 export function createMenu(opts: MenuOptions = {}): MenuController {
   const el = document.createElement('div');
   el.className = `nbe-menu ${opts.className ?? ''}`.trim();
@@ -111,6 +172,7 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
         btn.type = 'button';
         btn.className = 'nbe-menu-item' + (i === active ? ' nbe-active' : '');
         btn.setAttribute('role', 'menuitem');
+        btn.id = `${el.id || (el.id = `nbe-menu-${++menuSeq}`)}-item-${i}`;
         if (entry.icon) {
           const slot = document.createElement('span');
           slot.className = 'nbe-menu-icon';
@@ -147,7 +209,15 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
         focused.setSelectionRange(caret[0], caret[1], caret[2] ?? undefined);
       }
     }
-    el.querySelector('.nbe-active')?.scrollIntoView({ block: 'nearest' });
+    const activeEl = el.querySelector('.nbe-active');
+    // focus stays in the filter, so the highlight is announced by reference
+    const filter = el.querySelector<HTMLInputElement>('[data-nbe-menu-filter]');
+    if (filter) {
+      if (activeEl?.id) filter.setAttribute('aria-activedescendant', activeEl.id);
+      else filter.removeAttribute('aria-activedescendant');
+      filter.setAttribute('aria-controls', el.id);
+    }
+    activeEl?.scrollIntoView({ block: 'nearest' });
     // reposition synchronously after the content changed: a menu anchored
     // above its trigger is placed from its own height, so filtering a long
     // list down to one item must pull the box back down. Waiting for the
@@ -168,7 +238,11 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     // their keys belong to them, not to menu navigation — this capture-phase
     // listener would otherwise steal Enter and fire the highlighted item
     const target = e.target as HTMLElement | null;
-    if (target && el.contains(target) && target.closest('input, textarea, select')) return;
+    // …unless it says it is a *filter*, in which case the list owns the arrows
+    // and Enter and the field keeps only the typing (see `createMenuFilter`)
+    const inField = target && el.contains(target) && target.closest('input, textarea, select');
+    // `dataset[x]` on a valueless attribute is the empty string, which is falsy
+    if (inField && (inField as HTMLElement).dataset['nbeMenuFilter'] === undefined) return;
     e.preventDefault();
     e.stopPropagation();
     const items = selectable();
