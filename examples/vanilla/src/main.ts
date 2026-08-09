@@ -15,7 +15,7 @@ import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
-import { toc } from '@nbe/blocks-toc/dom';
+import { floatingTocFeature, toc } from '@nbe/blocks-toc/dom';
 import { mdx } from '@nbe/blocks-mdx/dom';
 import { PluginRegistry } from '@nbe/core';
 import '@nbe/dom/style.css';
@@ -435,6 +435,8 @@ function openPage(pageId: string): void {
   const extraFeatures = [
     ...(flags.get('find') === 'on' ? [findFeature] : []),
     ...(flags.get('count') === 'on' ? [wordCountFeature] : []),
+    // ?outline=on floats the headings beside the note and follows the scroll
+    ...(flags.get('outline') === 'on' ? [floatingTocFeature] : []),
     // mermaid is lazily imported by the feature: a page with no diagram on it
     // never downloads the library
     mermaidFeature,

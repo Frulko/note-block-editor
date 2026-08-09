@@ -94,3 +94,59 @@ test.describe('the table of contents', () => {
     expect(editor.errors()).toEqual([]);
   });
 });
+
+/**
+ * The same headings, floating beside the note.
+ *
+ * A feature, not a second block: it reads the same `headings(view)` and lives
+ * in `slot('floating')`, so a note that contains no `[TOC]` still gets an
+ * outline and `renderAll` cannot wipe it. What is worth asserting is the part
+ * that is not the block's — that it appears without one, that it tracks the
+ * scroll, and that a note with no headings gets no panel at all.
+ */
+test.describe('the floating outline', () => {
+  const links = (page: import('@playwright/test').Page) =>
+    page.locator('.nbe-toc-float a').allTextContents();
+
+  test('lists the headings without a contents block in the note', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await page.goto('/?outline=on');
+    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    await editor.type('# Premier\n');
+    await editor.type('## Sous-titre\n');
+    await editor.type('# Second');
+
+    await expect.poll(() => links(page)).toEqual(['Premier', 'Sous-titre', 'Second']);
+    // and no block was inserted to get it
+    expect(await editor.types()).not.toContain('table_of_contents');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('marks the section being read, and follows the scroll', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await page.goto('/?outline=on');
+    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    await editor.type('# Un\n');
+    for (let i = 0; i < 25; i++) await editor.type(`ligne ${i}\n`);
+    await editor.type('# Deux\n');
+    for (let i = 0; i < 25; i++) await editor.type(`autre ${i}\n`);
+
+    const here = () => page.locator('.nbe-toc-float a.nbe-toc-here').textContent();
+    await page.evaluate(() => (document.querySelector('.page-scroll')!.scrollTop = 0));
+    await expect.poll(here).toBe('Un');
+
+    await page.evaluate(() => {
+      const s = document.querySelector('.page-scroll')!;
+      s.scrollTop = s.scrollHeight;
+    });
+    await expect.poll(here).toBe('Deux');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('a note with no headings gets no panel', async ({ page, editor }) => {
+    await editor.setDocument(['juste du texte']);
+    await page.goto('/?outline=on');
+    await page.locator('.nbe-editor .nbe-leaf').first().waitFor();
+    await expect(page.locator('.nbe-toc-float')).toBeHidden();
+  });
+});

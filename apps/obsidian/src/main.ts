@@ -35,7 +35,7 @@ import { code } from '@nbe/blocks-code/dom';
 import { CODE_THEMES } from '@nbe/blocks-code';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
 import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
-import { toc } from '@nbe/blocks-toc/dom';
+import { floatingTocFeature, toc } from '@nbe/blocks-toc/dom';
 import { mdx } from '@nbe/blocks-mdx/dom';
 
 /**
@@ -137,8 +137,14 @@ const DEFAULT_SETTINGS: CarnetSettings = {
   features: {},
 };
 
-/** The chrome features a user may sensibly turn off; the input core stays. */
-const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: string }> = [
+/**
+ * The chrome features a user may sensibly turn off; the input core stays.
+ *
+ * `on: false` makes one opt-*in* instead. Absent from the saved settings means
+ * this default, not "enabled" — a floating outline over every note is a
+ * preference, and the wrong one to impose on someone who never asked.
+ */
+const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: string; on?: boolean }> = [
   { name: 'slash-menu', label: 'Menu slash', desc: 'Le menu d’insertion ouvert en tapant « / ».' },
   { name: 'mentions', label: 'Mentions', desc: 'L’autocomplétion ouverte en tapant « @ ».' },
   { name: 'gutter', label: 'Gouttière', desc: 'Le bouton + et la poignée de glisser-déposer au survol.' },
@@ -150,7 +156,18 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   { name: 'export', label: 'Export ⌘P', desc: 'Markdown, texte ou impression PDF de la note ouverte.' },
   { name: 'word-count', label: 'Compteur de mots', desc: 'Mots, caractères et temps de lecture sous la note.' },
   { name: 'mermaid', label: 'Diagrammes Mermaid', desc: 'Dessine les blocs ```mermaid, avec Aperçu / Code / Les deux.' },
+  {
+    name: 'floating-toc',
+    label: 'Sommaire flottant',
+    desc: 'Les titres de la note, dans un panneau qui suit le défilement et souligne la section en cours de lecture. Masqué sur un volet étroit.',
+    on: false,
+  },
 ];
+
+/** Whether a feature is on: the saved setting, else the feature's own default. */
+function featureOn(s: CarnetSettings, name: string): boolean {
+  return s.features[name] ?? OPTIONAL_FEATURES.find((f) => f.name === name)?.on ?? true;
+}
 
 /** Project the vault settings onto the editor's options, defaults preserved. */
 function viewOptions(s: CarnetSettings): EditorViewOptions {
@@ -169,9 +186,14 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
    * here, so this host offers it and lets the setting turn it off.
    */
   if (!s.readOnly)
-    opts.features = [...defaultFeatures, findFeature, exportFeature, wordCountFeature, mermaidFeature].filter(
-      (f) => s.features[f.name] !== false,
-    );
+    opts.features = [
+      ...defaultFeatures,
+      findFeature,
+      exportFeature,
+      wordCountFeature,
+      mermaidFeature,
+      floatingTocFeature,
+    ].filter((f) => featureOn(s, f.name));
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
   const padding: { top?: string; bottom?: string; x?: string } = {};
   if (s.padTop.trim()) padding.top = s.padTop.trim();
@@ -906,7 +928,7 @@ class CarnetSettingTab extends PluginSettingTab {
         .setName(f.label)
         .setDesc(f.desc)
         .addToggle((t) =>
-          t.setValue(s.features[f.name] !== false).onChange((v) => {
+          t.setValue(featureOn(s, f.name)).onChange((v) => {
             s.features[f.name] = v;
             save();
           }),

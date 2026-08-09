@@ -6,8 +6,73 @@
  * @module @nbe/blocks-toc/dom
  */
 import { visibleBlocks, plainText, type Block } from '@nbe/core';
-import { renderBlock, reveal, type DomBlockPlugin, type EditorFeature } from '@nbe/dom';
+import {
+  findScrollParent,
+  injectBlockStyles,
+  renderBlock,
+  reveal,
+  type DomBlockPlugin,
+  type EditorFeature,
+} from '@nbe/dom';
 import { tocPlugin, tocStyle, TOC_STYLES, type TocEntry } from './index';
+
+/**
+ * The floating panel's own sheet.
+ *
+ * @remarks
+ * It restates the few list rules it needs rather than leaning on the block's,
+ * because {@link floatingTocFeature} is usable in a host that never registers
+ * the block — an outline over a note that contains no `[TOC]` is most of the
+ * point of it.
+ */
+const FLOAT_STYLES = `
+.nbe-toc-float {
+  position: absolute;
+  right: 12px;
+  bottom: 20px;
+  width: 200px;
+  max-height: 50vh;
+  overflow: auto;
+  padding: 6px 2px;
+  border-radius: var(--nbe-radius, 6px);
+  background: var(--nbe-surface);
+  border: 1px solid var(--nbe-border);
+  box-shadow: 0 1px 2px rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-ring)),
+    0 4px 12px rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-near));
+  font-size: 12px;
+  line-height: 1.4;
+}
+.nbe-toc-float ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nbe-toc-float li { margin: 0; }
+.nbe-toc-float a {
+  display: block;
+  padding: 3px 8px;
+  color: var(--nbe-text-light);
+  text-decoration: none;
+  border-radius: var(--nbe-radius-sm, 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nbe-toc-float a:hover { background: var(--nbe-hover); color: var(--nbe-text); }
+.nbe-toc-float .nbe-toc-l2 a { padding-left: 20px; }
+.nbe-toc-float .nbe-toc-l3 a { padding-left: 32px; }
+/* the section being read */
+.nbe-toc-float a.nbe-toc-here {
+  color: var(--nbe-text);
+  background: var(--nbe-hover);
+  box-shadow: inset 2px 0 0 var(--nbe-accent);
+}
+/* over a narrow pane it would sit on the words: an outline in the way is
+   worse than no outline, and the block is still there for anyone who wants one */
+@media (max-width: 860px) {
+  .nbe-toc-float { display: none; }
+}
+`;
 
 /** The page's headings, read from the live document rather than a snapshot. */
 function headings(view: { editor: { doc: Parameters<typeof visibleBlocks>[0] } }): TocEntry[] {
@@ -22,9 +87,10 @@ function headings(view: { editor: { doc: Parameters<typeof visibleBlocks>[0] } }
   return out;
 }
 
-function fill(view: import('@nbe/dom').EditorView, list: HTMLElement): void {
+function fill(view: import('@nbe/dom').EditorView, list: HTMLElement, placeholder = true): void {
   const entries = headings(view);
   if (!entries.length) {
+    if (!placeholder) return list.replaceChildren();
     const empty = document.createElement('li');
     empty.className = 'nbe-toc-empty';
     empty.textContent =
@@ -84,6 +150,104 @@ const refreshFeature: EditorFeature = {
         if (list) fill(view, list);
       }
     });
+  },
+};
+
+/**
+ * The same contents, floating beside the note and following the scroll.
+ *
+ * @remarks
+ * A *feature*, not a second block, and that is the whole design: it reads the
+ * same `headings(view)` the block does and lives in `view.slot('floating')`,
+ * which is a sibling of the content element — so `renderAll` cannot wipe it and
+ * it takes no space in the document. A note does not have to contain a `[TOC]`
+ * to get one.
+ *
+ * The entry it marks is the last heading whose top has passed the top of the
+ * scrollport, which is the only definition that behaves at the end of a
+ * document: an "is it on screen" test leaves nothing highlighted once the last
+ * section is shorter than the viewport.
+ *
+ * Off by default like every other slot feature — a permanent outline over the
+ * text is a preference, not a default. Obsidian exposes it as a setting.
+ *
+ * @example
+ * ```ts
+ * import { floatingTocFeature } from '@nbe/blocks-toc/dom'
+ * new EditorView(el, editor, { features: [...defaultFeatures, floatingTocFeature] })
+ * ```
+ *
+ * @category Plugins
+ */
+export const floatingTocFeature: EditorFeature = {
+  name: 'floating-toc',
+  attach(view) {
+    // its own sheet rather than the block's, so the feature stands alone in a
+    // host that never registers the block. Idempotent, keyed by this name.
+    injectBlockStyles('table_of_contents_float', FLOAT_STYLES);
+    const nav = document.createElement('nav');
+    nav.className = 'nbe-toc-float';
+    nav.setAttribute('aria-label', 'Table des matières');
+    const list = document.createElement('ul');
+    list.className = 'nbe-toc-list';
+    nav.append(list);
+    view.slot('floating').append(nav);
+
+    /**
+     * Mark the section being read.
+     *
+     * @remarks
+     * Against the *scrollport's* top, not the content element's — the content
+     * scrolls with the document, so its top runs negative and every heading
+     * stays "above the fold" forever. The same measurement `reveal` makes, and
+     * for the same reason: the host owns the scroller.
+     */
+    const mark = () => {
+      const links = [...list.querySelectorAll<HTMLAnchorElement>('a')];
+      if (!links.length) return;
+      const scroller = findScrollParent(view.content);
+      const paging = scroller === document.scrollingElement || scroller === document.documentElement;
+      const top = paging ? 0 : scroller.getBoundingClientRect().top;
+      // the last heading whose top has passed the fold; the first one until one
+      // has, which is what keeps something marked at either end of the document
+      let current = links[0]!;
+      for (const link of links) {
+        const el = view.blockEl(decodeURIComponent(link.hash.slice(1)));
+        if (el && el.getBoundingClientRect().top - top <= 8) current = link;
+      }
+      for (const link of links) link.classList.toggle('nbe-toc-here', link === current);
+    };
+
+    const render = () => {
+      fill(view, list, false);
+      // an outline of nothing is clutter; a note with no headings gets no panel
+      nav.hidden = !list.childElementCount;
+      mark();
+    };
+
+    render();
+    /*
+     * Gated on a heading, exactly as `refreshFeature` is: the alternative is
+     * walking the document on every keystroke, which `e2e/performance.spec.ts`
+     * measures at 500 blocks.
+     */
+    const offChange = view.editor.on((change) => {
+      const doc = view.editor.doc;
+      if (
+        [...change.dirty].some((id) => {
+          const block = doc.blocks.get(id);
+          return !block || block.type === 'heading' || block.id === doc.rootId;
+        })
+      )
+        queueMicrotask(render);
+    });
+    // capture, because the scroller is the host's and may be any ancestor
+    document.addEventListener('scroll', mark, { capture: true, passive: true });
+    return () => {
+      offChange();
+      document.removeEventListener('scroll', mark, { capture: true });
+      nav.remove();
+    };
   },
 };
 
