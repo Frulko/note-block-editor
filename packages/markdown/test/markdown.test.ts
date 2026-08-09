@@ -351,3 +351,60 @@ describe('block round-trip', () => {
     expect(stripIds(markdownToBlocks(md))).toEqual(stripIds(doc));
   });
 });
+
+/**
+ * Checklists, the thing a note actually gets used for. Both markers Markdown
+ * allows, both cases of the tick, nested and mixed with plain bullets.
+ */
+describe('checklists', () => {
+  it('reads every spelling of a task', () => {
+    expect(stripIds(markdownToBlocks('- [ ] a\n* [x] b\n+ [X] c'))).toEqual(
+      stripIds([
+        b('to_do', { props: { checked: false }, text: [{ text: 'a' }] }),
+        b('to_do', { props: { checked: true }, text: [{ text: 'b' }] }),
+        b('to_do', { props: { checked: true }, text: [{ text: 'c' }] }),
+      ]),
+    );
+  });
+
+  it('reads `+` as a bullet too, which CommonMark allows and this did not', () => {
+    expect(stripIds(markdownToBlocks('+ un\n+ deux'))).toEqual(
+      stripIds([
+        b('bulleted_list_item', { text: [{ text: 'un' }] }),
+        b('bulleted_list_item', { text: [{ text: 'deux' }] }),
+      ]),
+    );
+  });
+
+  it('nests tasks under tasks, and bullets under tasks', () => {
+    const doc = markdownToBlocks('- [ ] parent\n    - [x] child\n    - bullet');
+    expect(stripIds(doc)).toEqual(
+      stripIds([
+        b('to_do', {
+          props: { checked: false },
+          text: [{ text: 'parent' }],
+          children: [
+            b('to_do', { props: { checked: true }, text: [{ text: 'child' }] }),
+            b('bulleted_list_item', { text: [{ text: 'bullet' }] }),
+          ],
+        }),
+      ]),
+    );
+    expect(blocksToMarkdown(doc)).toBe('- [ ] parent\n    - [x] child\n    - bullet');
+  });
+
+  it('leaves a task typed into a numbered item alone, unescaped', () => {
+    // a numbered checklist is a numbered item whose text starts with `[ ]`,
+    // because a to-do has no ordinal to keep. It used to come back as
+    // `1. \[ \] fait`, which is the same text and a worse file.
+    const md = '1. [ ] fait';
+    expect(blocksToMarkdown(markdownToBlocks(md))).toBe(md);
+  });
+
+  it('still escapes the brackets that would parse back as a link', () => {
+    const doc: BlockJSON[] = [b('paragraph', { text: [{ text: 'see [note](x) and [[page]] but not [1]' }] })];
+    const md = blocksToMarkdown(doc);
+    expect(md).toBe('see \\[note](x) and \\[[page]] but not [1]');
+    expect(stripIds(markdownToBlocks(md))).toEqual(stripIds(doc));
+  });
+});

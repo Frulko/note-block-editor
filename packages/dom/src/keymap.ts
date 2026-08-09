@@ -17,6 +17,7 @@ import {
   splitBlock,
   textCaret,
   textLength,
+  toggleChecked,
   toggleMarkRange,
   type BlockSelection,
   visibleBlocks,
@@ -129,6 +130,10 @@ export function attachKeymap(view: EditorView): () => void {
         return;
       }
     }
+    if (mod && key === 'Enter' && toggleChecked(editor, selectedBlocks(editor.doc, sel))) {
+      e.preventDefault();
+      return;
+    }
     switch (key) {
       case 'Enter': {
         e.preventDefault();
@@ -234,6 +239,15 @@ export function attachKeymap(view: EditorView): () => void {
 
     if (mod && !e.altKey) {
       const key = e.key.toLowerCase();
+      /*
+       * Tick the to-do without reaching for the mouse — Notion's binding, and
+       * the one thing a checklist needs that a checkbox in the gutter cannot
+       * give you while both hands are on the keyboard.
+       */
+      if (e.key === 'Enter' && caret && toggleChecked(editor, [caret.blockId])) {
+        e.preventDefault();
+        return;
+      }
       if (key === 'a') {
         // Cmd+A escalation: block text → whole document (Notion)
         if (sel?.kind !== 'text') return;

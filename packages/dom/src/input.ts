@@ -19,6 +19,7 @@ import {
   splitBlock,
   textCaret,
   textLength,
+  toggleChecked,
   toggleMarkRange,
   uuidv7,
 } from '@nbe/core';
@@ -81,6 +82,19 @@ function handleInsertText(view: EditorView, data: string): void {
     }
     const rule = matchAutoformat(before, editor.plugins);
     if (rule) {
+      applyAutoformat(editor, at.id, rule);
+      return;
+    }
+  } else if (after.type === 'bulleted_list_item') {
+    /*
+     * `- [ ] ` is how Markdown spells a checklist, and the `- ` has already
+     * turned this into a bullet by the time the `[ ] ` arrives — so the rule
+     * has to be allowed to convert a bullet, or the Markdown spelling silently
+     * left a bullet with `[ ] ` typed into it. Only a to-do may: `# ` inside a
+     * list item is a heading nobody asked for.
+     */
+    const rule = matchAutoformat(before, editor.plugins);
+    if (rule?.type === 'to_do') {
       applyAutoformat(editor, at.id, rule);
       return;
     }
@@ -319,11 +333,8 @@ export function attachInput(view: EditorView): () => void {
     const target = e.target as HTMLElement;
     const checkbox = target.closest('.nbe-checkbox');
     if (checkbox) {
-      const id = (checkbox.closest('.nbe-block') as HTMLElement).dataset['blockId']!;
-      const checked = getBlock(editor.doc, id).props['checked'] === true;
-      editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { checked: !checked } } }), {
-        origin: 'ui',
-      });
+      // same command the ⌘Enter binding runs, so click and keyboard cannot drift
+      toggleChecked(editor, [(checkbox.closest('.nbe-block') as HTMLElement).dataset['blockId']!]);
       return;
     }
     const pageLink = target.closest('.nbe-t-link_to_page');

@@ -442,6 +442,31 @@ function cloneSubtree(doc: Doc, id: BlockId): { root: Block; all: Block[] } {
   return { root: copy, all };
 }
 
+/**
+ * Tick or untick every to-do among `ids`.
+ *
+ * @remarks
+ * One transaction, so a list ticked from a block selection is one undo. A
+ * mixed selection all becomes ticked — the same rule a "select all" checkbox
+ * follows, and the one that makes a second press mean "and now clear them".
+ * Ids that are not to-dos are skipped rather than rejected, so a caller can
+ * pass a whole selection.
+ *
+ * @returns Whether anything was ticked.
+ */
+export function toggleChecked(editor: Editor, ids: BlockId[]): boolean {
+  const todos = ids.filter((id) => editor.doc.blocks.get(id)?.type === 'to_do');
+  if (!todos.length) return false;
+  const checked = !todos.every((id) => getBlock(editor.doc, id).props['checked'] === true);
+  editor.dispatch(
+    (tx) => {
+      for (const id of todos) tx.op({ type: 'update_block', id, patch: { props: { checked } } });
+    },
+    { origin: 'ui' },
+  );
+  return true;
+}
+
 export function duplicateBlocks(editor: Editor, ids: BlockId[]): BlockId[] {
   if (!ids.length) return [];
   const last = ids[ids.length - 1]!;
@@ -586,8 +611,14 @@ export const AUTOFORMAT_RULES: AutoformatRule[] = [
   { prefix: '- ', type: 'bulleted_list_item' },
   { prefix: '* ', type: 'bulleted_list_item' },
   { prefix: '1. ', type: 'numbered_list_item' },
+  // both spellings of a checklist: Notion's `[]` and Markdown's `[ ]`, either
+  // case for the tick. `- ` before them has already made the block a bullet,
+  // which `handleInsertText` allows a to-do rule — and only a to-do rule — to
+  // convert.
   { prefix: '[] ', type: 'to_do' },
+  { prefix: '[ ] ', type: 'to_do' },
   { prefix: '[x] ', type: 'to_do', props: { checked: true } },
+  { prefix: '[X] ', type: 'to_do', props: { checked: true } },
   { prefix: '> ', type: 'toggle' }, // Notion: '>' is toggle, '"' is quote
   { prefix: '" ', type: 'quote' },
 ];

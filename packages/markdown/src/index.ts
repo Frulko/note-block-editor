@@ -12,9 +12,21 @@ import { uuidv7 } from '@nbe/core';
 // Inline: runs → markdown
 // ---------------------------------------------------------------------------
 
-/** Escape markdown control chars in plain text so it survives a round-trip. */
+/**
+ * Escape markdown control chars in plain text so it survives a round-trip.
+ *
+ * @remarks
+ * Brackets are escaped only where they would parse *back* as a link — `[[wiki]]`
+ * or `[text](url)`. Escaping every one of them filled ordinary prose with
+ * backslashes for no gain, and a Markdown checklist typed into a numbered item
+ * (`1. [ ] fait`, which is a numbered item and not a to-do) came back out as
+ * `1. \\[ \\] fait`. The parser makes a link out of those two shapes and
+ * nothing else, so those two shapes are what needs protecting.
+ */
 function escapeMd(s: string): string {
-  return s.replace(/[\\`*_~[\]]/g, (c) => '\\' + c);
+  return s
+    .replace(/[\\`*_~]/g, (c) => '\\' + c)
+    .replace(/\[(?=\[|[^\]\n]*\]\()/g, '\\[');
 }
 
 /**
@@ -548,8 +560,8 @@ const CONSTRUCT_STARTS: RegExp[] = [
   /^\[\[.+?\]\]\s*$/, // lone wikilink
   /^#{1,6}\s+/, // heading
   /^>\s?/, // quote or callout
-  /^[-*] \[[ xX]\]\s?/, // to-do
-  /^[-*]\s+/, // bulleted item
+  /^[-*+] \[[ xX]\]\s?/, // to-do
+  /^[-*+]\s+/, // bulleted item
   /^\d+\.\s+/, // numbered item
 ];
 
@@ -741,10 +753,10 @@ function parseLevel(
     // list items: to_do, bullet, numbered — all may have indented children
     let item: BlockJSON | null = null;
     let seed = '';
-    if ((m = /^[-*] \[([ xX])\]\s?(.*)$/.exec(content))) {
+    if ((m = /^[-*+] \[([ xX])\]\s?(.*)$/.exec(content))) {
       item = mk('to_do', { checked: m[1]!.toLowerCase() === 'x' });
       seed = m[2]!;
-    } else if ((m = /^[-*]\s+(.*)$/.exec(content))) {
+    } else if ((m = /^[-*+]\s+(.*)$/.exec(content))) {
       item = mk('bulleted_list_item', {});
       seed = m[1]!;
     } else if ((m = /^\d+\.\s+(.*)$/.exec(content))) {
