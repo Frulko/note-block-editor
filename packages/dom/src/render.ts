@@ -367,7 +367,10 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     // a sub-page is where the child page lives; a link only points at one
     row.append(icon(block.type === 'sub_page' ? 'file-text' : 'link', { size: 15 }));
     const title = el('span', 'nbe-page-link-title');
-    title.textContent = String(block.props['title'] ?? '') || 'Page sans titre';
+    // `labels.untitled`, not a French literal: this was the last one left in
+    // the renderer, and it is what an empty page link shows until it is pointed
+    // at something
+    title.textContent = String(block.props['title'] ?? '') || view.labels.untitled;
     row.append(title);
     root.append(row);
     return root;

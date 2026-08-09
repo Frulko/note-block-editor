@@ -127,6 +127,9 @@ export const fr: EditorLabels = {
   columnsWideFirst: 'Première plus large',
   columnsWideLast: 'Dernière plus large',
   columnsWideMiddle: 'Celle du milieu plus large',
+  linkToPage: 'Lien vers une page',
+  choosePage: 'Rechercher une page…',
+  noPageFound: 'Aucune page trouvée',
 
   dbUnavailable: 'Base de données indisponible',
   dbProperties: 'Propriétés',

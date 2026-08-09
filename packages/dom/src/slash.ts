@@ -4,6 +4,7 @@ import type { EditorView } from './view';
 import { triggerAnchor } from './caret';
 import { createMenu, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
+import { openPagePickerOn } from './page-picker';
 import type { EditorLabels } from './labels';
 
 interface SlashItem {
@@ -58,9 +59,49 @@ const builtinItems = (labels: EditorLabels): SlashItem[] => [
   { label: labels.database, keywords: ['database', 'db'], icon: 'database', action: { kind: 'database' } },
 ];
 
+/**
+ * Point a block at a page that already exists, rather than making one.
+ *
+ * @remarks
+ * The sibling of « Page », and a different intent: that one creates, this one
+ * links. Built here rather than in {@link builtinItems} because it is the one
+ * entry gated on a host hook that the label list cannot see — without
+ * `onSearchPages` there is nowhere to look for a page, and an entry that opens
+ * an empty picker is worse than no entry.
+ */
+const linkToPageItem = (labels: EditorLabels): SlashItem => ({
+  label: labels.linkToPage,
+  keywords: ['link', 'lien', 'page', 'note'],
+  icon: 'link',
+  action: {
+    kind: 'custom',
+    insert: (view, afterBlockId) => {
+      const doc = view.editor.doc;
+      const block: Block = {
+        id: uuidv7(),
+        type: 'link_to_page',
+        version: 1,
+        props: {},
+        text: [],
+        children: [],
+        parentId: getBlock(doc, afterBlockId).parentId,
+      };
+      view.editor.dispatch(
+        (tx) => tx.op({ type: 'insert_block', block, index: childIndex(doc, afterBlockId) + 1 }),
+        { origin: 'input' },
+      );
+      // straight into the picker: an empty page link is not a document state
+      // anyone wants to be left in
+      openPagePickerOn(view, block.id);
+      return block.id;
+    },
+  },
+});
+
 /** Built-in entries plus everything the registered plugins contribute. */
 export function slashItems(view: EditorView): SlashItem[] {
   const contributed: SlashItem[] = [];
+  if (view.options.onSearchPages) contributed.push(linkToPageItem(view.labels));
   for (const plugin of view.plugins.all()) {
     const declared = viewOf(plugin)?.slash;
     if (!declared) continue;

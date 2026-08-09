@@ -241,6 +241,14 @@ export interface EditorLabels {
   /** Only offered for an odd number of columns. */
   columnsWideMiddle: string;
 
+  // --- the page link ---
+  /** The slash entry that points a block at an existing page. */
+  linkToPage: string;
+  /** Placeholder of the picker's search field. */
+  choosePage: string;
+  /** Shown when the host's search comes back with nothing. */
+  noPageFound: string;
+
   // --- database chrome ---
   /** Shown when a database block points at a collection the host cannot find. */
   dbUnavailable: string;

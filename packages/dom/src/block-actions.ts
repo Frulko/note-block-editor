@@ -3,6 +3,7 @@ import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { createDropZone, fileToDataUrl, openIconPicker, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
+import { openPagePicker } from './page-picker';
 import { format } from './labels';
 
 /**
@@ -88,3 +89,31 @@ registerBlockActions('to_do', (ctx) => {
   },
   ];
 });
+
+/**
+ * A page link points somewhere, and somewhere is a thing you change.
+ *
+ * @remarks
+ * Registered for both types: a `sub_page` says the page lives here and a
+ * `link_to_page` says it is mentioned here, but "which page" is the same
+ * question. Absent without an `onSearchPages` host rather than present and
+ * dead, which is the rule the `@` picker and the « Page » entry already follow.
+ */
+for (const type of ['link_to_page', 'sub_page']) {
+  registerBlockActions(type, (ctx) => {
+    if (!ctx.view.options.onSearchPages) return [];
+    return [
+      {
+        label: ctx.view.labels.choosePage,
+        icon: 'search',
+        onSelect: () => {
+          // the block menu first: two floating menus anchored to the same
+          // handle is one of them measuring a detached element
+          const rect = ctx.anchor.getBoundingClientRect();
+          ctx.close();
+          openPagePicker(ctx.view, ctx.block.id, () => rect);
+        },
+      },
+    ];
+  });
+}
