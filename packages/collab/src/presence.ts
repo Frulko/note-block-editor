@@ -36,8 +36,13 @@ export interface PeerState {
   name?: string;
   /** A colour for their caret, chosen by them so it is stable across sessions. */
   color?: string;
-  /** What they have selected, or null when they are not in a text block. */
-  selection?: { blockId: string; anchor: number; head: number } | null;
+  /**
+   * Where they are in the document, in whatever shape the view paints — a text
+   * range, a set of held blocks, something a host invented. Opaque here: this
+   * package carries it and never reads it, and spelling one shape out was how
+   * three packages ended up with three copies of it that drifted apart.
+   */
+  selection?: unknown;
   /** Anything an application wants to share that is not an edit. */
   [key: string]: unknown;
 }

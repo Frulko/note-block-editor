@@ -11,7 +11,7 @@ import {
   type BlockId,
   type CommentStore,
 } from '@nbe/core';
-import { EditorView, attachRemoteCarets, icon, type CommentAuthor } from '@nbe/dom';
+import { EditorView, attachRemoteCarets, icon, peerSelection, type CommentAuthor, type RemoteSelection } from '@nbe/dom';
 import {
   LoroBlockStore,
   LoroComments,
@@ -171,19 +171,7 @@ function pane(
   /* Announce where this person is, whenever that changes. Presence never
      touches the document — it rides the same socket and nothing more. */
   const announce = (): void => {
-    const selection = editor.selection;
-    presence.set({
-      name: person.name,
-      color: person.color,
-      selection:
-        selection?.kind === 'text' && selection.anchor.blockId === selection.head.blockId
-          ? {
-              blockId: selection.anchor.blockId,
-              anchor: selection.anchor.offset,
-              head: selection.head.offset,
-            }
-          : null,
-    });
+    presence.set({ name: person.name, color: person.color, selection: peerSelection(editor) });
   };
 
   presence.onChange((peers) => {
@@ -192,7 +180,7 @@ function pane(
         id,
         name: typeof state.name === 'string' ? state.name : other.name,
         color: typeof state.color === 'string' ? state.color : other.color,
-        selection: (state.selection ?? null) as { blockId: string; anchor: number; head: number } | null,
+        selection: (state.selection ?? null) as RemoteSelection | null,
       })),
     );
   });
@@ -284,7 +272,10 @@ function pane(
     renderComments();
     renderHistory();
   });
-  document.addEventListener('selectionchange', announce);
+  /* The *model's* selection event, not the DOM's: a selection spanning blocks
+     is one the browser refuses to hold, so `selectionchange` never fires for it
+     and the peer's range would stop growing at the block boundary. */
+  editor.onSelection(() => announce());
 
   renderComments();
   renderHistory();

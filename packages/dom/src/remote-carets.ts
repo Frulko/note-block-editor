@@ -1,6 +1,7 @@
+import { selectedBlocks, type Editor } from '@nbe/core';
 import type { EditorView } from './view';
 import { modelPointToDom } from './selection';
-import { mountPortal } from './ui/portal';
+import { toContainerPoint } from './ui/position';
 
 /**
  * Other people's carets and selections.
@@ -22,14 +23,40 @@ import { mountPortal } from './ui/portal';
  * sitting still and not selecting — which is most of the time. So a caret is a
  * positioned element, and the name rides on it.
  *
- * **Nothing here is in the editing surface.** The carets live in a portal
- * layer with `pointer-events: none`, because an element inside a
- * `contenteditable` becomes part of the text — the browser would let a person
- * put their cursor inside someone else's name badge, and a stray character
- * would end up in the document.
+ * **Nothing here is in the editing surface, but everything is inside the
+ * editor.** The layer is a `pointer-events: none` sibling of the blocks, inside
+ * `.nbe-editor` and outside every `contenteditable` leaf — an element inside a
+ * leaf becomes part of the text, and the browser would let a person put their
+ * cursor inside someone else's name badge.
+ *
+ * It sits there rather than in a portal for the reason the gutter learned
+ * first: chrome on `document.body` follows the *window's* scroll and not the
+ * editor's, so a caret drifted away from the text inside any scrolling host and
+ * escaped over the top of a pane that was supposed to clip it. Positions are
+ * therefore container coordinates, and a re-render re-attaches the layer.
  *
  * @category Collaboration
  */
+
+/**
+ * Where a peer is.
+ *
+ * @remarks
+ * The two shapes are the model's own two selections. Text is a caret when the
+ * points are equal and a range otherwise; blocks is someone holding whole
+ * blocks, which has no caret at all and so cannot be squeezed into the first
+ * shape without drawing it somewhere it is not.
+ */
+export type RemoteSelection =
+  | {
+      kind?: 'text';
+      blockId: string;
+      anchor: number;
+      head: number;
+      /** Set only when the head is in another block, so a range crossing blocks paints. */
+      headBlockId?: string;
+    }
+  | { kind: 'blocks'; ids: string[] };
 
 /** A peer, as this package needs to see one. */
 export interface RemotePeer {
@@ -37,11 +64,56 @@ export interface RemotePeer {
   name?: string;
   /** Any CSS colour. Chosen by the peer so it is stable between sessions. */
   color?: string;
-  selection?: { blockId: string; anchor: number; head: number } | null;
+  selection?: RemoteSelection | null;
 }
 
-/** The highlight name for one peer. Namespaced so nothing else collides. */
-const highlightName = (id: string): string => `nbe-peer-${id.replace(/[^a-z0-9]/gi, '')}`;
+/**
+ * This editor's selection, flattened into what a peer needs to see.
+ *
+ * @remarks
+ * It lives here rather than in each host because every host was writing it, and
+ * every host was writing the same two bugs: dropping the selection whenever it
+ * crossed a block, and publishing nothing at all for a block selection. Both
+ * made a peer *disappear* from the other screens at the moment they were doing
+ * the most visible thing in the document.
+ *
+ * It takes the editor rather than the selection because expanding a block
+ * selection into the blocks it holds needs the document's order — and the peer
+ * that made the selection is the one that certainly has it.
+ *
+ * @category Collaboration
+ */
+export function peerSelection(editor: Editor): RemoteSelection | null {
+  const selection = editor.selection;
+  if (!selection) return null;
+  if (selection.kind === 'block') {
+    return { kind: 'blocks', ids: selectedBlocks(editor.doc, selection) };
+  }
+  const { anchor, head } = selection;
+  return {
+    blockId: anchor.blockId,
+    anchor: anchor.offset,
+    head: head.offset,
+    ...(head.blockId === anchor.blockId ? {} : { headBlockId: head.blockId }),
+  };
+}
+
+/**
+ * How many peers can be painted at once.
+ *
+ * @remarks
+ * `::highlight()` takes a literal name — it cannot be generated at runtime and
+ * a stylesheet cannot match a pattern. So the names are a fixed pool with a
+ * rule each (`style/ui.css`), and a peer takes a slot for the duration of a
+ * paint. Registering a name with no rule behind it is what the first version
+ * did, and it painted nothing at all, silently.
+ *
+ * Beyond the pool a peer still gets a caret, which is the part that says where
+ * someone is; eight simultaneous *selections* in one document is already past
+ * what anyone can read.
+ */
+export const PEER_SLOTS = 8;
+const highlightName = (slot: number): string => `nbe-peer-${slot}`;
 
 interface HighlightRegistry {
   set(name: string, highlight: unknown): void;
@@ -72,10 +144,11 @@ export function attachRemoteCarets(view: EditorView): {
   const highlights = registry();
   const layer = document.createElement('div');
   layer.className = 'nbe-peers';
-  mountPortal(layer);
 
   /** Which highlight names we own, so we clear ours and nobody else's. */
   let painted: string[] = [];
+  /** The last thing we were told, so a re-render can be repainted from it. */
+  let last: readonly RemotePeer[] = [];
 
   const clearHighlights = (): void => {
     for (const name of painted) highlights?.delete(name);
@@ -83,51 +156,101 @@ export function attachRemoteCarets(view: EditorView): {
   };
 
   const update = (peers: readonly RemotePeer[]): void => {
+    last = peers;
     clearHighlights();
     layer.replaceChildren();
+    // a re-render replaced the editor's children, this layer among them
+    if (layer.parentElement !== view.content) view.content.append(layer);
 
-    const host = view.content.getBoundingClientRect();
+    let slot = 0;
 
     for (const peer of peers) {
       const selection = peer.selection;
       if (!selection) continue;
+      const colour = peer.color ?? 'currentColor';
+
+      /*
+       * Whole blocks: an outline per block rather than a highlight, because a
+       * highlight paints text and what is held here is the block — including
+       * an image or a divider, which have no text to paint at all.
+       */
+      if (selection.kind === 'blocks') {
+        let first = true;
+        for (const id of selection.ids) {
+          const el = view.blockEl(id);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          const at = toContainerPoint(view.content, rect.left, rect.top);
+          const box = document.createElement('div');
+          box.className = 'nbe-peer-block';
+          box.style.left = `${at.x}px`;
+          box.style.top = `${at.y}px`;
+          box.style.width = `${rect.width}px`;
+          box.style.height = `${rect.height}px`;
+          box.style.borderColor = colour;
+          box.style.background = `color-mix(in srgb, ${colour} 12%, transparent)`;
+          if (first && peer.name) {
+            const label = document.createElement('span');
+            label.className = 'nbe-peer-name';
+            label.textContent = peer.name;
+            label.style.background = colour;
+            box.append(label);
+            first = false;
+          }
+          layer.append(box);
+        }
+        continue;
+      }
 
       const from = modelPointToDom(view, { blockId: selection.blockId, offset: selection.anchor });
-      const to = modelPointToDom(view, { blockId: selection.blockId, offset: selection.head });
+      const to = modelPointToDom(view, {
+        blockId: selection.headBlockId ?? selection.blockId,
+        offset: selection.head,
+      });
       if (!from || !to) continue; // a block we are not showing: not an error
 
       const range = document.createRange();
       try {
         range.setStart(from.node, from.offset);
         range.setEnd(to.node, to.offset);
+        // a backwards selection produces an inverted range; swap rather than drop
+        if (range.collapsed && (from.node !== to.node || from.offset !== to.offset)) {
+          range.setStart(to.node, to.offset);
+          range.setEnd(from.node, from.offset);
+        }
       } catch {
         continue; // the document moved under us; the next paint will be right
       }
-      // a backwards selection is still a selection
-      if (range.collapsed && selection.anchor !== selection.head) continue;
 
-      const colour = peer.color ?? 'currentColor';
-
-      if (!range.collapsed && highlights) {
-        const name = highlightName(peer.id);
+      if (!range.collapsed && highlights && slot < PEER_SLOTS) {
+        const name = highlightName(slot++);
         highlights.set(name, new Highlight(range));
         painted.push(name);
         /*
-         * A highlight's colour cannot be set per instance, only per `::highlight()`
-         * rule, and those cannot be generated from a stylesheet at runtime. A
-         * custom property on the editor, read by a single generic rule, is the
-         * way round it that does not inject stylesheets.
+         * A highlight's colour cannot be set per instance, only per rule. The
+         * rule reads a custom property off the editor, and the translucency is
+         * applied here because a peer's colour is any CSS colour and only
+         * `color-mix` can add an alpha to one it has not parsed.
          */
-        view.content.style.setProperty(`--${name}`, colour);
+        view.content.style.setProperty(`--${name}`, `color-mix(in srgb, ${colour} 26%, transparent)`);
       }
 
-      // the caret sits at the head, which is where the person actually is
-      const rects = range.getClientRects();
-      const rect = rects.length ? rects[rects.length - 1]! : range.getBoundingClientRect();
+      /*
+       * The caret sits at the head — where the person actually is — so it is
+       * measured from its own collapsed range. Taking the end of the painted
+       * range instead would put it at the wrong end of every backwards
+       * selection, which is most of the ones made by dragging leftwards.
+       */
+      const headRange = document.createRange();
+      headRange.setStart(to.node, to.offset);
+      headRange.collapse(true);
+      const rects = headRange.getClientRects();
+      const rect = rects.length ? rects[rects.length - 1]! : headRange.getBoundingClientRect();
+      const at = toContainerPoint(view.content, rect.right, rect.top);
       const caret = document.createElement('div');
       caret.className = 'nbe-peer-caret';
-      caret.style.left = `${rect.right - host.left + view.content.scrollLeft}px`;
-      caret.style.top = `${rect.top - host.top + view.content.scrollTop}px`;
+      caret.style.left = `${at.x}px`;
+      caret.style.top = `${at.y}px`;
       caret.style.height = `${rect.height || 18}px`;
       caret.style.background = colour;
 
@@ -140,17 +263,20 @@ export function attachRemoteCarets(view: EditorView): {
       }
       layer.append(caret);
     }
-
-    // the layer follows the editor rather than the page
-    const box = view.content.getBoundingClientRect();
-    layer.style.left = `${box.left + window.scrollX}px`;
-    layer.style.top = `${box.top + window.scrollY}px`;
-    layer.style.width = `${box.width}px`;
   };
+
+  /*
+   * A re-render replaces the blocks these positions were measured against — and
+   * this layer with them. Repainting from the last state keeps other people
+   * where they are instead of leaving them at the coordinates the document had
+   * before the edit, which is the same class of lie `redrawOnRemote` exists for.
+   */
+  const stopRedraw = view.editor.on(() => update(last));
 
   return {
     update,
     destroy() {
+      stopRedraw();
       clearHighlights();
       layer.remove();
     },

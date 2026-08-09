@@ -502,10 +502,43 @@ textarea.nbe-input {
    inside someone else's name badge.
    ========================================================================== */
 
+/* inside `.nbe-editor`, not on the body: it scrolls with the text it decorates
+   and is clipped by whatever the host scrolls, instead of floating over it */
 .nbe-peers {
   position: absolute;
+  inset: 0;
   z-index: 120;
   pointer-events: none;
+}
+
+/* Other people's *selections*. `::highlight()` takes a literal name, so the
+   pool in remote-carets.ts (`SLOTS`) has one rule each: a name with no rule
+   behind it registers happily and paints nothing, which is exactly how these
+   were invisible. The colour is the peer's own, made translucent where it is
+   set; the fallback keeps a range visible if it ever arrives without one. */
+::highlight(nbe-peer-0) {
+  background-color: var(--nbe-peer-0, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-1) {
+  background-color: var(--nbe-peer-1, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-2) {
+  background-color: var(--nbe-peer-2, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-3) {
+  background-color: var(--nbe-peer-3, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-4) {
+  background-color: var(--nbe-peer-4, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-5) {
+  background-color: var(--nbe-peer-5, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-6) {
+  background-color: var(--nbe-peer-6, rgb(var(--nbe-accent-rgb) / 0.26));
+}
+::highlight(nbe-peer-7) {
+  background-color: var(--nbe-peer-7, rgb(var(--nbe-accent-rgb) / 0.26));
 }
 
 .nbe-peer-caret {
@@ -514,6 +547,15 @@ textarea.nbe-input {
   border-radius: 1px;
   /* a remote caret must not blink: two carets blinking out of phase is the
      fastest way to make a document feel broken */
+  animation: nbe-fade-in var(--nbe-fast) var(--nbe-ease);
+}
+
+/* whole blocks held by someone else: an outline, because the block may have no
+   text to highlight — an image, a divider, an empty paragraph */
+.nbe-peer-block {
+  position: absolute;
+  border: 1px solid;
+  border-radius: var(--nbe-radius-sm);
   animation: nbe-fade-in var(--nbe-fast) var(--nbe-ease);
 }
 

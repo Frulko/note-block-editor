@@ -55,7 +55,7 @@ export {
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
-export { attachRemoteCarets, type RemotePeer } from './remote-carets';
+export { attachRemoteCarets, peerSelection, type RemotePeer, type RemoteSelection } from './remote-carets';
 export { attachViewportGuard, reveal } from './viewport';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
