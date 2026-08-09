@@ -38,38 +38,27 @@ export function mermaidMode(props: Record<string, unknown>): MermaidMode {
   return value === 'preview' || value === 'code' ? value : 'both';
 }
 
-type Renderer = { render(id: string, text: string): Promise<{ svg: string }> };
-
-let renderer: Promise<Renderer | null> | null = null;
-
-/**
- * Mermaid, or `null` where it is not installed.
- *
- * @remarks
- * One import for the whole document, cached including its failure: a vault
- * without the dependency must not re-attempt the import for every diagram on
- * every keystroke.
- */
-async function load(): Promise<Renderer | null> {
-  renderer ??= import('mermaid')
-    .then((module) => {
-      const api = (module as { default?: unknown }).default as
-        | (Renderer & { initialize(config: Record<string, unknown>): void })
-        | undefined;
-      if (!api) return null;
-      // `startOnLoad` false, or mermaid scans the page and rewrites elements
-      // it does not own — which here would be the editable text itself
-      api.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral' });
-      return api;
-    })
-    .catch(() => null);
-  return renderer;
-}
-
 /** The stylesheet the feature needs; inject it beside the editor's own. */
 export const mermaidStyles = `
+/*
+ * Aperçu hides the source — until you put the caret in the block, and then it
+ * is back for as long as you are there. Without that, the only way to edit a
+ * diagram was to switch to Code, and nothing switched back: the mode is a
+ * prop, so it stayed in Code for good. the :focus-within selector is the whole of it, so
+ * blurring restores the drawing with no listener and no state to get wrong.
+ */
 .nbe-t-code[data-mermaid-mode='preview'] > .nbe-row {
   display: none;
+}
+.nbe-t-code[data-mermaid-mode='preview']:focus-within > .nbe-row,
+.nbe-t-code[data-mermaid-mode='preview'].nbe-mermaid-editing > .nbe-row {
+  display: flex;
+}
+.nbe-t-code[data-mermaid-mode='preview']:focus-within > .nbe-mermaid,
+.nbe-t-code[data-mermaid-mode='preview'].nbe-mermaid-editing > .nbe-mermaid {
+  margin-top: 10px;
+  border-top: 1px solid var(--nbe-border);
+  padding-top: 8px;
 }
 .nbe-t-code[data-mermaid-mode='code'] .nbe-mermaid-figure {
   display: none;

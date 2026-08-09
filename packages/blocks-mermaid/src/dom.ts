@@ -103,6 +103,26 @@ export const mermaidFeature: EditorFeature = {
         }
         const figure = document.createElement('div');
         figure.className = 'nbe-mermaid-figure';
+        /*
+         * Click the drawing to edit it. In Aperçu the source is hidden, so
+         * there is nothing to click *into* — without this the only way back to
+         * the text was the Code button, and the mode is a prop, so it stayed
+         * there. Now the round trip is symmetric: click to edit, blur to look.
+         */
+        figure.addEventListener('click', () => {
+          const block = view.editor.doc.blocks.get(id);
+          if (!block) return;
+          // reveal *before* focusing: a leaf inside a `display: none` row is
+          // not focusable, so `:focus-within` alone could never bootstrap
+          el.classList.add('nbe-mermaid-editing');
+          view.focusBlock(id, plainText(block.text).length);
+        });
+        // and put it away again when the caret leaves for somewhere else
+        el.addEventListener('focusout', (event) => {
+          const to = (event as FocusEvent).relatedTarget as Node | null;
+          if (to && el.contains(to)) return;
+          el.classList.remove('nbe-mermaid-editing');
+        });
         panel.append(modes, figure);
         el.append(panel);
       }

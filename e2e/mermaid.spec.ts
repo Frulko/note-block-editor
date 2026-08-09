@@ -23,6 +23,9 @@ async function diagram(page: Page, editor: { setDocument(p: string[]): Promise<v
   await page.keyboard.type('A-->B;');
 }
 
+/** Move the caret out of the editor entirely — the demo's breadcrumb will do. */
+const blur = (page: Page) => page.locator('.crumbs').click({ position: { x: 2, y: 2 } });
+
 test.describe('mermaid diagrams', () => {
   test('a mermaid code block draws itself, outside the editable text', async ({ page, editor }) => {
     await diagram(page, editor);
@@ -49,6 +52,9 @@ test.describe('mermaid diagrams', () => {
     await expect(figure).toBeVisible();
 
     await page.locator('.nbe-mermaid-mode', { hasText: 'Aperçu' }).click();
+    // still visible: the caret is in the block, and Aperçu does not evict it
+    await expect(source).toBeVisible();
+    await blur(page);
     await expect(source).toBeHidden();
     await expect(figure).toBeVisible();
 
@@ -83,5 +89,34 @@ test.describe('mermaid diagrams', () => {
     await expect(page.locator('.nbe-code-lang')).toHaveText('Mermaid');
     // the mode control is there before a single character is typed
     await expect(page.locator('.nbe-mermaid-modes')).toBeVisible();
+  });
+
+  test('Aperçu shows the source while the caret is in it, and hides it again', async ({
+    page,
+    editor,
+  }) => {
+    await diagram(page, editor);
+    await expect(page.locator('.nbe-mermaid-figure svg')).toHaveCount(1, { timeout: 15000 });
+    await page.locator('.nbe-mermaid-mode', { hasText: 'Aperçu' }).click();
+
+    const source = page.locator('.nbe-t-code > .nbe-row');
+    // the caret is still in the block right after the click; it is leaving
+    // that hides the source
+    await blur(page);
+    await expect(source).toBeHidden();
+
+    // click the drawing to edit it: in Aperçu there is nothing else to click
+    // into, and the only way back to the text used to be the Code button —
+    // which, the mode being a prop, is where it then stayed
+    await page.locator('.nbe-mermaid-figure').click();
+    await expect(source).toBeVisible();
+    await page.keyboard.type(' ');
+    await expect(source).toBeVisible();
+
+    // blur: the drawing comes back on its own
+    await blur(page);
+    await expect(source).toBeHidden();
+    await expect(page.locator('.nbe-mermaid-figure')).toBeVisible();
+    expect(editor.errors()).toEqual([]);
   });
 });
