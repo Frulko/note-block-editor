@@ -56,6 +56,7 @@ export {
   databaseFeature,
   commentMarkersFeature,
   findFeature,
+  mediaResizeFeature,
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
@@ -77,6 +78,7 @@ export {
 export type { ExportFormat } from './export';
 export { openPagePicker, openPagePickerOn } from './page-picker';
 export { offerLinkTreatments, loneLink } from './link-paste';
+export { resizeHandles } from './media-resize';
 export type { LinkPasteOptions } from './link-paste';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';

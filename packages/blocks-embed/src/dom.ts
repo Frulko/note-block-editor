@@ -5,7 +5,7 @@
  * @module @nbe/blocks-embed/dom
  */
 import type { Block } from '@nbe/core';
-import { createDropZone, icon, type DomBlockPlugin, type EditorView } from '@nbe/dom';
+import { createDropZone, icon, resizeHandles, type DomBlockPlugin, type EditorView } from '@nbe/dom';
 import { embedMode, embedPlugin, frameUrl, providerFor, PROVIDERS, type EmbedMode } from './index';
 
 /** The default height of a frame with no ratio to go on. */
@@ -109,6 +109,9 @@ export const embed: DomBlockPlugin = {
       const mode = embedMode(props);
       ctx.root.setAttribute('contenteditable', 'false');
       ctx.root.dataset['embedMode'] = mode;
+      // the same class the image uses, so one stylesheet rule serves both and
+      // `media-resize` can ask "is this centred" without knowing the type
+      ctx.root.classList.add(`nbe-align-${String(props['align'] ?? 'left')}`);
 
       if (!src && mode !== 'srcdoc') {
         ctx.root.append(
@@ -125,7 +128,17 @@ export const embed: DomBlockPlugin = {
         return ctx.root;
       }
 
-      ctx.root.append(mode === 'card' ? card(view, block) : frame(block, mode));
+      /*
+       * The frame in a sizer of its own, so the edge handles have something to
+       * resize that is not the block: a block is the width of the text column
+       * by definition, and dragging *that* would mean nothing.
+       */
+      const sizer = document.createElement('div');
+      sizer.className = 'nbe-embed-sizer';
+      sizer.dataset['nbeResizable'] = '';
+      sizer.style.width = `${Math.min(100, Math.max(10, Number(props['width'] ?? 100)))}%`;
+      sizer.append(mode === 'card' ? card(view, block) : frame(block, mode), ...resizeHandles());
+      ctx.root.append(sizer);
       return ctx.root;
     },
 
@@ -142,6 +155,12 @@ export const embed: DomBlockPlugin = {
           title: m.label,
           active: m.id === current,
           onClick: () => ctx.setProps({ mode: m.id }),
+        })),
+        ...(['alignLeft', 'alignCenter', 'alignRight'] as const).map((key, i) => ({
+          icon: (['pilcrow', 'columns', 'pilcrow'] as const)[i]!,
+          title: ctx.view.labels[key],
+          active: String(ctx.block.props?.['align'] ?? 'left') === ['left', 'center', 'right'][i],
+          onClick: () => ctx.setProps({ align: ['left', 'center', 'right'][i] }),
         })),
         {
           icon: 'arrow-up-down' as const,
@@ -182,6 +201,13 @@ export const embed: DomBlockPlugin = {
 .nbe-t-embed {
   padding: 4px 0;
 }
+.nbe-embed-sizer {
+  /* the align classes move this rather than the block: an auto margin on one
+     side, on both, or on neither */
+  max-width: 100%;
+}
+.nbe-align-center > .nbe-embed-sizer { margin-inline: auto; }
+.nbe-align-right > .nbe-embed-sizer { margin-inline-start: auto; }
 .nbe-embed-frame {
   display: block;
   width: 100%;

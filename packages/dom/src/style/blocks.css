@@ -406,3 +406,48 @@ a.nbe-m-link:hover {
   margin-bottom: 6px;
   background: var(--nbe-surface);
 }
+
+/* --- resizing an image or an embed by its edge ---------------------------
+   Two handles, one per side, because the side you grab decides what the drag
+   means: on a left-aligned surface the right edge moves, on a right-aligned
+   one the left, and on a centred one both at once. They are inside the
+   resizable element and only appear when the block is hovered, so nothing
+   floats over the page waiting to be grabbed. */
+[data-nbe-resizable] {
+  position: relative;
+}
+.nbe-media-handle {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 44px;
+  max-height: 60%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgb(var(--nbe-ink) / 0.55);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.55);
+  opacity: 0;
+  cursor: ew-resize;
+  /* the router captures the pointer, and a capturing element must not also be
+     scrolling under the finger */
+  touch-action: none;
+  transition: opacity var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-media-handle-left {
+  left: 4px;
+}
+.nbe-media-handle-right {
+  right: 4px;
+}
+.nbe-block:hover > [data-nbe-resizable] > .nbe-media-handle,
+.nbe-block:hover [data-nbe-resizable] > .nbe-media-handle,
+.nbe-media-resizing .nbe-media-handle {
+  opacity: 1;
+}
+/* while a drag is running the whole surface takes the cursor, or it flickers
+   every time the pointer leaves the 6px strip it started on */
+.nbe-media-resizing,
+.nbe-media-resizing * {
+  cursor: ew-resize !important;
+  user-select: none;
+}

@@ -4,6 +4,7 @@ import type { EditorView } from './view';
 import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
 import { createDropZone, fileToDataUrl, icon } from './ui';
+import { resizeHandles } from './media-resize';
 import { backgroundColor, textColor } from './colors';
 import { format } from './labels';
 
@@ -219,6 +220,11 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       root.classList.add(`nbe-align-${align}`);
       const figure = el('figure', 'nbe-figure');
       figure.style.width = `${Math.min(100, Math.max(10, width))}%`;
+      // the surface a drag on either edge resizes; the handles ride inside it
+      // so a re-render keeps them rather than a floating layer having to
+      // re-place itself
+      figure.dataset['nbeResizable'] = '';
+      figure.append(...resizeHandles());
       const img = document.createElement('img');
       img.className = 'nbe-image';
       img.alt = String(block.props['caption'] ?? '');

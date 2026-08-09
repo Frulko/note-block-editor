@@ -15,7 +15,9 @@ import { attachSelectionToolbar } from './selection-toolbar';
 import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
 import { attachCommentMarkers } from './comment-marker';
+import { mediaResizeFeature } from './media-resize';
 import { attachFind } from './search';
+export { mediaResizeFeature } from './media-resize';
 export { wordCountFeature } from './word-count';
 
 /**
@@ -118,6 +120,7 @@ export const defaultFeatures: EditorFeature[] = [
   linkHoverFeature,
   databaseFeature,
   commentMarkersFeature,
+  mediaResizeFeature,
 ];
 
 /**
