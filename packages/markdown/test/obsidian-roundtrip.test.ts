@@ -34,6 +34,24 @@ const NOTES: Array<[string, string]> = [
    * merely opened, which is the one thing this file exists to prevent.
    */
   ['an Obsidian embed', '![[Pasted image 20260809.png]]'],
+  /*
+   * A container has no line of its own to hang a trailer on, so it gets two
+   * markers and one per column. Until this it was a documented loss — the
+   * contents flattened out one column after another — which in a vault, where
+   * Markdown *is* the document, means a layout that dissolves the first time
+   * the note is saved.
+   */
+  [
+    'a column layout',
+    [
+      '<!-- nbe:column_list -->',
+      '<!-- nbe:column {"props":{"ratio":2}} -->',
+      'à gauche',
+      '<!-- nbe:column -->',
+      'à droite',
+      '<!-- /nbe:column_list -->',
+    ].join('\n'),
+  ],
   ['an embed with an alias', '![[schema.png|Le schéma]]'],
 ];
 

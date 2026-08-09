@@ -579,9 +579,27 @@ function renderLines(b: BlockJSON, depth: number, opts: MarkdownOptions, ordinal
       if (target) return [pad + (target === title ? `[[${target}]]` : `[[${target}|${title}]]`)];
       return [pad + wikilink(title)];
     }
-    case 'column_list':
-      // documented loss: column layout is lost — columns' contents flattened sequentially
-      return (b.children ?? []).flatMap((col) => (col.children ?? []).flatMap((c) => renderBlock(c, depth)));
+    /*
+     * Columns, between markers.
+     *
+     * They used to be a documented loss — the contents flattened out one
+     * column after another — which in Obsidian, where Markdown *is* the
+     * document, meant a layout that dissolved the first time the note was
+     * saved. A container has no line of its own to hang a trailer on, so it
+     * gets two markers instead, and the columns inside are separated by a
+     * third. Every other tool renders the blocks and ignores the comments,
+     * which is the same bargain every other special block here makes.
+     */
+    case 'column_list': {
+      const out = [pad + marker('column_list', {})];
+      for (const col of b.children ?? []) {
+        const props = col.props && Object.keys(col.props).length ? { props: col.props } : {};
+        out.push(pad + marker('column', props));
+        out.push(...renderSiblingLines(col.children ?? [], depth, opts));
+      }
+      out.push(pad + COLUMN_END);
+      return out;
+    }
     default:
       // unknown type: marker comment so nothing silently disappears, then children
       return [pad + unknownMarker(b), ...(b.children ?? []).flatMap((c) => renderBlock(c, depth))];
@@ -831,6 +849,79 @@ function takeInlineText(
   return [text, pos];
 }
 
+/** The line that closes a column layout. */
+const COLUMN_END = '<!-- /nbe:column_list -->';
+
+const COLUMN_OPEN = /^<!--\s*nbe:column_list\b/;
+const COLUMN_NEXT = /^<!--\s*nbe:column\s*(\{.*?\})?\s*-->\s*$/;
+const COLUMN_CLOSE = /^<!--\s*\/nbe:column_list\s*-->\s*$/;
+
+/**
+ * Read a column layout from its opening marker.
+ *
+ * @remarks
+ * The nesting is counted rather than assumed: a column may hold another
+ * layout, and stopping at the first close would end the outer one inside the
+ * inner one — which reads back as a document that has quietly lost half its
+ * blocks. An *unclosed* layout returns `null` so the generic marker path keeps
+ * the block and the rest of the note stays where it is; swallowing to the end
+ * of the file is how one bad line becomes a lost document.
+ */
+function parseColumns(
+  lines: string[],
+  start: number,
+  level: number,
+  opts: MarkdownOptions,
+): { block: BlockJSON; next: number } | null {
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < lines.length; i++) {
+    const line = stripColumns(lines[i]!, level).trimStart();
+    if (COLUMN_OPEN.test(line)) depth++;
+    else if (COLUMN_CLOSE.test(line) && --depth === 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end === -1) return null;
+
+  const columns: BlockJSON[] = [];
+  let current: { props: Record<string, unknown>; lines: string[] } | null = null;
+  const flush = () => {
+    if (!current) return;
+    const [children] = parseLevel(current.lines, 0, 0, opts);
+    columns.push(mk('column', current.props, undefined, children));
+    current = null;
+  };
+  let inner = 0;
+  for (let i = start + 1; i < end; i++) {
+    const raw = lines[i]!;
+    const line = stripColumns(raw, level).trimStart();
+    if (COLUMN_OPEN.test(line)) inner++;
+    else if (COLUMN_CLOSE.test(line)) inner--;
+    // a `nbe:column` marker of a *nested* layout belongs to that layout
+    const boundary = inner === 0 && COLUMN_NEXT.exec(line);
+    if (boundary) {
+      flush();
+      let props: Record<string, unknown> = {};
+      try {
+        const payload = boundary[1] ? (JSON.parse(boundary[1]) as { props?: Record<string, unknown> }) : {};
+        props = payload.props ?? {};
+      } catch {
+        /* a hand-edited marker costs the ratio, never the column */
+      }
+      current = { props, lines: [] };
+      continue;
+    }
+    if (current) current.lines.push(stripColumns(raw, level));
+  }
+  flush();
+  // fewer than two columns is not a layout, and `normalizeWrappers` would
+  // dissolve it on the first transaction anyway
+  if (columns.length < 2) return null;
+  return { block: mk('column_list', {}, undefined, columns), next: end + 1 };
+}
+
 function parseLevel(
   lines: string[],
   pos: number,
@@ -904,6 +995,21 @@ function parseLevel(
       break;
     }
     if (claimed) continue;
+
+    /*
+     * A column layout: two markers and one per column, so the container has
+     * boundaries Markdown can hold. Before the generic marker branch below,
+     * which would otherwise claim the opening line and leave the columns as
+     * loose blocks.
+     */
+    if (trail?.[1] === 'column_list' && !content.trim()) {
+      const parsed = parseColumns(lines, pos, level, opts);
+      if (parsed) {
+        out.push(parsed.block);
+        pos = parsed.next;
+        continue;
+      }
+    }
 
     /*
      * A marker with no construct in front of it: a block whose plugin was not

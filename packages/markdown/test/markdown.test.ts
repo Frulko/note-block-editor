@@ -200,16 +200,62 @@ describe('blocksToMarkdown', () => {
     expect(blocksToMarkdown([b('toggle', { text: [{ text: 'plié' }] })])).toBe('- plié <!-- nbe:toggle -->');
   });
 
-  it('flattens column_list contents sequentially', () => {
-    const md = blocksToMarkdown([
-      b('column_list', {
-        children: [
-          b('column', { children: [b('paragraph', { text: [{ text: 'left' }] })] }),
-          b('column', { children: [b('paragraph', { text: [{ text: 'right' }] })] }),
-        ],
-      }),
-    ]);
-    expect(md).toBe('left\nright');
+  it('writes a column layout between markers, and reads it back as one', () => {
+    // it used to flatten — 'left\nright', the contents one column after the
+    // other — which in a vault, where Markdown *is* the document, is a layout
+    // that dissolves the first time the note is saved
+    const layout = b('column_list', {
+      children: [
+        b('column', { props: { ratio: 2 }, children: [b('paragraph', { text: [{ text: 'left' }] })] }),
+        b('column', { children: [b('paragraph', { text: [{ text: 'right' }] })] }),
+      ],
+    });
+    const md = blocksToMarkdown([layout]);
+    expect(md).toBe(
+      [
+        '<!-- nbe:column_list -->',
+        '<!-- nbe:column {"props":{"ratio":2}} -->',
+        'left',
+        '<!-- nbe:column -->',
+        'right',
+        '<!-- /nbe:column_list -->',
+      ].join('\n'),
+    );
+
+    const [back] = markdownToBlocks(md);
+    expect(back?.type).toBe('column_list');
+    expect(back?.children?.map((c) => c.type)).toEqual(['column', 'column']);
+    expect(back?.children?.[0]?.props).toEqual({ ratio: 2 });
+    expect(back?.children?.[1]?.children?.[0]?.text).toEqual([{ text: 'right' }]);
+  });
+
+  it('keeps a nested layout inside the column that holds it', () => {
+    // stopping at the first close would end the outer layout inside the inner
+    // one, which reads back as a document that has quietly lost half its blocks
+    const md = [
+      '<!-- nbe:column_list -->',
+      '<!-- nbe:column -->',
+      '<!-- nbe:column_list -->',
+      '<!-- nbe:column -->',
+      'a',
+      '<!-- nbe:column -->',
+      'b',
+      '<!-- /nbe:column_list -->',
+      '<!-- nbe:column -->',
+      'c',
+      '<!-- /nbe:column_list -->',
+    ].join('\n');
+    const [outer] = markdownToBlocks(md);
+    expect(outer?.children?.length).toBe(2);
+    expect(outer?.children?.[0]?.children?.[0]?.type).toBe('column_list');
+    expect(outer?.children?.[1]?.children?.[0]?.text).toEqual([{ text: 'c' }]);
+    expect(blocksToMarkdown(markdownToBlocks(md))).toBe(md);
+  });
+
+  it('leaves an unclosed layout alone rather than eating the rest of the note', () => {
+    const md = ['<!-- nbe:column_list -->', '<!-- nbe:column -->', 'a', '', 'du texte après'].join('\n');
+    const blocks = markdownToBlocks(md);
+    expect(blocksToMarkdown(blocks)).toContain('du texte après');
   });
 
   it('marks unknown types with an HTML comment and keeps children', () => {
