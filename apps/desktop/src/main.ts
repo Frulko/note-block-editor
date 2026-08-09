@@ -26,6 +26,24 @@ import {
   type SnapshotStore,
 } from './storage';
 
+/*
+ * Theme. `data-nbe-theme` on <html> is the editor's documented host hook and
+ * this shell's own tokens read the same attribute, so one property themes
+ * both — and it is applied before the first render so a saved choice never
+ * flashes the other way.
+ */
+const themeEl = document.getElementById('theme') as HTMLSelectElement | null;
+if (themeEl) {
+  themeEl.value = localStorage.getItem('carnet-theme') ?? '';
+  const applyTheme = (): void => {
+    if (themeEl.value) document.documentElement.dataset['nbeTheme'] = themeEl.value;
+    else delete document.documentElement.dataset['nbeTheme'];
+    localStorage.setItem('carnet-theme', themeEl.value);
+  };
+  applyTheme();
+  themeEl.addEventListener('change', applyTheme);
+}
+
 /**
  * Carnet — a notes application whose storage is a folder you can read.
  *

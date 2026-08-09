@@ -73,6 +73,14 @@ interface CarnetSettings {
   readOnly: boolean;
   /** Open every Markdown file in Carnet instead of Obsidian's editor. */
   defaultEditor: boolean;
+  /**
+   * Which way the token layer points: follow the vault, or force one.
+   *
+   * A vault theme that is dark on some pages and light on others is not
+   * exotic — a print stylesheet, a light snippet on a dark theme — and a
+   * reader who wants the editor light regardless had no way to say so.
+   */
+  themeMode: 'vault' | 'light' | 'dark';
   /** One CSS custom property per line: `--nbe-accent-rgb: 220 38 38`. */
   theme: string;
   /** Chrome features toggled off, by feature name; absent means on. */
@@ -88,6 +96,7 @@ const DEFAULT_SETTINGS: CarnetSettings = {
   columns: false,
   readOnly: false,
   defaultEditor: false,
+  themeMode: 'vault',
   theme: '',
   features: {},
 };
@@ -513,13 +522,16 @@ export default class CarnetPlugin extends Plugin {
    * on `<body>` is what reaches the menus portaled out there as well as the
    * editor. `css-change` is the event Obsidian fires when the theme changes.
    */
-  private syncTheme(): void {
-    document.body.dataset.nbeTheme = document.body.hasClass('theme-dark') ? 'dark' : 'light';
+  syncTheme(): void {
+    const mode = this.settings.themeMode;
+    document.body.dataset.nbeTheme =
+      mode === 'vault' ? (document.body.hasClass('theme-dark') ? 'dark' : 'light') : mode;
   }
 
   /** Persist the settings and rebuild every open Carnet view with them. */
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    this.syncTheme();
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
       (leaf.view as CarnetView).refresh();
     }
@@ -539,6 +551,19 @@ class CarnetSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const save = () => void this.plugin.saveSettings();
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Thème')
+      .setDesc('Carnet suit le thème du coffre par défaut. Forcer clair ou sombre change l’éditeur et son chrome flottant, sans toucher au reste d’Obsidian.')
+      .addDropdown((d) =>
+        d
+          .addOptions({ vault: 'Suivre le coffre', light: 'Clair', dark: 'Sombre' })
+          .setValue(s.themeMode)
+          .onChange((v) => {
+            s.themeMode = v as CarnetSettings['themeMode'];
+            save();
+          }),
+      );
 
     new Setting(containerEl)
       .setName('Éditeur par défaut')

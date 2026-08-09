@@ -182,7 +182,21 @@ body {
   /* the window is dragged by its chrome, not by its content */
   -webkit-app-region: drag;
 }
-.topbar button { -webkit-app-region: no-drag; }
+.topbar button,
+.topbar select { -webkit-app-region: no-drag; }
+
+/* pushed to the trailing edge, where a window's own controls are not */
+.theme {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
 
 .crumbs {
   display: flex;
@@ -284,21 +298,36 @@ body {
 }
 .status[hidden] { display: none; }
 
+/* Dark, three ways: the OS by default, and `data-nbe-theme` on <html> — the
+   editor's own documented host hook — overriding it in *both* directions, so
+   the theme picker themes the shell and the page with one property. Written
+   as three blocks rather than one because a media query and an attribute
+   cannot share a selector list. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-nbe-theme="light"]) {
     --ink: #e9e9e7;
     --muted: #999;
     --line: rgb(255 255 255 / 0.1);
     --surface: #191919;
     --sidebar: #202020;
   }
-  .vault button:hover,
-  .vault-actions button:hover,
-  .page-item:hover,
-  .result:hover,
-  .crumb:hover { background: rgb(255 255 255 / 0.07); }
-  .search { background: rgb(255 255 255 / 0.06); }
+  :root:not([data-nbe-theme="light"]) :is(.vault button, .vault-actions button, .page-item, .result, .crumb):hover {
+    background: rgb(255 255 255 / 0.07);
+  }
+  :root:not([data-nbe-theme="light"]) .search { background: rgb(255 255 255 / 0.06); }
 }
+
+:root[data-nbe-theme="dark"] {
+  --ink: #e9e9e7;
+  --muted: #999;
+  --line: rgb(255 255 255 / 0.1);
+  --surface: #191919;
+  --sidebar: #202020;
+}
+:root[data-nbe-theme="dark"] :is(.vault button, .vault-actions button, .page-item, .result, .crumb):hover {
+  background: rgb(255 255 255 / 0.07);
+}
+:root[data-nbe-theme="dark"] .search { background: rgb(255 255 255 / 0.06); }
 
 /* an error stays on screen: it is the only thing explaining why nothing
    happened, and it must not fade before it has been read */
