@@ -5,10 +5,10 @@ import {
   PluginSettingTab,
   Setting,
   TextFileView,
+  TFile,
   WorkspaceLeaf,
   normalizePath,
   type App,
-  type TFile,
   type ViewState,
 } from 'obsidian';
 import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, isCollapsed, uuidv7, type BlockJSON } from '@nbe/core';
@@ -624,8 +624,10 @@ class CarnetView extends TextFileView {
    * the vault can produce it. Link resolution is Obsidian's (shortest-path
    * matching), so a bare filename works the way it does everywhere else.
    *
-   * ponytail: `![[x.png]]` embeds are still text — the Markdown parser has no
-   * wikilink-image rule. Add one there if vaults full of them need it.
+   * `![[x.png]]` reaches here too now: `@nbe/markdown` reads Obsidian's embed
+   * syntax as an image whose `src` is the raw target, which is exactly what
+   * `getFirstLinkpathDest` resolves — and writes it back as `![[x.png]]`, so
+   * opening a vault full of them leaves no diff.
    */
   private resolveAttachment(src: string): string {
     if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return src; // http(s), data:, already resolved
@@ -774,6 +776,30 @@ export default class CarnetPlugin extends Plugin {
       });
     noteCommand('find', 'Rechercher dans la note', 'f', (view) => view.find());
     noteCommand('export', 'Exporter la note', 'p', (view) => view.exportNote());
+
+    /*
+     * Right-click a note in the explorer, or its tab, and open it here.
+     *
+     * The command palette already had this, and a command is not where anyone
+     * looks: the file explorer is. `file-menu` is the same event Obsidian's
+     * own "Open in new tab" hangs off, so the entry sits with the others
+     * rather than beside them.
+     */
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file, _source, leaf) => {
+        if (!(file instanceof TFile) || file.extension !== 'md') return;
+        menu.addItem((item) =>
+          item
+            .setTitle('Ouvrir dans Carnet')
+            .setIcon('notebook-pen')
+            .onClick(() => {
+              this.asMarkdown.delete(file.path);
+              const target = leaf ?? this.app.workspace.getLeaf(false);
+              void target.setViewState({ type: VIEW_TYPE, state: { file: file.path } });
+            }),
+        );
+      }),
+    );
 
     this.addCommand({
       id: 'back-to-markdown',

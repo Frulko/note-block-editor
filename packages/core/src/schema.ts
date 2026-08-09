@@ -232,7 +232,10 @@ export function baseSchema(): Schema {
     version: 1,
     inline: false,
     defaultProps: { src: '', caption: '' },
-    spelledProps: ['src'],
+    // `wiki` is spelled by the syntax: `![[x.png]]` *is* the flag, so writing
+    // it into a trailer as well would put a comment on every line of every
+    // Obsidian vault this ever opens
+    spelledProps: ['src', 'wiki'],
   });
   // any attachment that is not an image: the name and size come from the File,
   // because `asset:<hash>` is content-addressed and carries neither

@@ -27,6 +27,14 @@ const NOTES: Array<[string, string]> = [
   ['headings of three levels', '# Un\n\n## Deux\n\n### Trois'],
   ['a file card', '[contrat.pdf](../assets/abc.pdf) <!-- nbe:file {"props":{"mime":"application/pdf","size":9}} -->'],
   ['an image with a caption', '![alt](../assets/x.png) <!-- nbe:image {"props":{"caption":"Le schéma"}} -->'],
+  /*
+   * Obsidian's own spelling for an attachment, and the syntax it writes by
+   * default — so a vault is full of it. Rewriting each one as `![](x.png)` on
+   * the first save would leave a diff on every image in every note that was
+   * merely opened, which is the one thing this file exists to prevent.
+   */
+  ['an Obsidian embed', '![[Pasted image 20260809.png]]'],
+  ['an embed with an alias', '![[schema.png|Le schéma]]'],
 ];
 
 describe('a note survives being opened', () => {

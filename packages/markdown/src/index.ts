@@ -535,11 +535,22 @@ function renderLines(b: BlockJSON, depth: number, opts: MarkdownOptions, ordinal
     }
     case 'divider':
       return [pad + '---'];
-    case 'image':
+    case 'image': {
       // the caption, the alignment and the width ride in the trailer: an image
       // that came back left-aligned and full-width every time it was saved was
       // losing the only thing the block stores beyond its source
-      return [pad + `![${text}](${String(p['src'] ?? '')})`];
+      const src = String(p['src'] ?? '');
+      /*
+       * `![[x.png]]` goes back out as `![[x.png]]`.
+       *
+       * It is the syntax Obsidian writes by default, so a vault is full of it
+       * — and rewriting every one as `![](x.png)` on the first save would mean
+       * opening a note and closing it left a diff on every image in it. That
+       * is the one thing this editor promises not to do.
+       */
+      if (p['wiki'] === true) return [pad + (text ? `![[${src}|${text}]]` : `![[${src}]]`)];
+      return [pad + `![${text}](${src})`];
+    }
     /*
      * The link is what other Markdown tools render, and the `asset:` ref in it
      * is resolved by the host, so the bytes are reachable from the vault.
@@ -736,6 +747,7 @@ const CONSTRUCT_STARTS: RegExp[] = [
   /^<!--\s*nbe:/, // an unloaded plugin's block
   /^-{3,}\s*$/, // divider
   /^!\[.*?\]\(.*?\)\s*$/, // lone image
+  /^!\[\[.+?\]\]\s*$/, // lone embed (Obsidian)
   /^\[\[.+?\]\]\s*$/, // lone wikilink
   /^#{1,6}\s+/, // heading
   /^>\s?/, // quote or callout
@@ -934,6 +946,25 @@ function parseLevel(
      */
     if (trail?.[1] === 'file' && (m = /^\[(.*?)\]\((.*?)\)\s*$/.exec(content))) {
       push(mk('file', { src: m[2]!, name: m[1]! }));
+      pos++;
+      continue;
+    }
+
+    /*
+     * An embed alone on a line: `![[fichier.png]]`, Obsidian's own spelling
+     * for an attachment, and the reason a vault full of images used to render
+     * as literal text here. The alias half is the caption, which is what
+     * Obsidian shows too.
+     *
+     * ponytail: block level only. An `![[x.png]]` in the middle of a sentence
+     * stays text; make it a mark when someone writes prose that way.
+     */
+    if ((m = /^!\[\[(.+?)\]\]\s*$/.exec(content))) {
+      const raw = m[1]!;
+      const pipe = raw.indexOf('|');
+      const target = pipe === -1 ? raw : raw.slice(0, pipe);
+      const alias = pipe === -1 ? '' : raw.slice(pipe + 1);
+      push(mk('image', { src: target, wiki: true }, alias ? markdownToRuns(alias) : undefined));
       pos++;
       continue;
     }
