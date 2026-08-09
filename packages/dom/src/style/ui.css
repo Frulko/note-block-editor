@@ -156,11 +156,17 @@
   overflow-y: auto;
   background: var(--nbe-surface);
   border-radius: 8px;
+  /* an edge of its own, not only a shadow. A host whose panels are the colour
+     of the page — Obsidian maps `--nbe-surface` to `--background-primary` —
+     left a menu with nothing to separate it from what is under it, and a menu
+     opened over another menu with nothing at all */
+  border: 1px solid var(--nbe-border);
   box-shadow: var(--nbe-shadow);
   padding: 6px 4px;
   font-size: 14px;
   animation: nbe-menu-in var(--nbe-normal) var(--nbe-enter);
 }
+
 @keyframes nbe-menu-in {
   from {
     opacity: 0;
@@ -197,9 +203,24 @@
   padding: 5px 8px;
   cursor: pointer;
 }
+/* Hover and keyboard focus are the same state and look the same, and both are
+   stated strongly enough to see: the previous 9% wash of the page ink was
+   invisible on a dark theme, which is the other half of "ni le hover". The
+   ink moves too, because a background alone is what a disabled row looks
+   like. */
 .nbe-menu-item:hover,
 .nbe-menu-item.nbe-active {
   background: var(--nbe-hover-strong);
+  background-image: linear-gradient(var(--nbe-hover), var(--nbe-hover));
+  color: var(--nbe-text);
+}
+.nbe-menu-item.nbe-active {
+  /* the keyboard's row says which one Enter takes, which hover never has to */
+  box-shadow: inset 2px 0 0 var(--nbe-accent);
+}
+.nbe-menu-item:hover .nbe-menu-icon,
+.nbe-menu-item.nbe-active .nbe-menu-icon {
+  color: var(--nbe-text);
 }
 .nbe-menu-icon {
   width: 22px;
@@ -212,6 +233,17 @@
   margin-left: auto;
   color: rgb(var(--nbe-ink) / 0.4);
   font-size: 12px;
+}
+/* A group's own heading, and the rule that separates it from the group above.
+   `+ ` never on the first one: a line at the top edge of the panel is a line
+   with nothing above it to separate. This is the other half of "on ne
+   distingue pas les différents niveaux" — inside a menu, where a section and a
+   row were the same weight of grey. */
+.nbe-menu-item + .nbe-menu-section,
+.nbe-menu-swatches + .nbe-menu-section {
+  margin-top: 6px;
+  border-top: 1px solid var(--nbe-border);
+  padding-top: 8px;
 }
 .nbe-menu-section {
   padding: 8px 8px 4px;
@@ -383,6 +415,9 @@ textarea.nbe-input {
   z-index: 200;
   background: var(--nbe-surface);
   border-radius: var(--nbe-radius);
+  /* same reason as the menu: a shadow is not an edge on a theme whose panels
+     are the colour of the page */
+  border: 1px solid var(--nbe-border);
   box-shadow: var(--nbe-shadow);
   padding: 10px;
   max-width: min(340px, calc(100vw - 24px));

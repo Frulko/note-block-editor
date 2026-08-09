@@ -49,3 +49,50 @@ test('the theme select forces a side and survives a reload', async ({ page, edit
   await expect(html).not.toHaveAttribute('data-nbe-theme');
   expect(editor.errors()).toEqual([]);
 });
+
+/**
+ * A menu has to look like a menu: an edge of its own, groups you can tell
+ * apart, and a row that says it is under the pointer.
+ *
+ * The panel had a shadow and no border, and a host whose panels are the colour
+ * of the page — Obsidian maps `--nbe-surface` to `--background-primary` —
+ * left nothing between it and what is under it.
+ */
+test.describe('the floating menu reads as one', () => {
+  test('the panel has an edge, and a section is ruled off from the rows above it', async ({
+    page,
+    editor,
+  }) => {
+    await editor.setDocument(['un paragraphe']);
+    await page.locator('.nbe-editor > .nbe-block').first().hover();
+    await page.locator('.nbe-handle').click();
+    const menu = page.locator('.nbe-menu').first();
+    await expect(menu).toBeVisible();
+
+    const edge = await menu.evaluate((el) => getComputedStyle(el).borderTopWidth);
+    expect(edge).not.toBe('0px');
+
+    const rules = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.nbe-menu-section')].map((el) => ({
+        afterRow: !!el.previousElementSibling,
+        border: getComputedStyle(el).borderTopWidth,
+      })),
+    );
+    // a heading that follows content is ruled off from it…
+    expect(rules.filter((r) => r.afterRow).length).toBeGreaterThan(0);
+    expect(rules.filter((r) => r.afterRow).every((r) => r.border !== '0px')).toBe(true);
+    // …and one with nothing above it has nothing to be separated from
+    expect(rules.filter((r) => !r.afterRow).every((r) => r.border === '0px')).toBe(true);
+  });
+
+  test('the hovered row is visibly the hovered row', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('/');
+    const item = page.locator('.nbe-menu-item').nth(2);
+    const plain = await item.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await item.hover();
+    const hovered = await item.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(hovered).not.toBe(plain);
+  });
+});
