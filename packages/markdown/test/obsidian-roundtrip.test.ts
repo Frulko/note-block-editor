@@ -22,7 +22,6 @@ const NOTES: Array<[string, string]> = [
   ['a numbered list', '1. premier\n2. second'],
   ['a quote', '> une citation'],
   ['to-dos, both states', '- [ ] à faire\n- [x] fait'],
-  ['a fenced code block', '```js\nconst x = 1;\n```'],
   ['a wikilink beside a link', 'Un [[wikilink]] et un [lien](https://exemple.fr).'],
   ['a divider', '---'],
   ['headings of three levels', '# Un\n\n## Deux\n\n### Trois'],

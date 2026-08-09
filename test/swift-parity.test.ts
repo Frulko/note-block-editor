@@ -2,6 +2,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AUTOFORMAT_RULES } from '../packages/core/src/commands';
+import { codePlugin } from '../packages/blocks-code/src/index';
+
+/*
+ * The Swift port has no plugin system: it is a client, and it ships the block
+ * set the apps ship. So its table is core's *plus* the rules the block plugins
+ * contribute — which is what this composes, rather than letting ``` drift out
+ * of the comparison the day the code block left core.
+ */
+const RULES = [...AUTOFORMAT_RULES, ...(codePlugin.autoformat ?? [])];
 
 /**
  * The two implementations, held to the same tables.
@@ -34,20 +43,20 @@ describe('markdown autoformat is the same table in both languages', () => {
   );
 
   it('finds every rule in the Swift source (the regex has not rotted)', () => {
-    expect(parsed.length).toBe(AUTOFORMAT_RULES.length);
+    expect(parsed.length).toBe(RULES.length);
     expect(parsed.length).toBeGreaterThan(8);
   });
 
   it('the prefixes match, in order', () => {
-    expect(parsed.map((rule) => rule.prefix)).toEqual(AUTOFORMAT_RULES.map((rule) => rule.prefix));
+    expect(parsed.map((rule) => rule.prefix)).toEqual(RULES.map((rule) => rule.prefix));
   });
 
   it('each prefix produces the same block type', () => {
-    expect(parsed.map((rule) => rule.type)).toEqual(AUTOFORMAT_RULES.map((rule) => rule.type));
+    expect(parsed.map((rule) => rule.type)).toEqual(RULES.map((rule) => rule.type));
   });
 
   it('the props agree where there are any', () => {
-    for (const [index, rule] of AUTOFORMAT_RULES.entries()) {
+    for (const [index, rule] of RULES.entries()) {
       const mirror = parsed[index]!;
       for (const [key, value] of Object.entries(rule.props ?? {})) {
         // `level: 1` reads as `"level": .number(1)`, `checked: true` as `.bool(true)`

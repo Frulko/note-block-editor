@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Editor } from '../src/editor';
+import { PluginRegistry, PLUGIN_API_VERSION } from '../src/plugin';
 import { getBlock } from '../src/doc';
 import { plainText } from '../src/richtext';
 import {
   applyAutoformat,
+  applyInlineFormat,
   indent,
   matchAutoformat,
+  matchInlineFormat,
   mergeBackward,
   mergeForward,
   outdent,
@@ -205,8 +208,27 @@ describe('autoformat', () => {
     expect(matchAutoformat('## ')?.props).toEqual({ level: 2 });
     expect(matchAutoformat('[] ')?.type).toBe('to_do');
     expect(matchAutoformat('> ')?.type).toBe('toggle');
-    expect(matchAutoformat('```')?.type).toBe('code');
     expect(matchAutoformat('#x ')).toBeNull();
+    // ``` belongs to `@nbe/blocks-code` now: an unregistered plugin's shortcut
+    // does nothing, which is the same rule as its block type not existing
+    expect(matchAutoformat('```')).toBeNull();
+  });
+
+  it('lets a plugin claim a prefix of its own', () => {
+    const plugins = new PluginRegistry().register({
+      apiVersion: PLUGIN_API_VERSION,
+      schema: { type: 'spoiler', version: 1, inline: true },
+      autoformat: [{ prefix: '|| ', type: 'spoiler' }],
+    });
+    expect(matchAutoformat('|| ', plugins)?.type).toBe('spoiler');
+    // and it is consulted first, so a plugin may override a built-in
+    const shadow = new PluginRegistry().register({
+      apiVersion: PLUGIN_API_VERSION,
+      schema: { type: 'callout', version: 1, inline: true },
+      autoformat: [{ prefix: '> ', type: 'callout' }],
+    });
+    expect(matchAutoformat('> ', shadow)?.type).toBe('callout');
+    expect(matchAutoformat('> ')?.type).toBe('toggle');
   });
 
   it('applies a rule: strips prefix, converts, caret at 0', () => {
@@ -218,5 +240,58 @@ describe('autoformat', () => {
     expect(a.type).toBe('bulleted_list_item');
     expect(plainText(a.text)).toBe('');
     expect(editor.selection).toEqual(textCaret('a', 0));
+  });
+});
+
+describe('inline autoformat', () => {
+  it('matches the delimiter table', () => {
+    expect(matchInlineFormat('say **bold**')?.mark.type).toBe('bold');
+    expect(matchInlineFormat('say __bold__')?.mark.type).toBe('bold');
+    expect(matchInlineFormat('say *ital*')?.mark.type).toBe('italic');
+    expect(matchInlineFormat('say _ital_')?.mark.type).toBe('italic');
+    expect(matchInlineFormat('say ~~gone~~')?.mark.type).toBe('strike');
+    expect(matchInlineFormat('say `x = 1`')?.mark.type).toBe('code');
+    expect(matchInlineFormat('see [docs](https://x.dev)')?.mark).toEqual({
+      type: 'link',
+      attrs: { href: 'https://x.dev' },
+    });
+  });
+
+  it('rejects half-typed and prose look-alikes', () => {
+    expect(matchInlineFormat('**bold*')).toBeNull(); // first closing star of **
+    expect(matchInlineFormat('a * b * c')).toBeNull(); // spaced stars are prose
+    expect(matchInlineFormat('snake_case_')).toBeNull(); // _ never opens mid-word
+    expect(matchInlineFormat('**  **')).toBeNull(); // no whitespace-only content
+    expect(matchInlineFormat('``')).toBeNull(); // empty code span
+  });
+
+  it('matches only the trailing span, not across a closed one', () => {
+    const m = matchInlineFormat('**a** then **b**')!;
+    expect(m.from).toBe(11);
+    expect(m.to).toBe(16);
+  });
+
+  it('applies: strips delimiters, marks content, caret after content', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'say **bold**');
+    editor.setSelection(textCaret('a', 12));
+    applyInlineFormat(editor, 'a', matchInlineFormat('say **bold**')!);
+    const a = getBlock(editor.doc, 'a');
+    expect(a.text).toEqual([{ text: 'say ' }, { text: 'bold', marks: [{ type: 'bold' }] }]);
+    expect(editor.selection).toEqual(textCaret('a', 8));
+  });
+
+  it('keeps marks already inside the span, and undo restores the literal text', () => {
+    const editor = new Editor();
+    seed(editor, 'a', '**a b**');
+    editor.dispatch((tx) => tx.op({ type: 'format_text', id: 'a', from: 4, to: 5, mark: { type: 'italic' }, add: true }), { addToHistory: false });
+    editor.setSelection(textCaret('a', 7));
+    applyInlineFormat(editor, 'a', matchInlineFormat('**a b**')!);
+    expect(getBlock(editor.doc, 'a').text).toEqual([
+      { text: 'a ', marks: [{ type: 'bold' }] },
+      { text: 'b', marks: [{ type: 'italic' }, { type: 'bold' }] },
+    ]);
+    editor.undo();
+    expect(plainText(getBlock(editor.doc, 'a').text)).toBe('**a b**');
   });
 });

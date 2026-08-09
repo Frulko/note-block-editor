@@ -452,11 +452,6 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
       const icon = typeof p['icon'] === 'string' && p['icon'] ? p['icon'] + ' ' : '';
       return [pad + `> [!${variant}] ` + icon + text, ...quotedKids(false)];
     }
-    case 'code': {
-      const lang = typeof p['language'] === 'string' ? p['language'] : '';
-      const raw = (b.text ?? []).map((r) => r.text).join('');
-      return [pad + '```' + lang, ...(raw ? raw.split('\n').map((l) => pad + l) : []), pad + '```'];
-    }
     case 'divider':
       return [pad + '---'];
     case 'image':
@@ -548,7 +543,6 @@ function stripColumns(line: string, cols: number): string {
 }
 
 const CONSTRUCT_STARTS: RegExp[] = [
-  /^```/, // fenced code
   /^-{3,}\s*$/, // divider
   /^!\[.*?\]\(.*?\)\s*$/, // lone image
   /^\[\[.+?\]\]\s*$/, // lone wikilink
@@ -670,21 +664,6 @@ function parseLevel(
       break;
     }
     if (claimed) continue;
-
-    // code fence
-    if ((m = /^```(.*)$/.exec(content))) {
-      pos++;
-      const body: string[] = [];
-      while (pos < lines.length && !/^```\s*$/.test(stripColumns(lines[pos]!, level))) {
-        body.push(stripColumns(lines[pos]!, level));
-        pos++;
-      }
-      if (pos < lines.length) pos++; // closing fence
-      const lang = m[1]!.trim();
-      const code = body.join('\n');
-      out.push(mk('code', lang ? { language: lang } : {}, code ? [{ text: code }] : undefined));
-      continue;
-    }
 
     // divider
     if (/^-{3,}\s*$/.test(content)) {

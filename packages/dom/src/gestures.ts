@@ -57,6 +57,17 @@ export interface ActiveGesture {
   moved: boolean;
 }
 
+/**
+ * How far a press may drift and still be a click, in CSS pixels.
+ *
+ * A mouse moves a pixel or two between button-down and button-up — a trackpad
+ * always does. `moved` fed `suppressNextClick()`, so without a threshold that
+ * drift swallowed the click: clicking the empty page below the last block to
+ * keep writing worked only if the pointer had been perfectly still. Same
+ * number the rubber band already used before it starts drawing.
+ */
+const DRAG_SLOP = 4;
+
 const INTERACTIVE_CHROME =
   '.nbe-checkbox, .nbe-toggle-arrow, .nbe-callout-icon, .nbe-t-link_to_page, .nbe-t-image, [data-nbe-ui], a, button, input, textarea, select';
 
@@ -87,6 +98,7 @@ function suppressNextClick(): void {
 
 export function attachGestureRouter(view: EditorView): () => void {
   let session: GestureSession | null = null;
+  let origin = { x: 0, y: 0 };
 
   const finish = (committed: boolean) => {
     const current = session;
@@ -118,7 +130,9 @@ export function attachGestureRouter(view: EditorView): () => void {
 
   const onMove = (e: PointerEvent) => {
     if (!session || !view.gesture) return;
-    view.gesture.moved = true;
+    // recognizers still see every move — they do their own thresholding — but
+    // `moved` is what decides a click was really a drag, so it waits for slop
+    if (Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > DRAG_SLOP) view.gesture.moved = true;
     try {
       session.move?.(e);
     } catch (err) {
@@ -140,6 +154,7 @@ export function attachGestureRouter(view: EditorView): () => void {
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
+    origin = { x: e.clientX, y: e.clientY };
     const blockEl = target.closest?.('.nbe-block') as HTMLElement | null;
     const blockId = blockEl?.dataset['blockId'] ?? null;
     const ctx: PressContext = {

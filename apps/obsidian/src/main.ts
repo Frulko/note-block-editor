@@ -14,6 +14,7 @@ import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, uuidv7, type 
 import { EditorView, builtinBlocks, defaultFeatures, type EditorViewOptions } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
+import { code } from '@nbe/blocks-code/dom';
 
 /**
  * Carnet inside Obsidian — the editor, and nothing else.
@@ -108,7 +109,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
     columns: s.columns,
     readOnly: s.readOnly,
     // the table is a plugin: without it a note's `| a | b |` stays a paragraph
-    blocks: [...builtinBlocks, ...tableDomBlocks],
+    blocks: [...builtinBlocks, code, ...tableDomBlocks],
   };
   // readOnly's default is "no features at all"; only pick features when editing
   if (!s.readOnly) opts.features = defaultFeatures.filter((f) => s.features[f.name] !== false);
@@ -132,7 +133,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
  * same registry, which is what stops a block from rendering perfectly and
  * vanishing on save.
  */
-const MARKDOWN_PLUGINS = new PluginRegistry().registerAll(tableDomBlocks);
+const MARKDOWN_PLUGINS = new PluginRegistry().registerAll([code, ...tableDomBlocks]);
 
 /** A page document wrapping freshly parsed blocks. */
 function pageOf(markdown: string): BlockJSON {

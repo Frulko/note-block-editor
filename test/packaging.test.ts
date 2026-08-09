@@ -45,6 +45,7 @@ describe('package layering', () => {
     // plugin is registered: the CLI is a *host* and has to name its block set,
     // exactly like an app mounting an editor.
     expect(deps('cli').sort()).toEqual([
+      '@nbe/blocks-code',
       '@nbe/blocks-table',
       '@nbe/collab',
       '@nbe/core',
@@ -101,7 +102,8 @@ describe('block plugin packages', () => {
       const source = readFileSync(join(dir, file), 'utf8');
       const importsDom = /from '@nbe\/dom'/.test(source.replace(/\/\*[\s\S]*?\*\//g, ''));
       // `index.ts` is what @nbe/markdown and @nbe/static-renderer consume
-      if (file === 'index.ts' || file === 'model.ts') expect([file, importsDom]).toEqual([file, false]);
+      const modelHalf = file !== 'dom.ts' && !/^(chrome|select|styles|paint)\.ts$/.test(file);
+      if (modelHalf) expect([file, importsDom]).toEqual([file, false]);
     }
   });
 });

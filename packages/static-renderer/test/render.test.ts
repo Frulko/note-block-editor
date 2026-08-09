@@ -65,18 +65,16 @@ describe('block rendering', () => {
     expect(html.indexOf('</ul>')).toBeLessThan(html.indexOf('<p'));
   });
 
-  it('renders headings, quote, callout, code and divider', () => {
+  it('renders headings, quote, callout and divider', () => {
     const html = renderBlocksToHTML([
       b('heading', 'Titre', { level: 2 }),
       b('quote', 'cité'),
       b('callout', 'note', { icon: '⚠️' }),
-      b('code', 'const x = 1 < 2;', { language: 'ts' }),
       b('divider'),
     ]);
     expect(html).toContain('<h2');
     expect(html).toContain('<blockquote');
     expect(html).toContain('⚠️');
-    expect(html).toContain('<code class="language-ts">const x = 1 &lt; 2;</code>');
     expect(html).toContain('<hr');
   });
 

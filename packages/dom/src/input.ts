@@ -2,6 +2,7 @@ import type { Block, BlockId } from '@nbe/core';
 import {
   applyAutoformat,
   applyDividerAutoformat,
+  applyInlineFormat,
   childIndex,
   deleteBackward,
   getBlock,
@@ -9,6 +10,7 @@ import {
   isCollapsed,
   marksAt,
   matchAutoformat,
+  matchInlineFormat,
   mergeBackward,
   mergeForward,
   deleteTextSelection,
@@ -24,7 +26,7 @@ import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
 import { inEditableText } from './topology';
 import { syncCaretFromDom } from './caret';
-import { nextGrapheme } from '@nbe/core';
+import { nextGrapheme, nextWord, prevWord } from '@nbe/core';
 import { dismissedBy, openIconPicker } from './ui';
 
 /**
@@ -44,6 +46,14 @@ function singleBlockCaret(view: EditorView): { id: BlockId; from: number; to: nu
   return { id: range.startBlockId, from: range.startOffset, to: range.endOffset };
 }
 
+/**
+ * One-shot break after an inline conversion: the next character typed at the
+ * caret the conversion left stays plain (Notion), instead of continuing the
+ * mark the delimiters just applied. Module-level, but keyed by exact
+ * {block, offset}, which no other caret can occupy.
+ */
+let inlineBreak: { id: BlockId; offset: number } | null = null;
+
 function handleInsertText(view: EditorView, data: string): void {
   const editor = view.editor;
   // typing over a cross-block selection replaces it, like any editor
@@ -57,18 +67,81 @@ function handleInsertText(view: EditorView, data: string): void {
   const at = singleBlockCaret(view);
   if (!at) return;
   const block = getBlock(editor.doc, at.id);
-  insertText(editor, data, marksAt(block.text, at.from));
+  const atBreak = inlineBreak?.id === at.id && inlineBreak.offset === at.from;
+  inlineBreak = null;
+  insertText(editor, data, atBreak ? undefined : marksAt(block.text, at.from));
 
   // markdown autoformat: check the text before the caret after insertion
   const after = getBlock(editor.doc, at.id);
-  if (after.type !== 'paragraph') return;
   const before = plainText(after.text).slice(0, at.from + data.length);
-  if (before === '---' && plainText(after.text) === '---') {
-    applyDividerAutoformat(editor, at.id);
+  if (after.type === 'paragraph') {
+    if (before === '---' && plainText(after.text) === '---') {
+      applyDividerAutoformat(editor, at.id);
+      return;
+    }
+    const rule = matchAutoformat(before, editor.plugins);
+    if (rule) {
+      applyAutoformat(editor, at.id, rule);
+      return;
+    }
+  }
+  if (after.type === 'code') return; // a code block holds literal text
+  const inline = matchInlineFormat(before);
+  if (inline) {
+    applyInlineFormat(editor, at.id, inline);
+    inlineBreak = { id: at.id, offset: inline.to - inline.prefix - inline.suffix };
+  }
+}
+
+/**
+ * The word and line deletes every text field has: `⌥⌫`, `⌥⌦`, `^K`, and
+ * `Ctrl+⌫`/`Ctrl+⌦` off a Mac.
+ *
+ * @remarks
+ * Every one of these used to fall through to the `default:` arm below and be
+ * blocked outright — the standard editing keymap did nothing at all inside the
+ * editor, which is what "il faut tout supporter" was about.
+ *
+ * The obvious implementation is to delete whatever `ev.getTargetRanges()` says
+ * the browser was going to, since it computed the boundary already. Measured:
+ * Chromium reports **zero** ranges for these input types, so the boundary has
+ * to be ours. Words come from UAX #29 (`prevWord`/`nextWord`), which is right
+ * in scripts that do not separate words with spaces.
+ *
+ * ponytail: a *soft* line is the visual one and a *hard* line is the one a
+ * `\n` ends; both are treated as hard here, so a soft-line delete on a wrapped
+ * paragraph takes the whole logical line. Measuring the visual line means
+ * walking client rects, and the one key that produces it (`⌘⌫`) is claimed by
+ * the keymap for deleting the block. Revisit if a host rebinds it.
+ */
+function handleDeleteBy(view: EditorView, inputType: string): void {
+  const editor = view.editor;
+  const range = resolveTextRange(editor);
+  if (range && !range.single) {
+    deleteTextSelection(editor);
+    view.syncDomSelection();
     return;
   }
-  const rule = matchAutoformat(before);
-  if (rule) applyAutoformat(editor, at.id, rule);
+  const at = singleBlockCaret(view);
+  if (!at) return;
+
+  const plain = plainText(getBlock(editor.doc, at.id).text);
+  let { from, to } = at;
+  if (from === to) {
+    const lineStart = plain.lastIndexOf('\n', from - 1) + 1;
+    const nextBreak = plain.indexOf('\n', to);
+    const lineEnd = nextBreak === -1 ? plain.length : nextBreak;
+    if (inputType === 'deleteWordBackward') from = prevWord(plain, from);
+    else if (inputType === 'deleteWordForward') to = nextWord(plain, to);
+    else if (inputType === 'deleteEntireSoftLine') [from, to] = [lineStart, lineEnd];
+    else if (inputType.endsWith('Backward')) from = lineStart;
+    else to = lineEnd;
+  }
+  if (from === to) return;
+  editor.dispatch((tx) => tx.op({ type: 'delete_text', id: at.id, from, to }), {
+    origin: 'input',
+    selection: textCaret(at.id, from),
+  });
 }
 
 function handleDeleteForward(view: EditorView): void {
@@ -160,6 +233,18 @@ export function attachInput(view: EditorView): () => void {
         }
         if (ev.inputType === 'deleteContentForward') handleDeleteForward(view);
         else if (!deleteBackward(editor)) mergeBackward(editor);
+        break;
+      }
+      // the platform's own word/line deletes, honoured rather than blocked
+      case 'deleteWordBackward':
+      case 'deleteWordForward':
+      case 'deleteSoftLineBackward':
+      case 'deleteSoftLineForward':
+      case 'deleteHardLineBackward':
+      case 'deleteHardLineForward':
+      case 'deleteEntireSoftLine': {
+        ev.preventDefault();
+        handleDeleteBy(view, ev.inputType);
         break;
       }
       case 'insertReplacementText': {
@@ -275,14 +360,21 @@ export function attachInput(view: EditorView): () => void {
       });
       return;
     }
-    // click in the empty area below the last block: append a paragraph (Notion).
-    // A drag that ended here was a selection gesture, not a click to write.
-    // a drag that ended here was a selection gesture, not a click to write —
-    // the router swallows that synthetic click, so reaching here means a click
+    // Click in the empty page below the last block: append a paragraph (Notion).
+    // A drag that ended here was a selection gesture, not a click to write —
+    // the router swallows that synthetic click, so reaching here means a click.
     if (target === content && !view.gesture) {
       const root = getBlock(editor.doc, editor.doc.rootId);
       const lastId = root.children[root.children.length - 1];
       const last = lastId ? getBlock(editor.doc, lastId) : null;
+      /*
+       * *Below*, not merely "on the editor's own box". The side padding is
+       * editor surface too (it holds the gutter and the Word-like margins), so
+       * without this a click level with paragraph two appended a paragraph at
+       * the end of the page — a document change nobody asked for.
+       */
+      const lastEl = lastId ? view.blockEl(lastId) : null;
+      if (lastEl && e.clientY <= lastEl.getBoundingClientRect().bottom) return;
       if (last && last.type === 'paragraph' && textLength(last.text) === 0) {
         view.focusBlock(last.id, 0);
         return;

@@ -95,6 +95,8 @@ packages/
   blocks-callout/    a block plugin: schema, view, both projections, one package
   blocks-table/      the table as a plugin: three block types, its geometry,
                      merged cells, cell selection, its own CSS
+  blocks-code/       the code block as a plugin: highlighting painted with the
+                     CSS Custom Highlight API, never as markup in the leaf
   markdown/          block JSON ↔ markdown; /collections projects databases
                      to CSV, one .md per row, and .base view files
   static-renderer/   block JSON → HTML with no editor instance (SSR/CLI safe)

@@ -49,20 +49,6 @@ const setProps = (ctx: BlockActionContext, props: Record<string, unknown>) =>
 
 // --- built-in providers -----------------------------------------------
 
-const LANGUAGES = ['plain', 'ts', 'js', 'json', 'html', 'css', 'python', 'rust', 'go', 'sql', 'bash', 'swift'];
-
-registerBlockActions('code', (ctx) => {
-  const labels = ctx.view.labels;
-  return [
-  { kind: 'section', label: labels.language },
-  ...LANGUAGES.map((language) => ({
-    label: language,
-    hintIcon: (ctx.block.props['language'] ?? 'plain') === language ? 'check' : undefined,
-    onSelect: () => setProps(ctx, { language }),
-  })),
-  ];
-});
-
 registerBlockActions('image', (ctx) => {
   const labels = ctx.view.labels;
   const zone = createDropZone({

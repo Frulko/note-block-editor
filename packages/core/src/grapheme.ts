@@ -139,3 +139,56 @@ export function snapGrapheme(text: string, offset: number, prefer: 'back' | 'for
 export function graphemeLength(text: string): number {
   return graphemeBoundaries(text).length - 1;
 }
+
+/**
+ * Words, for `⌥⌫` and its siblings.
+ *
+ * @remarks
+ * The same table, at a different granularity — and the reason to use it rather
+ * than scan for spaces is that half the world does not put spaces between
+ * words. UAX #29 knows where a word ends in Japanese, Thai and Chinese; a
+ * whitespace scan would delete the whole sentence.
+ */
+const wordSegmenter: Intl.Segmenter | null =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'word' })
+    : null;
+
+/**
+ * Where a backward word-delete should stop, from `offset`.
+ *
+ * @remarks
+ * Trailing spaces go with the word, which is what a native text field does:
+ * `⌥⌫` in `"le monde|"` leaves `"le "`, and again leaves `"le "` → `""` rather
+ * than stalling on the space.
+ */
+export function prevWord(text: string, offset: number): number {
+  const head = text.slice(0, Math.max(0, Math.min(text.length, offset)));
+  if (!head) return 0;
+  if (!wordSegmenter) {
+    let i = head.length;
+    while (i > 0 && /\s/.test(head[i - 1]!)) i--;
+    while (i > 0 && !/\s/.test(head[i - 1]!)) i--;
+    return i;
+  }
+  let start = 0;
+  for (const seg of wordSegmenter.segment(head)) if (seg.isWordLike) start = seg.index;
+  return start;
+}
+
+/** Where a forward word-delete should stop, from `offset`. */
+export function nextWord(text: string, offset: number): number {
+  const from = Math.max(0, Math.min(text.length, offset));
+  const tail = text.slice(from);
+  if (!tail) return text.length;
+  if (!wordSegmenter) {
+    let i = 0;
+    while (i < tail.length && /\s/.test(tail[i]!)) i++;
+    while (i < tail.length && !/\s/.test(tail[i]!)) i++;
+    return from + i;
+  }
+  for (const seg of wordSegmenter.segment(tail)) {
+    if (seg.isWordLike) return from + seg.index + seg.segment.length;
+  }
+  return text.length;
+}

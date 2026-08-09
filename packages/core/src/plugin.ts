@@ -1,5 +1,6 @@
 import type { Block } from './types';
 import type { Doc } from './doc';
+import type { AutoformatRule } from './commands';
 import type { Tx } from './editor';
 import type { BlockSpec } from './schema';
 
@@ -199,6 +200,18 @@ export interface BlockPlugin {
    * they could not do if rendering functions lived inside it.
    */
   schema: BlockSpec;
+  /**
+   * Markdown shortcuts that turn a paragraph into this block as you type —
+   * `\`\`\`` for code, the way `- ` makes a list.
+   *
+   * @remarks
+   * Consulted before the built-in table, so a plugin may claim a prefix. It
+   * lives on the model half rather than the view because autoformat is a core
+   * command: a headless host applying an edit gets the same behaviour.
+   *
+   * @category Plugins
+   */
+  autoformat?: AutoformatRule[];
   /**
    * Document invariants this block type repairs, run on every transaction
    * that changed structure.

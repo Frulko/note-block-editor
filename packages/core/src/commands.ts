@@ -6,6 +6,7 @@ import { plainText, sliceRuns, textLength } from './richtext';
 import { hasMark } from './richtext';
 import { uuidv7 } from './id';
 import type { Editor, Tx } from './editor';
+import type { PluginRegistry } from './plugin';
 
 function caretOf(sel: Selection): { blockId: BlockId; offset: number } | null {
   if (sel?.kind !== 'text' || !isCollapsed(sel)) return null;
@@ -589,10 +590,21 @@ export const AUTOFORMAT_RULES: AutoformatRule[] = [
   { prefix: '[x] ', type: 'to_do', props: { checked: true } },
   { prefix: '> ', type: 'toggle' }, // Notion: '>' is toggle, '"' is quote
   { prefix: '" ', type: 'quote' },
-  { prefix: '```', type: 'code' },
 ];
 
-export function matchAutoformat(textBeforeCaret: string): AutoformatRule | null {
+/**
+ * The rule for what was typed, or null.
+ *
+ * @param textBeforeCaret - Everything before the caret in the block.
+ * @param plugins - Registered block plugins, whose own shortcuts are tried
+ * first so a plugin can claim a prefix (` ``` ` belongs to `@nbe/blocks-code`,
+ * not to this list).
+ */
+export function matchAutoformat(textBeforeCaret: string, plugins?: PluginRegistry): AutoformatRule | null {
+  for (const plugin of plugins?.all() ?? []) {
+    const rule = plugin.autoformat?.find((r) => r.prefix === textBeforeCaret);
+    if (rule) return rule;
+  }
   return AUTOFORMAT_RULES.find((r) => r.prefix === textBeforeCaret) ?? null;
 }
 
@@ -630,6 +642,77 @@ export function applyDividerAutoformat(editor: Editor, id: BlockId): void {
       tx.op({ type: 'insert_block', block: paragraph, index: childIndex(editor.doc, id) + 1 });
     },
     { origin: 'input', selection: textCaret(paragraph.id, 0) },
+  );
+}
+
+// --- inline markdown autoformat: **bold**, *italic*, `code`, ~~strike~~, [text](url) ---
+
+export interface InlineFormatMatch {
+  /** Offset where the markdown span starts. */
+  from: number;
+  /** Offset just past the closing delimiter (the caret). */
+  to: number;
+  /** Length of the opening delimiter to strip. */
+  prefix: number;
+  /** Length of the closing delimiter to strip. */
+  suffix: number;
+  mark: { type: string; attrs?: Record<string, unknown> };
+}
+
+/*
+ * Content must not start or end with whitespace (CommonMark), which keeps
+ * `a * b * c` prose from italicizing. A lone `*` opener must not sit against
+ * another `*`, so typing the first closing star of `**bold**` cannot fire the
+ * italic rule on `*bold`; `_` additionally refuses to open mid-word, so
+ * snake_case_names survive. Delimiter characters are excluded from content, so
+ * the leftmost match cannot swallow an earlier closed span.
+ */
+const INLINE_RULES: { re: RegExp; type: string }[] = [
+  { re: /\*\*([^\s*](?:[^*]*[^\s*])?)\*\*$/, type: 'bold' },
+  { re: /__([^\s_](?:[^_]*[^\s_])?)__$/, type: 'bold' },
+  { re: /(?<!\*)\*([^\s*](?:[^*]*[^\s*])?)\*$/, type: 'italic' },
+  { re: /(?<![\w_])_([^\s_](?:[^_]*[^\s_])?)_$/, type: 'italic' },
+  { re: /~~([^\s~](?:[^~]*[^\s~])?)~~$/, type: 'strike' },
+  { re: /`([^`]+)`$/, type: 'code' },
+];
+
+const LINK_RULE = /\[([^[\]]+)\]\((\S+)\)$/;
+
+/** Inline markdown span ending exactly at the caret, or null. */
+export function matchInlineFormat(textBeforeCaret: string): InlineFormatMatch | null {
+  for (const { re, type } of INLINE_RULES) {
+    const m = re.exec(textBeforeCaret);
+    if (!m) continue;
+    const delim = (m[0].length - m[1]!.length) / 2;
+    return { from: m.index, to: textBeforeCaret.length, prefix: delim, suffix: delim, mark: { type } };
+  }
+  const link = LINK_RULE.exec(textBeforeCaret);
+  if (link) {
+    return {
+      from: link.index,
+      to: textBeforeCaret.length,
+      prefix: 1,
+      suffix: link[0].length - 1 - link[1]!.length,
+      mark: { type: 'link', attrs: { href: link[2]! } },
+    };
+  }
+  return null;
+}
+
+/**
+ * Strip the delimiters and mark what they enclosed. Deleting only the
+ * delimiters (rather than replacing the span) keeps marks already inside the
+ * content, so `**a *b* c**` ends bold with the italic intact.
+ */
+export function applyInlineFormat(editor: Editor, id: BlockId, m: InlineFormatMatch): void {
+  const end = m.to - m.prefix - m.suffix;
+  editor.dispatch(
+    (tx) => {
+      tx.op({ type: 'delete_text', id, from: m.to - m.suffix, to: m.to });
+      tx.op({ type: 'delete_text', id, from: m.from, to: m.from + m.prefix });
+      tx.op({ type: 'format_text', id, from: m.from, to: end, mark: m.mark, add: true });
+    },
+    { origin: 'input', selection: textCaret(id, end) },
   );
 }
 

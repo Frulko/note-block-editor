@@ -54,7 +54,6 @@ describe('a construct always ends the paragraph', () => {
     ['quote', '> cité'],
     ['callout', '> [!info] note'],
     ['divider', '---'],
-    ['fenced code', '```ts'],
     ['lone image', '![alt](a.png)'],
     ['lone wikilink', '[[Une page]]'],
   ])('%s on the next line starts a new block', (_name, construct) => {

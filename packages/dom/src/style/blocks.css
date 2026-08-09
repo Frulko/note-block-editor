@@ -105,18 +105,6 @@
   margin: 4px 0;
 }
 
-.nbe-t-code {
-  background: var(--nbe-code-bg);
-  border-radius: 4px;
-  padding: 16px;
-  margin: 4px 0;
-}
-.nbe-t-code .nbe-leaf {
-  font-family: var(--nbe-font-mono);
-  font-size: 0.85em;
-  line-height: 1.6;
-}
-
 .nbe-t-divider {
   padding: 6px 2px;
   cursor: default;

@@ -1,0 +1,15 @@
+[workspace]
+members = ["model", "app"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# gpui est inutilisable compilé sans optimisation ; Zed fait pareil
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

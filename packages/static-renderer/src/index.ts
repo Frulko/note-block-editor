@@ -142,11 +142,6 @@ function renderOne(block: BlockJSON, opts: RenderOptions): string {
       const icon = escapeHtml(String(props['icon'] ?? '💡'));
       return `<aside${attrs()}><span class="${p}-callout-icon">${icon}</span><div>${inner}${children}</div></aside>`;
     }
-    case 'code': {
-      const lang = escapeHtml(String(props['language'] ?? 'plain'));
-      const raw = escapeHtml((block.text ?? []).map((r) => r.text).join(''));
-      return `<pre${attrs()}><code class="language-${lang}">${raw}</code></pre>`;
-    }
     case 'divider':
       return `<hr${attrs()}>`;
     case 'image': {

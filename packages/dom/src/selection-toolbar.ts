@@ -23,6 +23,7 @@ import {
 import { COLORS } from "./colors";
 import type { EditorLabels } from "./labels";
 import { isActiveTarget, turnIntoTargets } from "./block-types";
+import { isMod } from "./keymap";
 
 /**
  * Floating format toolbar on text selection (Medium / Notion). It never takes
@@ -306,7 +307,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     // Escape is not handled here: the keymap escalates a text selection to a
     // block selection, and this bar hides because there is no range left. One
     // link in the chain, not a competing handler.
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && range()) {
+    if (isMod(e) && e.key.toLowerCase() === "k" && range()) {
       e.preventDefault();
       const r = range()!;
       const btn = bar.querySelector(

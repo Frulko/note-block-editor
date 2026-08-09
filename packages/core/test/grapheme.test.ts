@@ -4,7 +4,9 @@ import {
   graphemeBoundaries,
   graphemeLength,
   nextGrapheme,
+  nextWord,
   prevGrapheme,
+  prevWord,
   snapGrapheme,
 } from '../src/grapheme';
 
@@ -130,5 +132,37 @@ describe('long text is handled by a window, and gives the same answer', () => {
       const expected = all[all.indexOf(boundary) - 1];
       if (expected !== undefined) expect(prevGrapheme(long, boundary)).toBe(expected);
     }
+  });
+});
+
+/**
+ * The same table at word granularity, for ⌥⌫ and ^K. The reason not to scan
+ * for spaces is the last case here: half the world does not write them.
+ */
+describe('word boundaries', () => {
+  it('takes the word before the caret, with the space that follows it', () => {
+    expect(prevWord('bonjour tout le monde', 21)).toBe(16);
+    expect(prevWord('bonjour tout le ', 16)).toBe(13);
+  });
+
+  it('takes the word after the caret', () => {
+    expect(nextWord('bonjour tout le monde', 8)).toBe(12);
+    expect(nextWord('bonjour tout le monde', 0)).toBe(7);
+  });
+
+  it('stops at the ends rather than running off them', () => {
+    expect(prevWord('mot', 0)).toBe(0);
+    expect(nextWord('mot', 3)).toBe(3);
+    expect(prevWord('', 0)).toBe(0);
+  });
+
+  it('eats a run of spaces rather than stalling on one', () => {
+    expect(prevWord('mot   ', 6)).toBe(0);
+    expect(nextWord('   mot', 0)).toBe(6);
+  });
+
+  it('finds words in a script that writes none of the spaces', () => {
+    // 私 / は / 学生 — a whitespace scan would take the whole sentence
+    expect(prevWord('私は学生です', 4)).toBe(2);
   });
 });

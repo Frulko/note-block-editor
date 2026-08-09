@@ -105,6 +105,23 @@ test.describe('dynamic display follows the model', () => {
     await editor.type('# ');
     expect((await editor.types())[0]).toBe('heading');
   });
+
+  test('inline **bold** converts as you type, and the next character stays plain', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('say **gras** x');
+    expect((await editor.texts())[0]).toBe('say gras x');
+    expect(await page.locator('.nbe-editor .nbe-m-bold').allTextContents()).toEqual(['gras']);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('inline `code` converts inside a list item', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('- run `ls -la`');
+    expect((await editor.types())[0]).toBe('bulleted_list_item');
+    expect(await page.locator('.nbe-editor .nbe-m-code').allTextContents()).toEqual(['ls -la']);
+  });
 });
 
 /**

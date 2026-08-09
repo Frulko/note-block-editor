@@ -288,6 +288,13 @@ overlays. Framework adapters never re-implement it.
   block-rendered affordances — so a control cannot ship without a label. This
   is a factory rather than a convention precisely because conventions get
   forgotten at the fortieth call site.
+- **A block plugin may bring its own dependency, and the editor keeps none.**
+  `@nbe/blocks-code` ships `lowlight`/`highlight.js`; `core` and `dom` are still
+  at zero runtime dependencies, and a host that does not register the block
+  does not download the grammars. It also brings its own *technique*: syntax
+  colours are painted as `Range`s through the CSS Custom Highlight API rather
+  than as markup in the leaf, so the caret, IME composition and the DOM→model
+  reconciler never see them (`docs/research/syntax-highlighting.md`).
 - **A block plugin can contribute editor-wide behaviour**, not only rendering:
   `BlockView.features` is the same `attach(view) => unbind` contract the
   editor's own features use, and a feature may add a `GestureRecognizer` so a

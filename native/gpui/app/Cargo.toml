@@ -1,0 +1,18 @@
+[package]
+name = "carnet-gpui"
+description = "Carnet en natif : l'éditeur de blocs rendu par GPUI, sans webview."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui = "0.2"
+loro = "1"
+carnet-model = { path = "../model" }
+unicode-segmentation = "1"
+uuid = { version = "1", features = ["v7"] }
+base64 = "0.22"
+
+[[bin]]
+name = "carnet-gpui"
+path = "src/main.rs"

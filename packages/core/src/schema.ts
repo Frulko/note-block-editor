@@ -136,7 +136,6 @@ export function baseSchema(): Schema {
   s.register(inline('to_do', { defaultProps: { checked: false }, placeholder: 'To-do' }));
   s.register(inline('toggle', { defaultProps: { collapsed: false }, placeholder: 'Toggle' }));
   s.register(inline('quote', { placeholder: 'Quote' }));
-  s.register(inline('code', { defaultProps: { language: 'plain' }, placeholder: 'Code' }));
   s.register(inline('callout', { defaultProps: { icon: '💡' }, placeholder: 'Callout' }));
   s.register({ type: 'divider', version: 1, inline: false });
   s.register({ type: 'image', version: 1, inline: false, defaultProps: { src: '', caption: '' } });

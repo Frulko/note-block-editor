@@ -26,7 +26,9 @@ export {
   graphemeBoundaries,
   graphemeLength,
   nextGrapheme,
+  nextWord,
   prevGrapheme,
+  prevWord,
   snapGrapheme,
 } from './grapheme';
 export { MARKS, expandsForward, markExpansion, registerMark, type MarkExpansion, type MarkSpec } from './marks';

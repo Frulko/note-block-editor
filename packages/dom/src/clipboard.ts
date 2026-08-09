@@ -20,6 +20,7 @@ import type { EditorView } from './view';
 import { leafOf } from './selection';
 import { inEditableText } from './topology';
 import { syncCaretFromDom } from './caret';
+import { isMod } from './keymap';
 
 // --- copy: three formats at once (ARCHITECTURE §7) ---
 
@@ -597,7 +598,7 @@ export function attachClipboard(view: EditorView): () => void {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'v') plainPasteAt = Date.now();
+    if (isMod(e) && e.shiftKey && e.key.toLowerCase() === 'v') plainPasteAt = Date.now();
   };
 
   // OS file drop — the one place native DnD is used by design (D8)

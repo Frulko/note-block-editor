@@ -30,7 +30,6 @@ const builtinItems = (labels: EditorLabels): SlashItem[] => [
   { label: labels.todo, keywords: ['todo', 'check', 'task'], icon: 'square-check', action: { kind: 'block', type: 'to_do' } },
   { label: labels.toggle, keywords: ['toggle', 'collapse'], icon: 'chevron-right', action: { kind: 'block', type: 'toggle' } },
   { label: labels.quote, keywords: ['quote'], icon: 'quote', action: { kind: 'block', type: 'quote' } },
-  { label: labels.code, keywords: ['code', 'snippet'], icon: 'code', action: { kind: 'block', type: 'code' } },
   { label: labels.image, keywords: ['image', 'img', 'photo'], icon: 'image', action: { kind: 'block', type: 'image' } },
   { label: labels.divider, keywords: ['divider', 'hr'], icon: '—', action: { kind: 'divider' } },
   { label: labels.page, keywords: ['page', 'subpage'], icon: 'file-text', action: { kind: 'page' } },

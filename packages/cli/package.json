@@ -19,7 +19,8 @@
     "@nbe/workspace": "workspace:*",
     "node-datachannel": "^0.32.3",
     "ws": "^8.18.0",
-    "@nbe/blocks-table": "workspace:*"
+    "@nbe/blocks-table": "workspace:*",
+    "@nbe/blocks-code": "workspace:*"
   },
   "devDependencies": {
     "@nbe/collab": "workspace:*",

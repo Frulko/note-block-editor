@@ -110,9 +110,6 @@ describe('blocksToMarkdown', () => {
   it('serializes each block type', () => {
     expect(blocksToMarkdown([b('heading', { props: { level: 2 }, text: [{ text: 'Title' }] })])).toBe('## Title');
     expect(blocksToMarkdown([b('divider')])).toBe('---');
-    expect(blocksToMarkdown([b('code', { props: { language: 'ts' }, text: [{ text: 'let x = 1;' }] })])).toBe(
-      '```ts\nlet x = 1;\n```',
-    );
     expect(blocksToMarkdown([b('image', { props: { src: 'http://i/p.png' }, text: [{ text: 'cap' }] })])).toBe(
       '![cap](http://i/p.png)',
     );
@@ -230,10 +227,6 @@ describe('markdownToBlocks', () => {
       '',
       '> [!note] pay attention',
       '',
-      '```js',
-      'console.log("hi");',
-      '```',
-      '',
       '---',
       '',
       '![diagram](http://img/d.png)',
@@ -252,7 +245,6 @@ describe('markdownToBlocks', () => {
       'numbered_list_item',
       'quote',
       'callout',
-      'code',
       'divider',
       'image',
       'link_to_page',
@@ -269,10 +261,8 @@ describe('markdownToBlocks', () => {
     expect(blocks[4]!.props).toEqual({ checked: false });
     expect(blocks[5]!.children).toHaveLength(1);
     expect(blocks[5]!.children![0]!.type).toBe('bulleted_list_item');
-    expect(blocks[10]!.props).toEqual({ language: 'js' });
-    expect(blocks[10]!.text).toEqual([{ text: 'console.log("hi");' }]);
-    expect(blocks[12]!.props).toEqual({ src: 'http://img/d.png' });
-    expect(blocks[13]!.props).toEqual({ title: 'Other Page', target: 'Other Page' });
+    expect(blocks[11]!.props).toEqual({ src: 'http://img/d.png' });
+    expect(blocks[12]!.props).toEqual({ title: 'Other Page', target: 'Other Page' });
     for (const blk of blocks) expect(typeof blk.id).toBe('string');
     expect(new Set(blocks.map((x) => x.id)).size).toBe(blocks.length);
   });
@@ -346,7 +336,6 @@ describe('block round-trip', () => {
         text: [{ text: 'note this' }],
         children: [b('paragraph', { text: [{ text: 'callout body' }] })],
       }),
-      b('code', { props: { language: 'ts' }, text: [{ text: 'const a = 1;\nconst b = 2;' }] }),
       b('divider'),
       b('image', { props: { src: 'http://img/x.png' }, text: [{ text: 'a caption' }] }),
       b('link_to_page', { props: { title: 'Linked Page', target: 'Linked Page' } }),

@@ -6,6 +6,7 @@ import { LoroBlockStore, connect, connectToRelay, p2pTransport, redrawOnRemote, 
 import { EditorView } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
+import { code } from '@nbe/blocks-code/dom';
 import { Workspace, pageTitle } from '@nbe/workspace';
 import { exportVault } from '@nbe/workspace/vault';
 import '@nbe/dom/style.css';
@@ -478,7 +479,7 @@ async function openPage(pageId: string): Promise<void> {
   liveStore = store;
   joinRoom(pageId, store);
   view = new EditorView(editorEl, editor, {
-    blocks: [callout, ...tableDomBlocks],
+    blocks: [callout, code, ...tableDomBlocks],
     database: database ?? undefined,
     onOpenPage: (id) => goTo(id),
     onSearchPages: (query) => {

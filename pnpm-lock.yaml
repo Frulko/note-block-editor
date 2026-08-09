@@ -56,6 +56,9 @@ importers:
       '@nbe/blocks-callout':
         specifier: workspace:*
         version: link:../../packages/blocks-callout
+      '@nbe/blocks-code':
+        specifier: workspace:*
+        version: link:../../packages/blocks-code
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
@@ -99,6 +102,9 @@ importers:
 
   apps/obsidian:
     dependencies:
+      '@nbe/blocks-code':
+        specifier: workspace:*
+        version: link:../../packages/blocks-code
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
@@ -199,6 +205,9 @@ importers:
       '@nbe/blocks-callout':
         specifier: workspace:*
         version: link:../../packages/blocks-callout
+      '@nbe/blocks-code':
+        specifier: workspace:*
+        version: link:../../packages/blocks-code
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
@@ -253,6 +262,28 @@ importers:
         specifier: workspace:*
         version: link:../dom
 
+  packages/blocks-code:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/dom':
+        specifier: workspace:*
+        version: link:../dom
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
+      highlight.js:
+        specifier: ^11.11.1
+        version: 11.11.1
+      lowlight:
+        specifier: ^3.3.0
+        version: 3.3.0
+    devDependencies:
+      '@nbe/static-renderer':
+        specifier: workspace:*
+        version: link:../static-renderer
+
   packages/blocks-table:
     dependencies:
       '@nbe/core':
@@ -271,6 +302,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@nbe/blocks-code':
+        specifier: workspace:*
+        version: link:../blocks-code
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../blocks-table
@@ -2494,6 +2528,10 @@ packages:
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
 
+  highlight.js@11.11.1:
+    resolution: {integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==}
+    engines: {node: '>=12.0.0'}
+
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
 
@@ -2681,6 +2719,9 @@ packages:
 
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
+
+  lowlight@3.3.0:
+    resolution: {integrity: sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ==}
 
   lru-cache@11.5.2:
     resolution: {integrity: sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g==}
@@ -5911,6 +5952,8 @@ snapshots:
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
 
+  highlight.js@11.11.1: {}
+
   hookable@5.5.3: {}
 
   html-escaper@3.0.3: {}
@@ -6038,6 +6081,12 @@ snapshots:
   loro-crdt@1.13.9: {}
 
   loupe@3.2.1: {}
+
+  lowlight@3.3.0:
+    dependencies:
+      '@types/hast': 3.0.5
+      devlop: 1.1.0
+      highlight.js: 11.11.1
 
   lru-cache@11.5.2: {}
 

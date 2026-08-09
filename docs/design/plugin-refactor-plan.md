@@ -177,6 +177,47 @@ for a second plugin that wants one. The table's labels also stay in
 `EditorLabels`, so a host still has one i18n surface; per-plugin i18n is a
 design of its own with no second claimant yet.
 
+### R9 — the second hard plugin: the code block — **done 2026-08-09**
+The table proved the API could hold a block with *structure*. The code block
+asks a different question: can a plugin bring a **dependency, a rendering
+technique and a palette** the editor knows nothing about?
+**Done when:** `@nbe/blocks-code` owns its highlighter, its CSS and its
+markdown, and `core`/`dom` are still at zero runtime dependencies.
+
+**Outcome.** One addition to the API, and it was the one the callout and the
+table had both worked around:
+
+| added | why the code block forced it | who else wants it |
+|---|---|---|
+| `BlockPlugin.autoformat` + `matchAutoformat(text, plugins)` | ` ``` ` opens a code block the way `- ` opens a list, and core's table listed it by name | every block with a markdown shape. Plugin rules are consulted first, so a plugin may also claim a built-in prefix |
+
+Everything else it needed already existed, which is the useful signal: `keys`
+(Enter adds a line, Tab indents), `toolbar` (language, wrap, copy), `actions`,
+`decorate` (the language badge, the no-wrap class), `slash`, `turnInto`,
+`styles`, `features` (the painter), `markdown` and `html`. Two extractions in a
+row now fit without new hooks.
+
+**The technique is the point.** Highlighting an editable block by rewriting its
+HTML costs the caret, the IME composition and a fight with the reconciler on
+every keystroke — which is what every "syntax-highlighted contenteditable"
+article spends its length managing. This plugin paints `Range`s through the
+**CSS Custom Highlight API** instead, the same mechanism `cross-block-highlight.ts`
+already used for the selection: the leaf keeps the text node it had, and
+`e2e/code-block.spec.ts` asserts there is not one element inside it. The
+trade — `::highlight()` sets colour but not `font-style` — is recorded in
+`docs/research/syntax-highlighting.md` along with why not Shiki, Lezer or Prism.
+
+**Measured.** `blocks.css` lost `.nbe-t-code`; `keymap.ts`, `slash.ts`,
+`block-types.ts`, `block-actions.ts`, `schema.ts`, `commands.ts`,
+`@nbe/markdown` and `@nbe/static-renderer` lost every mention of code blocks
+and fences. `@nbe/core` and `@nbe/dom` still declare **zero runtime
+dependencies**: `lowlight` and `highlight.js` are the plugin's, and a host that
+does not register it does not download them.
+
+**Still shared with `@nbe/dom`:** `clipboard.ts` maps a pasted `<pre>` to a
+code block — the same importer exception the table left behind, waiting for the
+same `pasteRules` contribution point.
+
 ### R7 — make the three bindings agree on their options — **done; verified 2026-08-08**
 
 All three now extend `EditorViewOptions` and add exactly the same three members

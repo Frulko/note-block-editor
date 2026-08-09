@@ -26,6 +26,26 @@ import { viewOf } from './block-view';
 import { leafOf } from './selection';
 import { caretClientX, offsetAtX, syncCaretFromDom } from './caret';
 
+/**
+ * macOS gives Control a text-editing keymap of its own — `^A`/`^E` to the ends
+ * of the line, `^K` to kill to the end, `^F`/`^B`/`^N`/`^P` to move, `^D` to
+ * delete forward — and every browser implements it inside a contenteditable.
+ * Reading Control as the command modifier there stole all of them: `^A`
+ * selected the block instead of moving the caret, `^E` toggled code.
+ *
+ * So Command is the modifier on a Mac, and Control is the modifier everywhere
+ * else. Command is *also* accepted off a Mac, because a Linux or Windows host
+ * that sends it means the command modifier and nothing else does.
+ */
+const IS_MAC = /Mac|iP(hone|ad|od)/.test(
+  (typeof navigator !== 'undefined' && (navigator.platform || navigator.userAgent)) || '',
+);
+
+/** True when the event carries this platform's command modifier. */
+export function isMod(e: { metaKey: boolean; ctrlKey: boolean }): boolean {
+  return e.metaKey || (e.ctrlKey && !IS_MAC);
+}
+
 function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
   const s = document.getSelection();
   if (!s || s.rangeCount === 0) return null;
@@ -80,7 +100,7 @@ export function attachKeymap(view: EditorView): () => void {
   let goalX: number | null = null;
 
   const handleBlockMode = (e: KeyboardEvent, sel: BlockSelection): void => {
-    const mod = e.metaKey || e.ctrlKey;
+    const mod = isMod(e);
     const key = e.key;
     const order = visibleBlocks(editor.doc).map((b) => b.id);
     const headIdx = order.indexOf(sel.head);
@@ -147,7 +167,7 @@ export function attachKeymap(view: EditorView): () => void {
     if ((e.target as HTMLElement).closest?.('input, textarea, [data-nbe-ui]')) return;
     // the DOM caret is the truth — never act on a stale model selection
     syncCaretFromDom(view);
-    const mod = e.metaKey || e.ctrlKey;
+    const mod = isMod(e);
     const sel = editor.selection;
 
     const vertical = (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !mod && !e.altKey;
@@ -213,6 +233,22 @@ export function attachKeymap(view: EditorView): () => void {
         duplicateBlocks(editor, [caret.blockId]);
         return;
       }
+      /*
+       * Delete the block, not the line. `Cmd`/`Ctrl+Backspace` is "delete to
+       * the start of the line" in a plain text field, which in a block editor
+       * is a shortcut for something you can already do by holding Backspace.
+       * Removing the block outright is the one it was asked for, and it is
+       * reachable without first leaving text mode with Escape.
+       */
+      if ((e.key === 'Backspace' || e.key === 'Delete') && sel?.kind === 'text') {
+        e.preventDefault();
+        deleteBlocks(
+          editor,
+          selectedBlocks(editor.doc, { kind: 'block', anchor: sel.anchor.blockId, head: sel.head.blockId }),
+        );
+        view.syncDomSelection();
+        return;
+      }
       if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && caret) {
         e.preventDefault();
         moveBlocksVertical(editor, [caret.blockId], e.key === 'ArrowUp' ? 'up' : 'down');
@@ -243,11 +279,6 @@ export function attachKeymap(view: EditorView): () => void {
       }
       case 'Enter': {
         if (e.shiftKey) {
-          e.preventDefault();
-          insertText(editor, '\n');
-          return;
-        }
-        if (caret && getBlock(editor.doc, caret.blockId).type === 'code') {
           e.preventDefault();
           insertText(editor, '\n');
           return;

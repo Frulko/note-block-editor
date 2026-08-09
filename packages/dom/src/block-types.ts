@@ -19,7 +19,6 @@ const builtinTurnInto = (labels: EditorLabels): TurnIntoTarget[] => [
   { label: labels.todo, icon: 'square-check', type: 'to_do' },
   { label: labels.toggle, icon: 'chevron-right', type: 'toggle' },
   { label: labels.quote, icon: 'quote', type: 'quote' },
-  { label: labels.code, icon: 'code', type: 'code' },
 ];
 
 export function isActiveTarget(
