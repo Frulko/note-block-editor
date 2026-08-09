@@ -234,6 +234,15 @@ First-class core state, a tagged union with two modes (the Notion contract):
   re-enters text; arrows & Shift+arrows navigate/extend; Cmd+A escalates;
   Shift+Click ranges; Cmd/Alt+Shift+Click toggles; Cmd+Shift+arrows move
   blocks; margin rubber-band select.
+- **Modifiers.** Command is the modifier on macOS and Control is the modifier
+  everywhere else (`isMod`), rather than both everywhere — Control carries the
+  system's own text keymap on a Mac (^A/^E/^K/^F/^B/^N/^P/^D) and every browser
+  implements it inside a contenteditable, so claiming it broke all of them.
+  Alt+arrows move a block and Shift+Alt+arrows copy it, aliasing Cmd+Shift and
+  Cmd+D for anyone arriving from VS Code or PhpStorm. Cmd+Backspace deletes the
+  block. Word and line deletes are honoured rather than blocked: Chromium
+  reports no `getTargetRanges()` for them, so `prevWord`/`nextWord` (UAX #29)
+  compute the boundary.
 - Plus a GapCursor equivalent for positions with no text (before an image).
 
 ## 6. View layer & chrome

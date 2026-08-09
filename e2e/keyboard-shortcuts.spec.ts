@@ -46,6 +46,46 @@ test.describe('the command modifier', () => {
 });
 
 /**
+ * The line bindings from VS Code and PhpStorm, applied to blocks. Aliases of
+ * ⌘⇧↑/⌘⇧↓ and ⌘D, not replacements.
+ */
+test.describe('the VS Code line bindings move and copy blocks', () => {
+  test('Alt+ArrowDown moves the block down', async ({ editor }) => {
+    await editor.setDocument(['un', 'deux', 'trois']);
+    await editor.caret(0, 1);
+    await editor.press('Alt+ArrowDown');
+
+    expect(await editor.texts()).toEqual(['deux', 'un', 'trois']);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('Alt+ArrowUp moves it back', async ({ editor }) => {
+    await editor.setDocument(['un', 'deux', 'trois']);
+    await editor.caret(2, 1);
+    await editor.press('Alt+ArrowUp');
+
+    expect(await editor.texts()).toEqual(['un', 'trois', 'deux']);
+  });
+
+  test('Shift+Alt+ArrowDown copies the block', async ({ editor }) => {
+    await editor.setDocument(['un', 'deux']);
+    await editor.caret(0, 1);
+    await editor.press('Shift+Alt+ArrowDown');
+
+    expect(await editor.texts()).toEqual(['un', 'un', 'deux']);
+  });
+
+  test('they work on a block selection too', async ({ editor }) => {
+    await editor.setDocument(['un', 'deux', 'trois']);
+    await editor.caret(0, 0);
+    await editor.press('Escape'); // text → block selection
+    await editor.press('Alt+ArrowDown');
+
+    expect(await editor.texts()).toEqual(['deux', 'un', 'trois']);
+  });
+});
+
+/**
  * Word and line deletes are the platform's, and it hands us the exact range it
  * meant. These ran nowhere before: every one was blocked by `beforeinput`'s
  * default arm.

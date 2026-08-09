@@ -117,11 +117,17 @@ export function attachKeymap(view: EditorView): () => void {
       duplicateBlocks(editor, selectedBlocks(editor.doc, sel));
       return;
     }
-    if (mod && e.shiftKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
-      e.preventDefault();
-      moveBlocksVertical(editor, selectedBlocks(editor.doc, sel), key === 'ArrowUp' ? 'up' : 'down');
-      view.editor.setSelection(sel, 'keyboard'); // re-render overlays at the new position
-      return;
+    if ((mod && e.shiftKey) || (e.altKey && !mod)) {
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        e.preventDefault();
+        const ids = selectedBlocks(editor.doc, sel);
+        if (e.altKey && e.shiftKey) duplicateBlocks(editor, ids);
+        else {
+          moveBlocksVertical(editor, ids, key === 'ArrowUp' ? 'up' : 'down');
+          view.editor.setSelection(sel, 'keyboard'); // re-render overlays at the new position
+        }
+        return;
+      }
     }
     switch (key) {
       case 'Enter': {
@@ -205,6 +211,26 @@ export function attachKeymap(view: EditorView): () => void {
     if (sel?.kind === 'text' && pluginKey(view, e, sel.head.blockId)) return;
 
     const caret = sel?.kind === 'text' && isCollapsed(sel) ? sel.anchor : null;
+
+    /*
+     * The line bindings from the editors this is used beside: `⌥↑`/`⌥↓` moves
+     * the block, `⇧⌥↑`/`⇧⌥↓` copies it — VS Code's "move line" and "copy
+     * line", PhpStorm's "move line". They alias Notion's `⌘⇧↑`/`⌘⇧↓` rather
+     * than replacing it, so neither muscle memory is wrong.
+     *
+     * This one *is* worth taking from macOS, unlike `^A`/`^E`: `⌥↑`/`⌥↓` there
+     * means "to the start/end of the paragraph", and a paragraph is a block —
+     * so the caret lands where Home and End already put it. Both directions of
+     * the copy leave the same document; only VS Code's caret differs, and
+     * `duplicateBlocks` places it.
+     */
+    if (e.altKey && !mod && caret && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      if (e.shiftKey) duplicateBlocks(editor, [caret.blockId]);
+      else moveBlocksVertical(editor, [caret.blockId], e.key === 'ArrowUp' ? 'up' : 'down');
+      view.syncDomSelection();
+      return;
+    }
 
     if (mod && !e.altKey) {
       const key = e.key.toLowerCase();
