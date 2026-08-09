@@ -2,60 +2,65 @@
 import Base from '../layouts/Base.astro';
 import '@nbe/dom/style.css';
 import CollabDemo from '../components/demos/CollabDemo.tsx';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <Base title="À plusieurs — Carnet">
   <div class="shell" style="padding-top:2.5rem;padding-bottom:5rem;">
     <div class="prose">
       <h1>À plusieurs</h1>
-      <p>
-        Deux volets, deux documents, une fusion. Tapez dans l’un et regardez
-        l’autre&nbsp;: le curseur d’en face porte le nom et la couleur de la
-        personne, et rien de tout cela ne passe par un serveur — la page joint
-        les deux pairs entre eux.
-      </p>
-      <p>
-        La fusion est un CRDT&nbsp;: deux personnes peuvent écrire dans la même
-        phrase sans que l’une écrase l’autre, et un pair hors ligne rattrape son
-        retard en se reconnectant. Les commentaires et l’historique de versions
-        vivent dans le même document, donc ils arrivent avec le texte plutôt que
-        par un second canal qui pourrait prendre du retard.
-      </p>
-      <p>
-        <strong>Et entre deux navigateurs&nbsp;?</strong> Un WebSocket, jamais
-        du SSE&nbsp;: la synchronisation va dans les deux sens et le SSE ne
-        descend que. Lancez <code>nbe relay</code> (ou <code>nbe serve</code>,
-        qui garde aussi les documents), puis ouvrez la démo avec
-        <code>?room=mon-salon</code> dans autant de fenêtres que vous voulez —
-        les curseurs des autres apparaissent avec leur nom. Le relais ne
-        comprend rien à ce qu’il transporte&nbsp;: il recopie des octets d’un
-        pair à l’autre, donc il ne peut pas les corrompre.
+      <p class="lede">
+        Deux volets, deux documents, une fusion. Ce ne sont pas deux vues d'un
+        même éditeur&nbsp;: ce sont deux pairs joints par un transport, dans une
+        page qui n'a pas de serveur.
       </p>
     </div>
+
     <div class="demo-frame" style="max-height:none;">
+      <div class="demo-bar">
+        Alice et Basile, sur cette page
+        <span class="demo-bar-actions" style="color:var(--text-faint)">CRDT Loro · transport en boucle locale</span>
+      </div>
       <CollabDemo client:only="react" />
+    </div>
+
+    <div class="prose">
+      <ol class="try">
+        <li><strong>Tapez à gauche.</strong> Le texte apparaît à droite, et le curseur d'en face porte le nom et la couleur de la personne.</li>
+        <li><strong>Coupez un pair</strong> avec le bouton <em>En ligne</em>. Le lien est suspendu, pas rompu&nbsp;: son curseur se fige en face.</li>
+        <li><strong>Écrivez dans les deux</strong>, dans la même phrase, puis rebranchez. Les deux moitiés se retrouvent, rien n'est écrasé et rien n'est perdu.</li>
+      </ol>
+    </div>
+
+    <div class="feature-grid">
+        <div class="feature">
+          <h3>Pourquoi rien ne s'écrase</h3>
+          <ul>
+            <li>La fusion est un CRDT (Loro)&nbsp;: l'ordre d'arrivée n'a pas d'importance, et le résultat est le même chez tout le monde</li>
+            <li>Hors ligne n'est pas un cas particulier — c'est le cas général, avec une latence plus longue</li>
+            <li>Le texte fusionne caractère par caractère, donc deux personnes tiennent la même phrase</li>
+            <li>La reconnexion n'envoie pas le document&nbsp;: chaque pair annonce ce qu'il a, l'autre répond ce qui manque</li>
+          </ul>
+        </div>
+        <div class="feature">
+          <h3>Ce qui voyage à côté du texte</h3>
+          <ul>
+            <li>La présence — nom, couleur, position du curseur — passe par le même canal mais n'entre jamais dans le document</li>
+            <li>Les commentaires sont ancrés au <em>texte</em>, pas à un décalage&nbsp;: ils suivent la phrase quand elle bouge</li>
+            <li>L'historique vit dans le document, avec restauration&nbsp;; il arrive donc avec le texte plutôt que par un second canal en retard</li>
+          </ul>
+          <a class="feature-link" href={`${base}/docs/examples/#relais`}>L'exemple complet →</a>
+        </div>
+        <div class="feature">
+          <h3>Entre deux navigateurs</h3>
+          <ul>
+            <li>Un WebSocket, jamais du SSE&nbsp;: la synchronisation va dans les deux sens et le SSE ne descend que</li>
+            <li><code>nbe relay --port 8787</code>, ou <code>nbe serve</code> qui garde aussi les documents</li>
+            <li>Le relais ne comprend rien à ce qu'il transporte — il recopie des octets, donc il ne peut pas les corrompre</li>
+            <li>Puis il sort du chemin&nbsp;: les pairs passent en WebRTC direct, et le relais reste le repli</li>
+            <li>Sur votre machine&nbsp;: <code>pnpm --filter demo-collab dev</code>, puis la même page avec <code>?room=mon-salon</code> dans plusieurs fenêtres</li>
+          </ul>
+          <a class="feature-link" href={`${base}/docs/hosts/#p2p`}>Le transport en détail →</a>
+        </div>
     </div>
   </div>
 </Base>
-
-<style>
-  .collab-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1px;
-    background: var(--line, rgb(0 0 0 / 0.1));
-  }
-  @media (max-width: 780px) {
-    .collab-grid { grid-template-columns: 1fr; }
-  }
-  .collab-pane { background: var(--paper, #fff); }
-  .collab-who {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.9rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    border-bottom: 1px solid var(--line, rgb(0 0 0 / 0.08));
-  }
-  .collab-dot { width: 9px; height: 9px; border-radius: 50%; }
-</style>

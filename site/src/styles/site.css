@@ -247,7 +247,7 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   padding: 5rem 0 3rem;
   max-width: 46rem;
 }
-.hero p.lede {
+.lede {
   font-size: 1.2rem;
   color: var(--text-muted);
   margin-bottom: 2rem;
@@ -283,8 +283,11 @@ html:not([data-theme='dark']) .astro-code.github-dark span {
   gap: 1rem;
   padding: 2rem 0 5rem;
 }
+/* five cards on a 240px track leaves a lone fifth on its own row; a wider
+   track lands them 3 + 2, which reads as a choice rather than an accident */
 .cards-tight {
   padding: 0 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
 }
 .card {
   display: block;
@@ -372,6 +375,122 @@ a.card:hover {
   color: var(--text-muted);
   font-size: 0.88rem;
   line-height: 1.35;
+}
+
+/* A numbered walkthrough under a demo: what to actually do with it. */
+.try {
+  counter-reset: step;
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 2.5rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.try li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.2rem;
+  color: var(--text-muted);
+}
+.try li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.15rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 640;
+}
+.try strong {
+  color: var(--text);
+}
+
+/* --- the two-peer demo --------------------------------------------------
+   Global, not scoped to the page: the markup belongs to a React island, and an
+   Astro `<style>` in the page would only ever reach the island's wrapper. That
+   is why these rules had no effect where they used to live. */
+
+.collab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+@media (max-width: 780px) {
+  .collab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.collab-pane {
+  background: var(--bg-raised);
+  min-width: 0;
+}
+.collab-who {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+.collab-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 640;
+  flex: none;
+}
+.collab-name {
+  font-size: 0.85rem;
+  font-weight: 550;
+}
+.collab-net {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.collab-net:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.collab-net-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(52 168 83);
+}
+.collab-net[data-off] {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+.collab-net[data-off] .collab-net-dot {
+  background: var(--text-faint);
+}
+/* the pane scrolls, not the page: two editors growing apart is what made this
+   demo hard to compare side by side */
+.collab-editor {
+  min-height: 220px;
+  max-height: 340px;
+  overflow: auto;
 }
 
 /* --- callouts inside docs ---------------------------------------------- */
