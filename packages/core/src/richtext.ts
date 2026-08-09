@@ -1,5 +1,5 @@
 import type { Mark, Run } from './types';
-import { expandsForward } from './marks';
+import { expandsForward, marksStack } from './marks';
 import { prevGrapheme } from './grapheme';
 
 export function textLength(runs: Run[] | undefined): number {
@@ -60,11 +60,22 @@ export function spliceRuns(runs: Run[], from: number, to: number, insert: Run[])
   return normalizeRuns([...sliceRuns(runs, 0, from), ...insert, ...sliceRuns(runs, to, len)]);
 }
 
-/** Add or remove a mark over [from, to). Existing marks of the same type are replaced. */
+/** Add or remove a mark over [from, to). A mark of the same type is replaced,
+ * unless the type stacks — see {@link @nbe/core!MarkSpec.multiple}. */
 export function applyMark(runs: Run[], from: number, to: number, mark: Mark, add: boolean): Run[] {
   const len = textLength(runs);
+  /*
+   * Applying a mark replaces any mark of the same type on the range — right
+   * for a mark that *is* its type, wrong for one that stacks. A second comment
+   * on a paragraph is the normal case, and it used to take the first thread's
+   * anchor away. `MarkSpec.multiple` says which is which; when it is set, only
+   * a mark with the same `attrs` is replaced, so a thread still cannot anchor
+   * itself twice.
+   */
+  const stacks = marksStack(mark.type);
+  const same = (m: Mark) => JSON.stringify(m.attrs ?? {}) === JSON.stringify(mark.attrs ?? {});
   const mid = sliceRuns(runs, from, to).map((r) => {
-    const marks = (r.marks ?? []).filter((m) => m.type !== mark.type);
+    const marks = (r.marks ?? []).filter((m) => m.type !== mark.type || (stacks && !same(m)));
     if (add) marks.push({ ...mark });
     return { text: r.text, marks: marks.length ? marks : undefined };
   });

@@ -14,6 +14,7 @@ import { attachDatabaseBlocks } from './database';
 import { attachSelectionToolbar } from './selection-toolbar';
 import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
+import { attachCommentMarkers } from './comment-marker';
 
 /**
  * A feature is anything that attaches behaviour to a mounted view and can be
@@ -53,6 +54,8 @@ export const viewportGuardFeature = feature('viewport-guard', attachViewportGuar
 export const gesturesFeature = feature('gestures', attachGestureRouter);
 /** Drops a block selection when a press lands outside the editor. */
 export const outsidePressFeature = feature('outside-press', attachOutsidePressDeselect);
+/** A commented block says so in the right margin, without being hovered. */
+export const commentMarkersFeature = feature('comment-markers', attachCommentMarkers);
 /** `/` opens the block menu. */
 export const slashMenuFeature = feature('slash-menu', attachSlashMenu);
 /** `@` opens the page-mention picker. Inert without an `onSearchPages` host. */
@@ -104,6 +107,7 @@ export const defaultFeatures: EditorFeature[] = [
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,
+  commentMarkersFeature,
 ];
 
 /**

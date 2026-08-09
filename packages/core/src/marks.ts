@@ -34,6 +34,21 @@ export type MarkExpansion = 'none' | 'before' | 'after' | 'both';
 export interface MarkSpec {
   type: string;
   expand: MarkExpansion;
+  /**
+   * Whether several of these may cover the same text, told apart by `attrs`.
+   *
+   * @remarks
+   * Applying a mark replaces any mark of the same type on that range, which is
+   * right for every mark that *is* its type — text is bold or it is not, and a
+   * second link on the same words is a mistake. It is wrong for a comment: two
+   * people discussing the same paragraph is the normal case, and replacing
+   * meant the second thread silently took the first one's anchor, dropping a
+   * live discussion into the orphan list while the block it was about was
+   * still there.
+   *
+   * @defaultValue false
+   */
+  multiple?: boolean;
 }
 
 /**
@@ -68,7 +83,7 @@ export const MARKS: readonly MarkSpec[] = [
    * nobody commented on — the same reason links do not expand, and worse here,
    * because the discussion stays attached while its subject changes.
    */
-  { type: 'comment', expand: 'none' },
+  { type: 'comment', expand: 'none', multiple: true },
 ];
 
 const BY_TYPE = new Map(MARKS.map((spec) => [spec.type, spec]));
@@ -95,4 +110,9 @@ export function registerMark(spec: MarkSpec): void {
 export function expandsForward(type: string): boolean {
   const expand = markExpansion(type);
   return expand === 'after' || expand === 'both';
+}
+
+/** True when several of these marks may cover the same text (see {@link MarkSpec.multiple}). */
+export function marksStack(type: string): boolean {
+  return BY_TYPE.get(type)?.multiple === true;
 }

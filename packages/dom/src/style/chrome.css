@@ -371,3 +371,40 @@
     inset: calc((44px - 100%) / -2);
   }
 }
+
+/* --- a commented block says so ------------------------------------------
+   The hover gutter is where you *make* a comment; this is where an existing
+   one is visible without hovering anything. Yellow because that is the
+   annotation channel in the charter — never the red pen, which is for
+   corrections. */
+
+.nbe-block[data-comments] {
+  position: relative;
+}
+.nbe-comment-marker {
+  position: absolute;
+  top: 2px;
+  right: -30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--nbe-radius-sm, 4px);
+  background: transparent;
+  color: rgb(var(--nbe-note-rgb));
+  cursor: pointer;
+  line-height: 1;
+  transition: background var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-comment-marker:hover {
+  background: rgb(var(--nbe-note-rgb) / 0.14);
+}
+.nbe-comment-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.nbe-comment-count:empty {
+  display: none;
+}

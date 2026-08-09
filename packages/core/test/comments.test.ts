@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { Run } from '../src/types';
 import { Editor } from '../src/editor';
 import { getBlock } from '../src/doc';
 import { insertText, toggleMarkRange } from '../src/commands';
-import { marksAt } from '../src/richtext';
+import { applyMark, marksAt } from '../src/richtext';
 import { documentOrder } from '../src/doc';
 import {
   anchoredThreads,
@@ -227,5 +228,49 @@ describe('reading order is not iteration order', () => {
 
     const ordered = threadsInDocumentOrder(editor.doc, store, documentOrder(editor.doc));
     expect(ordered.map((thread) => thread.messages[0]!.body)).toEqual(['sur a', 'sur b']);
+  });
+});
+
+/**
+ * Two people discussing the same paragraph is the normal case. Applying a mark
+ * replaces any mark of the same type on the range — which took the first
+ * thread's anchor away and dropped a live discussion into the orphan list while
+ * the block it was about was still there.
+ */
+describe('two threads on one block', () => {
+  it('both keep their anchor', () => {
+    let runs: Run[] = [{ text: 'un paragraphe' }];
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'a' } }, true);
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'b' } }, true);
+
+    const ids = (runs[0]!.marks ?? []).map((m) => m.attrs?.['threadId']);
+    expect(ids).toEqual(['a', 'b']);
+  });
+
+  it('re-anchoring the same thread does not duplicate it', () => {
+    let runs: Run[] = [{ text: 'un paragraphe' }];
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'a' } }, true);
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'a' } }, true);
+    expect((runs[0]!.marks ?? []).length).toBe(1);
+  });
+
+  it('removing one leaves the other', () => {
+    let runs: Run[] = [{ text: 'un paragraphe' }];
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'a' } }, true);
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'b' } }, true);
+    runs = applyMark(runs, 0, 13, { type: 'comment', attrs: { threadId: 'a' } }, false);
+
+    expect((runs[0]!.marks ?? []).map((m) => m.attrs?.['threadId'])).toEqual(['b']);
+  });
+
+  it('a mark that is its type still replaces, so text is bold or it is not', () => {
+    let runs: Run[] = [{ text: 'gras' }];
+    runs = applyMark(runs, 0, 4, { type: 'bold' }, true);
+    runs = applyMark(runs, 0, 4, { type: 'bold' }, true);
+    expect((runs[0]!.marks ?? []).length).toBe(1);
+    // and a second link on the same words replaces the first, as before
+    runs = applyMark(runs, 0, 4, { type: 'link', attrs: { href: 'a' } }, true);
+    runs = applyMark(runs, 0, 4, { type: 'link', attrs: { href: 'b' } }, true);
+    expect((runs[0]!.marks ?? []).filter((m) => m.type === 'link').map((m) => m.attrs?.['href'])).toEqual(['b']);
   });
 });

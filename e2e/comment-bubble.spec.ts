@@ -44,4 +44,48 @@ test.describe('adding a comment', () => {
     await expect(page.locator('.comment-compose')).toHaveCount(0);
     await expect(page.locator('#panel-comments .message-body')).toHaveCount(0);
   });
+
+  test('a commented block carries a marker, with a count once there are two', async ({
+    page,
+    editor,
+  }) => {
+    await editor.setDocument(['un bloc à commenter', 'un autre']);
+    const marker = page.locator('.nbe-editor > .nbe-block').first().locator('.nbe-comment-marker');
+    await expect(marker).toHaveCount(0);
+
+    const addComment = async (body: string) => {
+      await page.locator('.nbe-editor > .nbe-block').first().hover();
+      await page.locator('.nbe-controls-right .nbe-comment').click();
+      await page.locator('.comment-compose .compose-field').waitFor();
+      await page.keyboard.type(body);
+      await page.keyboard.press('Enter');
+    };
+
+    await addComment('le premier');
+    // visible without hovering: move the pointer well away first
+    await page.mouse.move(2, 2);
+    await expect(marker).toHaveCount(1);
+    await expect(marker.locator('.nbe-comment-count')).toHaveText('');
+    // and only on the block that was commented
+    await expect(page.locator('.nbe-editor > .nbe-block').nth(1).locator('.nbe-comment-marker')).toHaveCount(0);
+
+    await addComment('le second');
+    await page.mouse.move(2, 2);
+    await expect(marker.locator('.nbe-comment-count')).toHaveText('2');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('the marker survives typing in another block', async ({ page, editor }) => {
+    await editor.setDocument(['commenté', 'autre']);
+    await page.locator('.nbe-editor > .nbe-block').first().hover();
+    await page.locator('.nbe-controls-right .nbe-comment').click();
+    await page.locator('.comment-compose .compose-field').waitFor();
+    await page.keyboard.type('coucou');
+    await page.keyboard.press('Enter');
+
+    await editor.caret(1, 5);
+    await editor.type(' encore');
+    await page.mouse.move(2, 2);
+    await expect(page.locator('.nbe-editor .nbe-comment-marker')).toHaveCount(1);
+  });
 });
