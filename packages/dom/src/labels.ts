@@ -159,6 +159,14 @@ export interface EditorLabels {
   deleteColumn: string;
   /** Toggle whether the first row is a header. */
   headerRow: string;
+  /** Toggle whether the first column is a header. Table toolbar. */
+  headerColumn: string;
+  /** Toggle whether the table spans the whole text column. Table toolbar. */
+  fullWidth: string;
+  /** Merge the selected cells into one. Cell selection bar. */
+  mergeCells: string;
+  /** Split a merged cell back into its slots. Cell selection bar. */
+  unmergeCells: string;
   /** Section heading naming the caret's row, e.g. "Row 2". Takes `{n}`. */
   rowN: string;
   /** Section heading naming the caret's column. Takes `{n}`. */
@@ -313,6 +321,10 @@ export const defaultLabels: EditorLabels = {
   insertColumnRight: 'Insérer une colonne à droite',
   deleteColumn: 'Supprimer la colonne',
   headerRow: "Ligne d'en-tête",
+  headerColumn: "Colonne d'en-tête",
+  fullWidth: 'Pleine largeur',
+  mergeCells: 'Fusionner les cellules',
+  unmergeCells: 'Séparer les cellules',
   rowN: 'Ligne {n}',
   columnN: 'Colonne {n}',
 

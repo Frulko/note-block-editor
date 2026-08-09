@@ -129,6 +129,54 @@ temporary shim.
 versioning, sandboxing), a priority/event-bus system, or any rewrite of
 `core` — the op layer is already type-agnostic.
 
+### R8 — extract the *hard* plugin: the table — **done 2026-08-09**
+The callout proved the seams for a block that is one type, one row of text and
+two projections. The table is the other end of the range: three block types,
+a document invariant, a geometry, chrome that lives outside its own box, a
+pointer gesture that competes with text selection, and a selection that is
+neither a text range nor a set of blocks. If the plugin API can hold that, it
+is an API; if it cannot, the callout only proved that a simple block is simple.
+**Done when:** `@nbe/blocks-table` can be removed from the arrays and nothing
+in `core`, `dom`, `markdown` or `static-renderer` mentions a table.
+
+**Outcome.** It could not, and four things had to be added. Each was forced by
+the table and each is general — that is the test that a hook is an extension
+point rather than a hole cut to fit one block:
+
+| added | why the table forced it | who else wants it |
+|---|---|---|
+| `BlockPlugin.normalize(doc, tx)` + `Editor.plugins` / `Editor.use()` | every row must fill the same number of *slots*, counting the ones a merged cell covers; the reducer used to call `normalizeTables` by name | any block with internal structure — a column set, a database view, a future kanban. ProseMirror needs the same thing and exposes it as `fixTables` because its plugins cannot reach the apply loop |
+| `BlockView.features` | hover chrome outside the block's box, and a cell-rectangle gesture that must beat text selection | any block whose interaction is more than per-block rendering. Contributes a `GestureRecognizer`, so one press still has exactly one owner |
+| `BlockView.decorate` | a merged cell needs `grid-column: span n` on the element the *default* path built; `chrome` prepends and `render` replaces, neither fits | any block that wants a class or an inline style without owning its rendering |
+| `BlockSpec.standalone` | the table *is* the unit you grab even though it is a container; its rows and cells are not, even though a cell carries text. `controls.ts` spelled both out by type name | any container that is itself a unit |
+
+Three contracts that were **declared but never consulted** also had to be
+wired, which is its own lesson about declaring an API before a second consumer
+exists: `BlockView.keys` (the keymap never asked), `BlockView.toolbar` (the
+toolbar had its own module-global registry), `SlashEntry.insert` (the slash
+menu always inserted a single block), and `BlockPlugin.html` (the static
+renderer never looked). All four are now the only path.
+
+Two smaller generalizations fell out: `render.ts` reads `spec.layout` instead
+of listing container type names, and the markdown parser asks a rule's `parse`
+whether a line starts a construct — a GFM table is a pipe row only when the
+delimiter follows, and a one-line `match` regex cannot see that.
+
+**Measured.** `packages/dom/src/style/blocks.css` and `chrome.css` lost every
+table rule to the plugin's own `styles`, which R1 called the test of whether an
+extraction is real. `@nbe/markdown`, `@nbe/static-renderer`, `core/schema.ts`,
+`keymap.ts`, `slash.ts`, `controls.ts`, `render.ts`, `block-actions.ts` and
+`block-toolbar.ts` no longer contain the word *table*.
+
+**What stayed behind, deliberately.** `clipboard.ts` still converts a pasted
+`<table>` and a spreadsheet TSV into table blocks. Paste conversion is an
+*importer* — it reads a foreign format, and its output is validated by the
+schema like any other block, degrading to paragraphs when the plugin is not
+registered. A `pasteRules` contribution point is the upgrade path, and it waits
+for a second plugin that wants one. The table's labels also stay in
+`EditorLabels`, so a host still has one i18n surface; per-plugin i18n is a
+design of its own with no second claimant yet.
+
 ### R7 — make the three bindings agree on their options — **done; verified 2026-08-08**
 
 All three now extend `EditorViewOptions` and add exactly the same three members

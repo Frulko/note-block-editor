@@ -10,7 +10,8 @@
   "dependencies": {
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
-    "@nbe/markdown": "workspace:*"
+    "@nbe/markdown": "workspace:*",
+    "@nbe/blocks-table": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

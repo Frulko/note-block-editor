@@ -1,4 +1,6 @@
 import type { Block } from './types';
+import type { Doc } from './doc';
+import type { Tx } from './editor';
 import type { BlockSpec } from './schema';
 
 /**
@@ -197,6 +199,38 @@ export interface BlockPlugin {
    * they could not do if rendering functions lived inside it.
    */
   schema: BlockSpec;
+  /**
+   * Document invariants this block type repairs, run on every transaction
+   * that changed structure.
+   *
+   * @remarks
+   * The extension point a table forced into existence, and the one a block
+   * with *internal* structure cannot do without: a row that lost a cell, a
+   * container left empty, a span pointing at a row that no longer exists. It
+   * runs on the model, so a headless import is normalized exactly like a
+   * keystroke — ProseMirror's `fixTables` is the same idea, exposed as a
+   * command because its plugins cannot reach the state's apply loop.
+   *
+   * Write it as a *repair*, not a validation: read the doc, emit the ops that
+   * make it legal through `tx`, return whether you emitted any. It must be
+   * idempotent — it will see its own output on the next transaction.
+   *
+   * @param doc - The document as it stands after the transaction's ops.
+   * @param tx - Where the repairing ops go.
+   * @returns True when something was repaired.
+   *
+   * @example
+   * ```ts
+   * normalize: (doc, tx) => {
+   *   let changed = false
+   *   for (const row of shortRows(doc)) { tx.op(padRow(row)); changed = true }
+   *   return changed
+   * }
+   * ```
+   *
+   * @category Plugins
+   */
+  normalize?: (doc: Doc, tx: Tx) => boolean;
   /**
    * Editing-surface behaviour. Lives in the `@nbe/dom` layer, so it is typed
    * as unknown here and refined there — `core` must never depend on the DOM.

@@ -271,6 +271,14 @@ function elementToBlocks(el: Element): BlockJSON[] {
       return [block('divider')];
     case 'img':
       return [block('image', { src: el.getAttribute('src') ?? '' })];
+    /*
+     * ponytail: the table is a plugin (`@nbe/blocks-table`) but its *importer*
+     * is here. Paste conversion reads a foreign format and emits candidate
+     * blocks, which `insertBlocksAt` then degrades to paragraphs for any type
+     * the schema does not know — so a host without the plugin still gets its
+     * content, not an invalid tree. Upgrade path: a `pasteRules` contribution
+     * on `BlockView`, when a second plugin wants one.
+     */
     case 'table': {
       const rows = [...el.querySelectorAll('tr')].map((tr) =>
         [...tr.querySelectorAll('td,th')].map((c) => c.textContent?.trim() ?? ''),

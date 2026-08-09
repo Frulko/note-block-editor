@@ -49,6 +49,10 @@
 .nbe-blocktoolbar-btn.nbe-active {
   color: var(--nbe-accent);
 }
+.nbe-cellbar {
+  /* over a block's own hover chrome, which a cell rectangle may sit under */
+  z-index: 120;
+}
 .nbe-blocktoolbar-menu {
   min-width: 200px;
 }
@@ -153,53 +157,6 @@
 }
 .nbe-controls.nbe-ctrl-hidden {
   visibility: hidden;
-}
-
-/* --- table chrome: + row / + column strips and the column resize guide --- */
-
-.nbe-table-add {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 40;
-  border: none;
-  padding: 0;
-  background: var(--nbe-hover);
-  color: var(--nbe-text-faint);
-  cursor: pointer;
-  border-radius: var(--nbe-radius);
-  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
-}
-.nbe-table-add-row {
-  height: 15px;
-}
-.nbe-table-add-col {
-  width: 15px;
-}
-.nbe-table-add:hover {
-  background: var(--nbe-hover-strong);
-  color: var(--nbe-text-muted);
-}
-.nbe-table-col-resizer {
-  position: absolute;
-  z-index: 45;
-  width: 9px;
-  cursor: col-resize;
-}
-.nbe-table-col-resizer::after {
-  content: '';
-  display: block;
-  margin: 0 auto;
-  width: 3px;
-  height: 100%;
-  background: rgb(var(--nbe-accent-rgb));
-  opacity: 0;
-  transition: opacity var(--nbe-fast) var(--nbe-ease);
-}
-.nbe-table-col-resizer:hover::after,
-.nbe-table-col-resizer.nbe-resizing::after {
-  opacity: 1;
 }
 
 /* --- drag ghost + drop guide --- */

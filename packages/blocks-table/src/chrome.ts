@@ -1,7 +1,5 @@
-import { columnCount, insertColumn, insertRow, tableRows } from '@nbe/core';
-import { createActionButton } from './ui';
-import { toContainerPoint } from './ui/position';
-import type { EditorView } from './view';
+import { createActionButton, toContainerPoint, type EditorView } from '@nbe/dom';
+import { columnCount, insertColumn, insertRow, tableRows } from './model';
 
 /**
  * Table hover chrome (Notion): a + strip below to append a row, a + strip on
@@ -16,8 +14,10 @@ import type { EditorView } from './view';
 
 const EDGE_GRAB = 4; // px each side of a column border that grabs the resizer
 const MIN_COLUMN = 50;
+/** How far outside the table the chrome stays alive — the strips live there. */
+const KEEP_ALIVE = 26;
 
-export function attachTableUI(view: EditorView): () => void {
+export function attachTableChrome(view: EditorView): () => void {
   const editor = view.editor;
 
   const tableOf = (id: string): HTMLElement | null =>
@@ -40,7 +40,15 @@ export function attachTableUI(view: EditorView): () => void {
     iconSize: 14,
     className: 'nbe-table-add nbe-table-add-col',
     onClick: () => {
-      if (tableId) insertColumn(editor, tableId, columnCount(editor.doc, tableId));
+      if (!tableId) return;
+      const id = tableId;
+      insertColumn(editor, id, columnCount(editor.doc, id));
+      // a wide table scrolls, and a column appended out of sight is a column
+      // you have to go looking for
+      queueMicrotask(() => {
+        const table = tableOf(id);
+        if (table) table.scrollLeft = table.scrollWidth;
+      });
     },
   });
   const resizer = document.createElement('div');
@@ -66,19 +74,23 @@ export function attachTableUI(view: EditorView): () => void {
     const rect = table.getBoundingClientRect();
     const at = toContainerPoint(view.content, rect.left, rect.top);
 
+    // both strips sit in the margin the table reserves for them (blocks.css),
+    // not on top of the block below or on the last column's text
     view.content.append(addRow, addCol);
     addRow.style.left = `${at.x}px`;
-    addRow.style.top = `${at.y + rect.height + 2}px`;
+    addRow.style.top = `${at.y + rect.height + 3}px`;
     addRow.style.width = `${rect.width}px`;
-    addCol.style.left = `${at.x + rect.width + 2}px`;
+    addCol.style.left = `${at.x + rect.width + 3}px`;
     addCol.style.top = `${at.y}px`;
     addCol.style.height = `${rect.height}px`;
 
-    // a column border under the pointer grows a resize guide
+    // a column border under the pointer grows a resize guide — borders scrolled
+    // out of the table's visible box are not grabbable
     resizeColumn = -1;
     if (clientY >= rect.top && clientY <= rect.bottom) {
       firstRowCells(table).forEach((cell, i) => {
         const edge = cell.getBoundingClientRect().right;
+        if (edge < rect.left || edge > rect.right) return;
         if (Math.abs(clientX - edge) <= EDGE_GRAB) resizeColumn = i;
       });
     }
@@ -95,8 +107,24 @@ export function attachTableUI(view: EditorView): () => void {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('.nbe-table-add, .nbe-table-col-resizer')) return; // over our own chrome
     const table = target?.closest<HTMLElement>('.nbe-t-table');
-    if (!table) return hide();
-    place(table, event.clientX, event.clientY);
+    if (table) return place(table, event.clientX, event.clientY);
+    /*
+     * The strips sit *outside* the table, so the pointer on its way to one is
+     * over the page for a few pixels — hiding on the first such event made
+     * them unreachable: the button vanished under the cursor before the click.
+     * They stay while the pointer is in the band they occupy.
+     */
+    const current = tableId && tableOf(tableId);
+    if (current) {
+      const rect = current.getBoundingClientRect();
+      const near =
+        event.clientX >= rect.left - KEEP_ALIVE &&
+        event.clientX <= rect.right + KEEP_ALIVE &&
+        event.clientY >= rect.top - KEEP_ALIVE &&
+        event.clientY <= rect.bottom + KEEP_ALIVE;
+      if (near) return;
+    }
+    hide();
   };
 
   resizer.addEventListener('pointerdown', (event) => {

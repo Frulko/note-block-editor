@@ -143,44 +143,6 @@
   padding: 0;
 }
 
-/* --- table --- */
-
-.nbe-t-table {
-  display: grid;
-  /* grid-template-columns comes from render.ts (columnWidths or equal fractions) */
-  margin: 4px 0;
-  /* the base .nbe-block padding would open a white gutter between the outer
-     border and the cells — the "floating chips" look */
-  padding: 0;
-  overflow-x: auto;
-  border: 1px solid var(--nbe-border-strong);
-  border-radius: 0;
-  /* cell borders are drawn on the top/left edges only, so the outer border
-     stays single-width instead of doubling up */
-  border-right: 0;
-  border-bottom: 0;
-}
-/* rows are transparent to the grid: their cells become the grid items */
-.nbe-t-table_row {
-  display: contents;
-}
-.nbe-t-table_cell {
-  min-width: 0;
-  padding: 6px 9px;
-  /* undo the base block radius: a cell is a grid tile, not a chip */
-  border-radius: 0;
-  border-right: 1px solid var(--nbe-border-strong);
-  border-bottom: 1px solid var(--nbe-border-strong);
-}
-.nbe-t-table_cell .nbe-leaf {
-  min-height: 1.5em;
-}
-/* the first row is the header when headerRow is on */
-.nbe-table-header > .nbe-t-table_row:first-child > .nbe-t-table_cell {
-  background: var(--nbe-hover);
-  font-weight: 500;
-}
-
 /* void blocks (no caret to place) are grabbed, not edited */
 .nbe-t-image,
 .nbe-t-divider,

@@ -17,6 +17,19 @@ export interface BlockSpec {
   inline: boolean;
   /** Structural container (columns, the page root): holds blocks, not content. */
   layout?: boolean;
+  /**
+   * Whether the hover gutter treats this block as a unit: something to grab,
+   * drop beside, or open a menu on.
+   *
+   * @remarks
+   * Defaults to "yes unless it is a layout container", which is right for
+   * every built-in type and wrong for both ends of a table: the table *is* the
+   * unit you move even though it is a container, and its rows and cells are
+   * not, even though a cell carries text. Two exceptions used to be spelled
+   * out by type name in `controls.ts`; declaring it here is what let the table
+   * become a plugin.
+   */
+  standalone?: boolean;
   defaultProps?: Record<string, unknown>;
   /** Placeholder shown by the view when the block is empty and focused. */
   placeholder?: string;
@@ -133,10 +146,6 @@ export function baseSchema(): Schema {
   s.register({ type: 'sub_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
   s.register({ type: 'column_list', version: 1, inline: false, layout: true });
   s.register({ type: 'column', version: 1, inline: false, layout: true, defaultProps: {} });
-  // simple table: blocks all the way down (AQ#3, docs/design/table-block.md)
-  s.register({ type: 'table', version: 1, inline: false, layout: true, defaultProps: { headerRow: true } });
-  s.register({ type: 'table_row', version: 1, inline: false, layout: true });
-  s.register(inline('table_cell'));
   // the database VIEW BLOCK: placement of a collection view in a page (§2.5)
   s.register({ type: 'database', version: 1, inline: false, defaultProps: { collectionId: '', viewId: '' } });
   return s;

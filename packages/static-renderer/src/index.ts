@@ -5,7 +5,7 @@
  * @module @nbe/static-renderer
  */
 
-import type { BlockJSON, Run } from '@nbe/core';
+import type { Block, BlockJSON, PluginRegistry, Run } from '@nbe/core';
 
 /**
  * Static HTML rendering: schema JSON → HTML with no editor instance and no
@@ -24,6 +24,16 @@ export interface RenderOptions {
   classPrefix?: string;
   /** Emit id attributes on block wrappers (per-block anchors). Default true. */
   blockIds?: boolean;
+  /**
+   * Block plugins whose `html` is consulted before the built-in switch.
+   *
+   * @remarks
+   * Passed per call rather than held in a module registry, for the same reason
+   * the editor's registry is per instance: two documents rendered in one
+   * process may be edited under different plugin sets. Without it, a plugin's
+   * block falls through to the marker comment — visible, never silent.
+   */
+  plugins?: PluginRegistry;
 }
 
 export function escapeHtml(s: string): string {
@@ -92,6 +102,15 @@ function blockAttrs(block: BlockJSON, cls: string, opts: RenderOptions): string 
 
 function renderOne(block: BlockJSON, opts: RenderOptions): string {
   const p = opts.classPrefix ?? 'nbe';
+  // a plugin's projection wins over the built-in switch, exactly as in the
+  // markdown package — same contract, same precedence, different output
+  const plugin = opts.plugins?.get(block.type);
+  if (plugin?.html) {
+    return plugin.html(block as unknown as Block, {
+      depth: 0,
+      child: (child) => [renderOne(child as unknown as BlockJSON, opts)],
+    });
+  }
   const children = renderSiblings(block.children ?? [], opts);
   const inner = runsToHtml(block.text, opts);
   const props = block.props ?? {};
@@ -147,23 +166,6 @@ function renderOne(block: BlockJSON, opts: RenderOptions): string {
       return href
         ? `<p${attrs()}><a href="${escapeHtml(href)}">${label}</a></p>`
         : `<p${attrs()}>${label}</p>`;
-    }
-    case 'table': {
-      // real <table> markup, so an exported page stays readable and accessible
-      // outside the editor's CSS — the header row becomes a <thead>
-      const rows = (block.children ?? []).filter((r) => r.type === 'table_row');
-      const rowHtml = (row: BlockJSON, cellTag: 'td' | 'th') =>
-        `<tr${blockAttrs(row, `${p}-t-table_row`, opts)}>${(row.children ?? [])
-          .map(
-            (c) =>
-              `<${cellTag}${blockAttrs(c, `${p}-t-table_cell`, opts)}>${runsToHtml(c.text, opts)}</${cellTag}>`,
-          )
-          .join('')}</tr>`;
-      const header = props['headerRow'] !== false && rows.length ? rows[0] : null;
-      const body = header ? rows.slice(1) : rows;
-      return `<table${attrs()}>${header ? `<thead>${rowHtml(header, 'th')}</thead>` : ''}<tbody>${body
-        .map((r) => rowHtml(r, 'td'))
-        .join('')}</tbody></table>`;
     }
     case 'column_list':
       return `<div${attrs()}>${children}</div>`;

@@ -13,7 +13,8 @@
     "@nbe/dom": "workspace:*",
     "@nbe/blocks-callout": "workspace:*",
     "@nbe/markdown": "workspace:*",
-    "@nbe/workspace": "workspace:*"
+    "@nbe/workspace": "workspace:*",
+    "@nbe/blocks-table": "workspace:*"
   },
   "devDependencies": {
     "vite": "^6.0.0"

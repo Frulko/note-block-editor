@@ -263,8 +263,10 @@ overlays. Framework adapters never re-implement it.
   callout icon, code language, image replace). Frequent, visual actions live
   in a **floating toolbar at the block's top-right on hover**
   (`dom/src/block-toolbar.ts`: an image's caption, alignment, size, download)
-  — under the pointer, not two clicks deep. Both are registries, so a custom
-  block opts into either without touching the generic chrome.
+  — under the pointer, not two clicks deep. A registered plugin declares both
+  in its `BlockView` (`actions`, `toolbar`, `toolbarPlacement`); the two
+  module-global registries are what the types not yet extracted still use, and
+  they are consulted only when no plugin owns the type.
 - **Link hover card** (`dom/src/link-hover.ts`): hovering a link offers open /
   copy / edit / remove without selecting the text first; editing selects the
   link's exact range so the range commands apply to it.
@@ -273,6 +275,9 @@ overlays. Framework adapters never re-implement it.
   it owns a caret and is edited; `void` (image, divider, page link, database)
   has no caret, so a press on it is a **grab**, not an edit — it drags
   directly; `layout` (columns, page) is structure and is never a drag target.
+  A type that is an exception to the last rule says so with
+  `BlockSpec.standalone` — a table is a container *and* the unit you grab,
+  while its rows and cells are neither — rather than being named in the gutter.
   A block that is part of the current block selection drags directly too, so a
   rubber-band selection is immediately reorderable without hunting for the
   handle.
@@ -283,6 +288,13 @@ overlays. Framework adapters never re-implement it.
   block-rendered affordances — so a control cannot ship without a label. This
   is a factory rather than a convention precisely because conventions get
   forgotten at the fortieth call site.
+- **A block plugin can contribute editor-wide behaviour**, not only rendering:
+  `BlockView.features` is the same `attach(view) => unbind` contract the
+  editor's own features use, and a feature may add a `GestureRecognizer` so a
+  contested press still has exactly one owner. That is deliberately *not* a raw
+  DOM escape hatch (§ the research note on ProseMirror's frozen `nodeViews`):
+  the table's hover chrome and its cell-rectangle selection are built from it,
+  and nothing in `dom` knows they exist.
 - **UI primitives (`dom/src/ui/`),** shared by all chrome and exported for
   block authors: `position` (pure flip/clamp engine + `autoUpdate` live
   anchoring), `menu` (keyboard nav, outside-click/Escape dismissal, and it

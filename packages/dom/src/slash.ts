@@ -1,5 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
-import { childIndex, getBlock, insertTable, plainText, textLength, uuidv7 } from '@nbe/core';
+import { childIndex, getBlock, plainText, textLength, uuidv7 } from '@nbe/core';
 import type { EditorView } from './view';
 import { createMenu, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
@@ -11,8 +11,10 @@ interface SlashItem {
   icon: string;
   action:
     | { kind: 'block'; type: string; props?: Record<string, unknown> }
+    // a plugin that inserts something other than one block: a subtree, or a
+    // block that needs a host record created first
+    | { kind: 'custom'; insert: (view: EditorView, afterBlockId: BlockId) => BlockId | null }
     | { kind: 'divider' }
-    | { kind: 'table' }
     | { kind: 'page' }
     | { kind: 'database' };
 }
@@ -30,7 +32,6 @@ const builtinItems = (labels: EditorLabels): SlashItem[] => [
   { label: labels.quote, keywords: ['quote'], icon: 'quote', action: { kind: 'block', type: 'quote' } },
   { label: labels.code, keywords: ['code', 'snippet'], icon: 'code', action: { kind: 'block', type: 'code' } },
   { label: labels.image, keywords: ['image', 'img', 'photo'], icon: 'image', action: { kind: 'block', type: 'image' } },
-  { label: labels.table, keywords: ['table', 'grid'], icon: 'table', action: { kind: 'table' } },
   { label: labels.divider, keywords: ['divider', 'hr'], icon: '—', action: { kind: 'divider' } },
   { label: labels.page, keywords: ['page', 'subpage'], icon: 'file-text', action: { kind: 'page' } },
   { label: labels.database, keywords: ['database', 'db'], icon: 'database', action: { kind: 'database' } },
@@ -48,7 +49,9 @@ export function slashItems(view: EditorView): SlashItem[] {
         label: entry.label,
         keywords: entry.keywords,
         icon: entry.icon,
-        action: { kind: 'block', type: plugin.schema.type, props: entry.props },
+        action: entry.insert
+          ? { kind: 'custom', insert: entry.insert }
+          : { kind: 'block', type: plugin.schema.type, props: entry.props },
       });
     }
   }
@@ -115,13 +118,15 @@ export function attachSlashMenu(view: EditorView): () => void {
       parentId: block.parentId,
     });
 
-    // a table is a subtree, not a single block, so it takes its own path:
-    // clear the query, then let insertTable build and focus the grid
-    if (item.action.kind === 'table') {
+
+    // a subtree is not a type conversion: clear the query, then let the
+    // plugin build and focus whatever it inserts (a table is three block types)
+    if (item.action.kind === 'custom') {
+      const insert = item.action.insert;
       editor.dispatch((tx) => tx.op({ type: 'delete_text', id: blockId, from: triggerOffset, to: queryEnd }), {
         origin: 'input',
       });
-      insertTable(editor, blockId, 3, 3);
+      insert(view, blockId);
       return;
     }
 

@@ -57,7 +57,6 @@ describe('a construct always ends the paragraph', () => {
     ['fenced code', '```ts'],
     ['lone image', '![alt](a.png)'],
     ['lone wikilink', '[[Une page]]'],
-    ['table', 'a | b\n--- | ---\n1 | 2'],
   ])('%s on the next line starts a new block', (_name, construct) => {
     const blocks = parse(`Du texte\n${construct}`);
     expect(blocks.length).toBeGreaterThan(1);

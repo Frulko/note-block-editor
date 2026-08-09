@@ -1,4 +1,4 @@
-import { blocksToMarkdown, markdownToBlocks, slugify } from '@nbe/markdown';
+import { blocksToMarkdown, markdownToBlocks, slugify, type MarkdownOptions } from '@nbe/markdown';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import { SUB_PAGE, pageTitle } from './index';
 import type { Workspace } from './index';
@@ -66,6 +66,17 @@ export interface ExportOptions {
    * block that held it.
    */
   assets?: ReadonlyMap<string, Uint8Array>;
+  /**
+   * Block plugins whose markdown projection the export should use.
+   *
+   * @remarks
+   * A vault is only "still readable when the app is gone" if every block that
+   * has a markdown form gets to write it. Without the plugins a table exports
+   * as a marker comment — visible, but not a table — so a host that registers
+   * blocks in its editor must register them here too. Import takes the same
+   * option, and the pair is what keeps the round trip stable.
+   */
+  plugins?: MarkdownOptions['plugins'];
 }
 
 function frontmatter(id: string, title: string): string {
@@ -139,7 +150,9 @@ export function exportVault(workspace: Workspace, opts: ExportOptions = {}): Vau
       path: `${directory}${slug}.md`,
       text:
         frontmatter(pageId, node.title) +
-        blocksToMarkdown((doc.children ?? []).map((block) => prepare(block, upwards))),
+        blocksToMarkdown((doc.children ?? []).map((block) => prepare(block, upwards)), {
+          plugins: opts.plugins,
+        }),
     });
     // children live in a folder named after their parent, so the hierarchy is
     // the folder tree — what a vault reader already understands
@@ -179,7 +192,7 @@ function stemOf(path: string): string {
  * @returns Page documents, each carrying `sub_page` blocks for its children —
  * ready to hand to a `WorkspaceStorage` one at a time.
  */
-export function importVault(files: VaultFile[]): BlockJSON[] {
+export function importVault(files: VaultFile[], opts: MarkdownOptions = {}): BlockJSON[] {
   const markdown = files.filter((f) => /\.md$/i.test(f.path) && typeof f.text === 'string');
 
   // pass 1: give every file an identity, so links can be resolved in pass 2
@@ -202,7 +215,7 @@ export function importVault(files: VaultFile[]): BlockJSON[] {
   for (const p of parsed) byFolderAndTitle.set(`${p.directory} ${p.title}`, p.id);
 
   return parsed.map((p) => {
-    const blocks = markdownToBlocks(p.body);
+    const blocks = markdownToBlocks(p.body, opts);
     const folder = folderOf(p);
     /*
      * A wikilink became a `link_to_page` on parse. Promote it to a `sub_page`

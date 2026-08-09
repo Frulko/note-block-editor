@@ -14,7 +14,6 @@ import { attachDatabaseBlocks } from './database';
 import { attachSelectionToolbar } from './selection-toolbar';
 import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
-import { attachTableUI } from './table-ui';
 
 /**
  * A feature is anything that attaches behaviour to a mounted view and can be
@@ -70,8 +69,6 @@ export const blockToolbarFeature = feature('block-toolbar', attachBlockToolbar);
 export const linkHoverFeature = feature('link-hover', attachLinkHover);
 /** Interactive database views. Needs a `database` host to do anything. */
 export const databaseFeature = feature('database', attachDatabaseBlocks);
-/** Table hover chrome: + row, + column, and column resize by dragging borders. */
-export const tableUIFeature = feature('table-ui', attachTableUI);
 
 /**
  * Everything that makes the editor feel like the demo.
@@ -107,7 +104,6 @@ export const defaultFeatures: EditorFeature[] = [
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,
-  tableUIFeature,
 ];
 
 /**

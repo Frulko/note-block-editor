@@ -342,6 +342,14 @@ export class EditorView {
     this.topology = options.topology ?? perBlockTopology;
     this.recognizers = [...(options.recognizers ?? defaultRecognizers)];
     this.plugins = new PluginRegistry().registerAll(options.blocks ?? builtinBlocks);
+    /*
+     * Mounting a view registers its blocks on the model too, so `blocks: [...]`
+     * stays the single activation point: the schema learns the types and the
+     * document invariants (`plugin.normalize`) run on every transaction, view
+     * or no view. Idempotent by type — a headless host that already passed
+     * them to `new Editor({ plugins })` registers them once.
+     */
+    for (const plugin of this.plugins.all()) editor.use(plugin);
     this.labels = resolveLabels(options.labels);
     this.readOnly = options.readOnly === true;
     for (const plugin of this.plugins.all()) {
@@ -377,6 +385,11 @@ export class EditorView {
     for (const f of options.features ?? (this.readOnly ? [] : defaultFeatures)) {
       this.unbinders.push(f.attach(this));
     }
+    // a block plugin's own features, after the editor's: a table's cell
+    // selection contributes a recognizer, and precedence is registration order
+    if (!this.readOnly)
+      for (const plugin of this.plugins.all())
+        for (const f of viewOf(plugin)?.features ?? []) this.unbinders.push(f.attach(this));
     this.unbinders.push(editor.on((change) => this.handleChange(change)));
     this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 
@@ -504,10 +517,23 @@ export class EditorView {
     // transaction didn't move the selection we put the caret back where the
     // user visibly had it
     const caretBefore = domTextSelection(this);
-    const alive = [...change.dirty].filter((id) => doc.blocks.has(id));
+    /*
+     * A table's column template is an inline style on the *table*, computed
+     * from the cells of its rows. Inserting or deleting a column only dirties
+     * the rows, so re-rendering just them left the table laid out for the old
+     * column count and the extra cells wrapped onto a new grid line. Typing in
+     * a cell dirties the cell, not the row, so this does not re-render the
+     * whole table on every keystroke.
+     */
+    const alive = [...change.dirty]
+      .filter((id) => doc.blocks.has(id))
+      .map((id) => {
+        const block = doc.blocks.get(id)!;
+        return block.type === 'table_row' && block.parentId ? block.parentId : id;
+      });
     const set = new Set(alive);
     // skip ids whose ancestor is also dirty — the ancestor re-render covers them
-    const roots = alive.filter((id) => !ancestors(doc, id).some((p) => set.has(p)));
+    const roots = [...set].filter((id) => !ancestors(doc, id).some((p) => set.has(p)));
     for (const id of roots) {
       if (id === doc.rootId) {
         this.renderAll();

@@ -2,6 +2,7 @@ import type { Block, BlockId } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { createActionButton, createMenu, toContainerPoint, type IconName, type MenuEntry } from './ui';
+import { viewOf } from './block-view';
 import type { EditorLabels } from './labels';
 
 /**
@@ -31,10 +32,42 @@ export interface ToolbarButton {
 
 export type ToolbarProvider = (ctx: Omit<ToolbarContext, 'anchor'>) => ToolbarButton[];
 
-const providers = new Map<string, ToolbarProvider>();
+export interface ToolbarOptions {
+  /**
+   * Where the bar sits: `inside` the block's top-right corner (an image has
+   * room to spare), or `above` it — a table's top-right corner is a cell with
+   * text in it.
+   */
+  placement?: 'inside' | 'above';
+}
 
-export function registerBlockToolbar(type: string, provider: ToolbarProvider): void {
+const providers = new Map<string, ToolbarProvider>();
+const options = new Map<string, ToolbarOptions>();
+
+/**
+ * Built-in registration, for the types not yet extracted into plugins.
+ *
+ * @remarks
+ * A plugin declares `view.toolbar` instead; that is looked up first. This
+ * registry is module-global and therefore shared by two editors on one page —
+ * the reason it is being emptied rather than extended.
+ */
+export function registerBlockToolbar(type: string, provider: ToolbarProvider, opts: ToolbarOptions = {}): void {
   providers.set(type, provider);
+  options.set(type, opts);
+}
+
+/** A plugin's toolbar wins over the built-in registry. */
+function providerFor(view: EditorView, type: string): ToolbarProvider | undefined {
+  const declared = viewOf(view.plugins.get(type))?.toolbar;
+  // the plugin type carries `anchor`; the bar fills it in per button, so the
+  // provider is called without one and never reads it
+  if (declared) return (ctx) => declared(ctx as Parameters<typeof declared>[0]) as ToolbarButton[];
+  return providers.get(type);
+}
+
+function placementFor(view: EditorView, type: string): 'inside' | 'above' {
+  return viewOf(view.plugins.get(type))?.toolbarPlacement ?? options.get(type)?.placement ?? 'inside';
 }
 
 export function hasBlockToolbar(type: string): boolean {
@@ -155,13 +188,18 @@ export function attachBlockToolbar(view: EditorView): () => void {
     const id = blockEl.dataset['blockId'];
     if (!id || !view.editor.doc.blocks.has(id)) return hide();
     const block = getBlock(view.editor.doc, id);
-    const provider = providers.get(block.type);
+    const provider = providerFor(view, block.type);
     if (!provider) return hide();
 
     clearTimeout(hideTimer);
     currentId = id;
-    const setProps = (props: Record<string, unknown>) =>
+    const setProps = (props: Record<string, unknown>) => {
       view.editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props } }), { origin: 'ui' });
+      // the block re-rendered under the bar: rebuild it against the new props,
+      // or a toggle would keep showing the state it had before the click
+      const fresh = view.blockEl(id);
+      if (fresh) show(fresh);
+    };
 
     bar.replaceChildren();
     for (const spec of provider({ view, block, setProps })) {
@@ -181,9 +219,26 @@ export function attachBlockToolbar(view: EditorView): () => void {
     // a block, it must scroll with it and must not leave the editor's box
     view.content.append(bar);
     const rect = blockEl.getBoundingClientRect();
-    const at = toContainerPoint(view.content, rect.right - bar.offsetWidth, rect.top + 6);
+    const above = placementFor(view, block.type) === 'above';
+    const at = toContainerPoint(
+      view.content,
+      rect.right - bar.offsetWidth,
+      above ? rect.top - bar.offsetHeight - 4 : rect.top + 6,
+    );
     bar.style.left = `${Math.max(0, at.x)}px`;
-    bar.style.top = `${at.y}px`;
+    bar.style.top = `${Math.max(0, at.y)}px`;
+  };
+
+  /** The nearest block *with a toolbar*: hovering a table cell configures the table. */
+  const hostBlock = (from: Element | null): HTMLElement | null => {
+    // the target is not always an element — `document` gets mousemove too
+    let el = (from?.closest?.('.nbe-block') as HTMLElement | null) ?? null;
+    while (el) {
+      const id = el.dataset['blockId'];
+      if (id && view.editor.doc.blocks.has(id) && providerFor(view, getBlock(view.editor.doc, id).type)) return el;
+      el = (el.parentElement?.closest?.('.nbe-block') as HTMLElement | null) ?? null;
+    }
+    return null;
   };
 
   const onMove = (e: MouseEvent) => {
@@ -192,9 +247,9 @@ export function attachBlockToolbar(view: EditorView): () => void {
       clearTimeout(hideTimer);
       return;
     }
-    const blockEl = target?.closest?.('.nbe-block') as HTMLElement | null;
+    const blockEl = hostBlock(target);
     const id = blockEl?.dataset['blockId'];
-    if (!id || !view.editor.doc.blocks.has(id) || !providers.has(getBlock(view.editor.doc, id).type)) {
+    if (!id) {
       if (currentId) scheduleHide();
       return;
     }

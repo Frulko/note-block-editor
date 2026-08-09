@@ -1,6 +1,8 @@
 import { docFromJSON, docToJSON, Editor, uuidv7, type BlockJSON, type Run } from '@nbe/core';
 import { EditorView, perBlockTopology, singleHostTopology } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
+import { tableDomBlocks } from '@nbe/blocks-table/dom';
+import { PluginRegistry } from '@nbe/core';
 import '@nbe/dom/style.css';
 import './demo.css';
 import { attachInspector } from './inspector';
@@ -10,6 +12,11 @@ import { Workspace as PageTree, pageTitle, referencedAssets } from '@nbe/workspa
 import { createDatabaseHost, type CollectionRecord, type CollectionStore } from '@nbe/workspace/database';
 import { exportVault, importVault, slugify } from '@nbe/workspace/vault';
 import { blocksToMarkdown } from '@nbe/markdown';
+
+/** The block set this demo runs: the editor, the projections and the importers
+ * all read the same registry, so nothing renders in one and vanishes in another. */
+const BLOCKS = [callout, ...tableDomBlocks];
+const PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 import { importNotion } from '@nbe/workspace/notion';
 import { download, unzip, zip } from './zip';
 import {
@@ -415,7 +422,7 @@ function openPage(pageId: string): void {
     // ?columns=on to exercise the experimental side-drop that builds columns
     columns: new URLSearchParams(location.search).get('columns') === 'on',
     // activation is an import plus an array entry
-    blocks: [callout],
+    blocks: BLOCKS,
     onOpenPage: (id) => openPage(id),
     // @ mentions: the workspace is the page store, so it answers both hooks
     onSearchPages: (query) => {
@@ -480,7 +487,7 @@ document.getElementById('export-vault')!.addEventListener('click', async () => {
   // the images travel too, or the vault has dangling references — which is
   // the one thing "readable without the tool" cannot afford
   const assets = await allAssetBytes(referencedAssets(ws.pages));
-  download(zip(exportVault(tree, { assets })), 'workspace-markdown.zip');
+  download(zip(exportVault(tree, { assets, plugins: PLUGINS })), 'workspace-markdown.zip');
 });
 /**
  * Import an archive: one of ours, or a Notion export.
@@ -511,7 +518,9 @@ document.getElementById('import-file')!.addEventListener('change', async (e) => 
       if (file.bytes) await storeAsset(new Blob([file.bytes as unknown as BlobPart]));
     }
     const fromNotion = files.some((f) => NOTION_NAMING.test(f.path));
-    const imported = fromNotion ? importNotion(files) : { pages: importVault(files), collections: [] };
+    const imported = fromNotion
+      ? importNotion(files, { plugins: PLUGINS })
+      : { pages: importVault(files, { plugins: PLUGINS }), collections: [] };
     const pages = imported.pages;
     // a database arrives as §2.5's four records: its schema and view are host
     // records the database host owns, its rows are pages like any other
@@ -578,7 +587,7 @@ document.getElementById('sidebar')!.addEventListener('click', (e) => {
 function exportPage(extension: 'json' | 'md'): void {
   const json = docToJSON(editor.doc);
   const body =
-    extension === 'json' ? JSON.stringify(json, null, 2) : blocksToMarkdown(json.children ?? []);
+    extension === 'json' ? JSON.stringify(json, null, 2) : blocksToMarkdown(json.children ?? [], { plugins: PLUGINS });
   const type = extension === 'json' ? 'application/json' : 'text/markdown';
   download(new Blob([body], { type }), `${slugify(pageTitle(json) || 'page')}.${extension}`);
 }

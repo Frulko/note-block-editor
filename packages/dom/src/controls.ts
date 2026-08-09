@@ -87,14 +87,13 @@ export function attachControls(view: EditorView): () => void {
 
   /**
    * Blocks a user can grab, drop next to, or open a menu on. Layout containers
-   * are transparent — you act on what they hold — with the table as the one
-   * exception: it is the unit you move, and its menu owns the row and column
-   * actions, so its rows and cells stay out of the way.
+   * are transparent by default — you act on what they hold — and a block type
+   * that is an exception says so in its schema (`standalone`), rather than
+   * being named here.
    */
   const standalone = (type: string): boolean => {
-    if (type === 'table') return true;
-    if (type === 'table_row' || type === 'table_cell') return false;
-    return blockCategory(editor.schema, type) !== 'layout';
+    const declared = editor.schema.has(type) ? editor.schema.get(type).standalone : undefined;
+    return declared ?? blockCategory(editor.schema, type) !== 'layout';
   };
 
   let hoveredId: BlockId | null = null;

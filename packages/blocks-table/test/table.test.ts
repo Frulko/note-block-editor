@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '../src/editor';
-import { getBlock } from '../src/doc';
-import { plainText } from '../src/richtext';
+import { Editor } from '@nbe/core';
+import { tableBlocks } from '../src/index';
+import { getBlock } from '@nbe/core';
+import { plainText } from '@nbe/core';
 import {
   cellAt,
   cellPosition,
@@ -16,8 +17,8 @@ import {
   rowCells,
   tableCells,
   tableRows,
-} from '../src/table';
-import type { Block } from '../src/types';
+} from '../src/model';
+import type { Block } from '@nbe/core';
 
 function seed(editor: Editor): string {
   const b: Block = {
@@ -52,7 +53,7 @@ function fill(editor: Editor, tableId: string): void {
 
 describe('table construction', () => {
   it('builds a grid of real blocks with ids', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const anchor = seed(editor);
     const tableId = insertTable(editor, anchor, 3, 3)!;
     expect(getBlock(editor.doc, tableId).type).toBe('table');
@@ -70,7 +71,7 @@ describe('table construction', () => {
   });
 
   it('is one undoable step', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const anchor = seed(editor);
     insertTable(editor, anchor, 2, 2);
     editor.undo();
@@ -79,7 +80,7 @@ describe('table construction', () => {
   });
 
   it('locates a cell in the grid', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 3, 3)!;
     const target = cellAt(editor.doc, tableId, 1, 2)!;
     expect(cellPosition(editor.doc, target.id)).toEqual({ tableId, row: 1, column: 2 });
@@ -89,7 +90,7 @@ describe('table construction', () => {
 
 describe('rows and columns', () => {
   it('inserts a row with the right number of cells', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 2, 3)!;
     insertRow(editor, tableId, 1);
     expect(tableRows(editor.doc, tableId)).toHaveLength(3);
@@ -97,7 +98,7 @@ describe('rows and columns', () => {
   });
 
   it('inserts a column into every row at the same index', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 2, 2)!;
     fill(editor, tableId);
     insertColumn(editor, tableId, 1);
@@ -109,7 +110,7 @@ describe('rows and columns', () => {
   });
 
   it('deletes a row and a column, keeping the grid rectangular', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 3, 3)!;
     fill(editor, tableId);
     deleteRow(editor, tableId, 1);
@@ -125,7 +126,7 @@ describe('rows and columns', () => {
   });
 
   it('deleting the last column removes the table rather than leaving empty rows', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 2, 1)!;
     deleteColumn(editor, tableId, 0);
     expect(editor.doc.blocks.has(tableId)).toBe(false);
@@ -133,14 +134,14 @@ describe('rows and columns', () => {
   });
 
   it('deleting the last row dissolves the table (normalization)', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 1, 2)!;
     deleteRow(editor, tableId, 0);
     expect(editor.doc.blocks.has(tableId)).toBe(false);
   });
 
   it('column edits round-trip through undo', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 2, 2)!;
     fill(editor, tableId);
     insertColumn(editor, tableId, 0);
@@ -154,7 +155,7 @@ describe('rows and columns', () => {
   });
 
   it('moves a row', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 3, 1)!;
     fill(editor, tableId);
     moveRow(editor, tableId, 2, 0);
@@ -162,7 +163,7 @@ describe('rows and columns', () => {
   });
 
   it('deleteTable removes the whole subtree', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 2, 2)!;
     deleteTable(editor, tableId);
     expect([...editor.doc.blocks.values()].map((b) => b.type)).toEqual(['page', 'paragraph']);
@@ -171,7 +172,7 @@ describe('rows and columns', () => {
 
 describe('normalization repairs a ragged grid', () => {
   it('pads short rows up to the widest one', () => {
-    const editor = new Editor();
+    const editor = new Editor({ plugins: tableBlocks });
     const tableId = insertTable(editor, seed(editor), 2, 2)!;
     // simulate damage: drop one cell from the first row
     const victim = rowCells(editor.doc, tableRows(editor.doc, tableId)[0]!.id)[1]!;

@@ -10,9 +10,10 @@ import {
   type App,
   type ViewState,
 } from 'obsidian';
-import { Editor, docFromJSON, docToJSON, getBlock, uuidv7, type BlockJSON } from '@nbe/core';
-import { EditorView, defaultFeatures, type EditorViewOptions } from '@nbe/dom';
+import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, uuidv7, type BlockJSON } from '@nbe/core';
+import { EditorView, builtinBlocks, defaultFeatures, type EditorViewOptions } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
+import { tableDomBlocks } from '@nbe/blocks-table/dom';
 
 /**
  * Carnet inside Obsidian — the editor, and nothing else.
@@ -106,6 +107,8 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
     spellcheck: s.spellcheck,
     columns: s.columns,
     readOnly: s.readOnly,
+    // the table is a plugin: without it a note's `| a | b |` stays a paragraph
+    blocks: [...builtinBlocks, ...tableDomBlocks],
   };
   // readOnly's default is "no features at all"; only pick features when editing
   if (!s.readOnly) opts.features = defaultFeatures.filter((f) => s.features[f.name] !== false);
@@ -124,6 +127,13 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
   return opts;
 }
 
+/**
+ * The projections a note is parsed and written with. Both directions read the
+ * same registry, which is what stops a block from rendering perfectly and
+ * vanishing on save.
+ */
+const MARKDOWN_PLUGINS = new PluginRegistry().registerAll(tableDomBlocks);
+
 /** A page document wrapping freshly parsed blocks. */
 function pageOf(markdown: string): BlockJSON {
   return {
@@ -131,7 +141,7 @@ function pageOf(markdown: string): BlockJSON {
     type: 'page',
     version: 1,
     props: {},
-    children: markdownToBlocks(markdown),
+    children: markdownToBlocks(markdown, { plugins: MARKDOWN_PLUGINS }),
   };
 }
 
@@ -181,7 +191,7 @@ class CarnetView extends TextFileView {
      * field.
      */
     const page = docToJSON(this.editor.doc) as BlockJSON;
-    return blocksToMarkdown(page.children ?? []);
+    return blocksToMarkdown(page.children ?? [], { plugins: MARKDOWN_PLUGINS });
   }
 
   /** Obsidian hands over the file's content, on open and on external change. */
@@ -203,7 +213,7 @@ class CarnetView extends TextFileView {
     // Obsidian mutates the TFile in place, so identity survives the rename
     this.registerEvent(
       this.app.vault.on('rename', (file) => {
-        if (file === this.file && this.titleEl) this.titleEl.textContent = this.file.basename;
+        if (file === this.file && this.inlineTitleEl) this.inlineTitleEl.textContent = this.file.basename;
       }),
     );
   }
@@ -255,12 +265,12 @@ class CarnetView extends TextFileView {
     this.editor = null;
   }
 
-  private titleEl: HTMLElement | null = null;
+  private inlineTitleEl: HTMLElement | null = null;
 
   /** The inline title: the filename, edited in place like Obsidian's own. */
   private buildTitle(host: HTMLElement): void {
     const title = host.createDiv({ cls: 'carnet-title' });
-    this.titleEl = title;
+    this.inlineTitleEl = title;
     title.textContent = this.file?.basename ?? '';
     try {
       title.contentEditable = 'plaintext-only';
@@ -271,7 +281,7 @@ class CarnetView extends TextFileView {
       if (e.key === 'Enter') {
         e.preventDefault();
         title.blur();
-        this.mount?.querySelector<HTMLElement>('.nbe-leaf')?.focus();
+        this.enterNote();
       } else if (e.key === 'Escape') {
         title.textContent = this.file?.basename ?? '';
         title.blur();
@@ -280,9 +290,31 @@ class CarnetView extends TextFileView {
     title.addEventListener('blur', () => void this.commitTitle());
   }
 
+  /** Enter from the title lands in a fresh first block (Notion), reusing an empty one. */
+  private enterNote(): void {
+    const editor = this.editor;
+    const view = this.view;
+    if (!editor || !view) return;
+    const doc = editor.doc;
+    const firstId = getBlock(doc, doc.rootId).children[0];
+    const first = firstId ? doc.blocks.get(firstId) : undefined;
+    if (first && first.type === 'paragraph' && !(first.text ?? []).length) return view.focusBlock(first.id, 0);
+    const block = {
+      id: uuidv7(),
+      type: 'paragraph',
+      version: 1,
+      props: {},
+      text: [],
+      children: [],
+      parentId: doc.rootId,
+    };
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }), { origin: 'input' });
+    view.focusBlock(block.id, 0);
+  }
+
   /** Rename the file to match the edited title; revert the text on refusal. */
   private async commitTitle(): Promise<void> {
-    const title = this.titleEl;
+    const title = this.inlineTitleEl;
     if (!title || !this.file) return;
     const name = (title.textContent ?? '').trim();
     if (!name || name === this.file.basename) {

@@ -6,7 +6,8 @@ import type { Op } from './ops';
 import { applyOp } from './ops';
 import type { Schema } from './schema';
 import { baseSchema } from './schema';
-import { normalizeTables } from './table';
+import type { BlockPlugin } from './plugin';
+import { PluginRegistry } from './plugin';
 
 export interface Change {
   origin: string;
@@ -92,6 +93,17 @@ export class Editor {
   doc: Doc;
   /** Which block types exist, and what they may contain. */
   schema: Schema;
+  /**
+   * The block plugins this document is edited under.
+   *
+   * @remarks
+   * On the *model*, not only on the view, because a plugin's document
+   * invariants have to hold with no view mounted at all — a CLI import, a
+   * server-side migration, a collaborative peer applying a remote change. It
+   * is the same reason ProseMirror keeps plugins in the state rather than in
+   * the view.
+   */
+  plugins: PluginRegistry;
   /** Where the caret or the block selection is, or `null` when nowhere. */
   selection: Selection = null;
 
@@ -117,10 +129,36 @@ export class Editor {
    * @param opts - `doc` defaults to an empty page, `schema` to
    * {@link baseSchema}, and `validation` to `'warn'`.
    */
-  constructor(opts: { doc?: Doc; schema?: Schema; validation?: ValidationMode } = {}) {
+  constructor(
+    opts: { doc?: Doc; schema?: Schema; validation?: ValidationMode; plugins?: readonly BlockPlugin[] } = {},
+  ) {
     this.doc = opts.doc ?? createDoc();
     this.schema = opts.schema ?? baseSchema();
     this.validation = opts.validation ?? 'warn';
+    this.plugins = new PluginRegistry();
+    for (const plugin of opts.plugins ?? []) this.use(plugin);
+  }
+
+  /**
+   * Register a block plugin: its schema becomes part of this editor's, and its
+   * normalization runs on every transaction.
+   *
+   * @remarks
+   * Idempotent by block type, so a host may pass the same plugin to the editor
+   * and to a view without registering it twice.
+   *
+   * @example
+   * ```ts
+   * import { tableBlocks } from '@nbe/blocks-table'
+   * const editor = new Editor({ plugins: tableBlocks })
+   * ```
+   *
+   * @category Plugins
+   */
+  use(plugin: BlockPlugin): this {
+    this.plugins.register(plugin);
+    this.schema.register(plugin.schema);
+    return this;
   }
 
   /**
@@ -216,7 +254,13 @@ export class Editor {
       if (tx.ops.some((o) => o.type === 'delete_block' || o.type === 'move_block')) {
         this.normalizeWrappers(tx);
       }
-      normalizeTables(this.doc, tx);
+      /*
+       * Plugin invariants, in registration order. This is where a block type
+       * repairs the shapes only it knows about — a table row that lost a cell,
+       * a wrapper left underfull — and it runs here rather than in the view so
+       * a headless edit is normalized identically.
+       */
+      for (const plugin of this.plugins.all()) plugin.normalize?.(this.doc, tx);
     }
     if (opts.selection !== undefined) this.setSelection(opts.selection, opts.origin ?? 'dispatch');
 

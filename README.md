@@ -91,7 +91,10 @@ packages/
   core/              headless: schema, block store, 7 invertible ops, transactions,
                      history, commands, autoformat, database engine. Zero DOM.
   dom/               the editor view: contenteditable leaves, input/IME, keymap,
-                     caret authority, clipboard, drag & drop, UI primitives, tables
+                     caret authority, clipboard, drag & drop, UI primitives
+  blocks-callout/    a block plugin: schema, view, both projections, one package
+  blocks-table/      the table as a plugin: three block types, its geometry,
+                     merged cells, cell selection, its own CSS
   markdown/          block JSON ↔ markdown; /collections projects databases
                      to CSV, one .md per row, and .base view files
   static-renderer/   block JSON → HTML with no editor instance (SSR/CLI safe)

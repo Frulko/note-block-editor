@@ -20,6 +20,8 @@ export * from './ui';
 export { renderDatabase } from './database';
 export type { DatabaseHost, DatabaseData } from './database';
 export { viewOf, injectBlockStyles } from './block-view';
+export { builtinBlocks } from './blocks';
+export { blockActionEntries, registerBlockActions } from './block-actions';
 export type {
   BlockView,
   DomBlockPlugin,
@@ -50,7 +52,6 @@ export {
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,
-  tableUIFeature,
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
@@ -60,5 +61,5 @@ export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';
 export type { TriggerMenuOptions } from './trigger-menu';
-export { defaultLabels, resolveLabels } from './labels';
+export { format, defaultLabels, resolveLabels } from './labels';
 export type { EditorLabels } from './labels';

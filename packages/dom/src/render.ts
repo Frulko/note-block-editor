@@ -1,5 +1,5 @@
 import type { Block, Run } from '@nbe/core';
-import { columnCount, getBlock } from '@nbe/core';
+import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
 import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
@@ -98,24 +98,17 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
 
   if (plugin?.render) return plugin.render(renderCtx, block);
 
-  if (block.type === 'table') {
-    // one CSS grid for the whole table: rows are `display: contents`, so every
-    // cell is a grid item and column widths are a single template on the table
-    const columns = columnCount(view.editor.doc, block.id) || 1;
-    const widths = block.props['columnWidths'];
-    root.style.gridTemplateColumns = Array.isArray(widths) && widths.length === columns
-      ? widths.map((w) => (typeof w === 'number' && w > 0 ? `${w}px` : 'minmax(80px, 1fr)')).join(' ')
-      : `repeat(${columns}, minmax(80px, 1fr))`;
-    if (block.props['headerRow'] !== false) root.classList.add('nbe-table-header');
-    for (const childId of block.children) root.append(renderBlock(view, childId));
-    return root;
-  }
-
-  // layout containers render their children directly, no row/leaf
-  if (block.type === 'table_row' || block.type === 'column_list' || block.type === 'column') {
+  /*
+   * Layout containers render their children directly, no row and no leaf —
+   * read from the schema rather than from a list of type names, so a plugin's
+   * container (a table row) needs no `render` of its own to be laid out like
+   * the built-in ones.
+   */
+  if (spec.layout && block.type !== 'page') {
     if (block.type === 'column' && typeof block.props['ratio'] === 'number')
       root.style.flexGrow = String(block.props['ratio']);
     for (const childId of block.children) root.append(renderBlock(view, childId));
+    plugin?.decorate?.(renderCtx, block);
     return root;
   }
 
@@ -234,6 +227,9 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
   } else {
     root.append(row);
   }
+
+  // a plugin's last word on the element the default path built
+  plugin?.decorate?.(renderCtx, block);
 
   const collapsed = block.type === 'toggle' && block.props['collapsed'] === true;
   if (block.children.length && !collapsed) {

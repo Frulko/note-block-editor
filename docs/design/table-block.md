@@ -14,12 +14,28 @@ cell-range selection, column resize and cell merging. The research flags tables
 as historically among the hardest editor features and that remains true of
 those three specifically, not of the block model.
 
+**Since 2026-08-09 the table is a plugin**, `@nbe/blocks-table` — not part of
+`core` or `dom`. An editor gets tables by registering it:
+
+```ts
+import { tableDomBlocks } from '@nbe/blocks-table/dom'
+new EditorView(el, editor, { blocks: [...builtinBlocks, ...tableDomBlocks] })
+```
+
+and every projection that should keep them needs the same registry
+(`blocksToMarkdown(blocks, { plugins })`, `exportVault(ws, { plugins })`), which
+is the contract's whole point: a block type is in an output because its plugin
+is registered, never by accident. What the extraction forced into the plugin
+API is recorded in `docs/design/plugin-refactor-plan.md` (R8).
+
 ## Model: blocks all the way down
 
 ```
-table            props: { columnWidths?: number[], headerRow?: boolean }
-└─ table_row     (children: exactly the table's column count)
+table            props: { columnWidths?: number[], headerRow?: boolean,
+                         headerColumn?: boolean, fullWidth?: boolean }
+└─ table_row     (children: the cells *anchored* in that row)
    └─ table_cell (inline: true — plain runs, same rich text as paragraphs)
+                 props: { colSpan?: number, rowSpan?: number }
 ```
 
 Three new block types, zero new persistence machinery: rows and cells are
@@ -30,8 +46,12 @@ the same bet as columns (D-columns) and the reason Editor.js-style
 per-cell history and structured text.
 
 Invariants (schema + reducer normalization, like column GC):
-- every `table_row` has exactly `columnCount` cells (derived from the first
-  row; enforced on insert/delete column ops)
+- every `table_row` fills exactly `columnCount` *slots* — cells plus the ones
+  a merged neighbour covers, so a row under a `rowSpan` is legitimately short.
+  `tableGrid()` is the one place that maps cells to slots; once cells can be
+  merged, a cell's index in its row is no longer its column, and every
+  geometric question (column count, cellAt, where an inserted column goes)
+  goes through it
 - `table_cell` children: none in v1 (no nested blocks in cells — Notion's
   simple table has the same restriction)
 - an empty table (0 rows) dissolves
@@ -41,6 +61,15 @@ Invariants (schema + reducer normalization, like column GC):
 No new op types. Column insert/delete = one transaction of per-row
 `insert_block`/`delete_block` (invertibility free). Row reorder = `move_block`.
 `columnWidths` via `update_block`.
+
+Merge = delete the swallowed cells (their text is appended to the survivor
+rather than dropped) + `update_block` for the spans. Unmerge = the inverse,
+`insert_block` per freed slot. A column landing inside a merged cell widens it
+instead of splitting it; deleting one of its rows or columns shrinks it.
+
+Markdown has no spans: a merged table exports ragged rows and comes back
+unmerged. Known and accepted — the projection is lossy for layout, not for
+content.
 
 ## Interactions (the actual hard part)
 

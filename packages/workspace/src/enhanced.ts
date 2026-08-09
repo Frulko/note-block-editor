@@ -1,4 +1,4 @@
-import { markdownToBlocks } from '@nbe/markdown';
+import { markdownToBlocks, type MarkdownOptions } from '@nbe/markdown';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 
 /**
@@ -148,16 +148,16 @@ function rewriteInline(text: string): string {
  *
  * @param text - The body of one page, as the API returns it.
  */
-export function enhancedToBlocks(text: string): BlockJSON[] {
+export function enhancedToBlocks(text: string, opts: MarkdownOptions = {}): BlockJSON[] {
   const out: BlockJSON[] = [];
 
   for (const part of split(text)) {
     if (typeof part === 'string') {
-      out.push(...markdownToBlocks(rewriteInline(part)));
+      out.push(...markdownToBlocks(rewriteInline(part), opts));
       continue;
     }
 
-    const children = enhancedToBlocks(part.lines.join('\n'));
+    const children = enhancedToBlocks(part.lines.join('\n'), opts);
     switch (part.tag.toLowerCase()) {
       case 'callout': {
         /*
@@ -175,7 +175,7 @@ export function enhancedToBlocks(text: string): BlockJSON[] {
       case 'details': {
         const { summary, rest } = takeSummary(part.lines);
         const body = enhancedToBlocks(rest.join('\n'));
-        const [head] = markdownToBlocks(rewriteInline(summary));
+        const [head] = markdownToBlocks(rewriteInline(summary), opts);
         out.push({
           ...block('toggle', { collapsed: false }, body.length ? body : undefined),
           ...(head?.text ? { text: head.text } : {}),

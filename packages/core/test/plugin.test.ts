@@ -8,8 +8,10 @@ import {
   PluginRegistry,
   PluginVersionError,
   PRECEDENCE_ORDER,
+  PLUGIN_API_VERSION,
   type BlockPlugin,
 } from '../src/plugin';
+import { Editor } from '../src/editor';
 
 const plugin = (type: string, apiVersion = 1): BlockPlugin =>
   ({ apiVersion, schema: { type, version: 1, inline: true } }) as BlockPlugin;
@@ -93,5 +95,99 @@ describe('lossy projections are declared, not omitted', () => {
 
   it('parses nothing back, which is what makes the loss visible', () => {
     expect(lossy('x', () => []).fromMarkdown).toEqual([]);
+  });
+});
+
+describe('a plugin registered on the editor', () => {
+  /** A block whose invariant is "it always has exactly one child paragraph". */
+  const padded: BlockPlugin = {
+    apiVersion: PLUGIN_API_VERSION,
+    schema: { type: 'padded', version: 1, inline: false, layout: true },
+    normalize(doc, tx) {
+      let changed = false;
+      for (const block of [...doc.blocks.values()]) {
+        if (block.type !== 'padded' || block.children.length) continue;
+        tx.op({
+          type: 'insert_block',
+          block: {
+            id: `pad-${block.id}`,
+            type: 'paragraph',
+            version: 1,
+            props: {},
+            text: [],
+            children: [],
+            parentId: block.id,
+          },
+          index: 0,
+        });
+        changed = true;
+      }
+      return changed;
+    },
+  };
+
+  const seed = () => {
+    const editor = new Editor({ plugins: [padded] });
+    editor.dispatch(
+      (tx) =>
+        tx.op({
+          type: 'insert_block',
+          block: {
+            id: 'p1',
+            type: 'padded',
+            version: 1,
+            props: {},
+            text: [],
+            children: [],
+            parentId: editor.doc.rootId,
+          },
+          index: 0,
+        }),
+      { addToHistory: false },
+    );
+    return editor;
+  };
+
+  it('teaches the schema its block type', () => {
+    // without this a plugin's blocks are rejected as unknown, and every plugin
+    // would need its type added to `baseSchema` — the closed list it replaces
+    expect(new Editor().schema.has('padded')).toBe(false);
+    expect(seed().schema.has('padded')).toBe(true);
+  });
+
+  it('repairs its own invariant on every transaction', () => {
+    const editor = seed();
+    expect(editor.doc.blocks.get('pad-p1')?.type).toBe('paragraph');
+  });
+
+  it('does not run for an editor that did not register it', () => {
+    // the point of per-instance registries: two editors on one page may be
+    // edited under different plugin sets
+    const editor = new Editor();
+    editor.schema.register({ type: 'padded', version: 1, inline: false, layout: true });
+    editor.dispatch(
+      (tx) =>
+        tx.op({
+          type: 'insert_block',
+          block: {
+            id: 'p1',
+            type: 'padded',
+            version: 1,
+            props: {},
+            text: [],
+            children: [],
+            parentId: editor.doc.rootId,
+          },
+          index: 0,
+        }),
+      { addToHistory: false },
+    );
+    expect(editor.doc.blocks.get('p1')?.children).toEqual([]);
+  });
+
+  it('registers idempotently, so a view may re-register what a host passed', () => {
+    const editor = seed();
+    editor.use(padded);
+    expect(editor.plugins.all().filter((p) => p.schema.type === 'padded')).toHaveLength(1);
   });
 });

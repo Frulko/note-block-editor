@@ -1,11 +1,10 @@
 import {
-  cellAt,
-  cellPosition,
+  ancestors,
+  byPrecedence,
   deleteBlocks,
   duplicateBlocks,
   getBlock,
   indent,
-  insertRow,
   insertText,
   isCollapsed,
   mergeBackward,
@@ -16,8 +15,6 @@ import {
   selectedBlocks,
   singleBlockRange,
   splitBlock,
-  tableCells,
-  tableRows,
   textCaret,
   textLength,
   toggleMarkRange,
@@ -25,6 +22,7 @@ import {
   visibleBlocks,
 } from '@nbe/core';
 import type { EditorView } from './view';
+import { viewOf } from './block-view';
 import { leafOf } from './selection';
 import { caretClientX, offsetAtX, syncCaretFromDom } from './caret';
 
@@ -45,43 +43,6 @@ function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
 }
 
 /**
- * Tab through table cells. Tabbing past the last cell appends a row, so a
- * table can be filled entirely from the keyboard.
- */
-function moveThroughCells(view: EditorView, blockId: string, direction: 1 | -1): boolean {
-  const editor = view.editor;
-  const position = cellPosition(editor.doc, blockId);
-  if (!position) return false;
-  const cells = tableCells(editor.doc, position.tableId);
-  const index = cells.findIndex((c) => c.id === blockId);
-  const next = cells[index + direction];
-  if (next) {
-    view.focusBlock(next.id, textLength(next.text));
-    return true;
-  }
-  if (direction === -1) return true; // at the first cell: stay put, never indent
-  const rows = tableRows(editor.doc, position.tableId).length;
-  insertRow(editor, position.tableId, rows);
-  view.syncDomSelection();
-  return true;
-}
-
-/** Enter in a cell: down one row, creating it when at the bottom. */
-function moveDownCell(view: EditorView, blockId: string): void {
-  const editor = view.editor;
-  const position = cellPosition(editor.doc, blockId);
-  if (!position) return;
-  const below = cellAt(editor.doc, position.tableId, position.row + 1, position.column);
-  if (below) {
-    view.focusBlock(below.id, textLength(below.text));
-    return;
-  }
-  insertRow(editor, position.tableId, position.row + 1);
-  const created = cellAt(editor.doc, position.tableId, position.row + 1, position.column);
-  if (created) view.focusBlock(created.id, 0);
-}
-
-/**
  * Escape is a chain, evaluated in this order, and each link consumes the key
  * so the next never sees it:
  *
@@ -94,6 +55,24 @@ function moveDownCell(view: EditorView, blockId: string): void {
  * without that, Escape behind a menu would drop out of text mode instead of
  * closing what the user was looking at.
  */
+/**
+ * Give the plugins owning the caret's block — and its ancestors — first
+ * refusal on the key. Returns true when one handled it.
+ */
+function pluginKey(view: EditorView, event: KeyboardEvent, blockId: string): boolean {
+  const doc = view.editor.doc;
+  if (!doc.blocks.has(blockId)) return false;
+  for (const id of [blockId, ...ancestors(doc, blockId)]) {
+    const block = doc.blocks.get(id);
+    const declared = block && viewOf(view.plugins.get(block.type))?.keys?.[event.key];
+    if (!declared || !block) continue;
+    for (const handler of byPrecedence([declared])) {
+      if (handler({ view, block, event })) return true;
+    }
+  }
+  return false;
+}
+
 export function attachKeymap(view: EditorView): () => void {
   const editor = view.editor;
   const isInline = (b: { type: string }) => editor.schema.get(b.type).inline;
@@ -196,6 +175,15 @@ export function attachKeymap(view: EditorView): () => void {
       return;
     }
 
+    /*
+     * A block plugin's own keys, before the built-ins. Consulted for the block
+     * the caret is in *and* its ancestors, so a table can own Tab for a cell
+     * without the cell having to know it is in a table — the same walk
+     * `blockActionEntries` does, and the reason `keys` is per block type
+     * rather than a global keymap contribution.
+     */
+    if (sel?.kind === 'text' && pluginKey(view, e, sel.head.blockId)) return;
+
     const caret = sel?.kind === 'text' && isCollapsed(sel) ? sel.anchor : null;
 
     if (mod && !e.altKey) {
@@ -259,13 +247,6 @@ export function attachKeymap(view: EditorView): () => void {
           insertText(editor, '\n');
           return;
         }
-        // a cell never splits: Enter moves to the cell below, adding a row at
-        // the bottom edge, which is how a table is filled in by typing
-        if (caret && getBlock(editor.doc, caret.blockId).type === 'table_cell') {
-          e.preventDefault();
-          moveDownCell(view, caret.blockId);
-          return;
-        }
         if (caret && getBlock(editor.doc, caret.blockId).type === 'code') {
           e.preventDefault();
           insertText(editor, '\n');
@@ -285,8 +266,6 @@ export function attachKeymap(view: EditorView): () => void {
       case 'Tab': {
         e.preventDefault();
         if (!caret) return;
-        // inside a table, Tab walks cells instead of indenting (Notion)
-        if (moveThroughCells(view, caret.blockId, e.shiftKey ? -1 : 1)) return;
         if (e.shiftKey) outdent(editor, caret.blockId);
         else indent(editor, caret.blockId);
         view.syncDomSelection();

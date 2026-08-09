@@ -3,6 +3,19 @@ import { dirname, join, relative, sep } from 'node:path';
 import { Workspace, referencedAssets } from '@nbe/workspace';
 import { exportVault, importVault, type VaultFile } from '@nbe/workspace/vault';
 import { importNotion } from '@nbe/workspace/notion';
+import { tableBlocks } from '@nbe/blocks-table';
+import { PluginRegistry } from '@nbe/core';
+
+/**
+ * The block plugins the CLI reads and writes markdown with.
+ *
+ * @remarks
+ * A block type is only in a projection if its plugin is registered — that is
+ * the contract, and the reason `nbe` names its block set here instead of
+ * inheriting one. A note's table survives `import` → `export` because of this
+ * line.
+ */
+const PLUGINS = new PluginRegistry().registerAll(tableBlocks);
 import { fileStorage } from './storage';
 
 export { fileStorage } from './storage';
@@ -73,7 +86,7 @@ export function readTree(dir: string): VaultFile[] {
 export function writeVault(workspace: Workspace, root: string, assets?: ReadonlyMap<string, Uint8Array>): string[] {
   const target = join(root, VAULT);
   rmSync(target, { recursive: true, force: true });
-  const files = exportVault(workspace, assets ? { assets } : {});
+  const files = exportVault(workspace, assets ? { assets, plugins: PLUGINS } : { plugins: PLUGINS });
   for (const file of files) {
     const path = join(target, ...file.path.split('/'));
     mkdirSync(dirname(path), { recursive: true });
@@ -93,7 +106,9 @@ export function writeVault(workspace: Workspace, root: string, assets?: Readonly
 export async function importDirectory(workspace: Workspace, from: string): Promise<number> {
   const files = readTree(from);
   const fromNotion = files.some((f) => /[\s-][0-9a-f]{32}\.(md|csv)$/i.test(f.path));
-  const pages = fromNotion ? importNotion(files).pages : importVault(files);
+  const pages = fromNotion
+    ? importNotion(files, { plugins: PLUGINS }).pages
+    : importVault(files, { plugins: PLUGINS });
   for (const page of pages) await workspace.save(page.id, page);
   return pages.length;
 }

@@ -15,7 +15,7 @@ export * from './editor';
 export * from './commands';
 export * from './db';
 export * from './formula';
-export * from './table';
+
 export * from './migrate';
 export * from './validate';
 export * from './plugin';

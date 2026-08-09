@@ -1,4 +1,5 @@
 import type { Block, BlockId, BlockPlugin, Ranked } from '@nbe/core';
+import type { EditorFeature } from './features';
 import type { EditorView } from './view';
 import type { MenuEntry } from './ui';
 import type { IconName } from './ui';
@@ -23,6 +24,7 @@ import type { IconName } from './ui';
  * | `slash`      | an entry of `slash.ts`'s `ITEMS` array |
  * | `turnInto`   | an entry of `block-types.ts`'s `TURN_INTO` |
  * | `keys`       | a branch of `keymap.ts` |
+ * | `features`   | an `attach*` hardwired into the default feature list |
  * | `styles`     | a slice of `style/blocks.css` |
  */
 
@@ -114,10 +116,46 @@ export interface BlockView {
   /** How this block appears under "Turn into". Omit to keep it out. */
   turnInto?: TurnIntoEntry | TurnIntoEntry[];
   /**
+   * Adjust the element the default rendering produced, instead of replacing
+   * it. `chrome` prepends, `render` replaces; this one runs *after* the
+   * standard row and leaf are built, for a block that only needs a class or an
+   * inline style — a merged table cell spanning grid tracks.
+   */
+  decorate?: (ctx: BlockRenderContext, block: Block) => void;
+  /**
    * Key handlers, by `KeyboardEvent.key`. Each may be ranked, because a block
    * can need to win the keyboard while losing another contribution.
+   *
+   * @remarks
+   * Consulted for the block the caret is in *and* its ancestors, so a table
+   * can own Tab for the cell the caret sits in without the cell knowing it is
+   * in a table.
    */
   keys?: Record<string, BlockKeyHandler | Ranked<BlockKeyHandler>>;
+  /**
+   * Where the floating toolbar sits: `inside` the block's top-right corner, or
+   * `above` it. A table's top-right corner is a cell with text in it.
+   *
+   * @defaultValue 'inside'
+   */
+  toolbarPlacement?: 'inside' | 'above';
+  /**
+   * Editor-wide behaviour this block needs: a hover chrome, a drag gesture, a
+   * selection of its own. Attached when the plugin is registered and unbound
+   * with the view.
+   *
+   * @remarks
+   * The extension point that separates "a block with a shape" from "a block
+   * with an interaction". A table needs three things no per-block hook can
+   * express — chrome that lives *outside* the block's box, a pointer gesture
+   * that competes with text selection, and a selection that is neither a text
+   * range nor a set of blocks. Rather than an escape hatch into the raw DOM
+   * (`addProseMirrorPlugins`, which would freeze the renderer), a feature is
+   * the same `attach(view) => unbind` contract the editor's own features use,
+   * and it can contribute a {@link GestureRecognizer} through `view.recognizers`
+   * so one press still has exactly one owner.
+   */
+  features?: EditorFeature[];
   /** This block's own CSS, injected once per document when it is registered. */
   styles?: string;
 }

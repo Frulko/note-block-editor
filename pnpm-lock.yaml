@@ -56,6 +56,9 @@ importers:
       '@nbe/blocks-callout':
         specifier: workspace:*
         version: link:../../packages/blocks-callout
+      '@nbe/blocks-table':
+        specifier: workspace:*
+        version: link:../../packages/blocks-table
       '@nbe/collab':
         specifier: workspace:*
         version: link:../../packages/collab
@@ -96,6 +99,9 @@ importers:
 
   apps/obsidian:
     dependencies:
+      '@nbe/blocks-table':
+        specifier: workspace:*
+        version: link:../../packages/blocks-table
       '@nbe/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -193,6 +199,9 @@ importers:
       '@nbe/blocks-callout':
         specifier: workspace:*
         version: link:../../packages/blocks-callout
+      '@nbe/blocks-table':
+        specifier: workspace:*
+        version: link:../../packages/blocks-table
       '@nbe/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -244,8 +253,27 @@ importers:
         specifier: workspace:*
         version: link:../dom
 
+  packages/blocks-table:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/dom':
+        specifier: workspace:*
+        version: link:../dom
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
+    devDependencies:
+      '@nbe/static-renderer':
+        specifier: workspace:*
+        version: link:../static-renderer
+
   packages/cli:
     dependencies:
+      '@nbe/blocks-table':
+        specifier: workspace:*
+        version: link:../blocks-table
       '@nbe/collab':
         specifier: workspace:*
         version: link:../collab

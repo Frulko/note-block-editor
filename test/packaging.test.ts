@@ -41,7 +41,11 @@ describe('package layering', () => {
     // `node-datachannel` because Node has no `RTCPeerConnection` and `nbe peer`
     // needs a real one — and this is the layer allowed to have it, precisely so
     // that `collab` stays at core+CRDT and every client injects its own.
+    // `@nbe/blocks-table` because a block type is only in a projection if its
+    // plugin is registered: the CLI is a *host* and has to name its block set,
+    // exactly like an app mounting an editor.
     expect(deps('cli').sort()).toEqual([
+      '@nbe/blocks-table',
       '@nbe/collab',
       '@nbe/core',
       '@nbe/markdown',
@@ -68,6 +72,37 @@ describe('package layering', () => {
     expect(deps(name).sort()).toEqual(['@nbe/core', '@nbe/dom']);
     const peers = Object.keys((manifest(name)['peerDependencies'] as object) ?? {});
     expect(peers).toEqual([framework]);
+  });
+});
+
+describe('block plugin packages', () => {
+  const pluginPackages = packages.filter((name) => name.startsWith('blocks-'));
+
+  it('there is at least one, or these invariants are theatre', () => {
+    expect(pluginPackages.length).toBeGreaterThan(0);
+  });
+
+  it.each(pluginPackages)('%s keeps @nbe/dom a peer, never a dependency', (name) => {
+    // the model half must load in a CLI, a server and a native port; a hard
+    // dependency on the view would make that impossible for every consumer
+    expect(deps(name)).not.toContain('@nbe/dom');
+    expect(Object.keys((manifest(name)['peerDependencies'] as object) ?? {})).toContain('@nbe/dom');
+  });
+
+  it.each(pluginPackages)('%s exports a model entry and a /dom entry', (name) => {
+    const exports = manifest(name)['exports'] as Record<string, unknown>;
+    expect(Object.keys(exports)).toEqual(expect.arrayContaining(['.', './dom']));
+  });
+
+  it.each(pluginPackages)('%s: only its /dom half imports @nbe/dom', (name) => {
+    const dir = join(packagesDir, name, 'src');
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith('.ts')) continue;
+      const source = readFileSync(join(dir, file), 'utf8');
+      const importsDom = /from '@nbe\/dom'/.test(source.replace(/\/\*[\s\S]*?\*\//g, ''));
+      // `index.ts` is what @nbe/markdown and @nbe/static-renderer consume
+      if (file === 'index.ts' || file === 'model.ts') expect([file, importsDom]).toEqual([file, false]);
+    }
   });
 });
 

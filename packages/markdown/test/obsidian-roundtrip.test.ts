@@ -10,6 +10,10 @@ import { blocksToMarkdown, markdownToBlocks } from '../src/index';
  * not stable, merely *looking* at a note through Carnet rewrites it, and the
  * user finds a dirty vault they did not touch. That is worse than a missing
  * feature, so the claim in the plugin's README is tested rather than asserted.
+ *
+ * Constructs owned by a block plugin are round-tripped in that plugin's own
+ * tests, with it registered — a table here would only prove that this package
+ * still hardcodes one (`packages/blocks-table/test/markdown.test.ts`).
  */
 
 const NOTES: Array<[string, string]> = [
@@ -19,7 +23,6 @@ const NOTES: Array<[string, string]> = [
   ['a quote', '> une citation'],
   ['to-dos, both states', '- [ ] à faire\n- [x] fait'],
   ['a fenced code block', '```js\nconst x = 1;\n```'],
-  ['a table', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
   ['a wikilink beside a link', 'Un [[wikilink]] et un [lien](https://exemple.fr).'],
   ['a divider', '---'],
   ['headings of three levels', '# Un\n\n## Deux\n\n### Trois'],

@@ -1,4 +1,4 @@
-import { markdownToBlocks } from '@nbe/markdown';
+import { markdownToBlocks, type MarkdownOptions } from '@nbe/markdown';
 import { enhancedToBlocks, isEnhancedMarkdown } from './enhanced';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import { SUB_PAGE } from './index';
@@ -113,7 +113,7 @@ function promoteCallouts(blocks: BlockJSON[]): void {
  * are pages too and are included in `pages`, since that is what §2.5 says
  * they are.
  */
-export function importNotion(files: VaultFile[]): NotionImport {
+export function importNotion(files: VaultFile[], opts: MarkdownOptions = {}): NotionImport {
   const entries: Entry[] = [];
   for (const file of files) {
     if (!/\.(md|csv)$/i.test(file.path)) continue;
@@ -157,7 +157,7 @@ export function importNotion(files: VaultFile[]): NotionImport {
     // says which, so nobody has to choose an import mode they cannot see
     const blocks = isEnhancedMarkdown(entry.text)
       ? enhancedToBlocks(entry.text)
-      : markdownToBlocks(entry.text);
+      : markdownToBlocks(entry.text, opts);
     promoteCallouts(blocks);
 
     const folder = `${entry.directory}${entry.stem}/`;

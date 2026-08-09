@@ -4,14 +4,13 @@
 // selection is the table by the time the menu opens, so this covers the
 // lastTextCaret hand-off that makes "Supprimer la ligne" delete the right one.
 import { describe, expect, it } from 'vitest';
-import { Editor, PluginRegistry } from '@nbe/core';
-import { cellAt, insertTable, tableRows, rowCells, plainText } from '@nbe/core';
-import { blockActionEntries } from '../src/block-actions';
-import type { EditorView } from '../src/view';
-import { defaultLabels } from '../src/labels';
+import { Editor, PluginRegistry, plainText } from '@nbe/core';
+import { blockActionEntries, defaultLabels, type EditorView } from '@nbe/dom';
+import { cellAt, insertTable, tableRows, rowCells } from '../src/model';
+import { tableDomBlocks } from '../src/dom';
 
 function setup() {
-  const editor = new Editor();
+  const editor = new Editor({ plugins: tableDomBlocks });
   const anchor = {
     id: 'anchor',
     type: 'paragraph',
@@ -42,7 +41,7 @@ function setup() {
 const viewFor = (editor: Editor, caretBlockId: string | null) =>
   ({
     editor,
-    plugins: new PluginRegistry(),
+    plugins: new PluginRegistry().registerAll(tableDomBlocks),
     labels: defaultLabels,
     lastTextCaret: caretBlockId ? { blockId: caretBlockId, offset: 0 } : null,
   }) as unknown as EditorView;
