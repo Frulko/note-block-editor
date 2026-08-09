@@ -17,6 +17,7 @@ import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
 import { floatingTocFeature, toc } from '@nbe/blocks-toc/dom';
 import { dropZone } from '@nbe/blocks-dropzone/dom';
+import { embed } from '@nbe/blocks-embed/dom';
 import { mdx } from '@nbe/blocks-mdx/dom';
 import { PluginRegistry } from '@nbe/core';
 import '@nbe/dom/style.css';
@@ -34,7 +35,7 @@ import { blocksToMarkdown } from '@nbe/markdown';
 
 /** The block set this demo runs: the editor, the projections and the importers
  * all read the same registry, so nothing renders in one and vanishes in another. */
-const BLOCKS = [callout, code, toc, mdx, dropZone, ...tableDomBlocks];
+const BLOCKS = [callout, code, toc, mdx, dropZone, embed, ...tableDomBlocks];
 const PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 import { importNotion } from '@nbe/workspace/notion';
 import { download, unzip, zip } from './zip';

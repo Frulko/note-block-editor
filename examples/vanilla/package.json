@@ -12,6 +12,7 @@
     "@nbe/blocks-callout": "workspace:*",
     "@nbe/blocks-code": "workspace:*",
     "@nbe/blocks-dropzone": "workspace:*",
+    "@nbe/blocks-embed": "workspace:*",
     "@nbe/blocks-mdx": "workspace:*",
     "@nbe/blocks-mermaid": "workspace:*",
     "@nbe/blocks-table": "workspace:*",

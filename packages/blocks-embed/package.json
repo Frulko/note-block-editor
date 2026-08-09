@@ -1,0 +1,43 @@
+{
+  "name": "@nbe/blocks-embed",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./dom": {
+      "types": "./src/dom.ts",
+      "default": "./src/dom.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@nbe/dom": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@nbe/dom": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/carnet.git",
+    "directory": "packages/blocks-embed"
+  },
+  "homepage": "https://github.com/Frulko/carnet#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/carnet/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "L'intégration : une table de fournisseurs, un seul type de bloc.",
+  "devDependencies": {
+    "@nbe/markdown": "workspace:*",
+    "@nbe/static-renderer": "workspace:*"
+  }
+}
