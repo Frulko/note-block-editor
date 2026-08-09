@@ -16,6 +16,7 @@ import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
 import { attachCommentMarkers } from './comment-marker';
 import { attachFind } from './search';
+export { wordCountFeature } from './word-count';
 
 /**
  * A feature is anything that attaches behaviour to a mounted view and can be
@@ -64,6 +65,7 @@ export const commentMarkersFeature = feature('comment-markers', attachCommentMar
  * a host that has no browser find to take — a plugin pane, a desktop shell.
  */
 export const findFeature = feature('find', attachFind);
+export { exportFeature } from './export';
 /** `/` opens the block menu. */
 export const slashMenuFeature = feature('slash-menu', attachSlashMenu);
 /** `@` opens the page-mention picker. Inert without an `onSearchPages` host. */

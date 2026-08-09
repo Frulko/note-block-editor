@@ -518,3 +518,30 @@
     break-inside: avoid;
   }
 }
+
+/* --- slots: chrome that is not a block (see `EditorView.slot`) ------------ */
+
+.nbe-slot {
+  box-sizing: border-box;
+  width: 100%;
+}
+.nbe-slot-floating {
+  position: sticky;
+  bottom: 0;
+  z-index: 90;
+  pointer-events: none;
+}
+.nbe-slot-floating > * {
+  pointer-events: auto;
+}
+.nbe-wordcount {
+  padding: 4px max(var(--nbe-pad-x, 24px), var(--nbe-gutter-width, 58px), calc((100% - var(--nbe-max-width, 708px)) / 2));
+  padding-bottom: 16px;
+  font-size: 11px;
+  color: var(--nbe-text-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.nbe-wordcount[hidden] {
+  display: none;
+}

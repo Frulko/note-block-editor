@@ -53,6 +53,8 @@ export interface EditorLabels {
   findClose: string;
   /** Shown when a search matches nothing. */
   findNone: string;
+  /** The counter under the document. `{words}`, `{characters}`, `{minutes}`. */
+  wordCount: string;
 
   // --- format toolbar ---
   /** Bold. Format toolbar, and the ⌘B tooltip. */
@@ -288,6 +290,7 @@ export const defaultLabels: EditorLabels = {
   findNext: 'Résultat suivant',
   findClose: 'Fermer la recherche',
   findNone: 'Aucun résultat',
+  wordCount: '{words} mots · {characters} caractères · ~{minutes} min de lecture',
 
   bold: 'Gras',
   italic: 'Italique',

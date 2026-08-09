@@ -1,5 +1,13 @@
 import { docFromJSON, docToJSON, Editor, uuidv7, type BlockJSON, type Run } from '@nbe/core';
-import { EditorView, createExport, defaultFeatures, findFeature, perBlockTopology, singleHostTopology } from '@nbe/dom';
+import {
+  EditorView,
+  createExport,
+  defaultFeatures,
+  findFeature,
+  perBlockTopology,
+  singleHostTopology,
+  wordCountFeature,
+} from '@nbe/dom';
 import { renderToHTML } from '@nbe/static-renderer';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
@@ -419,6 +427,7 @@ function openPage(pageId: string): void {
   const flags = new URLSearchParams(location.search);
   const extraFeatures = [
     ...(flags.get('find') === 'on' ? [findFeature] : []),
+    ...(flags.get('count') === 'on' ? [wordCountFeature] : []),
     ...(flags.get('export') === 'on'
       ? [
           createExport([

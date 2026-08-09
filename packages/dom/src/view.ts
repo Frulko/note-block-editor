@@ -18,6 +18,13 @@ import { injectBlockStyles, viewOf, type DomBlockPlugin } from './block-view';
 import { PluginRegistry } from '@nbe/core';
 
 /**
+ * Where chrome that is not a block may live. See {@link EditorView.slot}.
+ *
+ * @category Rendering
+ */
+export type SlotName = 'top' | 'bottom' | 'floating';
+
+/**
  * A person, for display beside what they said.
  *
  * @category Configuration
@@ -466,6 +473,9 @@ export class EditorView {
    */
   destroy(): void {
     for (const un of this.unbinders) un();
+    for (const slot of this.slots.values()) slot.remove();
+    this.slots.clear();
+    this.announcer?.remove();
     this.content.remove();
   }
 
@@ -618,6 +628,49 @@ export class EditorView {
   focusBlock(id: string, offset: number): void {
     this.editor.setSelection(textCaret(id, offset));
     this.syncDomSelection();
+  }
+
+  private slots = new Map<SlotName, HTMLElement>();
+
+  /**
+   * A place for chrome that is not a block.
+   *
+   * @remarks
+   * A feature can already attach anything; what it had nowhere to put was
+   * anything *persistent* — `renderAll` replaces every child of the content
+   * element, so a word counter appended there vanishes on the next remote
+   * edit. A slot is a sibling of the content, which is where the live region
+   * has always lived for exactly this reason, so nothing the renderer does can
+   * reach it.
+   *
+   * Three, because three is what the questions asked for and no more: `top`
+   * for what belongs above the document (a cover, a title bar), `bottom` for
+   * what follows it (a word count, a footer), and `floating` for what sits
+   * over it without taking space (a reading-progress bar, a mini outline).
+   * Created on demand — a slot nobody asked for is not in the DOM — and
+   * removed with the view.
+   *
+   * @example
+   * ```ts
+   * const feature: EditorFeature = {
+   *   name: 'word-count',
+   *   attach(view) {
+   *     const el = view.slot('bottom')
+   *     …
+   *   },
+   * }
+   * ```
+   */
+  slot(where: SlotName): HTMLElement {
+    const existing = this.slots.get(where);
+    if (existing) return existing;
+    const el = document.createElement('div');
+    el.className = `nbe-slot nbe-slot-${where}`;
+    el.dataset['nbeUi'] = '';
+    if (where === 'top') this.content.before(el);
+    else this.content.after(el);
+    this.slots.set(where, el);
+    return el;
   }
 
   private announcer: HTMLElement | null = null;

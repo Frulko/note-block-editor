@@ -6,7 +6,7 @@
  */
 
 export { EditorView } from './view';
-export type { EditorViewOptions, CommentAuthor } from './view';
+export type { EditorViewOptions, CommentAuthor, SlotName } from './view';
 export { defaultLeftGutter, defaultRightGutter } from './controls';
 export type { GutterAction, GutterItem } from './controls';
 export { renderBlock } from './render';
@@ -60,6 +60,8 @@ export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-hig
 export { attachRemoteCarets, peerSelection, type RemotePeer, type RemoteSelection } from './remote-carets';
 export { attachViewportGuard, reveal } from './viewport';
 export { attachFind, findHits } from './search';
+export { wordCountFeature, documentSize } from './word-count';
+export type { DocumentSize } from './word-count';
 export { createExport, exportFeature, defaultExportFormats, markdownFormat, textFormat, printFormat } from './export';
 export type { ExportFormat } from './export';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';

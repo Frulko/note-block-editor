@@ -17,6 +17,7 @@ import {
   defaultFeatures,
   exportFeature,
   findFeature,
+  wordCountFeature,
   type EditorViewOptions,
 } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
@@ -123,6 +124,7 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   { name: 'database', label: 'Bases de données', desc: 'Les vues de base de données interactives.' },
   { name: 'find', label: 'Recherche ⌘F', desc: 'Rechercher dans la note ouverte, surlignage des résultats.' },
   { name: 'export', label: 'Export ⌘P', desc: 'Markdown, texte ou impression PDF de la note ouverte.' },
+  { name: 'word-count', label: 'Compteur de mots', desc: 'Mots, caractères et temps de lecture sous la note.' },
 ];
 
 /** Project the vault settings onto the editor's options, defaults preserved. */
@@ -141,7 +143,9 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
    * here, so this host offers it and lets the setting turn it off.
    */
   if (!s.readOnly)
-    opts.features = [...defaultFeatures, findFeature, exportFeature].filter((f) => s.features[f.name] !== false);
+    opts.features = [...defaultFeatures, findFeature, exportFeature, wordCountFeature].filter(
+      (f) => s.features[f.name] !== false,
+    );
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
   const padding: { top?: string; bottom?: string; x?: string } = {};
   if (s.padTop.trim()) padding.top = s.padTop.trim();
