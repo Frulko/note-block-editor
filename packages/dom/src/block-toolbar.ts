@@ -1,5 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
-import { getBlock } from '@nbe/core';
+import { getBlock, setColumnCount, setColumnRatios } from '@nbe/core';
 import type { EditorView } from './view';
 import { createActionButton, createMenu, openOverlays, toContainerPoint, type IconName, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
@@ -162,6 +162,76 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
     },
   ];
 });
+
+/* --- built-in: the column layout ---------------------------------------
+
+   The bar rather than the gutter menu, because a `column_list` is a layout
+   container: `standalone` is false for those by design — you act on what they
+   hold — so they have no handle and no menu of their own. The bar has a
+   different rule: `hostBlock` walks *up* from whatever is hovered to the
+   nearest ancestor that registered one, which is the same walk that lets
+   hovering a cell configure its table. So pointing at any column reaches the
+   layout. `above`, because a column's top-right corner is somebody's text. */
+
+/** The ways `n` columns can sensibly share the width. */
+export function columnRatioPresets(
+  labels: EditorLabels,
+  n: number,
+): Array<{ label: string; ratios: number[] }> {
+  const equal = { label: labels.columnsEqual, ratios: Array.from({ length: n }, () => 1) };
+  const wide = (at: number, label: string) => ({
+    label,
+    ratios: Array.from({ length: n }, (_, i) => (i === at ? 2 : 1)),
+  });
+  const presets = [equal, wide(0, labels.columnsWideFirst), wide(n - 1, labels.columnsWideLast)];
+  // a middle only exists when there is one; four columns have two of them
+  if (n % 2 === 1 && n > 2) presets.splice(1, 0, wide((n - 1) / 2, labels.columnsWideMiddle));
+  return presets;
+}
+
+registerBlockToolbar(
+  'column_list',
+  ({ view, block }) => {
+    const labels = view.labels;
+    const count = block.children.length;
+    const ratios = block.children.map((id) => Number(getBlock(view.editor.doc, id).props['ratio'] ?? 1));
+    const same = (a: readonly number[], b: readonly number[]) =>
+      a.length === b.length && a.every((v, i) => v === b[i]);
+    return [
+      {
+        icon: 'columns',
+        title: `${labels.columns} : ${count}`,
+        onClick: (_ctx, button) => {
+          const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
+          menu.update(
+            [2, 3, 4, 5].map((n) => ({
+              label: labels.columnsCount.replace('{n}', String(n)),
+              hintIcon: n === count ? ('check' as const) : undefined,
+              onSelect: () => setColumnCount(view.editor, block.id, n),
+            })),
+          );
+          menu.open(() => button.getBoundingClientRect(), { placement: 'bottom-end' });
+        },
+      },
+      {
+        icon: 'move-horizontal',
+        title: labels.columnsRatio,
+        onClick: (_ctx, button) => {
+          const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
+          menu.update(
+            columnRatioPresets(labels, count).map((preset) => ({
+              label: preset.label,
+              hintIcon: same(ratios, preset.ratios) ? ('check' as const) : undefined,
+              onSelect: () => setColumnRatios(view.editor, block.id, preset.ratios),
+            })),
+          );
+          menu.open(() => button.getBoundingClientRect(), { placement: 'bottom-end' });
+        },
+      },
+    ];
+  },
+  { placement: 'above' },
+);
 
 // --- the floating bar ---------------------------------------------------
 

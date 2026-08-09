@@ -227,6 +227,20 @@ export interface EditorLabels {
   /** Announced after a side drop creates columns. */
   columnsCreated: string;
 
+  // --- the column layout ---
+  /** The slash entry, and the toolbar button that changes the count. */
+  columns: string;
+  /** One entry of the count menu. `{n}` is the number. */
+  columnsCount: string;
+  /** The toolbar button that changes how the width is shared out. */
+  columnsRatio: string;
+  /** Every column the same width. */
+  columnsEqual: string;
+  columnsWideFirst: string;
+  columnsWideLast: string;
+  /** Only offered for an odd number of columns. */
+  columnsWideMiddle: string;
+
   // --- database chrome ---
   /** Shown when a database block points at a collection the host cannot find. */
   dbUnavailable: string;

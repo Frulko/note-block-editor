@@ -1,5 +1,5 @@
 import type { Block, BlockId } from '@nbe/core';
-import { childIndex, getBlock, plainText, textLength, uuidv7 } from '@nbe/core';
+import { childIndex, getBlock, insertColumns, plainText, textLength, uuidv7 } from '@nbe/core';
 import type { EditorView } from './view';
 import { triggerAnchor } from './caret';
 import { createMenu, type MenuEntry } from './ui';
@@ -33,6 +33,27 @@ const builtinItems = (labels: EditorLabels): SlashItem[] => [
   { label: labels.quote, keywords: ['quote'], icon: 'quote', action: { kind: 'block', type: 'quote' } },
   { label: labels.image, keywords: ['image', 'img', 'photo'], icon: 'image', action: { kind: 'block', type: 'image' } },
   { label: labels.divider, keywords: ['divider', 'hr'], icon: '—', action: { kind: 'divider' } },
+  /*
+   * Columns, asked for rather than dragged into being. The side-drop gesture
+   * that builds them is experimental and off by default, so a column layout
+   * was unreachable in the shipping configuration — `EditorViewOptions.columns`
+   * has always claimed they "stay reachable from the slash menu either way".
+   * `insert` rather than `block`, because a layout is a subtree: a list, its
+   * columns, and a paragraph in each to type into.
+   */
+  {
+    label: labels.columns,
+    keywords: ['columns', 'colonnes', 'layout', 'split'],
+    icon: 'columns',
+    action: {
+      kind: 'custom',
+      insert: (view, after) => {
+        const id = insertColumns(view.editor, after, 2);
+        if (id) view.focusBlock(id, 0);
+        return id;
+      },
+    },
+  },
   { label: labels.page, keywords: ['page', 'subpage'], icon: 'file-text', action: { kind: 'page' } },
   { label: labels.database, keywords: ['database', 'db'], icon: 'database', action: { kind: 'database' } },
 ];

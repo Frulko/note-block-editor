@@ -610,6 +610,118 @@ export function moveBlocks(editor: Editor, ids: BlockId[], parentId: BlockId, af
   );
 }
 
+/** An empty column holding one empty paragraph. */
+function emptyColumn(parentId: BlockId): { column: Block; paragraph: Block } {
+  const column: Block = { id: uuidv7(), type: 'column', version: 1, props: {}, children: [], parentId };
+  const paragraph: Block = {
+    id: uuidv7(),
+    type: 'paragraph',
+    version: 1,
+    props: {},
+    text: [],
+    children: [],
+    parentId: column.id,
+  };
+  return { column, paragraph };
+}
+
+/**
+ * A column layout, asked for rather than dragged into being.
+ *
+ * @remarks
+ * The side-drop gesture that builds columns is experimental and off by
+ * default, so until now a column layout was unreachable in the shipping
+ * configuration — `EditorViewOptions.columns` says columns "stay reachable
+ * from the slash menu either way", and they were not.
+ *
+ * Every column starts with an empty paragraph, and that is not a nicety:
+ * `normalizeWrappers` deletes a column whose children are all gone, and
+ * `[].every(…)` is `true` — so a layout built out of genuinely empty columns
+ * dissolves in the same transaction that creates it.
+ *
+ * @returns The id to put the caret in, or `null` at the document root.
+ */
+export function insertColumns(editor: Editor, afterBlockId: BlockId, count = 2): BlockId | null {
+  const doc = editor.doc;
+  const parentId = getBlock(doc, afterBlockId).parentId;
+  if (!parentId) return null;
+  const list: Block = { id: uuidv7(), type: 'column_list', version: 1, props: {}, children: [], parentId };
+  const columns = Array.from({ length: Math.max(2, count) }, () => emptyColumn(list.id));
+  editor.dispatch(
+    (tx) => {
+      tx.op({ type: 'insert_block', block: list, index: childIndex(doc, afterBlockId) + 1 });
+      columns.forEach(({ column, paragraph }, i) => {
+        tx.op({ type: 'insert_block', block: column, index: i });
+        tx.op({ type: 'insert_block', block: paragraph, index: 0 });
+      });
+    },
+    { origin: 'input' },
+  );
+  return columns[0]!.paragraph.id;
+}
+
+/**
+ * Add or remove columns, keeping what was written in them.
+ *
+ * @remarks
+ * Removing is the half worth being careful about: the blocks in a column that
+ * goes away move into the last surviving one rather than being deleted, so
+ * asking for fewer columns is a layout change and never a loss of text.
+ */
+export function setColumnCount(editor: Editor, listId: BlockId, count: number): void {
+  const doc = editor.doc;
+  const list = getBlock(doc, listId);
+  if (list.type !== 'column_list') return;
+  const wanted = Math.max(2, count);
+  const current = list.children.length;
+  if (wanted === current) return;
+
+  editor.dispatch(
+    (tx) => {
+      if (wanted > current) {
+        for (let i = current; i < wanted; i++) {
+          const { column, paragraph } = emptyColumn(list.id);
+          tx.op({ type: 'insert_block', block: column, index: i });
+          tx.op({ type: 'insert_block', block: paragraph, index: 0 });
+        }
+        return;
+      }
+      const keep = getBlock(doc, list.children[wanted - 1]!);
+      let after: BlockId | null = keep.children[keep.children.length - 1] ?? null;
+      for (const columnId of list.children.slice(wanted)) {
+        for (const childId of [...getBlock(doc, columnId).children]) {
+          tx.op({ type: 'move_block', id: childId, parentId: keep.id, after });
+          after = childId;
+        }
+        tx.op({ type: 'delete_block', id: columnId });
+      }
+    },
+    { origin: 'ui' },
+  );
+}
+
+/**
+ * How the width is shared out: one `ratio` per column, as `flex-grow`.
+ *
+ * @remarks
+ * Ratios rather than widths, because the container's width is the host's and
+ * a column that states pixels stops being responsive. Extra entries are
+ * ignored and missing ones leave the column at its default 1.
+ */
+export function setColumnRatios(editor: Editor, listId: BlockId, ratios: readonly number[]): void {
+  const doc = editor.doc;
+  const list = getBlock(doc, listId);
+  if (list.type !== 'column_list') return;
+  editor.dispatch(
+    (tx) => {
+      list.children.forEach((id, i) => {
+        tx.op({ type: 'update_block', id, patch: { props: { ratio: ratios[i] ?? 1 } } });
+      });
+    },
+    { origin: 'ui' },
+  );
+}
+
 /**
  * Drop blocks on the left/right edge of a target (ARCHITECTURE §7): wraps the
  * target in a column_list, or adds a column when the target is already one.

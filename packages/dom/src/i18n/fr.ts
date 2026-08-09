@@ -120,6 +120,13 @@ export const fr: EditorLabels = {
 
   blockMoved: 'Bloc déplacé',
   columnsCreated: 'Colonnes créées',
+  columns: 'Colonnes',
+  columnsCount: '{n} colonnes',
+  columnsRatio: 'Répartition',
+  columnsEqual: 'Égales',
+  columnsWideFirst: 'Première plus large',
+  columnsWideLast: 'Dernière plus large',
+  columnsWideMiddle: 'Celle du milieu plus large',
 
   dbUnavailable: 'Base de données indisponible',
   dbProperties: 'Propriétés',
