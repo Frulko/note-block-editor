@@ -534,6 +534,19 @@ class CarnetView extends TextFileView {
           .slice(0, 10)
           .map((f) => ({ pageId: f.basename, title: f.basename }));
       },
+      /*
+       * The slash menu's « Page » entry, which was inert here: without this
+       * hook the editor does not render it at all, so the one block that
+       * *makes* a note could not be reached from inside a note.
+       *
+       * The note is created for real, beside the one being edited, rather than
+       * left as an unresolved link — "add a page" that adds nothing is a
+       * different feature. The hook is synchronous and `vault.create` is not,
+       * so the name is settled here (which is the part the block stores) and
+       * the file follows. `link_to_page` is written as `[[Nom]]`, which is
+       * already how a vault spells this, so the block round-trips natively.
+       */
+      onCreatePage: () => this.createNote(),
       // a pasted or dropped image is an attachment, and the vault already has
       // a policy for where those go — so we ask it rather than invent a folder
       onStoreAsset: (blob) => this.storeAttachment(blob),
@@ -552,6 +565,28 @@ class CarnetView extends TextFileView {
     });
     this.loading = false;
     this.plugin.refreshStatus();
+  }
+
+  /**
+   * A new, empty note beside this one, named so it collides with nothing.
+   *
+   * @remarks
+   * The name is what the block stores and what the wikilink resolves by, so it
+   * has to be decided *now* — `vault.create` is asynchronous and the editor's
+   * hook is not. The uniqueness check and the create are therefore two steps,
+   * which is a race in theory: two notes made in the same millisecond. The
+   * create is the one that would fail, and it says so rather than overwriting.
+   */
+  private createNote(): { pageId: string; title: string } | null {
+    const folder = this.file?.parent?.path ?? '';
+    const path = (name: string) => normalizePath(`${folder}/${name}.md`);
+    const base = 'Nouvelle note';
+    let name = base;
+    for (let n = 2; this.app.vault.getAbstractFileByPath(path(name)); n++) name = `${base} ${n}`;
+    void this.app.vault
+      .create(path(name), '')
+      .catch((err) => new Notice(err instanceof Error ? err.message : String(err)));
+    return { pageId: name, title: name };
   }
 
   /**
