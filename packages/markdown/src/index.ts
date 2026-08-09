@@ -872,7 +872,17 @@ function parseLevel(
     // contributed rules first: a plugin owns its own syntax
     let claimed = false;
     for (const { rule } of rules) {
-      if (!rule.match.test(content)) continue;
+      /*
+       * Against the line *with* its trailer as well as without it. Stripping
+       * the trailer is right for every construct — a to-do parses the same
+       * whether or not it carries one — and it made the note below
+       * ("a plugin that wants to own its own marker syntax still wins")
+       * unreachable: a line that is nothing but a marker leaves `content`
+       * empty, so no contributed rule could ever match it and the generic
+       * marker path claimed it first. A block whose Markdown *is* a marker —
+       * one that opens a fence, say — could not be written as a plugin.
+       */
+      if (!rule.match.test(content) && !rule.match.test(full)) continue;
       const parsed = rule.parse(lines.map((l) => stripColumns(l, level)), pos);
       if (!parsed) continue;
       const block = parsed.block as unknown as BlockJSON;

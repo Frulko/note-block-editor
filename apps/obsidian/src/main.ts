@@ -37,6 +37,7 @@ import { mermaidStyles } from '@nbe/blocks-mermaid';
 import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { floatingTocFeature, toc } from '@nbe/blocks-toc/dom';
 import { mdx } from '@nbe/blocks-mdx/dom';
+import { dropZone } from '@nbe/blocks-dropzone/dom';
 
 /**
  * Carnet inside Obsidian — the editor, and nothing else.
@@ -217,7 +218,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
  * literal text on the next open. A plugin registered on one side only is
  * always that bug, so there is now no side to forget.
  */
-const BLOCKS = [...builtinBlocks, code, toc, ...tableDomBlocks];
+const BLOCKS = [...builtinBlocks, code, toc, dropZone, ...tableDomBlocks];
 
 const MARKDOWN_PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 

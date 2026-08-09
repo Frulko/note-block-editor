@@ -117,6 +117,9 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../../packages/blocks-code
+      '@nbe/blocks-dropzone':
+        specifier: workspace:*
+        version: link:../../packages/blocks-dropzone
       '@nbe/blocks-mdx':
         specifier: workspace:*
         version: link:../../packages/blocks-mdx
@@ -232,6 +235,9 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../../packages/blocks-code
+      '@nbe/blocks-dropzone':
+        specifier: workspace:*
+        version: link:../../packages/blocks-dropzone
       '@nbe/blocks-mdx':
         specifier: workspace:*
         version: link:../../packages/blocks-mdx
@@ -319,6 +325,22 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0
     devDependencies:
+      '@nbe/static-renderer':
+        specifier: workspace:*
+        version: link:../static-renderer
+
+  packages/blocks-dropzone:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/dom':
+        specifier: workspace:*
+        version: link:../dom
+    devDependencies:
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
       '@nbe/static-renderer':
         specifier: workspace:*
         version: link:../static-renderer

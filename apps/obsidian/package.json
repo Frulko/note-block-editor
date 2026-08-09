@@ -8,15 +8,16 @@
     "dev": "node esbuild.config.mjs --watch"
   },
   "dependencies": {
+    "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-dropzone": "workspace:*",
+    "@nbe/blocks-mdx": "workspace:*",
+    "@nbe/blocks-mermaid": "workspace:*",
+    "@nbe/blocks-table": "workspace:*",
+    "@nbe/blocks-toc": "workspace:*",
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
     "@nbe/markdown": "workspace:*",
-    "@nbe/blocks-table": "workspace:*",
-    "@nbe/blocks-code": "workspace:*",
-    "@nbe/blocks-toc": "workspace:*",
-    "@nbe/blocks-mermaid": "workspace:*",
-    "mermaid": "^11.16.1",
-    "@nbe/blocks-mdx": "workspace:*"
+    "mermaid": "^11.16.1"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

@@ -11,6 +11,9 @@
   "dependencies": {
     "@nbe/blocks-callout": "workspace:*",
     "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-dropzone": "workspace:*",
+    "@nbe/blocks-mdx": "workspace:*",
+    "@nbe/blocks-mermaid": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
     "@nbe/blocks-toc": "workspace:*",
     "@nbe/core": "workspace:*",
@@ -18,9 +21,7 @@
     "@nbe/markdown": "workspace:*",
     "@nbe/static-renderer": "workspace:*",
     "@nbe/workspace": "workspace:*",
-    "mermaid": "^11.16.1",
-    "@nbe/blocks-mermaid": "workspace:*",
-    "@nbe/blocks-mdx": "workspace:*"
+    "mermaid": "^11.16.1"
   },
   "devDependencies": {
     "vite": "^6.0.0"
