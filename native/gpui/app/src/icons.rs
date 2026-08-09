@@ -9,7 +9,7 @@
 use std::borrow::Cow;
 
 use anyhow::Result;
-use gpui::{AssetSource, IntoElement, SharedString, Styled, Svg, svg};
+use gpui::{AssetSource, SharedString, Styled, Svg, svg};
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
@@ -43,6 +43,8 @@ impl AssetSource for Assets {
 pub struct Icon(&'static str);
 
 impl Icon {
+    /// Le nom Lucide — ce que le test affiche quand un fichier manque.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const fn name(self) -> &'static str {
         self.0
     }
@@ -51,19 +53,24 @@ impl Icon {
         format!("icons/{}.svg", self.0)
     }
 
-    /// L'élément à peindre. La couleur suit `text_color` du parent.
-    pub fn el(self) -> Svg {
-        svg().path(self.path()).flex_none()
-    }
-
-    /// L'élément, dimensionné.
-    pub fn sized(self, size: gpui::Pixels) -> Svg {
-        self.el().size(size)
+    /// L'élément à peindre, dimensionné et coloré.
+    ///
+    /// La couleur est **obligatoire** : GPUI ne peint un SVG que si
+    /// `text_color` est posé sur l'élément lui-même (`svg.rs` :
+    /// `self.path.as_ref().zip(style.text.color)`). Une icône posée dans un
+    /// parent coloré n'hérite de rien et disparaît en silence — la panne
+    /// exacte que ce paramètre rend impossible.
+    pub fn sized(self, size: gpui::Pixels, color: gpui::Hsla) -> Svg {
+        svg().path(self.path()).flex_none().size(size).text_color(color)
     }
 }
 
 macro_rules! icons {
     ($($konst:ident => $name:literal),* $(,)?) => {
+        // la table couvre le jeu de blocs et le chrome ; toutes ne sont pas
+        // encore appelées, et une icône déclarée d'avance coûte bien moins
+        // qu'une icône manquante le jour où on en a besoin
+        #[allow(dead_code)]
         impl Icon {
             $(pub const $konst: Icon = Icon($name);)*
             /// Toutes les icônes déclarées — ce que le test parcourt.

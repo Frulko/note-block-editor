@@ -38,7 +38,6 @@ pub struct Theme {
     /// Le fond d'un élément survolé (rangée de barre latérale, entrée de menu).
     pub hover: Hsla,
     pub popover: Hsla,
-    pub shadow: Hsla,
     /// Multiplie chaque taille de texte — le réglage « taille du texte ».
     pub font_scale: f32,
     /// La largeur de la colonne d'écriture.
@@ -61,7 +60,6 @@ impl Theme {
             rule: rgb(0xe5e7eb).into(),
             hover: rgba(0x1f232810).into(),
             popover: rgb(0xffffff).into(),
-            shadow: rgba(0x1f232824).into(),
             font_scale: settings.font_scale,
             page_width: px(settings.page_width),
         }
@@ -80,7 +78,6 @@ impl Theme {
             rule: rgb(0x333333).into(),
             hover: rgba(0xffffff12).into(),
             popover: rgb(0x252525).into(),
-            shadow: rgba(0x00000060).into(),
             font_scale: settings.font_scale,
             page_width: px(settings.page_width),
         }

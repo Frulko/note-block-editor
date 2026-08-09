@@ -1,0 +1,13 @@
+[package]
+name = "carnet-sync"
+description = "Le protocole de synchronisation Carnet : un pair de plus sur le relais, en Rust."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+loro = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+carnet-model = { path = "../model" }
+tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }

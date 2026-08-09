@@ -3,11 +3,12 @@
 //! La table décrit *quoi* proposer ; `Editor` décide quand ouvrir, filtrer
 //! et appliquer, avec les mêmes règles de fermeture que le web.
 
-use gpui::{CursorStyle, Div, MouseButton, MouseDownEvent, div, prelude::*, px, rgb, rgba};
+use gpui::{Div, Stateful, px};
 use loro::LoroValue;
 
 use crate::editor::Editor;
-use crate::theme;
+use crate::icons::Icon;
+use crate::ui::{self, MenuItem};
 
 /// Une valeur de prop écrite dans la table — convertible en valeur Loro.
 pub enum PropLit {
@@ -29,24 +30,25 @@ impl PropLit {
 pub struct SlashItem {
     pub label: &'static str,
     pub keywords: &'static [&'static str],
+    pub icon: Icon,
     pub kind: &'static str,
     pub props: &'static [(&'static str, PropLit)],
 }
 
 pub const ITEMS: &[SlashItem] = &[
-    SlashItem { label: "Texte", keywords: &["text", "p", "paragraph"], kind: "paragraph", props: &[] },
-    SlashItem { label: "Titre 1", keywords: &["h1", "heading", "titre"], kind: "heading", props: &[("level", PropLit::Num(1))] },
-    SlashItem { label: "Titre 2", keywords: &["h2", "heading", "titre"], kind: "heading", props: &[("level", PropLit::Num(2))] },
-    SlashItem { label: "Titre 3", keywords: &["h3", "heading", "titre"], kind: "heading", props: &[("level", PropLit::Num(3))] },
-    SlashItem { label: "Liste à puces", keywords: &["bullet", "ul", "liste"], kind: "bulleted_list_item", props: &[] },
-    SlashItem { label: "Liste numérotée", keywords: &["number", "ol", "liste"], kind: "numbered_list_item", props: &[] },
-    SlashItem { label: "À faire", keywords: &["todo", "check", "task", "case"], kind: "to_do", props: &[("checked", PropLit::Bool(false))] },
-    SlashItem { label: "Dépliant", keywords: &["toggle", "collapse"], kind: "toggle", props: &[] },
-    SlashItem { label: "Citation", keywords: &["quote", "citation"], kind: "quote", props: &[] },
-    SlashItem { label: "Code", keywords: &["code"], kind: "code", props: &[] },
-    SlashItem { label: "Note", keywords: &["callout", "note", "aside"], kind: "callout", props: &[("variant", PropLit::Str("note"))] },
-    SlashItem { label: "Image", keywords: &["image", "img", "photo"], kind: "image", props: &[] },
-    SlashItem { label: "Séparateur", keywords: &["divider", "hr"], kind: "divider", props: &[] },
+    SlashItem { label: "Texte", keywords: &["text", "p", "paragraph"], icon: Icon::PARAGRAPH, kind: "paragraph", props: &[] },
+    SlashItem { label: "Titre 1", keywords: &["h1", "heading", "titre"], icon: Icon::HEADING_1, kind: "heading", props: &[("level", PropLit::Num(1))] },
+    SlashItem { label: "Titre 2", keywords: &["h2", "heading", "titre"], icon: Icon::HEADING_2, kind: "heading", props: &[("level", PropLit::Num(2))] },
+    SlashItem { label: "Titre 3", keywords: &["h3", "heading", "titre"], icon: Icon::HEADING_3, kind: "heading", props: &[("level", PropLit::Num(3))] },
+    SlashItem { label: "Liste à puces", keywords: &["bullet", "ul", "liste"], icon: Icon::BULLETED_LIST, kind: "bulleted_list_item", props: &[] },
+    SlashItem { label: "Liste numérotée", keywords: &["number", "ol", "liste"], icon: Icon::NUMBERED_LIST, kind: "numbered_list_item", props: &[] },
+    SlashItem { label: "À faire", keywords: &["todo", "check", "task", "case"], icon: Icon::TODO, kind: "to_do", props: &[("checked", PropLit::Bool(false))] },
+    SlashItem { label: "Dépliant", keywords: &["toggle", "collapse"], icon: Icon::TOGGLE, kind: "toggle", props: &[] },
+    SlashItem { label: "Citation", keywords: &["quote", "citation"], icon: Icon::QUOTE, kind: "quote", props: &[] },
+    SlashItem { label: "Code", keywords: &["code"], icon: Icon::CODE, kind: "code", props: &[] },
+    SlashItem { label: "Note", keywords: &["callout", "note", "aside"], icon: Icon::CALLOUT, kind: "callout", props: &[("variant", PropLit::Str("note"))] },
+    SlashItem { label: "Image", keywords: &["image", "img", "photo"], icon: Icon::IMAGE, kind: "image", props: &[] },
+    SlashItem { label: "Séparateur", keywords: &["divider", "hr", "trait"], icon: Icon::DIVIDER, kind: "divider", props: &[] },
 ];
 
 /// Le menu ouvert : où il a été déclenché, et ce qui est surligné.
@@ -73,7 +75,7 @@ pub fn filter(query: &str) -> Vec<usize> {
 }
 
 /// Le menu rendu, ancré sous le `/` qui l'a ouvert.
-pub fn menu(editor: &Editor, cx: &mut gpui::Context<Editor>) -> Option<Div> {
+pub fn menu(editor: &Editor, cx: &mut gpui::Context<Editor>) -> Option<Stateful<Div>> {
     let state = editor.slash.as_ref()?;
     let filtered = editor.slash_filtered();
     if filtered.is_empty() {
@@ -81,42 +83,27 @@ pub fn menu(editor: &Editor, cx: &mut gpui::Context<Editor>) -> Option<Div> {
     }
     let layout = editor.layouts.get(&state.block_id)?;
     let anchor = editor.position_of(&state.block_id, state.trigger)?;
-    let top = anchor.y + layout.line_height + px(4.);
+    let at = gpui::point(anchor.x, anchor.y + layout.line_height + px(4.));
 
-    let rows = filtered.into_iter().enumerate().map(|(row, item_ix)| {
-        let item = &ITEMS[item_ix];
-        let highlighted = row == state.selected;
-        div()
-            .px(px(10.))
-            .py(px(5.))
-            .text_size(px(14.))
-            .rounded(px(4.))
-            .when(highlighted, |entry| entry.bg(rgba(theme::SELECTION)))
-            .child(item.label)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |editor, _: &MouseDownEvent, _window, cx| {
-                    if let Some(state) = editor.slash.as_mut() {
-                        state.selected = row;
-                    }
-                    editor.select_slash(cx);
-                }),
-            )
-    });
+    let items: Vec<MenuItem> = filtered
+        .iter()
+        .map(|ix| {
+            let item = &ITEMS[*ix];
+            MenuItem::new(item.label).icon(item.icon)
+        })
+        .collect();
 
-    Some(
-        div()
-            .absolute()
-            .left(anchor.x)
-            .top(top)
-            .w(px(220.))
-            .p(px(4.))
-            .bg(gpui::white())
-            .border_1()
-            .border_color(rgb(theme::RULE))
-            .rounded(px(8.))
-            .shadow_md()
-            .cursor(CursorStyle::Arrow)
-            .children(rows),
-    )
+    Some(ui::menu(
+        "slash-menu",
+        &items,
+        state.selected,
+        at,
+        |editor: &mut Editor, row, _window, cx| {
+            if let Some(state) = editor.slash.as_mut() {
+                state.selected = row;
+            }
+            editor.select_slash(cx);
+        },
+        cx,
+    ))
 }

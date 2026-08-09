@@ -9,8 +9,8 @@
 use gpui::{
     App, Bounds, Element, ElementId, ElementInputHandler, Entity, GlobalElementId,
     InspectorElementId, IntoElement, LayoutId, PaintQuad, Pixels, Point, SharedString, Style,
-    TextAlign, TextRun, Window, WrappedLine, fill, point, px, relative, rgb, rgba,
-    size, AvailableSpace,
+    TextAlign, TextRun, Window, WrappedLine, fill, point, px, relative, size,
+    AvailableSpace,
 };
 
 use crate::editor::Editor;
@@ -49,12 +49,13 @@ impl BlockElement {
         let entry = &editor.entries[self.ix];
         let active = entry.id == editor.active_id;
         let base = window.text_style().font();
-        let (font, font_size, line_height, color) = theme::block_style(entry, &base);
+        let palette = theme::theme(cx);
+        let (font, font_size, line_height, color) = theme::block_style(entry, &base, palette);
         let text: SharedString = entry.text.clone().unwrap_or_default().into();
         let mut runs = theme::text_runs(
             &entry.runs,
             &font,
-            color,
+            palette,
             if active { editor.marked_range.as_ref() } else { None },
         );
         if runs.is_empty() {
@@ -123,6 +124,7 @@ impl Element for BlockElement {
         cx: &mut App,
     ) -> BlockPrepaint {
         let (text, runs, font_size, line_height, active) = self.snapshot(window, cx);
+        let palette = theme::theme(cx).clone();
         let lines: Vec<WrappedLine> = window
             .text_system()
             .shape_text(text, font_size, &runs, Some(bounds.size.width), None)
@@ -133,12 +135,16 @@ impl Element for BlockElement {
         let mut cursor = None;
         if active {
             let editor = self.editor.read(cx);
+            let in_block_mode = editor.block_selection.is_some();
             let range = editor.selected_range.clone();
-            if range.is_empty() {
+            if in_block_mode {
+                // en mode bloc, le surlignage est celui de la rangée : pas de
+                // caret, pas de sélection de texte
+            } else if range.is_empty() {
                 if let Some(origin) = position_in_lines(&lines, range.start, line_height) {
                     cursor = Some(fill(
                         Bounds::new(bounds.origin + origin, size(px(2.), line_height)),
-                        rgb(theme::ACCENT),
+                        palette.accent,
                     ));
                 }
             } else {
@@ -151,7 +157,7 @@ impl Element for BlockElement {
                                 bounds.origin + start,
                                 bounds.origin + point(end.x, end.y + line_height),
                             ),
-                            rgba(theme::SELECTION),
+                            palette.selection,
                         ));
                     } else {
                         // ponytail: la rangée de départ court jusqu'au bord ; assez
@@ -161,7 +167,7 @@ impl Element for BlockElement {
                                 bounds.origin + start,
                                 point(bounds.right(), bounds.top() + start.y + line_height),
                             ),
-                            rgba(theme::SELECTION),
+                            palette.selection,
                         ));
                         if end.y > start.y + line_height {
                             selections.push(fill(
@@ -169,7 +175,7 @@ impl Element for BlockElement {
                                     point(bounds.left(), bounds.top() + start.y + line_height),
                                     point(bounds.right(), bounds.top() + end.y),
                                 ),
-                                rgba(theme::SELECTION),
+                                palette.selection,
                             ));
                         }
                         selections.push(fill(
@@ -177,7 +183,7 @@ impl Element for BlockElement {
                                 point(bounds.left(), bounds.top() + end.y),
                                 bounds.origin + point(end.x, end.y + line_height),
                             ),
-                            rgba(theme::SELECTION),
+                            palette.selection,
                         ));
                     }
                 }
@@ -230,7 +236,8 @@ impl Element for BlockElement {
         }
 
         let caret = prepaint.cursor.take();
-        if active && focus_handle.is_focused(window) {
+        let lit = self.editor.read(cx).blink_on;
+        if active && lit && focus_handle.is_focused(window) {
             if let Some(caret) = caret.clone() {
                 window.paint_quad(caret);
             }

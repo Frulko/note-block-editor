@@ -188,6 +188,45 @@ impl Document {
         self.node(id)
     }
 
+    /// Où siège un nœud : son parent, et son rang parmi ses frères.
+    pub(crate) fn place_of(&self, target: TreeID) -> (TreeParentId, usize) {
+        self.place(target)
+    }
+
+    /// Oublier un identifiant du cache — après suppression.
+    pub(crate) fn forget(&self, id: &str) {
+        self.index.borrow_mut().remove(id);
+    }
+
+    /// Copier un nœud (métadonnées, props et texte marqué) sous un nouveau
+    /// parent, avec un identifiant neuf. Le texte est recopié run par run
+    /// pour que les marques suivent : une copie qui relirait la chaîne brute
+    /// perdrait chaque lien et chaque gras.
+    pub(crate) fn copy_node(
+        &self,
+        source: TreeID,
+        parent: TreeParentId,
+        index: usize,
+        id: &str,
+    ) -> LoroResult<TreeID> {
+        let target = self.tree.create_at(parent, index)?;
+        let meta = self.tree.get_meta(target)?;
+        meta.insert("id", id)?;
+        meta.insert("type", self.kind_of(source).as_str())?;
+        meta.insert("version", self.version_of(source))?;
+        if let Some(source_meta) = self.meta(source) {
+            if let Some(ValueOrContainer::Value(props)) = source_meta.get("props") {
+                meta.insert("props", props)?;
+            }
+            if let Some(text) = crate::json::text_of(&source_meta) {
+                let container = meta.insert_container("text", LoroText::new())?;
+                apply_runs(&tail_of(&text, 0), &container, 0)?;
+            }
+        }
+        self.index.borrow_mut().insert(id.to_string(), target);
+        Ok(target)
+    }
+
     /// Où se trouve un bloc : son parent, et sa position parmi ses frères.
     fn place(&self, target: TreeID) -> (TreeParentId, usize) {
         let parent = self.tree.parent(target).unwrap_or(TreeParentId::Root);
@@ -222,12 +261,7 @@ impl Document {
         let Some(id) = self.meta_string(target, "id") else { return };
         let children = self.tree.children(target).unwrap_or_default();
         let text = self.text_of(target);
-        let props = match self.meta(target).and_then(|meta| meta.get("props")) {
-            Some(ValueOrContainer::Value(LoroValue::Map(map))) => {
-                map.iter().map(|(key, value)| (key.to_string(), value.clone())).collect()
-            }
-            _ => HashMap::new(),
-        };
+        let props = self.meta(target).map(|meta| crate::json::props_of(&meta)).unwrap_or_default();
         out.push(Entry {
             id: id.clone(),
             kind: self.kind_of(target),

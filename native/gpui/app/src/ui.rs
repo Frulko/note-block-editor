@@ -4,9 +4,8 @@
 //! slash et le menu d'une poignée de bloc ne divergent pas.
 
 use gpui::{
-    AnyView, App, Context, Corner, Div, ElementId, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, ParentElement, Pixels, Point, Render, SharedString, Styled, StatefulInteractiveElement,
-    Window, anchored, deferred, div, px,
+    AnyView, App, Context, Corner, Div, ElementId, MouseButton, MouseDownEvent, Pixels, Point,
+    Render, SharedString, Stateful, Window, anchored, deferred, div, prelude::*, px,
 };
 
 use crate::icons::Icon;
@@ -19,9 +18,12 @@ pub struct Tooltip {
 }
 
 impl Tooltip {
-    pub fn build(label: impl Into<SharedString>, key: Option<&str>, cx: &mut App) -> AnyView {
+    pub fn build(
+        label: impl Into<SharedString>,
+        key: Option<SharedString>,
+        cx: &mut App,
+    ) -> AnyView {
         let label = label.into();
-        let key = key.map(SharedString::from);
         cx.new(|_| Tooltip { label, key }).into()
     }
 
@@ -33,10 +35,11 @@ impl Tooltip {
 
     pub fn with_key(
         label: impl Into<SharedString>,
-        key: &'static str,
+        key: impl Into<SharedString>,
     ) -> impl Fn(&mut Window, &mut App) -> AnyView {
         let label = label.into();
-        move |_window, cx| Tooltip::build(label.clone(), Some(key), cx)
+        let key = key.into();
+        move |_window, cx| Tooltip::build(label.clone(), Some(key.clone()), cx)
     }
 }
 
@@ -64,7 +67,7 @@ impl Render for Tooltip {
 
 /// Un bouton d'icône : la brique de toute la barre latérale et de la barre
 /// d'état. Le `id` est requis par GPUI pour qu'un élément soit survolable.
-pub fn icon_button(id: impl Into<ElementId>, icon: Icon, cx: &App) -> Div {
+pub fn icon_button(id: impl Into<ElementId>, icon: Icon, cx: &App) -> Stateful<Div> {
     let theme = theme(cx);
     div()
         .id(id.into())
@@ -76,7 +79,7 @@ pub fn icon_button(id: impl Into<ElementId>, icon: Icon, cx: &App) -> Div {
         .text_color(theme.muted)
         .hover(|style| style.bg(theme.hover).text_color(theme.text))
         .cursor_pointer()
-        .child(icon.sized(px(16.)))
+        .child(icon.sized(px(16.), theme.muted))
 }
 
 /// Une entrée de menu — description pure, sans comportement : c'est
@@ -124,7 +127,7 @@ pub fn menu<T: 'static>(
     at: Point<Pixels>,
     on_pick: impl Fn(&mut T, usize, &mut Window, &mut Context<T>) + Clone + 'static,
     cx: &mut Context<T>,
-) -> gpui::Stateful<Div> {
+) -> Stateful<Div> {
     let theme = theme(cx).clone();
     let rows: Vec<_> = items
         .iter()
@@ -146,7 +149,7 @@ pub fn menu<T: 'static>(
                 .hover(|style| style.bg(theme.hover))
                 .cursor_pointer()
                 .children(item.icon.map(|icon| {
-                    div().text_color(theme.muted).child(icon.sized(px(15.)))
+                    div().child(icon.sized(px(15.), theme.muted))
                 }))
                 .child(div().flex_1().child(item.label.clone()))
                 .children(item.hint.clone().map(|hint| {
@@ -161,12 +164,27 @@ pub fn menu<T: 'static>(
         })
         .collect();
 
+    let dismiss = on_pick.clone();
     div()
         .id(id.into())
         .absolute()
         .child(
             deferred(
-                anchored().anchor(Corner::TopLeft).position(at).snap_to_window().child(
+                // Un fond transparent sous le menu : il n'existe que tant que
+                // le menu est ouvert, capte le clic d'à côté et le referme.
+                // C'est aussi ce qui fait que recliquer la poignée bascule au
+                // lieu de rouvrir.
+                div()
+                    .absolute()
+                    .inset_0()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |view, _: &MouseDownEvent, window, cx| {
+                            dismiss(view, usize::MAX, window, cx);
+                        }),
+                    )
+                    .child(
+                        anchored().anchor(Corner::TopLeft).position(at).snap_to_window().child(
                     div()
                         .w(px(232.))
                         .p(px(4.))
@@ -178,7 +196,8 @@ pub fn menu<T: 'static>(
                         .shadow_lg()
                         .occlude()
                         .children(rows),
-                ),
+                    ),
+                    ),
             )
             .with_priority(1),
         )

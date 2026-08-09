@@ -62,6 +62,29 @@ describe('markdown autoformat is the same table in TypeScript, Swift and Rust', 
   });
 });
 
+describe('the Rust port agrees on which blocks carry text', () => {
+  /*
+   * `INLINE_TYPES` decides where the caret may land, what Backspace merges
+   * into, and which block a drag can drop text on. A type missing from it is
+   * a block the native app quietly refuses to edit — so it is held to the
+   * schema rather than kept by hand.
+   */
+  it('matches core’s inline set, plus the two the block plugins add', () => {
+    const schema = readFileSync(join(root, 'packages', 'core', 'src', 'schema.ts'), 'utf8');
+    const core = [...schema.matchAll(/\binline\('([a-z_]+)'/g)].map((hit) => hit[1]!);
+    // this client ships the block set the apps ship: `code` comes from
+    // `@nbe/blocks-code`, `table_cell` from `@nbe/blocks-table`
+    const expected = [...core, 'code', 'table_cell'].sort();
+
+    const source = rust('model/src/model.rs');
+    const match = source.match(/INLINE_TYPES[^=]*= \[([^\]]+)\]/);
+    if (!match) throw new Error('INLINE_TYPES introuvable');
+    const actual = [...match[1]!.matchAll(/"([^"]+)"/g)].map((hit) => hit[1]!).sort();
+
+    expect(actual).toEqual(expected);
+  });
+});
+
 describe('Enter continues the same block types in Rust', () => {
   it('the continuing set matches', () => {
     const ts = readFileSync(join(root, 'packages', 'core', 'src', 'commands.ts'), 'utf8');

@@ -108,6 +108,9 @@ impl Element for Scrollbar {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
+        // la scrollbar couvre exactement la zone visible : c'est elle qui la
+        // mesure pour tout le monde
+        self.editor.update(cx, |editor, _| editor.viewport_height = bounds.size.height);
         let editor = self.editor.read(cx);
         let geometry = thumb_geometry(editor.scroll_y, editor.content_height, bounds.size.height);
         (geometry, window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal))
