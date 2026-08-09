@@ -149,9 +149,10 @@ const contributions = [
     <p>
       Cette page est le guide. Les tables de champs générées depuis le code
       sont dans <a href={`${base}/docs/api/plugins/`}>API des plugins</a>, et
-      quatre blocs livrés s'écrivent déjà exactement comme ceci&nbsp;:
-      <code>@nbe/blocks-callout</code>, <code>@nbe/blocks-code</code>,
-      <code>@nbe/blocks-table</code>, <code>@nbe/blocks-toc</code>.
+      cinq blocs livrés s'écrivent déjà exactement comme ceci&nbsp;:{' '}
+      <code>@nbe/blocks-callout</code>, <code>@nbe/blocks-code</code>,{' '}
+      <code>@nbe/blocks-table</code>, <code>@nbe/blocks-toc</code>,{' '}
+      <code>@nbe/blocks-mdx</code>.
     </p>
   </div>
 
@@ -307,7 +308,7 @@ const contributions = [
     </li>
   </ul>
 
-  <h2 id="lire">Quatre plugins à lire</h2>
+  <h2 id="lire">Cinq plugins à lire</h2>
   <ul>
     <li>
       <strong><code>blocks-callout</code></strong> — le plus petit qui soit
@@ -330,7 +331,20 @@ const contributions = [
       <code>features</code>, une géométrie, des cellules fusionnées et une
       sélection qui n'est ni une plage de texte ni un ensemble de blocs.
     </li>
+    <li>
+      <strong><code>blocks-mdx</code></strong> — le bloc qu'on n'interprète
+      pas&nbsp;: un composant JSX traverse l'éditeur, l'export et le retour
+      octet pour octet, et n'est <em>jamais</em> évalué.
+    </li>
   </ul>
+  <p>
+    <code>@nbe/blocks-mermaid</code> est l'autre forme du même problème&nbsp;:
+    pas un bloc mais une <code>feature</code>, parce que{' '}
+    <code>```mermaid</code> est déjà un bloc de code dans tous les outils
+    Markdown existants et qu'un nouveau type se serait battu avec lui pour la
+    même clôture. La bibliothèque est une dépendance de pair optionnelle,
+    importée au premier diagramme.
+  </p>
   <p>
     La recherche et le plan qui ont mené à ce contrat sont dans le dépôt&nbsp;:
     <code>docs/research/plugin-architecture.md</code> et

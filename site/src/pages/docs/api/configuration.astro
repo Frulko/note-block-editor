@@ -3,6 +3,7 @@ import Docs from '../../../layouts/Docs.astro';
 import Code from '../../../components/Code.astro';
 import OptionsTable from '../../../components/api/OptionsTable.astro';
 import { options } from '../../../lib/api';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const viewOptions = options('@nbe/dom', 'EditorViewOptions');
 const labels = options('@nbe/dom', 'EditorLabels');
 const mount = `import { Editor, createDoc } from '@nbe/core';
@@ -29,6 +30,12 @@ const view = new EditorView(container, editor, {
 });
 
 view.destroy();`;
+const optIn = `import { defaultFeatures, exportFeature, findFeature, wordCountFeature } from '@nbe/dom';
+import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
+
+new EditorView(el, editor, {
+  features: [...defaultFeatures, findFeature, exportFeature, wordCountFeature, mermaidFeature],
+});`;
 const viewer = `// un lecteur : rend le document, n'attache rien, aucun caret
 new EditorView(el, editor, { readOnly: true });
 
@@ -55,14 +62,28 @@ new EditorView(el, editor, { features: minimalFeatures });`;
   <h2 id="recettes">Deux recettes</h2>
   <Code code={viewer} lang="ts" />
 
+  <h2 id="optionnelles">Quatre fonctionnalités hors du jeu par défaut</h2>
+  <Code code={optIn} lang="ts" />
+  <p>
+    <code>findFeature</code> et <code>exportFeature</code> prennent{' '}
+    <kbd>⌘F</kbd> et <kbd>⌘P</kbd>&nbsp;: dans un navigateur ces touches sont
+    celles du navigateur, et les reprendre pour offrir moins bien est une des
+    choses qu'on reproche aux concurrents de ce projet. Elles existent pour les
+    hôtes où il n'y a rien à reprendre — un volet Obsidian, une coquille
+    bureau. <code>wordCountFeature</code> écrit sous le document, via{' '}
+    <code>view.slot('bottom')</code>. <code>mermaidFeature</code> dessine les
+    blocs de code en <code>mermaid</code> et importe la bibliothèque au premier
+    diagramme.
+  </p>
+
   <h2 id="editorviewoptions"><code>EditorViewOptions</code></h2>
   <OptionsTable entries={viewOptions} />
 
   <h2 id="editorlabels"><code>EditorLabels</code></h2>
   <p>
-    Les valeurs par défaut sont en français, parce que c'est la langue dans
-    laquelle l'éditeur a été écrit — rien dans l'architecture ne la privilégie.
-    Un dictionnaire partiel suffit : il est fusionné par-dessus les défauts.
+    Les valeurs par défaut sont en anglais&nbsp;; cinq packs complets sont
+    livrés et un dictionnaire partiel suffit, il est fusionné par-dessus les
+    défauts. Voir <a href={`${base}/docs/api/i18n/`}>Internationalisation</a>.
   </p>
   <OptionsTable entries={labels} />
 </Docs>

@@ -24,6 +24,15 @@ export const en: EditorLabels = {
 };
 
 new EditorView(el, editor, { labels: en });`;
+const packs = `import { fr, labelsFor, LOCALE_NAMES } from '@nbe/dom';
+
+new EditorView(el, editor, { labels: fr });
+
+// ou depuis un réglage système : 'fr-CA' et 'de-AT' donnent la langue
+new EditorView(el, editor, { labels: labelsFor(navigator.language) });
+
+// pour un sélecteur : { en: 'English', fr: 'Français', … }
+Object.entries(LOCALE_NAMES);`;
 const interp = `import { format } from '@nbe/dom';
 
 format('Ligne {n}', { n: 2 });   // 'Ligne 2'
@@ -32,11 +41,23 @@ format('Zeile', { n: 2 });       // 'Zeile' — un placeholder retiré ne casse 
 ---
 <Docs title="Internationalisation" wide>
   <p>
-    Toutes les chaînes que l'éditeur met à l'écran passent par un dictionnaire.
-    Les valeurs par défaut sont en français parce que c'est la langue dans
-    laquelle il a été écrit — rien dans l'architecture ne la privilégie, et le
-    remplacement est total.
+    Toutes les chaînes que l'éditeur met à l'écran passent par un dictionnaire.{' '}
+    <strong>Les valeurs par défaut sont en anglais</strong>, et le français est
+    un pack comme un autre&nbsp;: une bibliothèque dont les défauts sont la
+    langue d'une équipe est une bibliothèque que tous les autres doivent
+    traduire avant de pouvoir lire leur propre écran. Carnet demande{' '}
+    <code>fr</code>.
   </p>
+
+  <h2 id="packs">Cinq langues livrées</h2>
+  <p>
+    <code>en</code>, <code>fr</code>, <code>es</code>, <code>it</code> et{' '}
+    <code>de</code>, chacune un dictionnaire complet plutôt qu'un correctif
+    par-dessus une autre — un dictionnaire partiel retombe en silence sur une
+    langue que le lecteur ne parle peut-être pas. Rien n'est chargé qui ne soit
+    importé.
+  </p>
+  <Code code={packs} lang="ts" />
 
   <h2 id="surcharge-partielle">Surcharge partielle</h2>
   <p>Un sous-ensemble suffit : il est fusionné par-dessus les défauts.</p>
