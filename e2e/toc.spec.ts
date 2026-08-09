@@ -60,7 +60,7 @@ test.describe('the table of contents', () => {
     await editor.type('# Deux');
     expect(await entries(page)).toEqual(['Un', 'Deux']);
 
-    await editor.press('ControlOrMeta+Backspace'); // delete the block the caret is in
+    await editor.press('Meta+Backspace'); // delete the block the caret is in
     expect(await entries(page)).toEqual(['Un']);
   });
 

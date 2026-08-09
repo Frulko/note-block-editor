@@ -9,19 +9,21 @@ import { test, expect } from './fixtures';
  * editor claims, and what it must let through.
  */
 test.describe('the command modifier', () => {
-  test('Cmd/Ctrl+Backspace deletes the block, not the line', async ({ editor }) => {
+  // Command only: off a Mac, `Ctrl+Backspace` belongs to the platform's word
+  // delete, asserted below — the editor must not take it.
+  test('Cmd+Backspace deletes the block, not the line', async ({ editor }) => {
     await editor.setDocument(['un', 'deux', 'trois']);
     await editor.caret(1, 2);
-    await editor.press('ControlOrMeta+Backspace');
+    await editor.press('Meta+Backspace');
 
     expect(await editor.texts()).toEqual(['un', 'trois']);
     expect(editor.errors()).toEqual([]);
   });
 
-  test('Cmd/Ctrl+Delete does the same from the other key', async ({ editor }) => {
+  test('Cmd+Delete does the same from the other key', async ({ editor }) => {
     await editor.setDocument(['un', 'deux']);
     await editor.caret(0, 0);
-    await editor.press('ControlOrMeta+Delete');
+    await editor.press('Meta+Delete');
 
     expect(await editor.texts()).toEqual(['deux']);
   });
@@ -39,7 +41,7 @@ test.describe('the command modifier', () => {
     await page.mouse.move(a.x + 20, a.y + a.height / 2, { steps: 4 });
     await page.mouse.move(b.x + b.width - 4, b.y + b.height / 2, { steps: 8 });
     await page.mouse.up();
-    await editor.press('ControlOrMeta+Backspace');
+    await editor.press('Meta+Backspace');
 
     expect(await editor.texts()).toEqual(['un', 'quatre']);
   });

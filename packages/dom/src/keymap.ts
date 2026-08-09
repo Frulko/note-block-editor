@@ -298,13 +298,19 @@ export function attachKeymap(view: EditorView): () => void {
         return;
       }
       /*
-       * Delete the block, not the line. `Cmd`/`Ctrl+Backspace` is "delete to
-       * the start of the line" in a plain text field, which in a block editor
-       * is a shortcut for something you can already do by holding Backspace.
-       * Removing the block outright is the one it was asked for, and it is
-       * reachable without first leaving text mode with Escape.
+       * Delete the block, not the line. `Cmd+Backspace` is "delete to the
+       * start of the line" on a Mac, which in a block editor is a shortcut for
+       * something you can already do by holding Backspace. Removing the block
+       * outright is the one it was asked for, and it is reachable without
+       * first leaving text mode with Escape.
+       *
+       * Command only, never Control: off a Mac `Ctrl+Backspace`/`Ctrl+Delete`
+       * is the *word* delete every text field on the platform has, so taking
+       * it here broke the one binding Linux and Windows cannot reach any other
+       * way. It falls through to `beforeinput` and `handleDeleteBy`; there,
+       * deleting the block stays Escape then Backspace.
        */
-      if ((e.key === 'Backspace' || e.key === 'Delete') && sel?.kind === 'text') {
+      if (e.metaKey && (e.key === 'Backspace' || e.key === 'Delete') && sel?.kind === 'text') {
         e.preventDefault();
         deleteBlocks(
           editor,
