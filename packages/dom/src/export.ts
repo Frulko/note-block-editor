@@ -133,9 +133,20 @@ export function createExport(extra: readonly ExportFormat[] = []): EditorFeature
         download(`${baseName()}.${format.id}`, format.text(view), mime);
       };
 
+      /*
+       * Capture, and only while the editor has focus — see `search.ts`. A host
+       * may already own this key (Obsidian's command palette is on it), and a
+       * bubbling listener never sees a key the host has already taken.
+       */
+      const mine = () => {
+        const active = document.activeElement;
+        return !!active && (view.content.contains(active) || menu.el.contains(active));
+      };
+
       const onKeyDown = (e: KeyboardEvent) => {
-        if (!isMod(e) || e.key.toLowerCase() !== 'p' || e.altKey || e.shiftKey) return;
+        if (!isMod(e) || e.key.toLowerCase() !== 'p' || e.altKey || e.shiftKey || !mine()) return;
         e.preventDefault();
+        e.stopPropagation();
         menu.update(formats.map((format) => ({ label: format.label, onSelect: () => choose(format) })));
         menu.open(() => {
           const rect = view.content.getBoundingClientRect();
@@ -143,9 +154,9 @@ export function createExport(extra: readonly ExportFormat[] = []): EditorFeature
         }, { placement: 'bottom-end' });
       };
 
-      document.addEventListener('keydown', onKeyDown);
+      document.addEventListener('keydown', onKeyDown, true);
       return () => {
-        document.removeEventListener('keydown', onKeyDown);
+        document.removeEventListener('keydown', onKeyDown, true);
         menu.close();
       };
     },

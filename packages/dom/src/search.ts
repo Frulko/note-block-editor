@@ -173,14 +173,30 @@ export function attachFind(view: EditorView): () => void {
     search();
   };
 
+  /**
+   * Capture, and only while the editor has focus.
+   *
+   * @remarks
+   * A host may already own this key — Obsidian's own search, its command
+   * palette — and a listener that bubbles never sees it: the host has taken it
+   * and called `preventDefault` first. So this one listens in the capture
+   * phase, where it is ahead of them, and pays for that by being strict about
+   * when it applies: the editor, or something inside it, has to hold focus.
+   * Anywhere else in the application the key is not ours.
+   */
+  const mine = () => {
+    const active = document.activeElement;
+    return !!active && (view.content.contains(active) || popover.el.contains(active));
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
-    if (!isMod(e) || e.key.toLowerCase() !== 'f' || e.altKey) return;
+    if (!isMod(e) || e.key.toLowerCase() !== 'f' || e.altKey || !mine()) return;
     e.preventDefault();
+    e.stopPropagation();
     open();
   };
 
-  // on the document, because the editor may not have focus when it is asked for
-  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keydown', onKeyDown, true);
   // the document changed under the matches: re-measure rather than leave ranges
   // pointing at text nodes a re-render replaced
   const unsubscribe = view.editor.on(() => {
@@ -188,7 +204,7 @@ export function attachFind(view: EditorView): () => void {
   });
 
   return () => {
-    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keydown', onKeyDown, true);
     unsubscribe();
     clear();
     popover.close();
