@@ -75,3 +75,52 @@ test.describe('the toggle block', () => {
     expect(await editor.types()).toEqual(['paragraph']);
   });
 });
+
+/**
+ * Enter at the very start of a block makes room above it. The block keeps its
+ * type, its text and the caret; a blank *paragraph* appears above. Splitting
+ * at offset 0 gave that shape only for a paragraph — a heading handed its
+ * title to a new paragraph and was left empty above it.
+ */
+test.describe('Enter at the start of a block', () => {
+  test('a heading keeps being a heading, and keeps its title', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await page.keyboard.type('# Titre');
+    await editor.caret(0, 0);
+    await page.keyboard.press('Enter');
+
+    expect(await editor.types()).toEqual(['paragraph', 'heading']);
+    expect(await editor.texts()).toEqual(['', 'Titre']);
+    expect(await editor.caretAt()).toEqual({ index: 1, offset: 0 });
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('a list gets a blank line above it, not a stray bullet', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await page.keyboard.type('- puce');
+    await editor.caret(0, 0);
+    await page.keyboard.press('Enter');
+
+    expect(await editor.types()).toEqual(['paragraph', 'bulleted_list_item']);
+    expect(await editor.texts()).toEqual(['', 'puce']);
+  });
+
+  test('and typing carries on where it was', async ({ page, editor }) => {
+    await editor.setDocument(['un']);
+    await editor.caret(0, 0);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('deux ');
+
+    expect(await editor.texts()).toEqual(['', 'deux un']);
+  });
+
+  test('Enter on an empty line still adds one below', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await page.keyboard.press('Enter');
+    expect(await editor.types()).toEqual(['paragraph', 'paragraph']);
+    expect(await editor.caretAt()).toEqual({ index: 1, offset: 0 });
+  });
+});

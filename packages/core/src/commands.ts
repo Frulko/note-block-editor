@@ -39,6 +39,34 @@ export function splitBlock(editor: Editor): boolean {
     return true;
   }
 
+  /*
+   * Enter at the very start makes room above, and changes nothing else. The
+   * block keeps its type, its text and the caret; what appears above it is an
+   * empty *paragraph* — a blank line, which is what anyone pressing Enter
+   * there is asking for.
+   *
+   * Splitting at 0 gave the same shape only for a paragraph. For a heading it
+   * handed the title to a new paragraph and left the empty heading above it,
+   * so the title silently stopped being a title; for a list it left a stray
+   * empty bullet rather than a blank line.
+   */
+  if (caret.offset === 0 && len > 0) {
+    const spacer: Block = {
+      id: uuidv7(),
+      type: 'paragraph',
+      version: 1,
+      props: {},
+      text: [],
+      children: [],
+      parentId: block.parentId,
+    };
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block: spacer, index: childIndex(editor.doc, block.id) }), {
+      origin: 'input',
+      selection: textCaret(block.id, 0),
+    });
+    return true;
+  }
+
   const tail = sliceRuns(block.text ?? [], caret.offset, len);
 
   /*
