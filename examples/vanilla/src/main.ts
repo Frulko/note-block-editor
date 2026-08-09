@@ -9,6 +9,8 @@ import {
   wordCountFeature,
 } from '@nbe/dom';
 import { renderToHTML } from '@nbe/static-renderer';
+import { mermaidStyles } from '@nbe/blocks-mermaid';
+import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
@@ -16,6 +18,9 @@ import { toc } from '@nbe/blocks-toc/dom';
 import { PluginRegistry } from '@nbe/core';
 import '@nbe/dom/style.css';
 import './demo.css';
+
+// the mermaid feature ships its CSS as a string, like a block plugin's `styles`
+document.head.append(Object.assign(document.createElement('style'), { textContent: mermaidStyles }));
 import { attachInspector } from './inspector';
 import { createComments, ME } from './comments';
 import { allAssetBytes, resolveAsset, storeAsset, releaseAssetUrls, sweepAssets } from './assets';
@@ -428,6 +433,9 @@ function openPage(pageId: string): void {
   const extraFeatures = [
     ...(flags.get('find') === 'on' ? [findFeature] : []),
     ...(flags.get('count') === 'on' ? [wordCountFeature] : []),
+    // mermaid is lazily imported by the feature: a page with no diagram on it
+    // never downloads the library
+    mermaidFeature,
     ...(flags.get('export') === 'on'
       ? [
           createExport([

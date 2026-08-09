@@ -1,0 +1,43 @@
+{
+  "name": "@nbe/blocks-mermaid",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./dom": {
+      "types": "./src/dom.ts",
+      "default": "./src/dom.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@nbe/dom": "workspace:*",
+    "mermaid": ">=10"
+  },
+  "peerDependenciesMeta": {
+    "@nbe/dom": {
+      "optional": true
+    },
+    "mermaid": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "directory": "packages/blocks-mermaid"
+  },
+  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/note-block-editor/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "Les diagrammes Mermaid, rendus depuis un bloc de code ```mermaid."
+}

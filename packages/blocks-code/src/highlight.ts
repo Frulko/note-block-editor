@@ -115,6 +115,9 @@ export const LANGUAGES: Array<{ id: string; label: string; load?: () => Promise<
   { id: 'kotlin', label: 'Kotlin', load: () => import('highlight.js/lib/languages/kotlin') },
   { id: 'lua', label: 'Lua', load: () => import('highlight.js/lib/languages/lua') },
   { id: 'markdown', label: 'Markdown', load: () => import('highlight.js/lib/languages/markdown') },
+  // no grammar: a diagram is not read as code, and `@nbe/blocks-mermaid` draws
+  // it. Listed so the language is reachable from the picker at all.
+  { id: 'mermaid', label: 'Mermaid' },
   { id: 'php', label: 'PHP', load: () => import('highlight.js/lib/languages/php') },
   { id: 'python', label: 'Python', load: () => import('highlight.js/lib/languages/python') },
   { id: 'ruby', label: 'Ruby', load: () => import('highlight.js/lib/languages/ruby') },
