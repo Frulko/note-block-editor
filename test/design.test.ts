@@ -184,3 +184,43 @@ describe('motion speaks one language', () => {
     }
   });
 });
+
+/**
+ * Carnet inside Obsidian repaints the portaled chrome with the page's own ink,
+ * because app.css styles bare `button` above anything a class can say and the
+ * components rely on `color: inherit`. That blanket rule is right for every
+ * surface except the inverted ones, where the page's ink is the *background*.
+ *
+ * Getting it wrong is silent: every tooltip in the vault was a black rectangle
+ * with black text in it, no error anywhere. So the list is checked rather than
+ * remembered — add an inverse surface to the editor and this fails until the
+ * plugin sheet names it.
+ */
+describe('the Obsidian sheet covers every inverted surface', () => {
+  const STYLE_DIR = join(__dirname, '..', 'packages', 'dom', 'src', 'style');
+  const editorCss = readdirSync(STYLE_DIR)
+    .filter((name) => name.endsWith('.css'))
+    .map((name) => readFileSync(join(STYLE_DIR, name), 'utf8'))
+    .join('\n');
+  const pluginCss = readFileSync(join(__dirname, '..', 'apps', 'obsidian', 'src', 'styles.css'), 'utf8');
+
+  /** Selectors whose own rule paints `--nbe-inverse-surface` as background. */
+  function invertedSurfaces(): string[] {
+    const out: string[] = [];
+    for (const [, selector, body] of editorCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!/background[^;]*--nbe-inverse-surface/.test(body!)) continue;
+      out.push(...(selector!.match(/\.nbe-[\w-]+/g) ?? []));
+    }
+    return [...new Set(out)];
+  }
+
+  it('gives each of them the inverse ink back', () => {
+    const surfaces = invertedSurfaces();
+    expect(surfaces.length).toBeGreaterThan(0); // the regex still matches something
+    const missing = surfaces.filter((selector) => {
+      const rule = new RegExp(`\\${selector}[^{}]*\\{[^{}]*--nbe-inverse-text`);
+      return !rule.test(pluginCss);
+    });
+    expect(missing).toEqual([]);
+  });
+});

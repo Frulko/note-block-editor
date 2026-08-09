@@ -151,6 +151,13 @@ body[data-nbe-theme] .nbe-portal {
 .nbe-controls {
   color: var(--nbe-text-faint);
 }
-.nbe-seltoolbar {
+/* The inverse surfaces: dark chip, light ink, in either theme. Missing the
+   tooltip here is what made every tooltip in the vault a black rectangle with
+   black text in it — `--nbe-text` above is the *page's* ink, and on a light
+   theme that is black on `--nbe-inverse-surface`'s near-black. No JS error,
+   nothing in the console, just an unreadable label. `test/design.test.ts`
+   now fails the build if a third inverse surface appears without a line here. */
+.nbe-seltoolbar,
+.nbe-tooltip {
   color: var(--nbe-inverse-text);
 }
