@@ -685,3 +685,19 @@
 .nbe-wordcount[hidden] {
   display: none;
 }
+
+/* the badge that says the chrome is pinned, and how to let it go */
+.nbe-debug-badge {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  padding: 6px 10px;
+  border-radius: var(--nbe-radius-sm, 4px);
+  background: var(--nbe-inverse-surface);
+  color: var(--nbe-inverse-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+}

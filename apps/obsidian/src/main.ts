@@ -16,6 +16,7 @@ import {
   EditorView,
   builtinBlocks,
   caretLine,
+  debugFeature,
   defaultFeatures,
   documentSize,
   exportFeature,
@@ -159,6 +160,12 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   { name: 'word-count', label: 'Compteur de mots', desc: 'Mots, caractères et temps de lecture sous la note.' },
   { name: 'mermaid', label: 'Diagrammes Mermaid', desc: 'Dessine les blocs ```mermaid, avec Aperçu / Code / Les deux.' },
   {
+    name: 'debug-hold',
+    label: 'Figer le chrome (⌥⇧D)',
+    desc: 'Outil de mise au point : ⌥⇧D fige la gouttière, la barre et les menus ouverts pour pouvoir les inspecter. Échap libère.',
+    on: false,
+  },
+  {
     name: 'floating-toc',
     label: 'Sommaire flottant',
     desc: 'Les titres de la note, dans un panneau qui suit le défilement et souligne la section en cours de lecture. Masqué sur un volet étroit.',
@@ -195,6 +202,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
       wordCountFeature,
       mermaidFeature,
       floatingTocFeature,
+      debugFeature,
     ].filter((f) => featureOn(s, f.name));
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
   const padding: { top?: string; bottom?: string; x?: string } = {};

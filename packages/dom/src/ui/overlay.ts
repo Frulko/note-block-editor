@@ -1,3 +1,4 @@
+import { debugHolding } from '../debug';
 /**
  * The overlay stack: one place that owns "what is open, and what closes it".
  *
@@ -66,6 +67,9 @@ function contains(item: StackItem, target: Node): boolean {
 function onPointerDown(e: Event): void {
   const target = e.target as Node | null;
   if (!target || stack.length === 0) return;
+  // the chrome is pinned for inspection: moving the pointer toward the
+  // devtools is exactly the gesture that would dismiss what is being looked at
+  if (debugHolding()) return;
   // find the deepest entry the press landed in; everything above it closes
   let deepest = -1;
   for (let i = stack.length - 1; i >= 0; i--) {

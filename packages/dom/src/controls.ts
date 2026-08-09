@@ -35,6 +35,7 @@ type Edge = 'before' | 'after' | 'left' | 'right';
 import { COLORS } from './colors';
 import { isActiveTarget, turnIntoTargets } from './block-types';
 import { blockActionEntries } from './block-actions';
+import { debugHolding } from './debug';
 import { format } from './labels';
 import type { GestureRecognizer } from './gestures';
 
@@ -251,6 +252,7 @@ export function attachControls(view: EditorView): () => void {
 
   const resolveBlock = (e: MouseEvent): HTMLElement | null => {
     lastPointer = e;
+    if (debugHolding()) return null;
     const c = view.content.getBoundingClientRect();
     if (e.clientX < c.left - HOVER_LEFT || e.clientX > c.right + HOVER_RIGHT) return null;
     if (e.clientY < c.top - HOVER_Y || e.clientY > c.bottom + HOVER_Y) return null;

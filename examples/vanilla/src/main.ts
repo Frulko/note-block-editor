@@ -8,6 +8,7 @@ import {
   perBlockTopology,
   singleHostTopology,
   wordCountFeature,
+  debugFeature,
 } from '@nbe/dom';
 import { renderToHTML } from '@nbe/static-renderer';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
@@ -439,6 +440,8 @@ function openPage(pageId: string): void {
     ...(flags.get('count') === 'on' ? [wordCountFeature] : []),
     // ?outline=on floats the headings beside the note and follows the scroll
     ...(flags.get('outline') === 'on' ? [floatingTocFeature] : []),
+    // ?debug=on adds ⌥⇧D, which pins the chrome so it can be inspected
+    ...(flags.get('debug') === 'on' ? [debugFeature] : []),
     // mermaid is lazily imported by the feature: a page with no diagram on it
     // never downloads the library
     mermaidFeature,
