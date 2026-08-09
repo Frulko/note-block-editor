@@ -16,12 +16,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "url": "git+https://github.com/Frulko/carnet.git",
     "directory": "packages/collab"
   },
-  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "homepage": "https://github.com/Frulko/carnet#readme",
   "bugs": {
-    "url": "https://github.com/Frulko/note-block-editor/issues"
+    "url": "https://github.com/Frulko/carnet/issues"
   },
   "author": "Guillaume Dumoulin",
   "description": "Collaboration : CRDT Loro, synchronisation, pr\u00e9sence, commentaires, historique."

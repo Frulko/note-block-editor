@@ -19,12 +19,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "url": "git+https://github.com/Frulko/carnet.git",
     "directory": "packages/vue"
   },
-  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "homepage": "https://github.com/Frulko/carnet#readme",
   "bugs": {
-    "url": "https://github.com/Frulko/note-block-editor/issues"
+    "url": "https://github.com/Frulko/carnet/issues"
   },
   "author": "Guillaume Dumoulin",
   "description": "Liaison Vue, fine : le travail est dans @nbe/dom."

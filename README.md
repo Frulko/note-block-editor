@@ -3,9 +3,9 @@
 A Notion-class block editor written in vanilla TypeScript, with storage you can
 read without it: Markdown files in a folder, the way Obsidian does it.
 
-**[Site and live demo →](https://frulko.github.io/note-block-editor/)** ·
-[Why](https://frulko.github.io/note-block-editor/docs/why/) ·
-[Where it runs](https://frulko.github.io/note-block-editor/docs/hosts/)
+**[Site and live demo →](https://frulko.github.io/carnet/)** ·
+[Why](https://frulko.github.io/carnet/docs/why/) ·
+[Where it runs](https://frulko.github.io/carnet/docs/hosts/)
 
 > The packages are published under the `@nbe/*` scope and the CLI is `nbe`;
 > **Carnet** is the product those packages add up to. Both names are kept on

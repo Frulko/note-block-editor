@@ -22,12 +22,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "url": "git+https://github.com/Frulko/carnet.git",
     "directory": "packages/markdown"
   },
-  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "homepage": "https://github.com/Frulko/carnet#readme",
   "bugs": {
-    "url": "https://github.com/Frulko/note-block-editor/issues"
+    "url": "https://github.com/Frulko/carnet/issues"
   },
   "author": "Guillaume Dumoulin",
   "description": "La projection lisible : markdown dans les deux sens, CSV, vues de collection."

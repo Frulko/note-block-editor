@@ -27,12 +27,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "url": "git+https://github.com/Frulko/carnet.git",
     "directory": "packages/blocks-callout"
   },
-  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "homepage": "https://github.com/Frulko/carnet#readme",
   "bugs": {
-    "url": "https://github.com/Frulko/note-block-editor/issues"
+    "url": "https://github.com/Frulko/carnet/issues"
   },
   "author": "Guillaume Dumoulin",
   "description": "Le bloc encadr\u00e9, en exemple de greffon."

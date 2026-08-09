@@ -34,7 +34,7 @@ jobs:
       - run: pnpm docs:api
       - run: pnpm --filter site build
         env:
-          BASE_PATH: /note-block-editor
+          BASE_PATH: /carnet
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/dist

@@ -12,12 +12,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "url": "git+https://github.com/Frulko/carnet.git",
     "directory": "packages/core"
   },
-  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "homepage": "https://github.com/Frulko/carnet#readme",
   "bugs": {
-    "url": "https://github.com/Frulko/note-block-editor/issues"
+    "url": "https://github.com/Frulko/carnet/issues"
   },
   "author": "Guillaume Dumoulin",
   "description": "Le mod\u00e8le de document : blocs, op\u00e9rations, s\u00e9lection, historique."

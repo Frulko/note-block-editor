@@ -15,7 +15,7 @@ import topLevelAwait from 'vite-plugin-top-level-await';
  */
 export default defineConfig({
   site: 'https://frulko.github.io',
-  // GitHub Pages sert le site sous /note-block-editor/ ; en local, pas de base.
+  // GitHub Pages sert le site sous /carnet/ ; en local, pas de base.
   base: process.env.BASE_PATH,
   integrations: [mdx(), react(), vue(), svelte()],
   markdown: {
