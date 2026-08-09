@@ -8,10 +8,10 @@ remembered.
 
 | Suite | State |
 | --- | --- |
-| Unit (`pnpm test`) | 922 passing, 81 files |
-| Browser, Chromium (`pnpm e2e --project=chromium`) | 137/137, **gates CI** |
-| Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 132/132, 5 skipped, **gates CI** |
-| Browser, WebKit (`pnpm e2e --project=webkit`) | 127/127, 10 skipped, **gates CI** |
+| Unit (`pnpm test`) | 1012 passing, 87 files |
+| Browser, Chromium (`pnpm e2e --project=chromium`) | 189/189, **gates CI** |
+| Browser, single-host (`TOPOLOGY=single-host pnpm e2e`) | 184/184, 5 skipped, **gates CI** |
+| Browser, WebKit (`pnpm e2e --project=webkit`) | 178/178, 11 skipped, **gates CI** |
 | Touch, mobile viewports (`--project=mobile-safari --project=mobile-chrome`) | 6+7 passing, **gates CI** |
 | Performance (`e2e/performance.spec.ts`) | keystroke 8.3ms / 8.4ms at 500 blocks, render 205ms |
 | Swift (`cd native/swift && swift test`) | 75 passing |
@@ -25,6 +25,51 @@ reopened in a new process converges with a browser holding nothing.
 **And now with no server in the path.** Typed in Chrome, read on an iPhone in the
 simulator, stored to disk by `nbe peer` — three peers, three languages, a full
 WebRTC mesh, and the relay watching none of it go by. Run it: `apps/ios/README.md`.
+
+## Comfort pass, 2026-08-09
+
+Eight items off `Amélioration de Carnet.md`, each its own commit, each with the
+spec that failed before it. Grouped by what they turned out to *be*, because in
+every case the reported symptom was not the bug:
+
+- **`a06ca34` — the standard editing keymap.** macOS gives Control its own text
+  keymap (`^A`/`^E`/`^K`/`^F`/`^B`/`^N`/`^P`/`^D`) and every browser implements
+  it inside a contenteditable; reading Control as the command modifier stole all
+  of them. `isMod` splits them. Word and line deletes (`⌥⌫`, `⌥⌦`, `^K`) fell
+  through `beforeinput`'s default arm and were blocked outright — and Chromium
+  reports **zero** `getTargetRanges()` for those input types, measured, so
+  `prevWord`/`nextWord` compute the boundary from UAX #29. Also `⌘⌫` deletes the
+  block, and clicking the empty page below the last block works: the gesture
+  router marked a press "moved" at one pixel of drift and swallowed the click.
+- **`03266f9` — `reveal()`.** `Element.scrollIntoView` scrolls *every* scrollable
+  ancestor. Inside Obsidian's pane, inside a workspace, inside a window, that is
+  a keystroke moving something far above the editor. Asking first costs one rect
+  read.
+- **`d110c40` — Obsidian tooltips were black on black.** The plugin sheet
+  repaints portaled chrome with the page's ink and listed the surfaces it must
+  not reach; the tooltip was missing from the list. `test/design.test.ts` now
+  derives that list from the stylesheets.
+- **`e4dcbda`** — `⌥↑`/`⌥↓` moves a block, `⇧⌥↑`/`⇧⌥↓` copies it.
+- **`2dfa6bb` — checklists.** `- ` made the block a bullet before `[ ] ` arrived,
+  and autoformat only ran on paragraphs, so the Markdown spelling of a checklist
+  never made one. `⌘Enter` ticks. `+` is a bullet marker. Brackets are escaped
+  only where they would parse back as a link.
+- **`79488e3` — `@nbe/blocks-toc`.** The first block whose content *is* the
+  document, which needed `ProjectionContext.page` (a projection rendering one
+  block cannot look sideways) and a feature rather than a render hook (typing in
+  a heading dirties the heading). It found two general bugs: a void block from
+  the slash menu left nowhere to type, and slash results were in registration
+  order so `/table` reached the wrong entry.
+- **`0814c83`** — a theme choice in Obsidian's settings and the desktop topbar.
+- **`cdfba11` — superscript, subscript, `==highlight==`.** And the bug under
+  them: **underline never round-tripped.** `<u>x</u>` had been written since day
+  one and never read back.
+
+What is left on that list and still cheap: inline comments with a count badge in
+the gutter (needs a `commentCount` host hook — the threads are the host's), page
+icon/tags/cover, the live/raw toggle, PDF/LaTeX export. The code-block items
+(tab handling, the language input losing focus, syntax highlighting) belong with
+`@nbe/blocks-code`.
 
 ## Peer-to-peer, 2026-08-08
 
