@@ -25,6 +25,8 @@ const NOTES: Array<[string, string]> = [
   ['a wikilink beside a link', 'Un [[wikilink]] et un [lien](https://exemple.fr).'],
   ['a divider', '---'],
   ['headings of three levels', '# Un\n\n## Deux\n\n### Trois'],
+  ['a file card', '[contrat.pdf](../assets/abc.pdf) <!-- nbe:file {"props":{"mime":"application/pdf","size":9}} -->'],
+  ['an image with a caption', '![alt](../assets/x.png) <!-- nbe:image {"props":{"caption":"Le schéma"}} -->'],
 ];
 
 describe('a note survives being opened', () => {

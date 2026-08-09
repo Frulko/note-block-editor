@@ -207,6 +207,91 @@ describe('blocksToMarkdown', () => {
   });
 });
 
+/**
+ * The blocks whose line says less than the block does. A vault is Markdown, so
+ * a prop the file cannot spell is a prop lost on every save — and for these
+ * two that is not metadata trivia, it is what makes the block render at all.
+ */
+describe('the props a link line cannot spell', () => {
+  it('brings a file back as a file, with its mime and its size', () => {
+    const original = b('file', {
+      props: { src: 'asset:abc', name: 'contrat.pdf', mime: 'application/pdf', size: 12345 },
+    });
+    const md = blocksToMarkdown([original]);
+    expect(md).toContain('[contrat.pdf](asset:abc)'); // still a link for every other tool
+    const [back] = markdownToBlocks(md);
+    expect(back!.type).toBe('file');
+    expect(back!.props).toEqual(original.props);
+  });
+
+  it('leaves a bare link alone — it is prose, not a file', () => {
+    expect(markdownToBlocks('[un lien](https://x.test)')[0]!.type).toBe('paragraph');
+  });
+
+  it('keeps an image caption, alignment and width', () => {
+    const original = b('image', {
+      props: { src: 'asset:img', caption: 'Le schéma', align: 'center', width: 60 },
+      text: [{ text: 'alt' }],
+    });
+    const md = blocksToMarkdown([original]);
+    expect(md.startsWith('![alt](asset:img)')).toBe(true);
+    const [back] = markdownToBlocks(md);
+    expect(back!.type).toBe('image');
+    expect(back!.props).toEqual(original.props);
+    expect(back!.text).toEqual(original.text);
+  });
+
+  it('writes a plain image as a plain image, with nothing trailing it', () => {
+    expect(blocksToMarkdown([b('image', { props: { src: 'a.png' } })])).toBe('![](a.png)');
+  });
+
+  it('does not let either line be swallowed by the paragraph above', () => {
+    const md = ['du texte', ...blocksToMarkdown([b('file', { props: { src: 'a.pdf', name: 'a.pdf' } })]).split('\n'), 'suite'].join('\n');
+    expect(markdownToBlocks(md).map((x) => x.type)).toEqual(['paragraph', 'file', 'paragraph']);
+  });
+});
+
+/**
+ * A block written by a bigger plugin set than the one reading the file. The
+ * marker is the only thing standing between it and deletion, so it has to
+ * survive the round trip whole — type, props and text.
+ */
+describe('a block whose plugin is not loaded', () => {
+  it('comes back as its own type, not as the literal comment', () => {
+    const [block] = markdownToBlocks('<!-- nbe:table_of_contents -->');
+    expect(block!.type).toBe('table_of_contents');
+  });
+
+  it('keeps its props and its text through a save and a reload', () => {
+    const original = b('bookmark_wat', {
+      props: { style: 'numbered', url: 'https://x.test' },
+      text: [{ text: 'titre' }],
+    });
+    const md = blocksToMarkdown([original]);
+    const [back] = markdownToBlocks(md);
+    expect(back!.type).toBe('bookmark_wat');
+    expect(back!.props).toEqual(original.props);
+    expect(back!.text).toEqual(original.text);
+  });
+
+  it('cannot be closed early by a payload of its own', () => {
+    const md = blocksToMarkdown([b('bookmark_wat', { props: { note: 'a --> b' } })]);
+    expect(md.split('-->').length).toBe(2); // exactly one comment end
+    expect(markdownToBlocks(md)[0]!.props).toEqual({ note: 'a --> b' });
+  });
+
+  it('keeps the block when the payload is corrupt', () => {
+    const [block] = markdownToBlocks('<!-- nbe:bookmark_wat {oops -->');
+    expect(block!.type).toBe('bookmark_wat');
+    expect(block!.props).toBeUndefined();
+  });
+
+  it('is not swallowed by the paragraph above it', () => {
+    const blocks = markdownToBlocks('du texte\n<!-- nbe:bookmark_wat -->\nsuite');
+    expect(blocks.map((x) => x.type)).toEqual(['paragraph', 'bookmark_wat', 'paragraph']);
+  });
+});
+
 describe('markdownToBlocks', () => {
   it('parses a realistic pasted snippet', () => {
     const md = [

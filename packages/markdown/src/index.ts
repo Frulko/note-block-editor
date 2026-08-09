@@ -510,18 +510,28 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
     case 'divider':
       return [pad + '---'];
     case 'image':
-      return [pad + `![${text}](${String(p['src'] ?? '')})`];
+      // the caption, the alignment and the width ride in the trailer: an image
+      // that came back left-aligned and full-width every time it was saved was
+      // losing the only thing the block stores beyond its source
+      return [pad + `![${text}](${String(p['src'] ?? '')})${trailer('image', p)}`];
     /*
-     * A plain link, and a documented loss of the same class as `toggle` and
-     * `link_to_page` (D7): re-importing gives a paragraph carrying a working
-     * link, never a dangling one. There is deliberately no parser rule —
-     * anything broad enough to read a lone link back as a file block would
-     * claim every paragraph that happens to be a link. `rewriteAssets` turns
-     * the `asset:` ref into `../assets/<hash>` on vault export, so the link
-     * resolves in Obsidian and the bytes are in the vault beside it.
+     * The link is what other Markdown tools render, and the `asset:` ref in it
+     * is resolved by the host, so the bytes are reachable from the vault.
+     *
+     * The ref is deliberately left out of the marker: one copy in the file
+     * means the garbage collector's scan and a hand edit cannot disagree.
+     *
+     * The trailing marker is what makes it a *file* again on the way back. A
+     * bare link cannot be: any rule broad enough to claim one would claim
+     * every paragraph that happens to be a link — which is why this used to be
+     * a documented loss (D7), and why the loss was worse than documented. The
+     * mime type and the size are what the block renders (a PDF gets a viewer,
+     * a download gets its weight), so a re-import gave a paragraph where a
+     * file card had been. Always written, even with nothing to carry: the
+     * marker *is* the type.
      */
     case 'file':
-      return [pad + `[${String(p['name'] ?? 'fichier')}](${String(p['src'] ?? '')})`];
+      return [pad + `[${String(p['name'] ?? 'fichier')}](${String(p['src'] ?? '')}) ${marker('file', hidden('file', p))}`];
     case 'link_to_page':
     case 'sub_page': {
       // documented loss (D7): both become a wikilink, so a re-import cannot
@@ -537,7 +547,71 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
       return (b.children ?? []).flatMap((col) => (col.children ?? []).flatMap((c) => renderBlock(c, depth)));
     default:
       // unknown type: marker comment so nothing silently disappears, then children
-      return [pad + `<!-- nbe:${b.type} -->`, ...(b.children ?? []).flatMap((c) => renderBlock(c, depth))];
+      return [pad + unknownMarker(b), ...(b.children ?? []).flatMap((c) => renderBlock(c, depth))];
+  }
+}
+
+/**
+ * The line an unregistered block type is written as: `<!-- nbe:type {…} -->`.
+ *
+ * @remarks
+ * The type alone was not enough. A block whose plugin is not loaded — the
+ * table of contents in a host that only registered the core blocks, a
+ * third-party block in the CLI — was written as a bare marker, so every save
+ * quietly stripped its props and its text. Markdown is the storage format
+ * here, which makes that data loss on a round-trip through a smaller plugin
+ * set, not a rendering detail.
+ *
+ * The payload is JSON, and `--` inside it is escaped as `--` so no
+ * value can close the comment early. `--` never occurs outside a JSON string,
+ * so escaping it blind is safe and `JSON.parse` gives the original back.
+ */
+export function unknownMarker(b: BlockJSON): string {
+  const payload: Record<string, unknown> = {};
+  if (b.props && Object.keys(b.props).length) payload['props'] = b.props;
+  if (b.text?.length) payload['text'] = b.text;
+  return marker(b.type, payload);
+}
+
+/** `<!-- nbe:type {…} -->`, with nothing in the payload able to close it early. */
+function marker(type: string, payload: Record<string, unknown>): string {
+  const data = Object.keys(payload).length ? ' ' + JSON.stringify(payload).replace(/--/g, '\\u002d\\u002d') : '';
+  return `<!-- nbe:${type}${data} -->`;
+}
+
+/**
+ * The props a line's own syntax already says, and which therefore never ride
+ * in a marker: repeating them is how the file and the marker come to disagree
+ * after someone renames a link by hand in Obsidian.
+ */
+const SPELLED: Record<string, readonly string[]> = {
+  image: ['src'],
+  file: ['src', 'name'],
+};
+
+/** The props of `b` that its line cannot spell, as a marker payload. */
+function hidden(type: string, p: Record<string, unknown>): Record<string, unknown> {
+  const spelled = SPELLED[type] ?? [];
+  const rest = Object.fromEntries(Object.entries(p).filter(([k, v]) => !spelled.includes(k) && v !== undefined));
+  return Object.keys(rest).length ? { props: rest } : {};
+}
+
+/** The same, as the suffix a line carries — empty when there is nothing to hide. */
+function trailer(type: string, p: Record<string, unknown>): string {
+  const payload = hidden(type, p);
+  return Object.keys(payload).length ? ` ${marker(type, payload)}` : '';
+}
+
+/** The marker a block of an unregistered type round-trips through. */
+export const UNKNOWN_MARKER = /^<!--\s*nbe:([A-Za-z0-9_-]+)\s*(.*?)\s*-->$/;
+
+/** The props a trailing marker carries, or none if it is absent or corrupt. */
+function trailerProps(payload: string | undefined): Record<string, unknown> {
+  if (!payload?.startsWith('{')) return {};
+  try {
+    return (JSON.parse(payload) as { props?: Record<string, unknown> }).props ?? {};
+  } catch {
+    return {};
   }
 }
 
@@ -609,8 +683,10 @@ function stripColumns(line: string, cols: number): string {
 }
 
 const CONSTRUCT_STARTS: RegExp[] = [
+  /^<!--\s*nbe:/, // an unloaded plugin's block
   /^-{3,}\s*$/, // divider
-  /^!\[.*?\]\(.*?\)\s*$/, // lone image
+  /^!\[.*?\]\(.*?\)(?:\s*<!--\s*nbe:image.*)?\s*$/, // lone image
+  /^\[.*?\]\(.*?\)\s*<!--\s*nbe:file/, // a file card
   /^\[\[.+?\]\]\s*$/, // lone wikilink
   /^#{1,6}\s+/, // heading
   /^>\s?/, // quote or callout
@@ -731,6 +807,25 @@ function parseLevel(
     }
     if (claimed) continue;
 
+    /*
+     * A block whose plugin was not registered when the file was written. Read
+     * back as the type it names, with whatever props and text the marker
+     * carried: the plugin may well be loaded *now*, in which case the block
+     * simply works again, and if it is not, `@nbe/dom` renders it as an
+     * unrecognised block rather than dropping it.
+     *
+     * After the contributed rules, so a plugin that wants to own its own
+     * marker syntax still wins.
+     */
+    if ((m = UNKNOWN_MARKER.exec(content))) {
+      let payload: { props?: Record<string, unknown>; text?: Run[] } = {};
+      // a corrupted payload costs the props, never the block
+      if (m[2]?.startsWith('{')) try { payload = JSON.parse(m[2]) as typeof payload; } catch { payload = {}; }
+      out.push(mk(m[1]!, payload.props ?? {}, payload.text));
+      pos++;
+      continue;
+    }
+
     // divider
     if (/^-{3,}\s*$/.test(content)) {
       out.push(mk('divider', {}));
@@ -738,9 +833,20 @@ function parseLevel(
       continue;
     }
 
-    // image alone on a line
-    if ((m = /^!\[(.*?)\]\((.*?)\)\s*$/.exec(content))) {
-      out.push(mk('image', { src: m[2]! }, m[1] ? markdownToRuns(m[1]) : undefined));
+    // image alone on a line, with whatever its line could not spell
+    if ((m = /^!\[(.*?)\]\((.*?)\)(?:\s*<!--\s*nbe:image\s*(\{.*\})?\s*-->)?\s*$/.exec(content))) {
+      out.push(mk('image', { ...trailerProps(m[3]), src: m[2]! }, m[1] ? markdownToRuns(m[1]) : undefined));
+      pos++;
+      continue;
+    }
+
+    /*
+     * A file: a link the rest of the world renders, and a marker that says the
+     * link is a block rather than prose. Both halves are required — a bare
+     * link stays a paragraph, exactly as before.
+     */
+    if ((m = /^\[(.*?)\]\((.*?)\)\s*<!--\s*nbe:file\s*(\{.*\})?\s*-->\s*$/.exec(content))) {
+      out.push(mk('file', { ...trailerProps(m[3]), src: m[2]!, name: m[1]! }));
       pos++;
       continue;
     }

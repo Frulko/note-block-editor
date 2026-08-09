@@ -41,6 +41,8 @@ export interface EditorLabels {
   dragHandle: string;
   /** Tooltip on the right-hand comment button. */
   addComment: string;
+  /** Open the threads on a commented block. `{n}` is how many there are. */
+  openComments: string;
 
   // --- format toolbar ---
   /** Bold. Format toolbar, and the ⌘B tooltip. */
@@ -117,6 +119,11 @@ export interface EditorLabels {
   placeholders: Record<string, string>;
   /** Stand-in for a page or row with no title yet. */
   untitled: string;
+  /**
+   * Shown in place of a block whose plugin this editor has not registered.
+   * Takes `{type}`, the block type as the document names it.
+   */
+  unknownBlock: string;
 
   // --- announcements (aria-live) ---
   /** Announced to screen readers after a duplicate. */
@@ -265,6 +272,7 @@ export const defaultLabels: EditorLabels = {
   addBlock: 'Ajouter un bloc en dessous',
   dragHandle: 'Glisser pour déplacer\nCliquer pour ouvrir le menu',
   addComment: 'Commenter ce bloc',
+  openComments: '{n} commentaire(s) sur ce bloc',
 
   bold: 'Gras',
   italic: 'Italique',
@@ -308,6 +316,7 @@ export const defaultLabels: EditorLabels = {
     callout: 'Encadré',
   },
   untitled: 'Sans titre',
+  unknownBlock: 'Bloc « {type} » non reconnu — son extension n’est pas chargée.',
 
   blockDuplicated: 'Bloc dupliqué',
   blockDeleted: 'Bloc supprimé',

@@ -48,8 +48,12 @@ export class Tx {
   ) {}
 
   op(o: Op): this {
-    if (o.type === 'insert_block') this.schema.get(o.block.type); // throws on unknown type
-    if (o.type === 'update_block' && o.patch.type !== undefined) this.schema.get(o.patch.type);
+    // *creating* a block of a type nothing registered is a bug in the caller,
+    // so it is refused here — which is not the same question as reading a
+    // document that already contains one (§4), and is why the check is this
+    // explicit rather than a side effect of `schema.get`
+    if (o.type === 'insert_block') this.schema.require(o.block.type);
+    if (o.type === 'update_block' && o.patch.type !== undefined) this.schema.require(o.patch.type);
     const result = applyOp(this.doc, o);
     this.ops.push(o);
     this.inverse.unshift(...result.inverse);

@@ -119,7 +119,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
     columns: s.columns,
     readOnly: s.readOnly,
     // the table is a plugin: without it a note's `| a | b |` stays a paragraph
-    blocks: [...builtinBlocks, code, toc, ...tableDomBlocks],
+    blocks: BLOCKS,
   };
   // readOnly's default is "no features at all"; only pick features when editing
   if (!s.readOnly) opts.features = defaultFeatures.filter((f) => s.features[f.name] !== false);
@@ -139,11 +139,16 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
 }
 
 /**
- * The projections a note is parsed and written with. Both directions read the
- * same registry, which is what stops a block from rendering perfectly and
- * vanishing on save.
+ * The blocks the view renders and the projections a note is parsed and written
+ * with — one list, read by both. They used to be two, and the table of
+ * contents was in only one of them: it rendered fine, was written as an
+ * `<!-- nbe:table_of_contents -->` marker on save, and came back as that
+ * literal text on the next open. A plugin registered on one side only is
+ * always that bug, so there is now no side to forget.
  */
-const MARKDOWN_PLUGINS = new PluginRegistry().registerAll([code, ...tableDomBlocks]);
+const BLOCKS = [...builtinBlocks, code, toc, ...tableDomBlocks];
+
+const MARKDOWN_PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 
 /** A page document wrapping freshly parsed blocks. */
 function pageOf(markdown: string): BlockJSON {

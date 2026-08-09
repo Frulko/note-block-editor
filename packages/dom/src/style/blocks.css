@@ -118,6 +118,22 @@
   margin-left: 24px;
 }
 
+/* a block whose plugin is not loaded: visible, inert, and not lost */
+.nbe-t-unknown {
+  padding: 2px 0;
+  cursor: grab;
+}
+.nbe-unknown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px dashed var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm, 4px);
+  color: var(--nbe-text-muted);
+  font-size: 0.9em;
+}
+
 /* --- columns --- */
 
 .nbe-t-column_list {

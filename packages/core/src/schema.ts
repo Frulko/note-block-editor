@@ -95,7 +95,6 @@ export interface BlockSpec {
 export type BlockCategory = 'text' | 'void' | 'layout';
 
 export function blockCategory(schema: Schema, type: string): BlockCategory {
-  if (!schema.has(type)) return 'text';
   const spec = schema.get(type);
   if (spec.layout) return 'layout';
   return spec.inline ? 'text' : 'void';
@@ -109,7 +108,26 @@ export class Schema {
     return this;
   }
 
+  /**
+   * A type's spec, or a void one for a type nothing registered.
+   *
+   * @remarks
+   * §4 keeps a block whose plugin is not loaded, so every reader downstream —
+   * the renderer, the keymap, the clipboard, the gutter — meets one sooner or
+   * later. Throwing here made each of those a crash unless it remembered to
+   * ask {@link Schema.has} first, and the ones that forgot took down the page
+   * for a block the document had merely *preserved*.
+   *
+   * Void is the honest answer: an unreadable block has no inline content to
+   * put a caret in, so it is grabbed rather than edited, exactly like an
+   * image. Creating one is still refused — see {@link Schema.require}.
+   */
   get(type: string): BlockSpec {
+    return this.specs.get(type) ?? { type, version: 1, inline: false };
+  }
+
+  /** The spec, or a throw: for a caller about to *create* a block. */
+  require(type: string): BlockSpec {
     const spec = this.specs.get(type);
     if (!spec) throw new Error(`Unknown block type: ${type}`);
     return spec;

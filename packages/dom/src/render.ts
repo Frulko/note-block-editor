@@ -5,6 +5,7 @@ import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
 import { createDropZone, fileToDataUrl, icon } from './ui';
 import { backgroundColor, textColor } from './colors';
+import { format } from './labels';
 
 function el(tag: string, className?: string): HTMLElement {
   const e = document.createElement(tag);
@@ -99,8 +100,36 @@ function listNumber(view: EditorView, block: Block): number {
   return n;
 }
 
+/**
+ * A block whose type no plugin claims.
+ *
+ * @remarks
+ * The document model keeps such a block on purpose — a file written with a
+ * bigger plugin set than the one reading it must not lose content, and
+ * `@nbe/markdown` round-trips it through an `<!-- nbe:type -->` marker. What
+ * was missing was the other half: the renderer read its spec and threw, which
+ * took the whole page down instead of the one block. So it renders as itself,
+ * says which plugin is missing, and its children still render under it.
+ */
+function renderUnknown(view: EditorView, block: Block): HTMLElement {
+  const root = el('div', 'nbe-block nbe-t-unknown');
+  root.dataset['blockId'] = block.id;
+  root.dataset['unknownType'] = block.type;
+  root.setAttribute('contenteditable', 'false');
+  const row = el('div', 'nbe-unknown-row');
+  row.append(icon('alert-triangle', { size: 15 }));
+  const label = el('span');
+  label.textContent = format(view.labels.unknownBlock, { type: block.type });
+  row.append(label);
+  root.append(row);
+  // the content is still in the document; showing it beats an empty warning
+  for (const childId of block.children) root.append(renderBlock(view, childId));
+  return root;
+}
+
 export function renderBlock(view: EditorView, id: string): HTMLElement {
   const block = getBlock(view.editor.doc, id);
+  if (!view.editor.schema.has(block.type)) return renderUnknown(view, block);
   const spec = view.editor.schema.get(block.type);
   const root = el('div', `nbe-block nbe-t-${block.type}`);
   // a plugin's own rendering wins over the built-in switch; the switch is what

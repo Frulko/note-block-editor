@@ -57,8 +57,15 @@ describe('the fence projection', () => {
     expect(plainText(blocks[0]!.text)).toBe('sans fin');
   });
 
-  it('is a marker comment when the plugin is not registered', () => {
-    expect(blocksToMarkdown([codeBlock('x', 'js')])).toContain('<!-- nbe:code -->');
+  it('is a marker comment when the plugin is not registered, code and all', () => {
+    // the marker used to carry the type alone, so a note saved by a host
+    // without this plugin came back as an empty code block
+    const md = blocksToMarkdown([codeBlock('x', 'js')]);
+    expect(md).toContain('<!-- nbe:code ');
+    const [back] = markdownToBlocks(md);
+    expect(back!.type).toBe('code');
+    expect(back!.props).toEqual({ language: 'js' });
+    expect(plainText(back!.text as never)).toBe('x');
   });
 });
 
