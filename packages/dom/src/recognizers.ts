@@ -243,7 +243,17 @@ export const rubberBandRecognizer: GestureRecognizer = {
       end(committed) {
         box.remove();
         document.body.classList.remove('nbe-drag-active');
-        if (!drawing) return; // a plain click, not a band
+        if (!drawing) {
+          /*
+           * A plain press on empty editor surface dismisses whatever the band
+           * left selected. Pressing outside the editor already did (see
+           * `attachOutsidePressDeselect`); inside it, the margins and the page
+           * below the last block are editor surface too, and a press there
+           * used to leave the selection standing with no way to see why.
+           */
+          if (editor.selection?.kind === 'block') editor.setSelection(null, 'keyboard');
+          return; // a plain click, not a band
+        }
         document.getSelection()?.removeAllRanges();
         const sel = editor.selection;
         if (committed && sel?.kind === 'block') editor.setSelection(sel, 'keyboard');

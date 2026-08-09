@@ -72,4 +72,24 @@ test.describe('click below the last block', () => {
 
     expect(await editor.texts()).toEqual(['un', 'deux']);
   });
+
+  test('a plain click on the empty surface dismisses a lasso selection', async ({ page, editor }) => {
+    await editor.setDocument(['un', 'deux', 'trois']);
+    const first = (await page.locator('.nbe-editor > .nbe-block').first().boundingBox())!;
+    const last = (await page.locator('.nbe-editor > .nbe-block').last().boundingBox())!;
+
+    // the editor's own left margin, which is editor surface, not the sidebar
+    const margin = first.x - 20;
+    await page.mouse.move(margin, first.y - 4);
+    await page.mouse.down();
+    await page.mouse.move(margin, last.y + last.height + 4, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.locator('.nbe-selected')).not.toHaveCount(0);
+
+    // one click on the page above the first block: no drag, nothing to select
+    // (the margin beside a block is where the hover gutter lives)
+    await page.mouse.click(margin, first.y - 4);
+    await expect(page.locator('.nbe-selected')).toHaveCount(0);
+    expect(editor.errors()).toEqual([]);
+  });
 });
