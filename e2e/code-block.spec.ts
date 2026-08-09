@@ -286,7 +286,14 @@ test.describe('the code block, in the frame it is typed in', () => {
     };
     const before = await read();
 
-    await page.mouse.wheel(0, 120);
+    // the container that actually scrolls, for the reason gutter.spec.ts gives:
+    // `mouse.wheel` moves `.page-scroll` on Chromium and moves nothing on
+    // WebKit, and this test is about the menu's anchor, not about wheel dispatch
+    await page.evaluate(() => {
+      const scroller = document.querySelector('.page-scroll');
+      if (!scroller) throw new Error('.page-scroll introuvable — le démonstrateur a changé');
+      scroller.scrollTop += 120;
+    });
     // what a real browser does under a stationary cursor once the page moves —
     // and what used to rebuild the toolbar, orphaning the menu's anchor
     await page.evaluate(() => {
