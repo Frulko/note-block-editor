@@ -44,7 +44,7 @@ pub const RULES: &[Rule] = &[
 
 /// Types que Entrée *continue* au lieu de terminer — une deuxième puce, pas
 /// un paragraphe sous une puce. `CONTINUING_TYPES`, mot pour mot.
-pub const CONTINUING_TYPES: [&str; 4] = ["bulleted_list_item", "numbered_list_item", "to_do", "toggle"];
+pub const CONTINUING_TYPES: [&str; 3] = ["bulleted_list_item", "numbered_list_item", "to_do"];
 
 /// Les types qui portent du texte (`spec.inline` du schéma) — ceux qui
 /// peuvent recevoir le caret. Le reste est « void » (séparateur, image) ou

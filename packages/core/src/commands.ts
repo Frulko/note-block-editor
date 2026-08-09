@@ -13,8 +13,15 @@ function caretOf(sel: Selection): { blockId: BlockId; offset: number } | null {
   return sel.anchor;
 }
 
-/** Block types where Enter continues the same type instead of a paragraph. */
-const CONTINUING_TYPES = new Set(['bulleted_list_item', 'numbered_list_item', 'to_do', 'toggle']);
+/**
+ * Block types where Enter continues the same type instead of a paragraph.
+ *
+ * @remarks
+ * `toggle` used to be here and is not: a second toggle is never what you want
+ * after naming the first one. What you want is its *contents*, so Enter nests
+ * — see {@link splitBlock}.
+ */
+const CONTINUING_TYPES = new Set(['bulleted_list_item', 'numbered_list_item', 'to_do']);
 
 /**
  * Enter semantics (ProseMirror-inspired chain, ARCHITECTURE §3):
@@ -33,6 +40,40 @@ export function splitBlock(editor: Editor): boolean {
   }
 
   const tail = sliceRuns(block.text ?? [], caret.offset, len);
+
+  /*
+   * A toggle's Enter goes *inside* it. After typing the summary, the next
+   * thing anyone types is the content it hides — a second toggle is never it,
+   * and that is what a sibling gave you. So the new block is a paragraph, it
+   * is the toggle's first child, and the toggle opens to show it: typing into
+   * something collapsed would be worse than the bug.
+   *
+   * Shift+Tab is the way back out, which `outdent` already does for any nested
+   * block, the same as a list.
+   */
+  if (block.type === 'toggle') {
+    const child: Block = {
+      id: uuidv7(),
+      type: 'paragraph',
+      version: 1,
+      props: {},
+      text: tail,
+      children: [],
+      parentId: block.id,
+    };
+    editor.dispatch(
+      (tx) => {
+        if (caret.offset < len) tx.op({ type: 'delete_text', id: block.id, from: caret.offset, to: len });
+        if (block.props['collapsed'] === true) {
+          tx.op({ type: 'update_block', id: block.id, patch: { props: { collapsed: false } } });
+        }
+        tx.op({ type: 'insert_block', block: child, index: 0 });
+      },
+      { origin: 'input', selection: textCaret(child.id, 0) },
+    );
+    return true;
+  }
+
   const newType = CONTINUING_TYPES.has(block.type) ? block.type : 'paragraph';
   const newBlock: Block = {
     id: uuidv7(),

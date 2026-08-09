@@ -151,7 +151,7 @@ public final class DocumentWriter {
 
     /// Types that Enter *continues* rather than ends — a second bullet, not a
     /// paragraph under a bullet. `CONTINUING_TYPES`, verbatim.
-    static let continuingTypes: Set<String> = ["bulleted_list_item", "numbered_list_item", "to_do", "toggle"]
+    static let continuingTypes: Set<String> = ["bulleted_list_item", "numbered_list_item", "to_do"]
 
     /// A block's text, as the CRDT holds it.
     private func text(of target: TreeId) throws -> LoroText? {
