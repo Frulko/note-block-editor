@@ -3,6 +3,7 @@ import { EditorView, perBlockTopology, singleHostTopology } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
+import { toc } from '@nbe/blocks-toc/dom';
 import { PluginRegistry } from '@nbe/core';
 import '@nbe/dom/style.css';
 import './demo.css';
@@ -16,7 +17,7 @@ import { blocksToMarkdown } from '@nbe/markdown';
 
 /** The block set this demo runs: the editor, the projections and the importers
  * all read the same registry, so nothing renders in one and vanishes in another. */
-const BLOCKS = [callout, code, ...tableDomBlocks];
+const BLOCKS = [callout, code, toc, ...tableDomBlocks];
 const PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 import { importNotion } from '@nbe/workspace/notion';
 import { download, unzip, zip } from './zip';

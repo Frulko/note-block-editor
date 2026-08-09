@@ -21,7 +21,8 @@
     "@tauri-apps/plugin-fs": "^2",
     "@nbe/collab": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
-    "@nbe/blocks-code": "workspace:*"
+    "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-toc": "workspace:*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

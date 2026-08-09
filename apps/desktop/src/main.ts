@@ -7,6 +7,7 @@ import { EditorView } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
+import { toc } from '@nbe/blocks-toc/dom';
 import { Workspace, pageTitle } from '@nbe/workspace';
 import { exportVault } from '@nbe/workspace/vault';
 import '@nbe/dom/style.css';
@@ -479,7 +480,7 @@ async function openPage(pageId: string): Promise<void> {
   liveStore = store;
   joinRoom(pageId, store);
   view = new EditorView(editorEl, editor, {
-    blocks: [callout, code, ...tableDomBlocks],
+    blocks: [callout, code, toc, ...tableDomBlocks],
     database: database ?? undefined,
     onOpenPage: (id) => goTo(id),
     onSearchPages: (query) => {

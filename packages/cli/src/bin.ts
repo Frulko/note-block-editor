@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { blocksToMarkdown } from '@nbe/markdown';
 import { tableBlocks } from '@nbe/blocks-table';
 import { codeBlocks } from '@nbe/blocks-code';
+import { tocBlocks } from '@nbe/blocks-toc';
 import { PluginRegistry } from '@nbe/core';
 import { checkReadable, importDirectory, openWorkspace, writeVault } from './index';
 import { watchVault } from './watch';
@@ -110,7 +111,7 @@ async function main(argv: string[]): Promise<number> {
       const id = positional[0];
       const doc = id ? workspace.document(id) : null;
       if (!doc) return fail(`page introuvable : ${id ?? '(aucune)'}`);
-      process.stdout.write(blocksToMarkdown(doc.children ?? [], { plugins: new PluginRegistry().registerAll([...tableBlocks, ...codeBlocks]) }) + '\n');
+      process.stdout.write(blocksToMarkdown(doc.children ?? [], { plugins: new PluginRegistry().registerAll([...tableBlocks, ...codeBlocks, ...tocBlocks]) }) + '\n');
       return 0;
     }
 

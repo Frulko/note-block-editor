@@ -15,7 +15,8 @@
     "@nbe/markdown": "workspace:*",
     "@nbe/workspace": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
-    "@nbe/blocks-code": "workspace:*"
+    "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-toc": "workspace:*"
   },
   "devDependencies": {
     "vite": "^6.0.0"

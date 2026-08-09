@@ -12,7 +12,8 @@
     "@nbe/dom": "workspace:*",
     "@nbe/markdown": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
-    "@nbe/blocks-code": "workspace:*"
+    "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-toc": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

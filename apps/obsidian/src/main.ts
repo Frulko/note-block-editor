@@ -15,6 +15,7 @@ import { EditorView, builtinBlocks, defaultFeatures, type EditorViewOptions } fr
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
+import { toc } from '@nbe/blocks-toc/dom';
 
 /**
  * Carnet inside Obsidian — the editor, and nothing else.
@@ -109,7 +110,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
     columns: s.columns,
     readOnly: s.readOnly,
     // the table is a plugin: without it a note's `| a | b |` stays a paragraph
-    blocks: [...builtinBlocks, code, ...tableDomBlocks],
+    blocks: [...builtinBlocks, code, toc, ...tableDomBlocks],
   };
   // readOnly's default is "no features at all"; only pick features when editing
   if (!s.readOnly) opts.features = defaultFeatures.filter((f) => s.features[f.name] !== false);

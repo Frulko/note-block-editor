@@ -141,6 +141,17 @@ export interface ProjectionContext {
   child(block: Block): string[];
   /** Indentation depth, for nested structures. */
   depth: number;
+  /**
+   * The page's top-level blocks, for a block whose content *is* the document:
+   * a table of contents, a backlink list, a word count.
+   *
+   * @remarks
+   * Absent when a block is rendered on its own — a clipboard slice, a
+   * fragment, a preview — so a projection that reads it must degrade rather
+   * than assume. Nothing else can supply it: `child` walks downward, and a
+   * contents list needs to look sideways.
+   */
+  page?: readonly Block[];
 }
 
 /**

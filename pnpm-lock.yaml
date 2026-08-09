@@ -62,6 +62,9 @@ importers:
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
+      '@nbe/blocks-toc':
+        specifier: workspace:*
+        version: link:../../packages/blocks-toc
       '@nbe/collab':
         specifier: workspace:*
         version: link:../../packages/collab
@@ -108,6 +111,9 @@ importers:
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
+      '@nbe/blocks-toc':
+        specifier: workspace:*
+        version: link:../../packages/blocks-toc
       '@nbe/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -211,6 +217,9 @@ importers:
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
+      '@nbe/blocks-toc':
+        specifier: workspace:*
+        version: link:../../packages/blocks-toc
       '@nbe/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -300,6 +309,22 @@ importers:
         specifier: workspace:*
         version: link:../static-renderer
 
+  packages/blocks-toc:
+    dependencies:
+      '@nbe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nbe/dom':
+        specifier: workspace:*
+        version: link:../dom
+    devDependencies:
+      '@nbe/markdown':
+        specifier: workspace:*
+        version: link:../markdown
+      '@nbe/static-renderer':
+        specifier: workspace:*
+        version: link:../static-renderer
+
   packages/cli:
     dependencies:
       '@nbe/blocks-code':
@@ -308,6 +333,9 @@ importers:
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../blocks-table
+      '@nbe/blocks-toc':
+        specifier: workspace:*
+        version: link:../blocks-toc
       '@nbe/collab':
         specifier: workspace:*
         version: link:../collab

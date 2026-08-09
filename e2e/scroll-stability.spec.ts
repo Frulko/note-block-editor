@@ -11,32 +11,34 @@ import { test, expect } from './fixtures';
  */
 const LONG = Array.from({ length: 60 }, (_, i) => `paragraphe ${i}`);
 
+/** The block the caret is in, roughly centred, with the scroll left there. */
+const CARET_AT = 30;
+
 const scrollTop = (page: import('@playwright/test').Page) =>
   page.evaluate(() => document.querySelector('.page-scroll')!.scrollTop);
 
-/** Index of a block sitting comfortably inside the scrollport right now. */
-async function visibleBlock(page: import('@playwright/test').Page): Promise<number> {
-  return page.evaluate(() => {
-    const port = document.querySelector('.page-scroll')!.getBoundingClientRect();
-    const blocks = [...document.querySelectorAll('.nbe-editor > .nbe-block')];
-    return blocks.findIndex((b) => {
-      const r = b.getBoundingClientRect();
-      return r.top > port.top + 80 && r.bottom < port.bottom - 80;
-    });
-  });
+/**
+ * Put the caret in a block and scroll so that block sits mid-viewport.
+ *
+ * Order matters: placing the caret focuses the editing host, and under the
+ * single-host topology that host is the editor root — which the browser scrolls
+ * to. So the scroll is set *after*, and the number read after that.
+ */
+async function settle(page: import('@playwright/test').Page, editor: import('./fixtures').Editor) {
+  await editor.setDocument(LONG);
+  await editor.caret(CARET_AT, 4);
+  await page.evaluate((index) => {
+    const scroller = document.querySelector('.page-scroll')!;
+    const block = document.querySelectorAll('.nbe-editor > .nbe-block')[index]!;
+    const port = scroller.getBoundingClientRect();
+    scroller.scrollTop += block.getBoundingClientRect().top - port.top - port.height / 2;
+  }, CARET_AT);
+  return scrollTop(page);
 }
 
 test.describe('editing does not scroll the page', () => {
   test('Enter in a visible block leaves the scroll where it was', async ({ page, editor }) => {
-    await editor.setDocument(LONG);
-    await page.evaluate(() => {
-      document.querySelector('.page-scroll')!.scrollTop = 600;
-    });
-    const before = await scrollTop(page);
-    const index = await visibleBlock(page);
-    expect(index).toBeGreaterThan(-1);
-
-    await editor.caret(index, 4);
+    const before = await settle(page, editor);
     await editor.press('Enter');
 
     expect(await scrollTop(page)).toBe(before);
@@ -44,28 +46,15 @@ test.describe('editing does not scroll the page', () => {
   });
 
   test('typing leaves the scroll where it was', async ({ page, editor }) => {
-    await editor.setDocument(LONG);
-    await page.evaluate(() => {
-      document.querySelector('.page-scroll')!.scrollTop = 600;
-    });
-    const before = await scrollTop(page);
-    const index = await visibleBlock(page);
-
-    await editor.caret(index, 4);
+    const before = await settle(page, editor);
     await editor.type('salut');
 
     expect(await scrollTop(page)).toBe(before);
+    expect(await editor.texts()).toContain('parasalutgraphe 30');
   });
 
   test('reordering a block does not throw the page around', async ({ page, editor }) => {
-    await editor.setDocument(LONG);
-    await page.evaluate(() => {
-      document.querySelector('.page-scroll')!.scrollTop = 600;
-    });
-    const before = await scrollTop(page);
-    const index = await visibleBlock(page);
-
-    await editor.caret(index, 0);
+    const before = await settle(page, editor);
     await editor.press('Meta+Shift+ArrowDown');
 
     expect(await scrollTop(page)).toBe(before);

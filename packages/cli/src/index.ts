@@ -5,6 +5,7 @@ import { exportVault, importVault, type VaultFile } from '@nbe/workspace/vault';
 import { importNotion } from '@nbe/workspace/notion';
 import { tableBlocks } from '@nbe/blocks-table';
 import { codeBlocks } from '@nbe/blocks-code';
+import { tocBlocks } from '@nbe/blocks-toc';
 import { PluginRegistry } from '@nbe/core';
 
 /**
@@ -16,7 +17,7 @@ import { PluginRegistry } from '@nbe/core';
  * inheriting one. A note's table survives `import` → `export` because of this
  * line.
  */
-const PLUGINS = new PluginRegistry().registerAll([...tableBlocks, ...codeBlocks]);
+const PLUGINS = new PluginRegistry().registerAll([...tableBlocks, ...codeBlocks, ...tocBlocks]);
 import { fileStorage } from './storage';
 
 export { fileStorage } from './storage';

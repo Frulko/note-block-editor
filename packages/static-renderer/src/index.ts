@@ -100,7 +100,7 @@ function blockAttrs(block: BlockJSON, cls: string, opts: RenderOptions): string 
   return `${id} class="${classes.join(' ')}"`;
 }
 
-function renderOne(block: BlockJSON, opts: RenderOptions): string {
+function renderOne(block: BlockJSON, opts: RenderOptions, page?: readonly BlockJSON[]): string {
   const p = opts.classPrefix ?? 'nbe';
   // a plugin's projection wins over the built-in switch, exactly as in the
   // markdown package — same contract, same precedence, different output
@@ -108,10 +108,11 @@ function renderOne(block: BlockJSON, opts: RenderOptions): string {
   if (plugin?.html) {
     return plugin.html(block as unknown as Block, {
       depth: 0,
-      child: (child) => [renderOne(child as unknown as BlockJSON, opts)],
+      child: (child) => [renderOne(child as unknown as BlockJSON, opts, page)],
+      page: page as unknown as readonly Block[] | undefined,
     });
   }
-  const children = renderSiblings(block.children ?? [], opts);
+  const children = renderSiblings(block.children ?? [], opts, page);
   const inner = runsToHtml(block.text, opts);
   const props = block.props ?? {};
   const attrs = (extra = '') => blockAttrs(block, `${p}-t-${block.type}${extra}`, opts);
@@ -185,7 +186,7 @@ function renderOne(block: BlockJSON, opts: RenderOptions): string {
  * ul/ol. Only same-type runs merge: to_do and bulleted both use <ul> but a
  * to-do list is never absorbed into a bullet list.
  */
-function renderSiblings(blocks: BlockJSON[], opts: RenderOptions): string {
+function renderSiblings(blocks: BlockJSON[], opts: RenderOptions, page?: readonly BlockJSON[]): string {
   let out = '';
   let openTag: string | null = null;
   let openType: string | null = null;
@@ -207,7 +208,7 @@ function renderSiblings(blocks: BlockJSON[], opts: RenderOptions): string {
     } else {
       close();
     }
-    out += renderOne(block, opts);
+    out += renderOne(block, opts, page);
   }
   close();
   return out;
@@ -215,13 +216,14 @@ function renderSiblings(blocks: BlockJSON[], opts: RenderOptions): string {
 
 /** Render a list of sibling blocks to an HTML fragment. */
 export function renderBlocksToHTML(blocks: BlockJSON[], opts: RenderOptions = {}): string {
-  return renderSiblings(blocks, opts);
+  return renderSiblings(blocks, opts, blocks);
 }
 
 /** Render a page (root block) to an HTML fragment. */
 export function renderToHTML(root: BlockJSON, opts: RenderOptions = {}): string {
   const prefix = opts.classPrefix ?? 'nbe';
-  const body = root.type === 'page' ? renderSiblings(root.children ?? [], opts) : renderOne(root, opts);
+  const page = root.type === 'page' ? (root.children ?? []) : [root];
+  const body = root.type === 'page' ? renderSiblings(page, opts, page) : renderOne(root, opts, page);
   return `<div class="${prefix}-page">${body}</div>`;
 }
 

@@ -47,6 +47,7 @@ describe('package layering', () => {
     expect(deps('cli').sort()).toEqual([
       '@nbe/blocks-code',
       '@nbe/blocks-table',
+      '@nbe/blocks-toc',
       '@nbe/collab',
       '@nbe/core',
       '@nbe/markdown',

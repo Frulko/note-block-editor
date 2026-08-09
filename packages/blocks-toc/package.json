@@ -1,0 +1,43 @@
+{
+  "name": "@nbe/blocks-toc",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./dom": {
+      "types": "./src/dom.ts",
+      "default": "./src/dom.ts"
+    }
+  },
+  "dependencies": {
+    "@nbe/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@nbe/dom": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@nbe/dom": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/note-block-editor.git",
+    "directory": "packages/blocks-toc"
+  },
+  "homepage": "https://github.com/Frulko/note-block-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/note-block-editor/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "La table des mati\u00e8res : un bloc dont le contenu est le document.",
+  "devDependencies": {
+    "@nbe/markdown": "workspace:*",
+    "@nbe/static-renderer": "workspace:*"
+  }
+}

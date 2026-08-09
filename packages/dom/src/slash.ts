@@ -59,7 +59,7 @@ export function slashItems(view: EditorView): SlashItem[] {
 
 export function filterItems(query: string, hasPages: boolean, hasDb = hasPages, items: SlashItem[] = []): SlashItem[] {
   const q = query.toLowerCase().trim();
-  return items.filter((item) => {
+  const matched = items.filter((item) => {
     if (item.action.kind === 'page' && !hasPages) return false;
     if (item.action.kind === 'database' && !hasDb) return false;
     if (!q) return true;
@@ -67,6 +67,16 @@ export function filterItems(query: string, hasPages: boolean, hasDb = hasPages, 
       item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.toLowerCase().includes(q))
     );
   });
+  if (!q) return matched;
+  /*
+   * A label that *starts* with what was typed is what was meant. Without this
+   * the order was registration order, so `/table` reached whichever entry
+   * merely mentions tables before it reached "Tableau" — and the first entry
+   * is the one Enter takes. Stable, so registration order still breaks ties.
+   */
+  const rank = (item: SlashItem): number =>
+    item.label.toLowerCase().startsWith(q) ? 0 : item.keywords.some((k) => k.toLowerCase().startsWith(q)) ? 1 : 2;
+  return matched.sort((a, b) => rank(a) - rank(b));
 }
 
 export function attachSlashMenu(view: EditorView): () => void {
@@ -130,7 +140,20 @@ export function attachSlashMenu(view: EditorView): () => void {
     }
 
     const resolve = (): { type: string; props?: Record<string, unknown>; extraParagraph?: boolean } | null => {
-      if (item.action.kind === 'block') return { type: item.action.type, props: item.action.props };
+      if (item.action.kind === 'block') {
+        /*
+         * A void block has no caret to leave the user in, so inserting one as
+         * the last thing on a page left nowhere to type — and the schema is
+         * what knows that, which is why this is derived rather than declared
+         * per entry. It was declared per entry, and every plugin-contributed
+         * void block (a table of contents, say) was silently missing it.
+         */
+        return {
+          type: item.action.type,
+          props: item.action.props,
+          extraParagraph: !editor.schema.get(item.action.type).inline,
+        };
+      }
       if (item.action.kind === 'divider') return { type: 'divider', extraParagraph: true };
       if (item.action.kind === 'database') {
         const created = view.options.database?.create();
