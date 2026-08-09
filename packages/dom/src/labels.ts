@@ -249,6 +249,20 @@ export interface EditorLabels {
   /** Shown when the host's search comes back with nothing. */
   noPageFound: string;
 
+  // --- what a pasted link becomes ---
+  /** Heading of the menu offered after a URL is pasted. */
+  pasteLinkAs: string;
+  /** Turn it into a mention of the page it points at. Only when one is found. */
+  pasteAsMention: string;
+  /** Turn it into an embed block. */
+  pasteAsEmbed: string;
+  /** Turn it into an embed block showing a card. */
+  pasteAsBookmark: string;
+  /** Leave it as the link the paste already made. */
+  pasteAsUrl: string;
+  /** Block-menu entry on a paragraph whose whole text is one link. */
+  convertToEmbed: string;
+
   // --- database chrome ---
   /** Shown when a database block points at a collection the host cannot find. */
   dbUnavailable: string;

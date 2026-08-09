@@ -130,6 +130,12 @@ export const fr: EditorLabels = {
   linkToPage: 'Lien vers une page',
   choosePage: 'Rechercher une page…',
   noPageFound: 'Aucune page trouvée',
+  pasteLinkAs: 'Coller comme',
+  pasteAsMention: 'Mention',
+  pasteAsEmbed: 'Intégration',
+  pasteAsBookmark: 'Signet',
+  pasteAsUrl: 'Lien simple',
+  convertToEmbed: 'Transformer en intégration',
 
   dbUnavailable: 'Base de données indisponible',
   dbProperties: 'Propriétés',

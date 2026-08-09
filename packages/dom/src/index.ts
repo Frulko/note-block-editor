@@ -76,6 +76,8 @@ export {
 } from './export';
 export type { ExportFormat } from './export';
 export { openPagePicker, openPagePickerOn } from './page-picker';
+export { offerLinkTreatments, loneLink } from './link-paste';
+export type { LinkPasteOptions } from './link-paste';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';

@@ -4,6 +4,7 @@ import type { EditorView } from './view';
 import { createDropZone, fileToDataUrl, openIconPicker, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
 import { openPagePicker } from './page-picker';
+import { loneLink, offerLinkTreatments } from './link-paste';
 import { format } from './labels';
 
 /**
@@ -117,3 +118,27 @@ for (const type of ['link_to_page', 'sub_page']) {
     ];
   });
 }
+
+/**
+ * A paragraph that is nothing but a link is a link somebody meant as a block.
+ *
+ * @remarks
+ * The paste offers this at the moment the URL arrives; this is the same offer
+ * for the ones that were already there — a note written elsewhere, a link
+ * pasted before the editor could ask. Absent for every other paragraph, and
+ * absent entirely without an `embed` block registered.
+ */
+registerBlockActions('paragraph', (ctx) => {
+  const at = loneLink(ctx.view, ctx.block.id);
+  if (!at || !ctx.view.editor.schema.has('embed')) return [];
+  return [
+    {
+      label: ctx.view.labels.convertToEmbed,
+      icon: 'workflow',
+      onSelect: () => {
+        ctx.close();
+        offerLinkTreatments(ctx.view, at);
+      },
+    },
+  ];
+});

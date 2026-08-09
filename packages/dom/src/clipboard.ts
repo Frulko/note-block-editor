@@ -17,6 +17,7 @@ import {
 } from '@nbe/core';
 import { blocksToMarkdown, markdownToBlocks, runsToMarkdown } from '@nbe/markdown';
 import type { EditorView } from './view';
+import { offerLinkTreatments } from './link-paste';
 import { leafOf } from './selection';
 import { inEditableText } from './topology';
 import { syncCaretFromDom } from './caret';
@@ -510,6 +511,17 @@ function handlePastedUrl(view: EditorView, text: string): boolean {
     { origin: 'input', selection: textCaret(startBlockId, startOffset + text.length) },
   );
   view.syncDomSelection();
+  /*
+   * …and then ask what it was meant to be. The safe thing has already
+   * happened, so this is an offer and not a question in the way: Escape, or
+   * simply typing on, leaves the link exactly as the paste made it.
+   */
+  offerLinkTreatments(view, {
+    blockId: startBlockId,
+    from: startOffset,
+    to: startOffset + text.length,
+    href,
+  });
   return true;
 }
 
