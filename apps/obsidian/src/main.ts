@@ -11,7 +11,23 @@ import {
   type App,
   type ViewState,
 } from 'obsidian';
-import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, isCollapsed, uuidv7, type BlockJSON } from '@nbe/core';
+import {
+  Editor,
+  PluginRegistry,
+  deleteBlocks,
+  docFromJSON,
+  docToJSON,
+  getBlock,
+  isCollapsed,
+  moveBlocksVertical,
+  selectedBlocks,
+  toggleChecked,
+  toggleMarkRange,
+  turnInto,
+  uuidv7,
+  type BlockId,
+  type BlockJSON,
+} from '@nbe/core';
 import {
   EditorView,
   builtinBlocks,
@@ -657,6 +673,19 @@ class CarnetView extends TextFileView {
     return this.editor ? documentSize(this.view!) : null;
   }
 
+  /** The blocks a command should act on: the caret's, or the selection's. */
+  targets(): BlockId[] {
+    const sel = this.editor?.selection;
+    if (!sel) return [];
+    if (sel.kind === 'block') return selectedBlocks(this.editor!.doc, sel);
+    return sel.kind === 'text' ? [sel.head.blockId] : [];
+  }
+
+  /** The model and its projection, for a host command. */
+  parts(): { editor: Editor; view: EditorView } | null {
+    return this.editor && this.view ? { editor: this.editor, view: this.view } : null;
+  }
+
   /** Raise the find bar. False when the feature is switched off. */
   find(): boolean {
     return !!this.view && openFind(this.view);
@@ -666,6 +695,84 @@ class CarnetView extends TextFileView {
   exportNote(): boolean {
     return !!this.view && openExport(this.view);
   }
+}
+
+/**
+ * Obsidian's own Format and Insert menus, pointed at this editor.
+ *
+ * @remarks
+ * Those menus — and the mobile toolbar, and every hotkey bound to them — issue
+ * `editor:*` commands whose callbacks require a `MarkdownView`. In a Carnet
+ * note they are simply inapplicable, so the menu is there and does nothing,
+ * which is the least explicable kind of broken.
+ *
+ * A table, and it is the whole of it: each id names an editor command that
+ * already exists. What is *not* here is as deliberate — `editor:insert-link`
+ * wants a dialog this plugin does not own (⌘K in the editor does), and the
+ * maths and Mermaid entries want blocks a vault may not have registered. An
+ * entry that returns false falls through to Obsidian, so an unhandled command
+ * behaves exactly as it did before.
+ *
+ * Every action checks the schema before it runs: a vault whose plugin set has
+ * no `code` block must not be told it turned something into one.
+ */
+type HostCommand = (view: CarnetView) => boolean;
+
+const mark = (type: string, attrs?: Record<string, unknown>): HostCommand => (v) => {
+  const parts = v.parts();
+  if (!parts) return false;
+  return toggleMarkRange(parts.editor, type, attrs);
+};
+
+const turn = (type: string, props?: Record<string, unknown>): HostCommand => (v) => {
+  const parts = v.parts();
+  const ids = v.targets();
+  if (!parts || !ids.length || !parts.editor.schema.has(type)) return false;
+  for (const id of ids) turnInto(parts.editor, id, type, props);
+  parts.view.syncDomSelection();
+  return true;
+};
+
+const HOST_COMMANDS: Record<string, HostCommand> = {
+  'editor:toggle-bold': mark('bold'),
+  'editor:toggle-italics': mark('italic'),
+  'editor:toggle-strikethrough': mark('strike'),
+  'editor:toggle-highlight': mark('background', { color: 'yellow' }),
+  'editor:toggle-code': mark('code'),
+  'editor:toggle-blockquote': turn('quote'),
+  'editor:toggle-bullet-list': turn('bulleted_list_item'),
+  'editor:toggle-numbered-list': turn('numbered_list_item'),
+  'editor:toggle-checklist-status': (v) => {
+    const parts = v.parts();
+    return !!parts && toggleChecked(parts.editor, v.targets());
+  },
+  'editor:insert-callout': turn('callout'),
+  'editor:insert-codeblock': turn('code'),
+  'editor:insert-horizontal-rule': turn('divider'),
+  'editor:swap-line-up': (v) => {
+    const parts = v.parts();
+    return !!parts && moveBlocksVertical(parts.editor, v.targets(), 'up');
+  },
+  'editor:swap-line-down': (v) => {
+    const parts = v.parts();
+    return !!parts && moveBlocksVertical(parts.editor, v.targets(), 'down');
+  },
+  'editor:delete-paragraph': (v) => {
+    const parts = v.parts();
+    const ids = v.targets();
+    if (!parts || !ids.length) return false;
+    deleteBlocks(parts.editor, ids);
+    parts.view.syncDomSelection();
+    return true;
+  },
+};
+
+// `editor:set-heading-0` … `-6`, which is seven near-identical lines otherwise.
+// Levels above three are clamped: the model has three, and a silent `level: 6`
+// would render as an h1 and export as one
+for (let level = 0; level <= 6; level++) {
+  HOST_COMMANDS[`editor:set-heading-${level}`] =
+    level === 0 ? turn('paragraph') : turn('heading', { level: Math.min(3, level) });
 }
 
 export default class CarnetPlugin extends Plugin {
@@ -745,6 +852,31 @@ export default class CarnetPlugin extends Plugin {
     this.register(() => {
       WorkspaceLeaf.prototype.setViewState = original;
     });
+
+    /*
+     * ponytail: a bare method patch on `app.commands`, restored on unload —
+     * the same technique and the same caveat as the `setViewState` patch above.
+     * There is no public seam: `executeCommandById` is what the Format menu,
+     * the Insert menu, the mobile toolbar and every hotkey bound to them all
+     * go through, and it is the only place that sees them.
+     */
+    const commands = (this.app as unknown as { commands?: { executeCommandById?: (id: string, ...rest: unknown[]) => boolean } })
+      .commands;
+    if (commands?.executeCommandById) {
+      const original = commands.executeCommandById;
+      const plugin = this;
+      commands.executeCommandById = function (id: string, ...rest: unknown[]) {
+        const handler = HOST_COMMANDS[id];
+        const view = handler ? plugin.app.workspace.getActiveViewOfType(CarnetView) : null;
+        // false means "not mine after all" — the command falls through to
+        // Obsidian and behaves exactly as it did before
+        if (view && handler!(view)) return true;
+        return original.call(this, id, ...rest);
+      };
+      this.register(() => {
+        commands.executeCommandById = original;
+      });
+    }
 
     this.addCommand({
       id: 'open-in-carnet',
