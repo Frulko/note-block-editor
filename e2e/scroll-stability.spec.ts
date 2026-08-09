@@ -81,4 +81,24 @@ test.describe('editing does not scroll the page', () => {
     });
     expect(visible).toBe(true);
   });
+
+  test('the format toolbar is clipped by the editor, not by the window', async ({ page, editor }) => {
+    await editor.setDocument(Array.from({ length: 60 }, (_, i) => `paragraphe numero ${i}`));
+    await editor.selectRange([3, 0], [3, 9]);
+    const bar = page.locator('.nbe-seltoolbar');
+    await expect(bar).toBeVisible();
+
+    const above = await page.evaluate(() => {
+      const b = document.querySelector('.nbe-seltoolbar')!.getBoundingClientRect();
+      const port = document.querySelector('.page-scroll')!.getBoundingClientRect();
+      return b.top >= port.top;
+    });
+    expect(above).toBe(true);
+
+    // scroll the selection away: the bar is portaled to <body>, so nothing
+    // clips it — it used to pin itself to the top of the window, over the host
+    await page.evaluate(() => (document.querySelector('.page-scroll')!.scrollTop = 600));
+    await expect(bar).toHaveCount(0);
+    expect(editor.errors()).toEqual([]);
+  });
 });

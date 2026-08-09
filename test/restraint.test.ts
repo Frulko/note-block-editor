@@ -19,6 +19,19 @@ import { describe, expect, it } from 'vitest';
 const ROOT = join(__dirname, '..');
 const AREAS = ['packages', 'apps', 'examples', 'site'];
 
+/**
+ * Build output that does not live in a build directory.
+ *
+ * @remarks
+ * Obsidian loads exactly one script and one stylesheet per plugin, from the
+ * plugin's own root — so esbuild writes `main.js` beside the source rather than
+ * into `dist/`, and git ignores it there. Reading it as a source means reading
+ * every dependency it bundled: the first library with a docs URL in an error
+ * message failed "no source hard-codes a third-party endpoint", which is a rule
+ * about what *we* wrote.
+ */
+const BUILT = new Set(['apps/obsidian/main.js', 'apps/obsidian/styles.css']);
+
 /** Every source file we ship, excluding build output and dependencies. */
 function sources(): string[] {
   const out: string[] = [];
@@ -26,6 +39,7 @@ function sources(): string[] {
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (['node_modules', 'dist', '.build', 'target'].includes(entry.name)) continue;
+      if (BUILT.has(join(dir, entry.name).slice(ROOT.length + 1))) continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) walk(path);
       else if (/\.(ts|tsx|js|mjs|vue|svelte|astro)$/.test(entry.name) && !/\.(test|spec)\./.test(entry.name)) {

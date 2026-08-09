@@ -23,6 +23,7 @@ import {
 import { COLORS } from "./colors";
 import type { EditorLabels } from "./labels";
 import { isActiveTarget, turnIntoTargets } from "./block-types";
+import { findScrollParent } from "./ui";
 import { isMod } from "./keymap";
 
 /**
@@ -279,14 +280,38 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     return d;
   };
 
+  /**
+   * True when the selection has scrolled out of the box the editor occupies.
+   *
+   * @remarks
+   * The bar is portaled to `<body>` so no `overflow` inside the editor can
+   * clip it — which is what makes it visible over a table's own scroller, and
+   * what let it float over the *host's* header once the text it points at had
+   * scrolled away: `computePosition` clamps a floater into the viewport, so a
+   * selection above the fold pinned the bar to the top of the window. It has
+   * to be clipped by the editor even though it is not inside it, so the test
+   * is done here rather than left to CSS.
+   */
+  const outOfView = (rect: { top: number; bottom: number }): boolean => {
+    const scroller = findScrollParent(view.content);
+    const paging = scroller === document.scrollingElement || scroller === document.documentElement;
+    const port = paging
+      ? { top: 0, bottom: window.visualViewport?.height ?? window.innerHeight }
+      : scroller.getBoundingClientRect();
+    // the bar sits *above* the selection, so it needs its own height of room
+    return rect.bottom < port.top + bar.offsetHeight || rect.top > port.bottom;
+  };
+
   const show = () => {
     const rect = anchorRect();
     if (!rect) return hide();
+    if (visible && outOfView(rect)) return hide();
     if (!visible) {
       mountPortal(bar);
       visible = true;
     }
     render();
+    if (outOfView(rect)) return hide();
     positionFloating(bar, rect, { placement: "top-start", offset: 8 });
   };
 

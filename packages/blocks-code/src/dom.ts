@@ -239,7 +239,21 @@ export const code: DomBlockPlugin = {
       ];
     },
 
-    slash: { label: 'Code', keywords: ['code', 'snippet', 'programme'], icon: 'code' },
+    /*
+     * Two entries, one block type. A diagram is a code block whose language is
+     * `mermaid` — that is what the file says and what `@nbe/blocks-mermaid`
+     * draws — and hunting for it in a thirty-language picker is not a way to
+     * find out. A preset is one array entry, which is the point of `props`.
+     */
+    slash: [
+      { label: 'Code', keywords: ['code', 'snippet', 'programme'], icon: 'code' },
+      {
+        label: 'Diagramme (Mermaid)',
+        keywords: ['mermaid', 'diagramme', 'schema', 'schéma', 'graph', 'flowchart'],
+        icon: 'workflow',
+        props: { language: 'mermaid' },
+      },
+    ],
     turnInto: { label: 'Code', icon: 'code' },
   },
 };

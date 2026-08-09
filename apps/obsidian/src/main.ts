@@ -24,6 +24,8 @@ import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
 import { CODE_THEMES } from '@nbe/blocks-code';
+import { mermaidStyles } from '@nbe/blocks-mermaid';
+import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { toc } from '@nbe/blocks-toc/dom';
 
 /**
@@ -125,6 +127,7 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   { name: 'find', label: 'Recherche ⌘F', desc: 'Rechercher dans la note ouverte, surlignage des résultats.' },
   { name: 'export', label: 'Export ⌘P', desc: 'Markdown, texte ou impression PDF de la note ouverte.' },
   { name: 'word-count', label: 'Compteur de mots', desc: 'Mots, caractères et temps de lecture sous la note.' },
+  { name: 'mermaid', label: 'Diagrammes Mermaid', desc: 'Dessine les blocs ```mermaid, avec Aperçu / Code / Les deux.' },
 ];
 
 /** Project the vault settings onto the editor's options, defaults preserved. */
@@ -143,7 +146,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
    * here, so this host offers it and lets the setting turn it off.
    */
   if (!s.readOnly)
-    opts.features = [...defaultFeatures, findFeature, exportFeature, wordCountFeature].filter(
+    opts.features = [...defaultFeatures, findFeature, exportFeature, wordCountFeature, mermaidFeature].filter(
       (f) => s.features[f.name] !== false,
     );
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
@@ -469,6 +472,15 @@ export default class CarnetPlugin extends Plugin {
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) ?? {}) };
     this.registerView(VIEW_TYPE, (leaf: WorkspaceLeaf) => new CarnetView(leaf, this));
+    /*
+     * The mermaid feature ships its CSS as a string rather than in the plugin
+     * stylesheet, because Obsidian loads exactly one of those and it is the
+     * editor's. Injected here, removed with the plugin.
+     */
+    const mermaidCss = document.head.appendChild(
+      Object.assign(document.createElement('style'), { textContent: mermaidStyles }),
+    );
+    this.register(() => mermaidCss.remove());
     this.addSettingTab(new CarnetSettingTab(this.app, this));
     this.syncTheme();
     this.registerEvent(this.app.workspace.on('css-change', () => this.syncTheme()));

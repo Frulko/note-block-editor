@@ -108,6 +108,9 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../../packages/blocks-code
+      '@nbe/blocks-mermaid':
+        specifier: workspace:*
+        version: link:../../packages/blocks-mermaid
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
@@ -123,6 +126,9 @@ importers:
       '@nbe/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
+      mermaid:
+        specifier: ^11.16.1
+        version: 11.16.1
     devDependencies:
       esbuild:
         specifier: ^0.25.0

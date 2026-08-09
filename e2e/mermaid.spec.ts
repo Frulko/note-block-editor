@@ -68,4 +68,20 @@ test.describe('mermaid diagrams', () => {
     await page.keyboard.type('const x = 1;');
     await expect(page.locator('.nbe-mermaid')).toHaveCount(0);
   });
+
+  test('the slash menu offers a diagram directly, without the language picker', async ({
+    page,
+    editor,
+  }) => {
+    await editor.setDocument(['']);
+    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    await editor.type('/diagramme');
+    await page.locator('.nbe-slash-menu .nbe-menu-item', { hasText: 'Mermaid' }).first().waitFor();
+    await editor.press('Enter');
+
+    await expect(page.locator('.nbe-t-code')).toBeVisible();
+    await expect(page.locator('.nbe-code-lang')).toHaveText('Mermaid');
+    // the mode control is there before a single character is typed
+    await expect(page.locator('.nbe-mermaid-modes')).toBeVisible();
+  });
 });
