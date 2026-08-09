@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
+import { test, TOPOLOGY } from './fixtures';
 
 /**
  * A diagram is a code block whose language is `mermaid` — which is how every
@@ -43,6 +43,14 @@ test.describe('mermaid diagrams', () => {
   });
 
   test('the three modes show source, drawing, or both', async ({ page, editor }) => {
+    /*
+     * Per-block only. Under `singleHostTopology` the editing host is the
+     * editor root, so focus is never *inside* a block and "the caret is in
+     * this one" stops being a DOM fact — which is what both the `:focus-within`
+     * rule and `focusBlock` rest on. The mode itself still works there; what
+     * cannot be expressed is the reveal-while-editing.
+     */
+    test.skip(TOPOLOGY !== 'per-block', 'focus lives on the root under a single host');
     await diagram(page, editor);
     await expect(page.locator('.nbe-mermaid-figure svg')).toHaveCount(1, { timeout: 15000 });
 
@@ -95,6 +103,14 @@ test.describe('mermaid diagrams', () => {
     page,
     editor,
   }) => {
+    /*
+     * Per-block only. Under `singleHostTopology` the editing host is the
+     * editor root, so focus is never *inside* a block and "the caret is in
+     * this one" stops being a DOM fact — which is what both the `:focus-within`
+     * rule and `focusBlock` rest on. The mode itself still works there; what
+     * cannot be expressed is the reveal-while-editing.
+     */
+    test.skip(TOPOLOGY !== 'per-block', 'focus lives on the root under a single host');
     await diagram(page, editor);
     await expect(page.locator('.nbe-mermaid-figure svg')).toHaveCount(1, { timeout: 15000 });
     await page.locator('.nbe-mermaid-mode', { hasText: 'Aperçu' }).click();
