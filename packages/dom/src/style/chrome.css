@@ -432,3 +432,54 @@
   background: linear-gradient(rgb(var(--nbe-accent-rgb) / 0.04), rgb(var(--nbe-accent-rgb) / 0.04)),
     var(--nbe-surface);
 }
+
+/* --- find in the page (opt-in `findFeature`) -----------------------------
+   The matches are painted through the Highlight API, so nothing is inserted
+   into the text and a search cannot disturb the caret or an IME. */
+
+::highlight(nbe-find) {
+  background: rgb(var(--nbe-note-rgb) / 0.35);
+}
+::highlight(nbe-find-current) {
+  background: rgb(var(--nbe-accent-rgb) / 0.4);
+}
+.nbe-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+}
+.nbe-find-field {
+  font: inherit;
+  font-size: 13px;
+  width: 170px;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--nbe-text);
+  padding: 4px 6px;
+}
+.nbe-find-status {
+  font-size: 11px;
+  color: var(--nbe-text-light);
+  font-variant-numeric: tabular-nums;
+  min-width: 46px;
+  text-align: right;
+}
+.nbe-find-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nbe-text-muted);
+  cursor: pointer;
+  transition: background var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-find-btn:hover {
+  background: var(--nbe-hover);
+  color: var(--nbe-text);
+}

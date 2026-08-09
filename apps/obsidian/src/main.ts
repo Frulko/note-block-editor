@@ -11,7 +11,7 @@ import {
   type ViewState,
 } from 'obsidian';
 import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, uuidv7, type BlockJSON } from '@nbe/core';
-import { EditorView, builtinBlocks, defaultFeatures, type EditorViewOptions } from '@nbe/dom';
+import { EditorView, builtinBlocks, defaultFeatures, findFeature, type EditorViewOptions } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
@@ -114,6 +114,7 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   { name: 'block-toolbar', label: 'Barre de bloc', desc: 'La barre d’outils par bloc au survol.' },
   { name: 'link-hover', label: 'Carte de lien', desc: 'La carte d’édition au survol d’un lien.' },
   { name: 'database', label: 'Bases de données', desc: 'Les vues de base de données interactives.' },
+  { name: 'find', label: 'Recherche ⌘F', desc: 'Rechercher dans la note ouverte, surlignage des résultats.' },
 ];
 
 /** Project the vault settings onto the editor's options, defaults preserved. */
@@ -126,7 +127,13 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
     blocks: BLOCKS,
   };
   // readOnly's default is "no features at all"; only pick features when editing
-  if (!s.readOnly) opts.features = defaultFeatures.filter((f) => s.features[f.name] !== false);
+  /*
+   * `findFeature` is not in the defaults — in a browser `⌘F` belongs to the
+   * browser. A pane is not a browser window: there is no page find to take
+   * here, so this host offers it and lets the setting turn it off.
+   */
+  if (!s.readOnly)
+    opts.features = [...defaultFeatures, findFeature].filter((f) => s.features[f.name] !== false);
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
   const padding: { top?: string; bottom?: string; x?: string } = {};
   if (s.padTop.trim()) padding.top = s.padTop.trim();

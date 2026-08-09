@@ -52,11 +52,14 @@ export {
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,
+  commentMarkersFeature,
+  findFeature,
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
 export { attachRemoteCarets, peerSelection, type RemotePeer, type RemoteSelection } from './remote-carets';
 export { attachViewportGuard, reveal } from './viewport';
+export { attachFind, findHits } from './search';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';

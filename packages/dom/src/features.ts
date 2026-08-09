@@ -15,6 +15,7 @@ import { attachSelectionToolbar } from './selection-toolbar';
 import { attachBlockToolbar } from './block-toolbar';
 import { attachLinkHover } from './link-hover';
 import { attachCommentMarkers } from './comment-marker';
+import { attachFind } from './search';
 
 /**
  * A feature is anything that attaches behaviour to a mounted view and can be
@@ -56,6 +57,13 @@ export const gesturesFeature = feature('gestures', attachGestureRouter);
 export const outsidePressFeature = feature('outside-press', attachOutsidePressDeselect);
 /** A commented block says so in the right margin, without being hovered. */
 export const commentMarkersFeature = feature('comment-markers', attachCommentMarkers);
+/**
+ * `⌘F` finds in the page. **Not in {@link defaultFeatures}**, deliberately: in
+ * a browser that key is the browser's, and replacing it with something worse
+ * is one of the things this project's competitors are resented for. Add it in
+ * a host that has no browser find to take — a plugin pane, a desktop shell.
+ */
+export const findFeature = feature('find', attachFind);
 /** `/` opens the block menu. */
 export const slashMenuFeature = feature('slash-menu', attachSlashMenu);
 /** `@` opens the page-mention picker. Inert without an `onSearchPages` host. */

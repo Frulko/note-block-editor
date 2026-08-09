@@ -43,6 +43,16 @@ export interface EditorLabels {
   addComment: string;
   /** Open the threads on a commented block. `{n}` is how many there are. */
   openComments: string;
+  /** Placeholder of the find bar (opt-in `findFeature`). */
+  find: string;
+  /** Previous match. Find bar. */
+  findPrevious: string;
+  /** Next match. Find bar. */
+  findNext: string;
+  /** Close the find bar. */
+  findClose: string;
+  /** Shown when a search matches nothing. */
+  findNone: string;
 
   // --- format toolbar ---
   /** Bold. Format toolbar, and the ⌘B tooltip. */
@@ -273,6 +283,11 @@ export const defaultLabels: EditorLabels = {
   dragHandle: 'Glisser pour déplacer\nCliquer pour ouvrir le menu',
   addComment: 'Commenter ce bloc',
   openComments: '{n} commentaire(s) sur ce bloc',
+  find: 'Rechercher…',
+  findPrevious: 'Résultat précédent',
+  findNext: 'Résultat suivant',
+  findClose: 'Fermer la recherche',
+  findNone: 'Aucun résultat',
 
   bold: 'Gras',
   italic: 'Italique',

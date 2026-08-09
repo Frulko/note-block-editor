@@ -1,5 +1,5 @@
 import { docFromJSON, docToJSON, Editor, uuidv7, type BlockJSON, type Run } from '@nbe/core';
-import { EditorView, perBlockTopology, singleHostTopology } from '@nbe/dom';
+import { EditorView, defaultFeatures, findFeature, perBlockTopology, singleHostTopology } from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
@@ -423,6 +423,17 @@ function openPage(pageId: string): void {
         : perBlockTopology,
     // ?columns=on to exercise the experimental side-drop that builds columns
     columns: new URLSearchParams(location.search).get('columns') === 'on',
+    /*
+     * ?find=on for the in-page search. Off by default here on purpose: in a
+     * browser `⌘F` is the browser's, and a web page that takes it away to
+     * offer something worse is exactly what this project set out not to be.
+     * The hosts with no browser find of their own — the Obsidian pane, the
+     * desktop shell — turn it on.
+     */
+    features:
+      new URLSearchParams(location.search).get('find') === 'on'
+        ? [...defaultFeatures, findFeature]
+        : undefined,
     // activation is an import plus an array entry
     blocks: BLOCKS,
     onOpenPage: (id) => openPage(id),
