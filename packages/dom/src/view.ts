@@ -568,9 +568,17 @@ export class EditorView {
     if (change.origin !== 'dom' && change.selectionSet) {
       this.syncDomSelection();
     } else if (caretBefore && !domTextSelection(this)) {
-      // the re-render destroyed the caret: restore the pre-render DOM truth
+      /*
+       * The re-render destroyed the caret: restore the pre-render DOM truth,
+       * and **do not scroll to it**. Putting a caret back where it visibly was
+       * cannot, by definition, require moving the page — and a block move
+       * dirties the root, so `renderAll` runs and every caret goes through
+       * here. Dragging a block at the top of a long page, with a caret left in
+       * the last one, therefore threw the page down to that caret the moment
+       * the block landed. The caret was never what moved.
+       */
       this.editor.setSelection(caretBefore, 'dom');
-      this.syncDomSelection();
+      this.syncDomSelection(false);
     }
     this.renderSelection(this.editor.selection, 'render');
   }
@@ -605,7 +613,7 @@ export class EditorView {
    * Needed only when a host moves the caret itself; every edit that goes
    * through `dispatch` already does this.
    */
-  syncDomSelection(): void {
+  syncDomSelection(scrollIntoView = true): void {
     const sel = this.editor.selection;
     if (sel?.kind !== 'text') return;
     const anchor = modelPointToDom(this, sel.anchor);
@@ -620,7 +628,7 @@ export class EditorView {
     } catch {
       /* nodes replaced by a concurrent render; the next commit re-syncs */
     }
-    if (leaf) reveal(leaf);
+    if (scrollIntoView && leaf) reveal(leaf);
   }
 
   /** Move the caret to a block (used by keyboard navigation). */

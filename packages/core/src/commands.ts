@@ -595,7 +595,15 @@ export function moveBlocks(editor: Editor, ids: BlockId[], parentId: BlockId, af
         anchor = id;
       }
     },
-    { origin: 'input', selection: editor.selection },
+    /*
+     * No `selection`. Passing back the one it already had made the transaction
+     * claim it had *chosen* a caret, and a chosen caret is one the view scrolls
+     * to. Dropping a dragged block at the top of a long page, with a caret left
+     * in the last one, threw the page down to that caret — the caret was never
+     * what moved. `moveBlocksVertical` does pass one, and should: there the
+     * caret is inside the block being moved.
+     */
+    { origin: 'input' },
   );
 }
 

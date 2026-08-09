@@ -101,4 +101,34 @@ test.describe('editing does not scroll the page', () => {
     await expect(bar).toHaveCount(0);
     expect(editor.errors()).toEqual([]);
   });
+
+  test('dropping a dragged block does not chase a caret left elsewhere', async ({ page, editor }) => {
+    await editor.setDocument(Array.from({ length: 50 }, (_, i) => `paragraphe ${i}`));
+    // a caret left far down the page, then scrolled back to the top
+    await editor.caret(49, 3);
+    await page.evaluate(() => (document.querySelector('.page-scroll')!.scrollTop = 0));
+    const before = await scrollTop(page);
+    expect(before).toBe(0);
+
+    const target = (await page.locator('.nbe-editor > .nbe-block').nth(4).boundingBox())!;
+    await page.locator('.nbe-editor > .nbe-block').nth(1).hover();
+    const handle = (await page.locator('.nbe-handle').boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(target.x + 40, target.y + target.height, { steps: 10 });
+    await page.mouse.up();
+
+    // the block moved…
+    await expect.poll(async () => (await editor.texts())[0]).toBe('paragraphe 0');
+    expect((await editor.texts()).slice(0, 5)).toEqual([
+      'paragraphe 0',
+      'paragraphe 2',
+      'paragraphe 3',
+      'paragraphe 4',
+      'paragraphe 1',
+    ]);
+    // …and the page stayed where the person was looking
+    expect(await scrollTop(page)).toBe(before);
+    expect(editor.errors()).toEqual([]);
+  });
 });
