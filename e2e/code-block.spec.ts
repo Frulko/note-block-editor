@@ -269,9 +269,17 @@ test.describe('the code block, in the frame it is typed in', () => {
   });
 
   test('the language menu stays glued to its button when the page scrolls', async ({ page, editor }) => {
-    // an empty first block for the ``` shortcut, then enough page to scroll
-    await editor.setDocument(['', ...Array.from({ length: 40 }, (_, i) => `paragraphe ${i}`)]);
-    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    // a few blocks above the empty one the ``` shortcut needs, then enough page
+    // to scroll: with the code block flush against the top, a scroll pushes it
+    // off screen and the menu is then legitimately *clamped* to the viewport
+    // rather than glued — which is what it is supposed to do, and not what this
+    // test is asking about
+    await editor.setDocument([
+      ...Array.from({ length: 3 }, (_, i) => `avant ${i}`),
+      '',
+      ...Array.from({ length: 40 }, (_, i) => `paragraphe ${i}`),
+    ]);
+    await page.locator('.nbe-editor .nbe-leaf').nth(3).click();
     await page.keyboard.type('```');
     await expect(page.locator('.nbe-t-code')).toBeVisible();
 
@@ -279,24 +287,46 @@ test.describe('the code block, in the frame it is typed in', () => {
     await page.locator('.nbe-blocktoolbar-btn').first().click();
     await expect(page.locator('.nbe-menu')).toBeVisible();
 
+    /*
+     * Measured against the block, not against `.nbe-blocktoolbar-btn`: the
+     * toolbar is hover chrome and re-anchors to whatever block ends up under
+     * the pointer, so after the scroll that button may belong to a paragraph
+     * three rows down — the menu is right to stay with its code block, and the
+     * assertion was reading the distance to somebody else's button. The block
+     * carries the button, so its movement is the anchor's movement.
+     */
     const read = async () => {
-      const button = (await page.locator('.nbe-blocktoolbar-btn').first().boundingBox())!;
+      const block = (await page.locator('.nbe-t-code').boundingBox())!;
       const menu = (await page.locator('.nbe-menu').boundingBox())!;
-      return { gap: menu.y - button.y, buttonY: button.y };
+      return { gap: menu.y - block.y, blockY: block.y };
     };
     const before = await read();
 
-    await page.mouse.wheel(0, 120);
-    // what a real browser does under a stationary cursor once the page moves —
-    // and what used to rebuild the toolbar, orphaning the menu's anchor
+    // the container that actually scrolls, for the reason gutter.spec.ts gives:
+    // `mouse.wheel` moves `.page-scroll` on Chromium and moves nothing on
+    // WebKit, and this test is about the menu's anchor, not about wheel dispatch
     await page.evaluate(() => {
-      const el = document.elementFromPoint(200, 400);
-      el?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 200, clientY: 400 }));
+      const scroller = document.querySelector('.page-scroll');
+      if (!scroller) throw new Error('.page-scroll introuvable — le démonstrateur a changé');
+      scroller.scrollTop += 120;
     });
+    // what a real browser does under a stationary cursor once the page moves —
+    // and what used to rebuild the toolbar, orphaning the menu's anchor. The
+    // point comes from a block rather than being hardcoded: x=200 was inside
+    // the demo's sidebar, so the move never reached the editor at all.
+    const box = (await page.locator('.nbe-editor > .nbe-block').nth(6).boundingBox())!;
+    await page.evaluate(
+      ({ x, y }) => {
+        document
+          .elementFromPoint(x, y)
+          ?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y }));
+      },
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    );
     await page.waitForTimeout(400); // past the toolbar's 250ms hide timer
 
     const after = await read();
-    expect(Math.abs(after.buttonY - before.buttonY)).toBeGreaterThan(40);
+    expect(Math.abs(after.blockY - before.blockY)).toBeGreaterThan(40);
     expect(Math.abs(after.gap - before.gap)).toBeLessThan(12);
   });
 });

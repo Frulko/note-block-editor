@@ -240,7 +240,9 @@ First-class core state, a tagged union with two modes (the Notion contract):
   implements it inside a contenteditable, so claiming it broke all of them.
   Alt+arrows move a block and Shift+Alt+arrows copy it, aliasing Cmd+Shift and
   Cmd+D for anyone arriving from VS Code or PhpStorm. Cmd+Backspace deletes the
-  block. Word and line deletes are honoured rather than blocked: Chromium
+  block — Command only, since off a Mac Ctrl+Backspace is the platform's word
+  delete and Escape then Backspace deletes the block there. Word and line
+  deletes are honoured rather than blocked: Chromium
   reports no `getTargetRanges()` for them, so `prevWord`/`nextWord` (UAX #29)
   compute the boundary.
 - Plus a GapCursor equivalent for positions with no text (before an image).
