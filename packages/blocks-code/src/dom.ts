@@ -193,6 +193,13 @@ export const code: DomBlockPlugin = {
       },
     },
 
+    /*
+     * Above the block, like a table's and for the same reason: a code block's
+     * top-right corner is not spare room. It holds the language badge and the
+     * first line of code, and the bar was drawn over both — hovering to reach
+     * the copy button hid the thing you were about to copy.
+     */
+    toolbarPlacement: 'above',
     toolbar({ block, view, setProps }) {
       const language = String(block.props['language'] ?? 'plain');
       const wrap = block.props['wrap'] !== false;

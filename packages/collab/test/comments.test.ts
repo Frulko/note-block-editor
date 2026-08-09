@@ -96,6 +96,32 @@ describe('comments merge between peers', () => {
     expect(new LoroComments(b).get(thread.id)).toBeUndefined();
     expect(new LoroComments(b).list()).toEqual([]);
   });
+
+  it('taking one reply back leaves the other side the rest of the thread', async () => {
+    const [left, right] = loopback();
+    const a = new LoroDoc();
+    const b = new LoroDoc();
+    const alice = new LoroComments(a);
+    connect(new LoroBlockStore(a), left);
+    connect(new LoroBlockStore(b), right);
+
+    const first = newMessage('alice', 'ceci est ambigu');
+    const reply = newMessage('alice', 'non, laisse');
+    const thread = newThread(first);
+    alice.create(thread);
+    alice.addMessage(thread.id, reply);
+    await settle();
+
+    alice.deleteMessage(thread.id, reply.id);
+    await settle();
+
+    expect(new LoroComments(b).get(thread.id)?.messages.map((m) => m.body)).toEqual(['ceci est ambigu']);
+
+    // and the last one takes the thread with it, on both sides
+    alice.deleteMessage(thread.id, first.id);
+    await settle();
+    expect(new LoroComments(b).list()).toEqual([]);
+  });
 });
 
 describe('the panel is not woken by typing', () => {

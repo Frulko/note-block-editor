@@ -119,6 +119,18 @@ export class LoroComments implements CommentStore {
     this.doc.commit();
   }
 
+  deleteMessage(threadId: string, messageId: string): void {
+    const map = this.mapOf(threadId);
+    if (!map) return;
+    const messages = this.messagesOf(map);
+    const index = messages.toArray().findIndex((entry) => entry instanceof LoroMap && entry.get('id') === messageId);
+    if (index === -1) return;
+    messages.delete(index, 1);
+    // the last message takes the thread with it, as `CommentStore` says
+    if (messages.length === 0) this.threads.delete(threadId);
+    this.doc.commit();
+  }
+
   setResolved(threadId: string, resolved: boolean): void {
     const map = this.mapOf(threadId);
     if (!map) return;

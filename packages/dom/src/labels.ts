@@ -45,6 +45,22 @@ export interface EditorLabels {
   addComment: string;
   /** Open the threads on a commented block. `{n}` is how many there are. */
   openComments: string;
+
+  // --- the comment bubble (`openCommentThread`) ---
+  /** Placeholder of the field when the block has no comments yet. */
+  commentPlaceholder: string;
+  /** Placeholder of the same field once there is a discussion to join. */
+  commentReply: string;
+  /** The button that posts what was typed. */
+  commentSend: string;
+  /** Tooltip on a message’s bin. Removes that message, not the discussion. */
+  commentDelete: string;
+  /** Close a discussion, keeping it readable. */
+  commentResolve: string;
+  /** Undo that. */
+  commentReopen: string;
+  /** Shown as the author of a message written with no identity. */
+  commentAnonymous: string;
   /** Placeholder of the find bar (opt-in `findFeature`). */
   find: string;
   /** Previous match. Find bar. */

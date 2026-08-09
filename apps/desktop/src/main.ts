@@ -2,12 +2,32 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { docFromJSON, docToJSON, Editor, type BlockJSON } from '@nbe/core';
-import { LoroBlockStore, connect, connectToRelay, p2pTransport, redrawOnRemote, seedFromJSON } from '@nbe/collab';
-import { EditorView, fr } from '@nbe/dom';
+import {
+  LoroBlockStore,
+  LoroComments,
+  connect,
+  connectToRelay,
+  p2pTransport,
+  redrawOnRemote,
+  seedFromJSON,
+} from '@nbe/collab';
+import {
+  EditorView,
+  defaultFeatures,
+  exportFeature,
+  findFeature,
+  fr,
+  openCommentThread,
+  wordCountFeature,
+  type CommentAuthor,
+} from '@nbe/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
 import { toc } from '@nbe/blocks-toc/dom';
+import { mdx } from '@nbe/blocks-mdx/dom';
+import { mermaidStyles } from '@nbe/blocks-mermaid';
+import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { Workspace, pageTitle } from '@nbe/workspace';
 import { exportVault } from '@nbe/workspace/vault';
 import '@nbe/dom/style.css';
@@ -17,14 +37,35 @@ import {
   NATIVE,
   clearDirectory,
   collectionStore,
+  memoryAssets,
   memorySnapshots,
   scratchCollections,
   scratchStorage,
+  vaultAssets,
   vaultSnapshots,
   vaultStorage,
   writeInto,
+  type AssetStore,
   type SnapshotStore,
 } from './storage';
+
+// the mermaid feature ships its CSS as a string, like a block plugin's `styles`
+document.head.append(Object.assign(document.createElement('style'), { textContent: mermaidStyles }));
+
+/** The blocks this shell runs. Activation is an import plus an array entry. */
+const BLOCKS = [callout, code, toc, mdx, ...tableDomBlocks];
+
+/**
+ * The chrome, including the three features a browser host leaves off.
+ *
+ * @remarks
+ * `find` and `export` are opt-in in `@nbe/dom` because on the web ⌘F and ⌘P
+ * belong to the browser, and taking them to offer something worse is what this
+ * project set out not to be. A window has neither, so here they are the
+ * editor's — which is the whole reason those features are configuration rather
+ * than a decision baked in.
+ */
+const FEATURES = [...defaultFeatures, findFeature, exportFeature, wordCountFeature, mermaidFeature];
 
 /*
  * Theme. `data-nbe-theme` on <html> is the editor's documented host hook and
@@ -86,11 +127,29 @@ let root: string | null = null;
 let workspace: Workspace | null = null;
 /** Where each page's CRDT document is kept. */
 let snapshots: SnapshotStore | null = null;
+/** Where pasted and dropped files are kept. */
+let assets: AssetStore | null = null;
 let editor: Editor | null = null;
 let view: EditorView | null = null;
 let openId: string | null = null;
 let database: ReturnType<typeof createDatabaseHost> | null = null;
 let collections: CollectionRecord[] = [];
+
+/**
+ * Who this machine is, when it comments.
+ *
+ * @remarks
+ * Kept in `localStorage` — per machine, not per vault. The id is what tells two
+ * peers of the same document apart, so a folder copied to a second machine
+ * must not carry an identity with it. The name is display only; nothing here
+ * is a login, and there is no server to be one against.
+ */
+function whoAmI(): CommentAuthor {
+  let id = localStorage.getItem('carnet.me');
+  if (!id) localStorage.setItem('carnet.me', (id = crypto.randomUUID()));
+  return { id, name: 'Vous' };
+}
+const ME = whoAmI();
 
 /** A short message that fades, for things that succeeded quietly. */
 let statusTimer = 0;
@@ -194,6 +253,7 @@ async function openVault(path: string): Promise<void> {
   if (NATIVE) await grantAccess(path);
   workspace = new Workspace(NATIVE ? vaultStorage(path) : scratchStorage());
   snapshots = NATIVE ? vaultSnapshots(path) : memorySnapshots();
+  assets = NATIVE ? vaultAssets(path) : memoryAssets();
   await workspace.load();
   vaultLabel.textContent = path.split('/').pop() ?? path;
   welcomeEl.hidden = true;
@@ -370,6 +430,8 @@ function persistSoon(): void {
 let liveStore: LoroBlockStore | null = null;
 /** Stops syncing the open page. Replaced on every navigation. */
 let stopSync: (() => void) | null = null;
+/** Stops watching the open page's comments. Replaced on every navigation. */
+let stopComments: (() => void) | null = null;
 
 /**
  * Where to sync, if anywhere.
@@ -497,10 +559,33 @@ async function openPage(pageId: string): Promise<void> {
   editor = new Editor({ doc: { blocks: store, rootId: document_.id } });
   liveStore = store;
   joinRoom(pageId, store);
+
+  /*
+   * Comments in the page's own document, not beside it: one `LoroDoc` means
+   * one connection, one snapshot, and a reply that arrives with the text it
+   * annotates rather than a version behind it. Nothing extra is persisted —
+   * the snapshot already written on every save carries them.
+   */
+  const comments = new LoroComments(store.doc);
+  stopComments?.();
+  // a comment never passes through the editor, so nothing else marks the page
+  // dirty — and unwritten comments are the one thing the JSON cannot hold
+  stopComments = comments.onChange(() => persistSoon());
+
   view = new EditorView(editorEl, editor, {
     labels: fr,
-    blocks: [callout, code, toc, ...tableDomBlocks],
+    features: FEATURES,
+    blocks: BLOCKS,
     database: database ?? undefined,
+    commentAuthor: ME,
+    // the bubble is `@nbe/dom`'s, like every other host's — a fourth composer
+    // written here is a fourth one to get wrong
+    onComment: (blockId, author) =>
+      void openCommentThread({ editor: editor!, store: comments, blockId, author, labels: fr }),
+    // a pasted or dropped file becomes a file in the folder, and the document
+    // keeps the path — so an image is still an image after this app is gone
+    onStoreAsset: (blob) => assets!.store(blob),
+    resolveAssetUrl: (src) => assets!.resolve(src),
     onOpenPage: (id) => goTo(id),
     onSearchPages: (query) => {
       const wanted = query.toLowerCase().trim();

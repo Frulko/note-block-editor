@@ -22,7 +22,10 @@
     "@nbe/collab": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
     "@nbe/blocks-code": "workspace:*",
-    "@nbe/blocks-toc": "workspace:*"
+    "@nbe/blocks-toc": "workspace:*",
+    "@nbe/blocks-mdx": "workspace:*",
+    "@nbe/blocks-mermaid": "workspace:*",
+    "mermaid": "^11.16.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

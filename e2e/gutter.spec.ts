@@ -157,9 +157,10 @@ test.describe('the right gutter comments on a block', () => {
     await page.mouse.move(box.x + 60, box.y + box.height / 2);
     await page.waitForTimeout(150);
     await page.locator('.nbe-comment').click();
-    await expect(page.locator('.comment-compose .compose-field')).toBeFocused();
+    await expect(page.locator('.nbe-comments .nbe-comment-field')).toBeFocused();
     await page.keyboard.type('à revoir');
     await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape'); // the panel stays open on send, being a discussion
 
     // the anchor is the mark, and it covers the block's whole text
     await expect(page.locator('.nbe-editor > .nbe-block').nth(0).locator('.nbe-m-comment')).toHaveText('premier');

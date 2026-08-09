@@ -59,6 +59,12 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../../packages/blocks-code
+      '@nbe/blocks-mdx':
+        specifier: workspace:*
+        version: link:../../packages/blocks-mdx
+      '@nbe/blocks-mermaid':
+        specifier: workspace:*
+        version: link:../../packages/blocks-mermaid
       '@nbe/blocks-table':
         specifier: workspace:*
         version: link:../../packages/blocks-table
@@ -89,6 +95,9 @@ importers:
       '@tauri-apps/plugin-fs':
         specifier: ^2
         version: 2.5.1
+      mermaid:
+        specifier: ^11.16.1
+        version: 11.16.1
     devDependencies:
       '@tauri-apps/cli':
         specifier: ^2

@@ -188,6 +188,110 @@ export function scratchCollections(): CollectionStore {
 }
 
 /* ---------------------------------------------------------------------------
+   assets
+   --------------------------------------------------------------------------- */
+
+/** Where a pasted or dropped file lands, in plain sight beside the Markdown. */
+export const ASSETS_DIRECTORY = 'assets';
+
+/**
+ * The bytes behind an `<img>`, a PDF preview or a download link.
+ *
+ * @remarks
+ * The demo keeps these in IndexedDB behind an opaque `asset:<hash>` ref, which
+ * is right for a browser and wrong here: this application's promise is that the
+ * folder is the storage (§10), and a note whose image lives in a database only
+ * this app can open breaks it. So a file is a file — content-addressed for
+ * dedup, in a directory Obsidian and Finder both show, and the *path* is what
+ * goes in the document, exactly as the Obsidian host stores a vault path.
+ */
+export interface AssetStore {
+  /** Write a pasted/dropped file, return the src to persist. */
+  store(blob: Blob): Promise<string>;
+  /** A persisted src as something an `<img>`, `<object>` or `<iframe>` loads. */
+  resolve(src: string): Promise<string>;
+}
+
+/**
+ * Extension to MIME, for the handful of types the editor renders differently.
+ *
+ * @remarks
+ * Needed because the type is not in the bytes we read back: an `<img>` sniffs
+ * its own format, but a PDF viewer is chosen by Content-Type and a sandboxed
+ * HTML page will not run from a blob with none. Anything absent resolves with
+ * an empty type, which is what a download link wants anyway.
+ */
+const MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+  html: 'text/html',
+  htm: 'text/html',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  json: 'application/json',
+};
+
+/** The dropped file's own extension when it has a usable one, its MIME's otherwise. */
+function extensionOf(blob: Blob): string {
+  const named = ((blob as File).name ?? '').split('.').pop()?.toLowerCase() ?? '';
+  if (/^[a-z0-9]{1,8}$/.test(named)) return named;
+  const subtype = blob.type.split('/')[1]?.replace(/\+.*$/, '') ?? '';
+  return subtype === 'jpeg' ? 'jpg' : subtype || 'bin';
+}
+
+async function contentHash(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 32);
+}
+
+export function vaultAssets(root: string): AssetStore {
+  const directory = `${root}/${ASSETS_DIRECTORY}`;
+  // ponytail: one object URL per file per session, never revoked. Revoking
+  // means knowing no element still points at it; a few dozen URLs do not.
+  const urls = new Map<string, string>();
+
+  return {
+    async store(blob) {
+      const bytes = await blob.arrayBuffer();
+      const path = `${ASSETS_DIRECTORY}/${await contentHash(bytes)}.${extensionOf(blob)}`;
+      if (!(await exists(directory))) await mkdir(directory, { recursive: true });
+      // content-addressed: the same picture dropped twice is one file on disk
+      if (!(await exists(`${root}/${path}`))) await writeFile(`${root}/${path}`, new Uint8Array(bytes));
+      return path;
+    },
+
+    async resolve(src) {
+      // an http, data or blob src is already loadable; only a vault path is not
+      if (/^(https?:|data:|blob:)/.test(src)) return src;
+      const cached = urls.get(src);
+      if (cached) return cached;
+      const bytes = await readFile(`${root}/${decodeURI(src)}`);
+      const type = MIME[src.split('.').pop()?.toLowerCase() ?? ''] ?? '';
+      const url = URL.createObjectURL(new Blob([bytes], { type }));
+      urls.set(src, url);
+      return url;
+    },
+  };
+}
+
+/** Files that live only in this tab, for the browser build. */
+export function memoryAssets(): AssetStore {
+  return {
+    store: async (blob) => URL.createObjectURL(blob),
+    resolve: async (src) => src,
+  };
+}
+
+/* ---------------------------------------------------------------------------
    CRDT snapshots
    --------------------------------------------------------------------------- */
 

@@ -63,6 +63,8 @@ export function attachCodeHighlight(view: EditorView): () => void {
 
   /** Push the accumulated ranges into the document's highlight registry. */
   const flush = () => {
+    // a deleted block leaves ranges nothing points at any more
+    for (const id of byBlock.keys()) if (!editor.doc.blocks.has(id)) byBlock.delete(id);
     for (const group of GROUPS) {
       const ranges: Range[] = [];
       for (const perBlock of byBlock.values()) ranges.push(...(perBlock.get(group) ?? []));
@@ -73,6 +75,21 @@ export function attachCodeHighlight(view: EditorView): () => void {
 
   const codeBlocks = (): BlockId[] =>
     [...editor.doc.blocks.values()].filter((b) => b.type === 'code').map((b) => b.id);
+
+  /**
+   * The code blocks whose text nodes a re-render of `id` replaced.
+   *
+   * @remarks
+   * The view reports the element it swapped, which is a *subtree*: a code block
+   * inside a toggle is repainted by its parent's render and never named itself.
+   */
+  const codeIn = (id: BlockId, out: BlockId[] = []): BlockId[] => {
+    const block = editor.doc.blocks.get(id);
+    if (!block) return out;
+    if (block.type === 'code') out.push(id);
+    for (const child of block.children) codeIn(child, out);
+    return out;
+  };
 
   /**
    * Re-tokenize one block and rebuild its ranges.
@@ -125,31 +142,26 @@ export function attachCodeHighlight(view: EditorView): () => void {
   };
 
   /*
-   * A re-render replaces the text nodes the ranges pointed at, so this runs
-   * after *every* change — but it only re-tokenizes the blocks the change
-   * touched, and a document with no code block does nothing at all.
+   * Measured *after* the view has written to the DOM, never on the transaction.
    *
-   * A block plugin's features are attached *before* the view registers its own
-   * change listener (`view.ts`), and `Editor.emit` calls listeners in
-   * registration order — so on paper this measures the DOM as it stood before
-   * the edit and its ranges die when `handleChange` replaces the leaf.
-   * Measured in Chromium and WebKit, per keystroke: it does not. Every range
-   * comes out attached to the live document either way, with or without a
-   * microtask between. Left as it is rather than guarded against a failure
-   * that cannot be produced — `e2e/code-block.spec.ts` asserts the property
-   * (`isConnected` on every registered range) so the day it starts to matter
-   * is a red build rather than grey code.
+   * A range is a pair of pointers into text nodes. The re-render that follows
+   * an edit replaces exactly those nodes, and the DOM's own removing steps
+   * quietly re-point the range at the parent element instead of invalidating
+   * it — so the registry stays full, `Highlight.size` keeps reporting colours,
+   * `isConnected` keeps saying yes, and not one character is painted. That is
+   * what "the colours vanish the moment you type, and a reload brings them
+   * back" was, and no assertion about the ranges themselves could see it.
+   *
+   * `onRender` also fires for the renders no transaction announces — a peer's
+   * edit, a composition paid back, foreign markup reverted — which `editor.on`
+   * never saw at all.
    */
-  const unsubscribe = editor.on((change) => {
-    const dirty = [...change.dirty].filter((id) => {
-      const block = editor.doc.blocks.get(id);
-      return block?.type === 'code';
-    });
-    // a structural change can move or delete blocks the ranges belong to
-    const structural = change.ops.some((op) => op.type !== 'insert_text' && op.type !== 'delete_text');
-    if (!dirty.length && !structural) return;
-    if (structural) return repaintAll();
-    for (const id of dirty) measure(id);
+  const unsubscribe = view.onRender((ids) => {
+    if (!ids) return repaintAll();
+    const touched = ids.flatMap((id) => codeIn(id));
+    const orphaned = [...byBlock.keys()].some((id) => !editor.doc.blocks.has(id));
+    if (!touched.length && !orphaned) return; // nothing coloured was re-rendered
+    for (const id of touched) measure(id);
     flush();
   });
 

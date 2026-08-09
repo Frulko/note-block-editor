@@ -37,6 +37,9 @@ fn allow_vault(app: tauri::AppHandle, path: String) -> Result<(), String> {
         root.join(".nbe"),
         root.join(".nbe").join("rooms"),
         root.join("pages"),
+        // `assets/` holds pasted and dropped files, beside the Markdown rather
+        // than hidden in `.nbe`: they are part of what a person reads
+        root.join("assets"),
     ];
 
     for directory in &wanted {

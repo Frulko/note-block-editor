@@ -2,17 +2,14 @@ import {
   anchoredThreads,
   documentOrder,
   memoryComments,
-  newMessage,
-  newThread,
   orphanThreads,
-  plainText,
   threadsInDocumentOrder,
   type BlockId,
   type CommentStore,
   type CommentThread,
   type Editor,
 } from '@nbe/core';
-import { createPopover, type CommentAuthor } from '@nbe/dom';
+import { fr, openCommentThread, removeCommentThread, type CommentAuthor } from '@nbe/dom';
 
 /**
  * Comments, on blocks, in the third inspector tab.
@@ -21,6 +18,12 @@ import { createPopover, type CommentAuthor } from '@nbe/dom';
  * **A comment is on a block.** The affordance is the editor's right-hand
  * gutter — hover a block, click the bubble — and never a hand-picked range,
  * which is what the `onComment` host contract expresses.
+ *
+ * The bubble itself is `openCommentThread` from `@nbe/dom`. This file used to
+ * carry its own composer, and so did the Obsidian plugin, and the site's
+ * playground used `prompt()`; all three could only start a new thread. The
+ * panel here is the other half — every thread in the page, in reading order,
+ * including the ones whose text is gone.
  *
  * The *anchor*, though, is still a mark on the block's text, because that is
  * the one thing that survives editing: an offset would be wrong the moment
@@ -58,63 +61,6 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
 const time = (at: number): string =>
   new Date(at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-
-/**
- * Ask for a comment in a bubble, not in `prompt()`.
- *
- * @remarks
- * A `prompt()` is a modal the operating system draws: it steals focus, it
- * cannot show what you are commenting on, it has no formatting, and on a phone
- * it is a full-screen sheet. This is the same floating panel the code block's
- * language picker uses — `createPopover` from `@nbe/dom`, which is exported
- * precisely so a host can build its own chrome out of the editor's parts
- * rather than out of raw DOM.
- *
- * Enter sends, Shift+Enter is a new line, Escape gives up — the shape every
- * comment box has, so nobody has to be told.
- */
-function askForText(
-  anchor: () => DOMRect | null,
-  labels: { placeholder: string; submit: string },
-  onSubmit: (body: string) => void,
-): void {
-  const popover = createPopover({ className: 'comment-compose' });
-  const form = el('div', 'compose');
-  const field = document.createElement('textarea');
-  field.className = 'compose-field';
-  field.rows = 3;
-  field.placeholder = labels.placeholder;
-  const send = button(labels.submit, () => submit());
-  send.classList.add('compose-send');
-
-  const submit = () => {
-    const body = field.value.trim();
-    popover.close();
-    if (body) onSubmit(body);
-  };
-
-  field.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      submit();
-    }
-    // the overlay stack closes on Escape; stop it reaching the editor's keymap
-    if (event.key === 'Escape') event.stopPropagation();
-  });
-
-  form.append(field, send);
-  popover.setContent(form);
-  popover.open(anchor, { placement: 'bottom-end' });
-  // now, and again after a frame: the panel is already mounted, but WebKit
-  // will not focus a node the layout has not settled on yet
-  field.focus();
-  requestAnimationFrame(() => field.focus());
-}
-
-/** The block on screen, re-read on every reposition so a re-render cannot orphan it. */
-const blockAnchor = (blockId: BlockId) => () =>
-  document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`)?.getBoundingClientRect() ?? null;
-
 export interface DemoComments {
   store: CommentStore;
   /** Wire to `EditorViewOptions.onComment`. */
@@ -136,26 +82,7 @@ export function createComments(initial: CommentThread[], onSave: (threads: Comme
   let current: Editor | null = null;
 
   const comment = (editor: Editor, blockId: BlockId, author: CommentAuthor | null): void => {
-    askForText(blockAnchor(blockId), { placeholder: 'Votre commentaire…', submit: 'Commenter' }, (body) => {
-      const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
-      const thread = newThread(message, blockId);
-      store.create(thread);
-
-      const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
-      if (length > 0) {
-        editor.dispatch((tx) =>
-          tx.op({
-            type: 'format_text',
-            id: blockId,
-            from: 0,
-            to: length,
-            mark: { type: 'comment', attrs: { threadId: thread.id } },
-            add: true,
-          }),
-        );
-      }
-      render(editor);
-    });
+    openCommentThread({ editor, store, blockId, author, labels: fr, locale: 'fr' });
   };
 
   const card = (thread: CommentThread, orphan: boolean): HTMLElement => {
@@ -170,17 +97,19 @@ export function createComments(initial: CommentThread[], onSave: (threads: Comme
     }
 
     const actions = el('div', 'thread-actions');
+    // an orphan has no block left to hang a bubble on, so it is read and
+    // settled here or not at all
+    const at = current ? anchoredThreads(current.doc).get(thread.id) : undefined;
+    if (at && current) {
+      actions.append(
+        button('Répondre', () => openCommentThread({ editor: current!, store, blockId: at, author: ME, labels: fr, locale: 'fr' })),
+      );
+    }
     actions.append(
-      button('Répondre', () => {
-        const at = current ? anchoredThreads(current.doc).get(thread.id) : undefined;
-        askForText(
-          at ? blockAnchor(at) : () => node.getBoundingClientRect(),
-          { placeholder: 'Votre réponse…', submit: 'Répondre' },
-          (body) => store.addMessage(thread.id, newMessage(ME.id, body, ME.name)),
-        );
-      }),
       button(thread.resolved ? 'Rouvrir' : 'Résoudre', () => store.setResolved(thread.id, !thread.resolved)),
-      button('Supprimer', () => store.delete(thread.id)),
+      // the store write alone leaves the `comment` mark, and the mark is what
+      // the margin counts — the block would keep a badge onto nothing
+      button('Supprimer', () => (current ? removeCommentThread(current, store, thread.id) : store.delete(thread.id))),
     );
     node.append(actions);
 

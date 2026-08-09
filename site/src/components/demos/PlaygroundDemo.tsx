@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DragEvent, ReactNode } from 'react';
 import { useEditor, type Editor, type BlockJSON } from '@nbe/react';
-import { PluginRegistry, docToJSON, type Run } from '@nbe/core';
+import { PluginRegistry, docToJSON, memoryComments, type CommentThread, type Run } from '@nbe/core';
 import {
   LOCALE_NAMES,
   defaultFeatures,
   exportFeature,
   findFeature,
   labelsFor,
+  openCommentThread,
   perBlockTopology,
   singleHostTopology,
   wordCountFeature,
@@ -206,7 +207,14 @@ export default function PlaygroundDemo() {
   const [panel, setPanel] = useState<{ kind: 'json' | 'md'; text: string } | null>(null);
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const [showSettings, setShowSettings] = useState(false);
-  const [comments, setComments] = useState<string[]>([]);
+  /*
+   * A real store, not a list of strings. The bubble is `openCommentThread`
+   * from `@nbe/dom` — the same one the demo app and the Obsidian plugin use —
+   * and it needs somewhere to put a reply and somewhere to take one back;
+   * `prompt()`, which was here, could do neither.
+   */
+  const comments = useRef(memoryComments());
+  const [threads, setThreads] = useState<CommentThread[]>([]);
   const menu = useRef<HTMLSpanElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   /*
@@ -226,6 +234,13 @@ export default function PlaygroundDemo() {
     document.head.append(el);
     return () => el.remove();
   }, []);
+
+  // the list below the editor reads the store rather than being written to
+  // alongside it, so a reply or a deletion made in the bubble shows here too
+  useEffect(() => comments.current.onChange(() => setThreads(comments.current.list())), []);
+  const resetComments = () => {
+    for (const thread of comments.current.list()) comments.current.delete(thread.id);
+  };
 
   // the syntax palette is one attribute; no remount, so changing it keeps the
   // caret and the undo stack
@@ -392,7 +407,7 @@ export default function PlaygroundDemo() {
               </div>
             )}
           </span>
-          <button onClick={() => { setSettings(initialSettings); setComments([]); mount(seed); }}>Réinitialiser</button>
+          <button onClick={() => { setSettings(initialSettings); resetComments(); mount(seed); }}>Réinitialiser</button>
         </span>
         <input ref={file} type="file" accept=".md,.markdown,.txt,text/markdown" hidden onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
@@ -403,15 +418,24 @@ export default function PlaygroundDemo() {
           settings={settings}
           onReady={(e) => { editor.current = e; }}
           onComment={(blockId) => {
-            const body = prompt('Votre commentaire');
-            if (body?.trim()) setComments((c) => [...c, `${blockId.slice(0, 8)} — ${body}`]);
+            if (!editor.current) return;
+            openCommentThread({
+              editor: editor.current,
+              store: comments.current,
+              blockId,
+              author: { id: 'visiteur', name: 'Visiteur' },
+              labels: labelsFor(settings.locale),
+              locale: settings.locale,
+            });
           }}
         />
       </div>
-      {comments.length > 0 && (
+      {threads.length > 0 && (
         <div className="demo-comments">
-          <b>Commentaires ({comments.length})</b>
-          {comments.map((c, i) => <p key={i}>{c}</p>)}
+          <b>Commentaires ({threads.length})</b>
+          {threads.flatMap((t) => t.messages).map((m) => (
+            <p key={m.id}>{m.authorName ?? 'Anonyme'} — {m.body}</p>
+          ))}
         </div>
       )}
       {panel && <pre className="debug-panel">{panel.text}</pre>}

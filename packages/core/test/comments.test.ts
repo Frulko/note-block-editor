@@ -151,6 +151,37 @@ describe('threads outlive their anchors', () => {
     expect(changes).toBe(2);
   });
 
+  it('deleting one message leaves the rest of the discussion standing', () => {
+    const store = memoryComments();
+    const first = newMessage('alice', 'ceci est ambigu');
+    const reply = newMessage('bob', 'reformulé');
+    const thread = newThread(first);
+    store.create(thread);
+    store.addMessage(thread.id, reply);
+
+    store.deleteMessage(thread.id, reply.id);
+
+    expect(store.get(thread.id)!.messages.map((m) => m.body)).toEqual(['ceci est ambigu']);
+  });
+
+  it('deleting the last message deletes the thread, not an empty card', () => {
+    const store = memoryComments();
+    let changes = 0;
+    const only = newMessage('alice', 'oublie ça');
+    const thread = newThread(only);
+    store.create(thread);
+    store.onChange(() => changes++);
+
+    store.deleteMessage(thread.id, only.id);
+
+    expect(store.get(thread.id)).toBeUndefined();
+    expect(store.list()).toEqual([]);
+    expect(changes).toBe(1);
+    // a message that is not there is not a change, and must not wake a panel
+    store.deleteMessage(thread.id, only.id);
+    expect(changes).toBe(1);
+  });
+
   it('resolving keeps the thread and its history', () => {
     const store = memoryComments();
     const thread = newThread(newMessage('alice', 'à corriger'));

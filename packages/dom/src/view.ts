@@ -328,6 +328,8 @@ export class EditorView {
   readonly readOnly: boolean;
   /** Notified once a pointer gesture has fully settled. See `onGestureEnd`. */
   readonly gestureEndListeners = new Set<(name: string, committed: boolean) => void>();
+  /** Notified after the view writes to the DOM. See {@link EditorView.onRender}. */
+  private renderListeners = new Set<(ids: readonly BlockId[] | null) => void>();
   /**
    * Where the caret last was in text. Opening a menu or selecting a block
    * replaces the live selection, so anything that needs to act "where the user
@@ -389,6 +391,19 @@ export class EditorView {
     container.append(this.content);
 
     this.renderAll();
+    /*
+     * The view listens *before* anything it renders for.
+     *
+     * `Editor.emit` calls listeners in registration order, so a feature that
+     * subscribed first ran against the DOM the re-render was about to throw
+     * away: every `Range` it measured came back pointing at a detached leaf,
+     * every rect at a stale position. Three features had each grown their own
+     * `queueMicrotask` to step around it; the ones that had not — the syntax
+     * colours, the cross-block selection, a peer's caret — simply stopped
+     * painting the moment anyone typed.
+     */
+    this.unbinders.push(editor.on((change) => this.handleChange(change)));
+    this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
     // features are data: what a host leaves out is not attached and not bundled
     for (const f of options.features ?? (this.readOnly ? [] : defaultFeatures)) {
       this.unbinders.push(f.attach(this));
@@ -398,8 +413,6 @@ export class EditorView {
     if (!this.readOnly)
       for (const plugin of this.plugins.all())
         for (const f of viewOf(plugin)?.features ?? []) this.unbinders.push(f.attach(this));
-    this.unbinders.push(editor.on((change) => this.handleChange(change)));
-    this.unbinders.push(editor.onSelection((sel, origin) => this.renderSelection(sel, origin)));
 
     // extension defense (ARCHITECTURE §5.1): DOM mutations that didn't come
     // from our reconciler are either merged into the model (text) or reverted
@@ -455,10 +468,13 @@ export class EditorView {
       } else {
         // same text but foreign markup (highlight spans, style attributes):
         // the model re-render is the canonical cleanup
-        this.withObserverPaused(() => {
+        const repaired = this.withObserverPaused(() => {
           const current = this.blockEl(id);
-          if (current?.isConnected) current.replaceWith(renderBlock(this, id));
+          if (!current?.isConnected) return false;
+          current.replaceWith(renderBlock(this, id));
+          return true;
         });
+        if (repaired) this.rendered([id]);
         this.syncDomSelection();
       }
     }
@@ -488,6 +504,31 @@ export class EditorView {
   onGestureEnd(cb: (name: string, committed: boolean) => void): () => void {
     this.gestureEndListeners.add(cb);
     return () => this.gestureEndListeners.delete(cb);
+  }
+
+  /**
+   * Called after the view has written to the DOM.
+   *
+   * @remarks
+   * Anything measured *from* the DOM — a `Range` parked in `CSS.highlights`, an
+   * overlay placed from a rect — dies when the element under it is replaced,
+   * and `editor.on` is not when to redo it. A render can have no transaction
+   * behind it at all: a peer's edit arriving through `renderAll`, a composition
+   * paid back when the IME commits, an extension's markup reverted. Those
+   * repaint the surface and emit no change, which is why the syntax colours
+   * used to survive typing but not a collaborator.
+   *
+   * @param cb - Receives the blocks whose elements were replaced, or `null`
+   * when the whole surface was rebuilt.
+   * @returns An unsubscribe.
+   */
+  onRender(cb: (ids: readonly BlockId[] | null) => void): () => void {
+    this.renderListeners.add(cb);
+    return () => this.renderListeners.delete(cb);
+  }
+
+  private rendered(ids: readonly BlockId[] | null): void {
+    for (const cb of this.renderListeners) cb(ids);
   }
 
   /** The element rendering a block, or `null` if it is not on screen. */
@@ -520,6 +561,7 @@ export class EditorView {
     this.withObserverPaused(() =>
       this.content.replaceChildren(...root.children.map((id) => renderBlock(this, id))),
     );
+    this.rendered(null);
   }
 
   private handleChange(change: Change): void {
@@ -545,8 +587,13 @@ export class EditorView {
     const set = new Set(alive);
     // skip ids whose ancestor is also dirty — the ancestor re-render covers them
     const roots = [...set].filter((id) => !ancestors(doc, id).some((p) => set.has(p)));
+    // what `onRender` reports: the elements actually replaced, or nothing when
+    // a full rebuild already announced itself
+    const replaced: BlockId[] = [];
+    let full = false;
     for (const id of roots) {
       if (id === doc.rootId) {
+        full = true;
         this.renderAll();
       } else {
         /*
@@ -558,11 +605,17 @@ export class EditorView {
          */
         this.withObserverPaused(() => {
           const old = this.blockEl(id);
-          if (old?.isConnected) old.replaceWith(renderBlock(this, id));
-          else this.renderAll(); // lost track — a full re-render is always correct
+          if (old?.isConnected) {
+            old.replaceWith(renderBlock(this, id));
+            replaced.push(id);
+          } else {
+            full = true;
+            this.renderAll(); // lost track — a full re-render is always correct
+          }
         });
       }
     }
+    if (!full && replaced.length) this.rendered(replaced);
     // only re-assert the DOM caret when the transaction moved the selection —
     // ui/programmatic changes must never yank the caret from where the user put it
     if (change.origin !== 'dom' && change.selectionSet) {

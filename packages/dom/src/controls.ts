@@ -202,6 +202,15 @@ export function attachControls(view: EditorView): () => void {
     controls.style.top = `${at.y}px`;
 
     if (!rightControls.childElementCount) return;
+    /*
+     * A commented block already shows a bubble in that margin, and it is the
+     * *same* affordance — "talk about this block". Rendering both put two
+     * message-square icons in the same 26px, one over the other, which read as
+     * a rendering fault rather than as two buttons. The marker wins: it knows
+     * how many threads there are, and it is the one that is there when you are
+     * not hovering. Any other right-gutter action a host added still shows.
+     */
+    rightControls.classList.toggle('nbe-has-marker', blockEl.hasAttribute('data-comments'));
     view.content.append(rightControls);
     const right = toContainerPoint(view.content, rect.right + 6, lineTop);
     rightControls.style.left = `${right.x}px`;

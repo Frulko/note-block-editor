@@ -1,8 +1,5 @@
 import {
   memoryComments,
-  newMessage,
-  newThread,
-  plainText,
   type BlockId,
   type BlockJSON,
   type CommentStore,
@@ -10,7 +7,7 @@ import {
   type Editor,
   type Run,
 } from '@nbe/core';
-import { createPopover, type CommentAuthor } from '@nbe/dom';
+import { fr, openCommentThread, type CommentAuthor } from '@nbe/dom';
 
 /**
  * Comments in a vault, kept in the note itself.
@@ -144,52 +141,6 @@ export function restoreAnchors(blocks: BlockJSON[]): BlockJSON[] {
   return walk(blocks);
 }
 
-/**
- * The composer: the same floating panel the editor uses for its own chrome.
- *
- * @remarks
- * Not `prompt()`, for the reasons the demo's version records — it steals
- * focus, cannot show what is being commented on, and on a phone is a
- * full-screen sheet. Obsidian on mobile is a phone.
- */
-function askForText(
-  anchor: () => DOMRect | null,
-  labels: { placeholder: string; submit: string },
-  onSubmit: (body: string) => void,
-): void {
-  const popover = createPopover({ className: 'comment-compose' });
-  const form = document.createElement('div');
-  form.className = 'compose';
-  const field = document.createElement('textarea');
-  field.className = 'compose-field';
-  field.rows = 3;
-  field.placeholder = labels.placeholder;
-  const send = document.createElement('button');
-  send.type = 'button';
-  send.className = 'thread-btn compose-send';
-  send.textContent = labels.submit;
-
-  const submit = () => {
-    const body = field.value.trim();
-    popover.close();
-    if (body) onSubmit(body);
-  };
-  send.addEventListener('click', submit);
-  field.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      submit();
-    }
-    if (event.key === 'Escape') event.stopPropagation();
-  });
-
-  form.append(field, send);
-  popover.setContent(form);
-  popover.open(anchor, { placement: 'bottom-end' });
-  field.focus();
-  requestAnimationFrame(() => field.focus());
-}
-
 export interface NoteCommentHost {
   store: CommentStore;
   /** Wire to `EditorViewOptions.onComment`. */
@@ -199,53 +150,20 @@ export interface NoteCommentHost {
 /**
  * @param initial - Threads read out of the note.
  * @param onChange - Called after every change, so the view can mark the file dirty.
+ *
+ * @remarks
+ * The bubble is `openCommentThread` from `@nbe/dom`. This file used to build
+ * its own, and could only ever ask for one more message: the discussion so far
+ * was crammed into the textarea's *placeholder*, where it could not be
+ * scrolled, selected, or deleted. Nothing about a vault made that necessary —
+ * it was the editor lacking the part, and it has it now.
  */
 export function createNoteComments(initial: CommentThread[], onChange: () => void): NoteCommentHost {
   const store = memoryComments(initial);
   store.onChange(onChange);
 
   const onComment = (editor: Editor, blockId: BlockId, author: CommentAuthor | null): void => {
-    const anchor = () =>
-      document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`)?.getBoundingClientRect() ?? null;
-    const existing = store
-      .list()
-      .filter((thread) => thread.blockId === blockId)
-      .flatMap((thread) => thread.messages.map((m) => `${m.authorName ?? 'Anonyme'} : ${m.body}`));
-
-    askForText(
-      anchor,
-      {
-        placeholder: existing.length ? `${existing.join('\n')}\n—\nRépondre…` : 'Votre commentaire…',
-        submit: existing.length ? 'Répondre' : 'Commenter',
-      },
-      (body) => {
-        const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
-        const open = store.list().find((thread) => thread.blockId === blockId && !thread.resolved);
-        if (open) {
-          store.addMessage(open.id, message);
-          return;
-        }
-        const thread = newThread(message, blockId);
-        store.create(thread);
-        // the anchor is a mark over the block's whole text: it is what survives
-        // the block being edited, split or moved, where an offset would not
-        const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
-        if (length > 0) {
-          editor.dispatch(
-            (tx) =>
-              tx.op({
-                type: 'format_text',
-                id: blockId,
-                from: 0,
-                to: length,
-                mark: { type: 'comment', attrs: { threadId: thread.id } },
-                add: true,
-              }),
-            { origin: 'ui' },
-          );
-        }
-      },
-    );
+    openCommentThread({ editor, store, blockId, author, labels: fr, locale: 'fr' });
   };
 
   return { store, onComment };

@@ -67,6 +67,17 @@ export interface CommentStore {
   get(id: string): CommentThread | undefined;
   create(thread: CommentThread): void;
   addMessage(threadId: string, message: CommentMessage): void;
+  /**
+   * Remove one message.
+   *
+   * @remarks
+   * A comment *is* a message — "delete this comment" has to be able to mean
+   * the reply you just mistyped, not the whole discussion around it. The last
+   * message takes its thread with it: an empty thread is a card nobody can
+   * read and nobody can get rid of, and both stores agree on that here rather
+   * than in whichever UI remembers to check.
+   */
+  deleteMessage(threadId: string, messageId: string): void;
   setResolved(threadId: string, resolved: boolean): void;
   delete(threadId: string): void;
   /** Fires on every change. Returns an unsubscribe. */
@@ -110,6 +121,15 @@ export function memoryComments(initial: CommentThread[] = []): CommentStore {
       if (!thread) return;
       // replace rather than push: a store that hands out copies must see a write
       threads.set(threadId, { ...thread, messages: [...thread.messages, message] });
+      notify();
+    },
+    deleteMessage(threadId, messageId) {
+      const thread = threads.get(threadId);
+      if (!thread) return;
+      const messages = thread.messages.filter((message) => message.id !== messageId);
+      if (messages.length === thread.messages.length) return; // no such message: no change, no notify
+      if (messages.length) threads.set(threadId, { ...thread, messages });
+      else threads.delete(threadId);
       notify();
     },
     setResolved(threadId, resolved) {

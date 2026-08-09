@@ -384,24 +384,30 @@
 }
 
 /* --- a commented block says so ------------------------------------------
-   The hover gutter is where you *make* a comment; this is where an existing
-   one is visible without hovering anything. Yellow because that is the
-   annotation channel in the charter — never the red pen, which is for
-   corrections. */
+   One bubble in that margin, never two. The hover gutter is where you *make*
+   a comment and this is where an existing discussion lives, but they are the
+   same affordance to the reader — so the marker takes the gutter button's
+   exact geometry (26px tall, right edge 32px past the block, which is
+   `rect.right + 6` plus the button's width) and `controls.ts` drops the hover
+   one on a block that has this. Yellow because that is the annotation channel
+   in the charter — never the red pen, which is for corrections. */
 
 .nbe-block[data-comments] {
   position: relative;
 }
 .nbe-comment-marker {
   position: absolute;
-  top: 2px;
-  right: -30px;
+  top: 0;
+  right: -32px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 2px 4px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
   border: none;
-  border-radius: var(--nbe-radius-sm, 4px);
+  border-radius: var(--nbe-radius);
   background: transparent;
   color: rgb(var(--nbe-note-rgb));
   cursor: pointer;
@@ -418,6 +424,140 @@
 }
 .nbe-comment-count:empty {
   display: none;
+}
+.nbe-controls-right.nbe-has-marker .nbe-comment {
+  display: none;
+}
+
+/* --- the comment bubble (`openCommentThread`) ----------------------------
+   A conversation reads down the page and is written at the bottom, which is
+   the shape of every message list there is; the panel itself is `.nbe-popover`
+   and only its contents are here. */
+
+.nbe-comments {
+  width: 280px;
+}
+.nbe-comments-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+}
+.nbe-comment-list:empty {
+  display: none;
+}
+.nbe-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.nbe-comment-thread {
+  border-left: 2px solid rgb(var(--nbe-note-rgb) / 0.5);
+  padding-left: 8px;
+}
+/* resolved is settled, not deleted: still readable, no longer shouting */
+.nbe-comment-thread[data-resolved] {
+  border-left-color: var(--nbe-border-strong);
+  opacity: 0.6;
+}
+.nbe-comment + .nbe-comment {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--nbe-border);
+}
+.nbe-comment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+.nbe-comment-who {
+  font-weight: 600;
+  color: var(--nbe-text);
+}
+.nbe-comment-at {
+  color: var(--nbe-text-faint);
+  font-size: 10.5px;
+}
+.nbe-comment-del {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  padding: 2px;
+  border-radius: var(--nbe-radius-sm);
+  color: var(--nbe-text-faint);
+  cursor: pointer;
+  /* a bin that is always lit invites the accident it performs */
+  opacity: 0;
+  transition: opacity var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-comment:hover .nbe-comment-del,
+.nbe-comment-del:focus-visible {
+  opacity: 1;
+}
+.nbe-comment-del:hover {
+  color: var(--nbe-danger);
+}
+.nbe-comment-body {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--nbe-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.nbe-comment-thread-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.nbe-comment-btn {
+  font: inherit;
+  font-size: 11px;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm);
+  background: transparent;
+  padding: 2px 7px;
+  cursor: pointer;
+  color: var(--nbe-text-muted);
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease);
+}
+.nbe-comment-btn:hover {
+  background: var(--nbe-hover);
+  color: var(--nbe-text);
+}
+.nbe-comment-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nbe-comment-field {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 56px;
+  padding: 7px 9px;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm);
+  background: var(--nbe-surface);
+  color: var(--nbe-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.nbe-comment-field::placeholder {
+  color: var(--nbe-placeholder);
+}
+.nbe-comment-field:focus {
+  outline: 2px solid var(--nbe-accent);
+  outline-offset: -1px;
+}
+.nbe-comment-send {
+  align-self: flex-end;
 }
 
 /*

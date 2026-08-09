@@ -26,6 +26,34 @@ const painted = (page: Page) =>
     return out;
   });
 
+/**
+ * How many registered ranges still point *into the code*.
+ *
+ * @remarks
+ * The assertion that can tell a colour from a colour-shaped entry in a
+ * registry. When a re-render replaces the leaf, the DOM's removing steps
+ * re-point every range inside it at the surviving parent element rather than
+ * invalidating it: the registry stays full, `Highlight.size` keeps counting,
+ * `isConnected` keeps answering yes — and nothing is painted. Only "is the
+ * boundary a text node inside this leaf" separates the two, which is why the
+ * suite asked the wrong question for a while and the colours died on every
+ * keystroke with a green build.
+ */
+const inLeaf = (page: Page) =>
+  page.evaluate(() => {
+    const leaf = document.querySelector('.nbe-t-code .nbe-leaf')!;
+    let total = 0;
+    let inLeaf = 0;
+    for (const [name, highlight] of (CSS as unknown as { highlights: Map<string, Set<Range>> }).highlights) {
+      if (!name.startsWith('nbe-code-')) continue;
+      for (const range of highlight) {
+        total++;
+        if (range.startContainer.nodeType === Node.TEXT_NODE && leaf.contains(range.startContainer)) inLeaf++;
+      }
+    }
+    return { total, inLeaf };
+  });
+
 test.describe('the code block', () => {
   test('``` opens one, from the plugin\'s own shortcut', async ({ page, editor }) => {
     await makeCode(page, editor);
@@ -175,7 +203,7 @@ test.describe('the code block, in the frame it is typed in', () => {
     expect(editor.errors()).toEqual([]);
   });
 
-  test('every painted range is anchored in the live document', async ({ page, editor }) => {
+  test('every painted range is anchored in the code it colours', async ({ page, editor }) => {
     await makeCode(page, editor);
     await page.locator('.nbe-t-code').hover();
     await page.locator('.nbe-blocktoolbar-btn').first().click();
@@ -186,26 +214,38 @@ test.describe('the code block, in the frame it is typed in', () => {
     await expect.poll(async () => Object.keys(await painted(page)).length).toBeGreaterThan(1);
     await page.keyboard.type(' let y = 2;');
 
-    /*
-     * The ranges live in `CSS.highlights`, not in the DOM, so a re-render that
-     * replaced the text nodes under them would leave the colours registered and
-     * invisible — and `Highlight.size` would still read as painted. This is the
-     * assertion that can tell the difference.
-     */
-    const live = await page.evaluate(() => {
-      let total = 0;
-      let connected = 0;
-      for (const [name, highlight] of (CSS as unknown as { highlights: Map<string, Set<Range>> }).highlights) {
-        if (!name.startsWith('nbe-code-')) continue;
-        for (const range of highlight) {
-          total++;
-          if (range.startContainer.isConnected) connected++;
-        }
-      }
-      return { total, connected };
-    });
+    const live = await inLeaf(page);
     expect(live.total).toBeGreaterThan(0);
-    expect(live.connected).toBe(live.total);
+    expect(live.inLeaf).toBe(live.total);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('and after a render no transaction announced', async ({ page, editor }) => {
+    await makeCode(page, editor);
+    await page.locator('.nbe-t-code').hover();
+    await page.locator('.nbe-blocktoolbar-btn').first().click();
+    await page.locator('.nbe-menu input').fill('javas');
+    await page.locator('.nbe-menu button', { hasText: 'JavaScript' }).first().click();
+    await page.locator('.nbe-t-code .nbe-leaf').click();
+    await page.keyboard.type('const x = 1;');
+    await expect.poll(async () => Object.keys(await painted(page)).length).toBeGreaterThan(1);
+
+    /*
+     * An extension writing markup into the leaf: the view reverts it by
+     * re-rendering the block, and no `Change` is emitted — the same shape as a
+     * peer's edit arriving through `renderAll`, which is the one the editor
+     * cannot reproduce from this side of the page. Anything measured from the
+     * DOM has to hear about a render like this one or it is left pointing at
+     * a leaf nobody kept.
+     */
+    await page.evaluate(() => {
+      const leaf = document.querySelector('.nbe-t-code .nbe-leaf')!;
+      leaf.append(document.createElement('span')); // same text, foreign markup
+    });
+    await expect.poll(async () => (await page.evaluate(() => document.querySelectorAll('.nbe-t-code .nbe-leaf span').length))).toBe(0);
+    const live = await inLeaf(page);
+    expect(live.total).toBeGreaterThan(0);
+    expect(live.inLeaf).toBe(live.total);
     expect(editor.errors()).toEqual([]);
   });
 

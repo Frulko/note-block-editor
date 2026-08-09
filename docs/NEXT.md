@@ -26,6 +26,77 @@ reopened in a new process converges with a browser holding nothing.
 simulator, stored to disk by `nbe peer` — three peers, three languages, a full
 WebRTC mesh, and the relay watching none of it go by. Run it: `apps/ios/README.md`.
 
+## Comments are a discussion, 2026-08-09
+
+Reported as a rendering fault — the marker on a commented block and the hover
+gutter's comment button drawn one over the other — and it was, but the drawing
+was the smaller half of it.
+
+- **One bubble in that margin.** They were never two affordances: both mean
+  "talk about this block". The marker takes the gutter button's geometry
+  (26px, right edge at `rect.right + 32`) and `controls.ts` drops the hover one
+  on a block that has `data-comments`. A host's own right-gutter actions still
+  show.
+- **`openCommentThread` in `@nbe/dom`.** Three hosts had each written the same
+  composer and each had written it badly in a different way: the site's
+  playground asked in a `prompt()`, the Obsidian plugin packed the discussion
+  so far into the textarea's *placeholder*, and none of the three could show a
+  reply or take a comment back — every click started a new thread. It is one
+  part now, exported the way `createPopover` is: messages down the panel, a
+  field at the bottom, a bin on each message, resolve per thread. `onComment`
+  is unchanged — the editor still contributes the affordance and not the
+  layout, it just ships the usual bubble for hosts that want it.
+- **`CommentStore.deleteMessage`.** "Delete this comment" has to be able to
+  mean one reply. The last message takes its thread with it, in both stores.
+- **Deleting a thread lifts its anchor** (`removeCommentThread`). This was a
+  live bug in every host: the margin counts `comment` marks, so a thread
+  deleted from a panel left the block wearing a badge that opened onto nothing.
+- `commentPlaceholder`/`commentReply`/`commentSend`/`commentDelete`/
+  `commentResolve`/`commentReopen`/`commentAnonymous` in all five dictionaries,
+  plus `CommentThreadOptions.locale` — a dictionary is not a locale and `Intl`
+  needs a tag, which is why the demo's French panel was dating messages in
+  English.
+
+`e2e/comment-bubble.spec.ts` covers the single bubble, the reply joining its
+thread, reopening, and the delete taking the marker with it.
+
+## The colours were never repainted, 2026-08-09
+
+Reported as "the code block's highlighting breaks the moment you edit, and only
+a reload brings it back". It was, and the code block was the messenger: the bug
+was in `EditorView`'s listener order and it silently affected everything that
+measures the DOM.
+
+- **The view now listens before the features it renders for.** `Editor.emit`
+  calls listeners in registration order and the view registered *last*, so every
+  feature ran against the DOM the re-render was about to replace. Three had each
+  grown their own `queueMicrotask` to step around it (`comment-marker`,
+  `word-count`, mermaid's panel); the ones that had not — syntax colours, the
+  cross-block selection, a peer's caret, a table's cell selection — just stopped
+  painting after the first keystroke. Two lines moved in the constructor.
+- **Why no test caught it.** A `Range` is not invalidated when its text node is
+  removed: the DOM's removing steps re-point it at the surviving parent. So the
+  registry stayed full, `Highlight.size` kept counting, `isConnected` kept
+  answering yes, and not one character was painted — and the spec asserted
+  exactly `isConnected`. It asks the right question now (is the boundary a text
+  node *inside the leaf*), and fails on the old code.
+- **`EditorView.onRender(cb)`.** Because ordering is only half of it: a render
+  can have no transaction behind it at all — a peer's edit arriving through
+  `renderAll` (`redrawOnRemote`), a composition paid back when the IME commits,
+  foreign markup reverted by the observer. `editor.on` never saw those, so a
+  collaborator's keystroke used to take your syntax colours with it. The
+  callback gets the blocks whose elements were replaced, or `null` for the whole
+  surface, and `@nbe/blocks-code` measures there instead of on the change.
+- **The hover toolbar sits above a code block now**, like a table's. A code
+  block's top-right corner is not spare room: the bar was drawn over the
+  language badge and the first line of code, so reaching for Copy hid what you
+  were copying.
+
+Still on `editor.on` and still blind to a transaction-less render: `search.ts`,
+`remote-carets.ts`, `cross-block-highlight.ts`, `blocks-table/select.ts`. The
+ordering fix covers the common case for all four; moving them onto `onRender` is
+the same three-line change each, when someone reports it.
+
 ## Comfort pass, 2026-08-09
 
 Eight items off `Amélioration de Carnet.md`, each its own commit, each with the
@@ -68,8 +139,8 @@ every case the reported symptom was not the bug:
 What is left on that list and still cheap: inline comments with a count badge in
 the gutter (needs a `commentCount` host hook — the threads are the host's), page
 icon/tags/cover, the live/raw toggle, PDF/LaTeX export. The code-block items
-(tab handling, the language input losing focus, syntax highlighting) belong with
-`@nbe/blocks-code`.
+(tab handling, the language input losing focus, syntax highlighting) are done —
+the last of them is the section above.
 
 ## Peer-to-peer, 2026-08-08
 
