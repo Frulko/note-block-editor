@@ -12,10 +12,13 @@ permissions:
   pages: write
   id-token: write
 
-# Même groupe que `deploy.yml`, sans annulation : deux déploiements Pages ne
-# doivent pas se croiser, et un lancement manuel ne doit pas tuer la CI en cours.
+# Groupe distinct de `deploy.yml`, mesuré : partager `pages` avec lui revient à
+# se faire annuler, parce que son `cancel-in-progress: true` s'applique au
+# groupe entier — un push pendant un déploiement manuel le tuait, puis échouait
+# aux tests et ne déployait rien. La sérialisation des déploiements Pages reste
+# assurée par l'environnement `github-pages`.
 concurrency:
-  group: pages
+  group: pages-manual
   cancel-in-progress: false
 
 jobs:
