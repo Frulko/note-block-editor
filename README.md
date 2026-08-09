@@ -3,6 +3,14 @@
 A Notion-class block editor written in vanilla TypeScript, with storage you can
 read without it: Markdown files in a folder, the way Obsidian does it.
 
+**[Site and live demo →](https://frulko.github.io/note-block-editor/)** ·
+[Why](https://frulko.github.io/note-block-editor/docs/why/) ·
+[Where it runs](https://frulko.github.io/note-block-editor/docs/hosts/)
+
+> The packages are published under the `@nbe/*` scope and the CLI is `nbe`;
+> **Carnet** is the product those packages add up to. Both names are kept on
+> purpose — one is a library you embed, the other is an app you use.
+
 The gap it aims at is narrow and, as far as a 2026 survey of the field could
 tell, unoccupied: **nobody offers Notion-grade WYSIWYG editing whose storage is
 plain Markdown files.** Obsidian has the files and a text editor with
@@ -33,8 +41,9 @@ See `docs/research/competitive-landscape.md` for who fails at which half.
   that reads *and writes* the same CRDT document. A browser, an iPhone and a
   command line hold one document with the relay out of the path.
 
-**Six gating test suites**: ~870 unit tests, Chromium, WebKit (Safari's engine),
-an alternative editable topology, touch at phone viewports, and the Swift port.
+**Six gating test suites**: ~1040 unit tests, Chromium, WebKit (Safari's
+engine), an alternative editable topology, touch at phone viewports, and the
+Swift port.
 
 The architecture is derived from ~40k words of source-backed research on
 Notion's internals, contenteditable's failure modes, ProseMirror/Lexical/Slate,
@@ -77,6 +86,66 @@ cd native/swift && swift test            # the Swift port
 7. **No over-engineering.** Every abstraction pays rent. Columns and nesting
    are in the core schema (can't be retrofitted); virtualization, plugins
    marketplaces, and CRDTs are not (can be).
+
+## How this was built
+
+Two facts that only make sense together.
+
+**It is not new.** The questions here — how a block editor keeps a caret honest,
+what a document is when it is not HTML, how to have Notion's editing without
+Notion's storage — have been circling for years, mostly as proofs of concept
+that stopped at the interesting part. A POC answers one question and then costs
+more to keep than to rewrite; several of these died exactly there, and the ones
+that did are the reason the architecture arrives with its evidence attached.
+
+**And it was built with heavy AI assistance** — Claude Code, day to day, and
+there is no point being coy about it. What changed is not the thinking. It is
+the distance between an idea and the evidence that keeps or kills it. Running
+the alternative editable topology end to end, porting the document format to a
+second language to find out what the first one got wrong, reading forty thousand
+words of primary sources on how contenteditable actually fails: each of those
+used to be a month I did not have, so each used to be an assumption instead of a
+measurement. Every one of them found real bugs — they are listed by name in
+`docs/NEXT.md` and `docs/TESTING.md`.
+
+What it did not do is decide. The nine architecture decisions in
+`docs/ARCHITECTURE.md` are written with the measurement or the source that
+forced each one, including the one that had to be **amended** when a browser
+proved the original claim false. Those are mine to defend, and the rest of this
+repository is what makes them checkable.
+
+### If you distrust AI-written code
+
+That is a reasonable position, and the answer is not a promise. It is the part
+you can check without trusting me:
+
+- **Nothing is claimed that is not gated.** Six suites run before anything
+  lands, on two browser engines, at phone viewports, under an alternative
+  editing topology, and in a second language. A claim without a test is a story.
+- **The tests come from failures, not from coverage targets.** Most of them are
+  named after the bug that produced them: WebKit refusing a `Blob` in IndexedDB
+  (every image would have failed to persist on Safari and iOS), a gutter riding
+  its block out of the viewport, a pointer capture silently disabling native
+  drag-select. `docs/TESTING.md` is a list of things that were wrong.
+- **A second implementation is a second opinion.** `native/swift` reads and
+  writes the same document, and `test/swift-parity.test.ts` fails when the two
+  autoformat tables drift — the exact class of bug a fast writer produces, where
+  both sides work and the same keystroke does two different things.
+- **Measured, not remembered.** Keystroke latency at 500 blocks, the twelve
+  end-to-end failures found the first time the "it's just a config change"
+  topology was actually run, five hypotheses killed before the sixth held on the
+  WebKit gutter. The numbers in this README are re-measured, not recalled.
+- **The shortcuts are labelled.** Deliberate simplifications carry a
+  `ponytail:` comment naming the ceiling and the upgrade path, so the debt is
+  greppable instead of folkloric.
+- **The limits are written down rather than glossed.** What still needs a real
+  Android device and a real iPhone — the software keyboard, touch selection, and
+  one IME that actively lies about `beforeinput` — is recorded as undecided, not
+  assumed fine, because that is the question that could still invalidate D1.
+
+If, after that, you would rather not use software built this way: fair enough.
+The format is plain Markdown in a folder, and it stays readable without any of
+this.
 
 ## Repository map
 
