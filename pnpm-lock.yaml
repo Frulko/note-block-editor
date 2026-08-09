@@ -488,6 +488,24 @@ importers:
 
   site:
     dependencies:
+      '@nbe/blocks-callout':
+        specifier: workspace:*
+        version: link:../packages/blocks-callout
+      '@nbe/blocks-code':
+        specifier: workspace:*
+        version: link:../packages/blocks-code
+      '@nbe/blocks-mdx':
+        specifier: workspace:*
+        version: link:../packages/blocks-mdx
+      '@nbe/blocks-mermaid':
+        specifier: workspace:*
+        version: link:../packages/blocks-mermaid
+      '@nbe/blocks-table':
+        specifier: workspace:*
+        version: link:../packages/blocks-table
+      '@nbe/blocks-toc':
+        specifier: workspace:*
+        version: link:../packages/blocks-toc
       '@nbe/collab':
         specifier: workspace:*
         version: link:../packages/collab
@@ -509,6 +527,9 @@ importers:
       '@nbe/vue':
         specifier: workspace:*
         version: link:../packages/vue
+      mermaid:
+        specifier: ^11.16.1
+        version: 11.16.1
     devDependencies:
       '@astrojs/mdx':
         specifier: ^7.0.5

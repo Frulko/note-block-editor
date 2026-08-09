@@ -8,6 +8,13 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@nbe/blocks-callout": "workspace:*",
+    "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-mdx": "workspace:*",
+    "@nbe/blocks-mermaid": "workspace:*",
+    "@nbe/blocks-table": "workspace:*",
+    "@nbe/blocks-toc": "workspace:*",
+    "mermaid": "^11.16.1",
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
     "@nbe/markdown": "workspace:*",
