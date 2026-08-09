@@ -72,4 +72,25 @@ test.describe('the table of contents', () => {
     expect(await entries(page)).toEqual([]);
     await expect(page.locator('.nbe-toc-empty')).toBeVisible();
   });
+
+  test('changes its look from the block menu, keeping the same entries', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await insertToc(page, editor);
+    await editor.press('ArrowDown');
+    await editor.type('# Un\n');
+    await editor.type('## Un.un');
+
+    const toc = page.locator('.nbe-t-table_of_contents');
+    await expect(toc).toHaveAttribute('data-toc-style', 'underline');
+
+    const box = (await toc.boundingBox())!;
+    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await page.locator('.nbe-handle').click();
+    await page.locator('.nbe-menu-item', { hasText: 'Numéroté' }).first().click();
+
+    await expect(toc).toHaveAttribute('data-toc-style', 'numbered');
+    expect(await entries(page)).toEqual(['Un', 'Un.un']);
+    expect(editor.errors()).toEqual([]);
+  });
 });
