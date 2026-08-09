@@ -48,7 +48,10 @@ export function attachCommentMarkers(view: EditorView): () => void {
   if (!view.options.onComment) return () => {};
 
   const apply = (id: BlockId): void => {
-    const el = view.blockEl(id);
+    // queried directly rather than through `view.blockEl`, which finishes a
+    // mount that is still streaming its tail: a marker is decoration, and
+    // decoration must not force the rest of a long document into existence
+    const el = view.content.querySelector<HTMLElement>(`.nbe-block[data-block-id="${CSS.escape(id)}"]`);
     if (!el) return;
     const count = commentThreadIds(editor.doc.blocks.get(id)).length;
     const existing = el.querySelector<HTMLButtonElement>(`:scope > .${CLASS}`);

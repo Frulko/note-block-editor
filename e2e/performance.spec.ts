@@ -82,3 +82,80 @@ test.describe('speed, which the survey says is a wedge on its own', () => {
     expect(elapsed).toBeLessThan(5000);
   });
 });
+
+/**
+ * What a *long* document costs, which is the question behind "should this be
+ * virtualized".
+ *
+ * The answer was measured before anything was built, and it is the reason
+ * there is no virtualizer here. At 500 / 2000 / 5000 blocks:
+ *
+ * | | 500 | 2000 | 5000 |
+ * | --- | --- | --- | --- |
+ * | keystroke | 8.3ms | 8.3ms | 8.4ms |
+ * | scrolled frame | 7.7ms | 7.8ms | 7.6ms |
+ * | whole document on screen | 191ms | 404ms | 1010ms |
+ *
+ * Typing and scrolling are **flat** — a keystroke already repaints one block,
+ * and the browser is perfectly happy scrolling fifteen thousand nodes. The one
+ * thing that scaled was the opening render, and taking every off-screen block
+ * out of the DOM to fix it would have put the caret, find, the comment markers
+ * and every `blockEl` call somewhere they do not expect. `content-visibility:
+ * auto` was tried as the native answer and measured **ten times worse**.
+ *
+ * So the opening render streams instead, and these are the three properties
+ * that keep that decision honest.
+ */
+test.describe('a long document', () => {
+  const LONG = Array.from({ length: 4000 }, (_, i) => `ligne ${i} avec un peu de texte`);
+
+  /**
+   * One page load, three assertions.
+   *
+   * Deliberately not three tests: a four-thousand-block mount is expensive
+   * enough that three of them running beside the rest of the suite starve the
+   * runner, and a suite that fails somewhere else because of a performance
+   * test is a suite people stop trusting. Measured that happening, twice, on
+   * two different specs.
+   */
+  test('paints at once, arrives in full, and costs the same to use', async ({ page, editor }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __firstPaint?: number };
+      const tick = () => {
+        if (document.querySelector('.nbe-editor > .nbe-block')) w.__firstPaint ??= performance.now();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await editor.setDocument(LONG);
+    await page.locator('.nbe-leaf').first().waitFor();
+
+    // 1. the opening render streams, so first paint does not scale: measured
+    // at 106ms here against 86ms for five hundred blocks
+    const first = await page.evaluate(() => (window as unknown as { __firstPaint: number }).__firstPaint);
+    console.log(`première peinture, ${LONG.length} blocs : ${first.toFixed(0)}ms`);
+    expect(first).toBeLessThan(700);
+
+    // 2. and all of it arrives. A streamed document that stops halfway is a
+    // document with content missing, which is worse than a slow one
+    await page.locator('.nbe-leaf').nth(LONG.length - 1).waitFor();
+    expect(await page.locator('.nbe-editor > .nbe-block').count()).toBe(LONG.length);
+    expect((await editor.texts())[LONG.length - 1]).toBe(`ligne ${LONG.length - 1} avec un peu de texte`);
+
+    // 3. typing and scrolling stay flat, which is the measurement that says no
+    // virtualizer is needed here
+    const p50 = median(await keystrokeLatencies(page, 30));
+    const frame = await page.evaluate(async () => {
+      const scroller = document.querySelector('.page-scroll')!;
+      const start = performance.now();
+      for (let i = 0; i < 20; i++) {
+        scroller.scrollTop += 600;
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      }
+      return (performance.now() - start) / 20;
+    });
+    console.log(`${LONG.length} blocs : frappe ${p50.toFixed(1)}ms, défilement ${frame.toFixed(1)}ms/frame`);
+    expect(p50).toBeLessThan(50);
+    expect(frame).toBeLessThan(50);
+  });
+});
