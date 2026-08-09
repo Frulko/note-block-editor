@@ -161,3 +161,45 @@ body[data-nbe-theme] .nbe-portal {
 .nbe-tooltip {
   color: var(--nbe-inverse-text);
 }
+
+/* --- the comment composer ------------------------------------------------
+   `createPopover` from `@nbe/dom` draws the panel; only what is inside it is
+   this plugin's. Same shape as the demo's, deliberately: a host builds its
+   chrome out of the editor's parts. */
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  padding: 4px;
+}
+.compose-field {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 60px;
+  padding: 7px 9px;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm, 4px);
+  background: var(--nbe-surface);
+  color: var(--nbe-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.compose-field:focus {
+  outline: 2px solid var(--nbe-accent);
+  outline-offset: -1px;
+}
+.compose-send {
+  align-self: flex-end;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--nbe-border-strong);
+  border-radius: var(--nbe-radius-sm, 4px);
+  background: var(--nbe-surface);
+  color: var(--nbe-text);
+  padding: 3px 10px;
+  cursor: pointer;
+}

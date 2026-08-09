@@ -23,6 +23,7 @@ import {
   type EditorViewOptions,
 } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
+import { applyAnchors, createNoteComments, readComments, restoreAnchors, writeComments } from './comments';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
 import { CODE_THEMES } from '@nbe/blocks-code';
@@ -34,8 +35,12 @@ import { toc } from '@nbe/blocks-toc/dom';
  * Carnet inside Obsidian — the editor, and nothing else.
  *
  * @remarks
- * The scope is the whole design. No comments, no presence, no CRDT, no `.nbe/`
- * directory, no workspace. This plugin edits **one file at a time, in place**,
+ * The scope is the whole design. No presence, no CRDT, no `.nbe/` directory,
+ * no workspace. Comments *were* on that list, and came off it the honest way:
+ * the objection was that a thread has nowhere to live when the Markdown is
+ * the document, and a sidecar file would leave the discussion behind the
+ * first time a note is carried away on a USB stick. The note carries them
+ * instead, in Obsidian's own `%%…%%` syntax — `src/comments.ts`. This plugin edits **one file at a time, in place**,
  * and that is what makes it coherent: §10 puts the canonical JSON above the
  * Markdown projection, and a plugin that owned a *workspace* would invert that
  * — Obsidian would own the files and L0 would become a cache of them. An
@@ -98,6 +103,8 @@ interface CarnetSettings {
   codeTheme: string;
   /** The editor's interface language. `LOCALE_NAMES` lists what ships. */
   locale: string;
+  /** Comments, kept in the note itself as Obsidian comment syntax. */
+  comments: boolean;
   /** One CSS custom property per line: `--nbe-accent-rgb: 220 38 38`. */
   theme: string;
   /** Chrome features toggled off, by feature name; absent means on. */
@@ -118,6 +125,7 @@ const DEFAULT_SETTINGS: CarnetSettings = {
   // the vault is most likely French if this plugin is installed; the editor's
   // own default is English and every other language is one setting away
   locale: 'fr',
+  comments: true,
   theme: '',
   features: {},
 };
@@ -191,7 +199,7 @@ function pageOf(markdown: string): BlockJSON {
     type: 'page',
     version: 1,
     props: {},
-    children: markdownToBlocks(markdown, { plugins: MARKDOWN_PLUGINS }),
+    children: applyAnchors(markdownToBlocks(markdown, { plugins: MARKDOWN_PLUGINS })),
   };
 }
 
@@ -218,6 +226,15 @@ class CarnetView extends TextFileView {
    */
   private loading = false;
 
+  /**
+   * The open note's comment threads.
+   *
+   * @remarks
+   * Per view, not per plugin: this editor holds one file, and threads that
+   * outlived it would be threads about somebody else's blocks.
+   */
+  private comments: ReturnType<typeof createNoteComments> | null = null;
+
   getViewType(): string {
     return VIEW_TYPE;
   }
@@ -241,7 +258,11 @@ class CarnetView extends TextFileView {
      * field.
      */
     const page = docToJSON(this.editor.doc) as BlockJSON;
-    return blocksToMarkdown(page.children ?? [], { plugins: MARKDOWN_PLUGINS });
+    const blocks = this.comments ? restoreAnchors(page.children ?? []) : (page.children ?? []);
+    const markdown = blocksToMarkdown(blocks, { plugins: MARKDOWN_PLUGINS });
+    // the threads go back at the end, in Obsidian's own comment syntax, so the
+    // discussion travels with the file and reading mode shows none of it
+    return this.comments ? writeComments(markdown, this.comments.store.list()) : markdown;
   }
 
   /** Obsidian hands over the file's content, on open and on external change. */
@@ -392,9 +413,25 @@ class CarnetView extends TextFileView {
     // the title supplies the top spacing; keep the editor close under it
     if (!this.plugin.settings.padTop.trim()) opts.padding = { ...opts.padding, top: '12px' };
 
-    this.editor = new Editor({ doc: docFromJSON(pageOf(markdown)) });
+    // the threads come out of the note before it is parsed as blocks; the
+    // anchors stay in the text, where `applyAnchors` turns them into marks
+    const note = this.plugin.settings.comments ? readComments(markdown) : { markdown, threads: [] };
+    this.comments = this.plugin.settings.comments
+      ? createNoteComments(note.threads, () => {
+          if (!this.loading) this.requestSave();
+        })
+      : null;
+
+    this.editor = new Editor({ doc: docFromJSON(pageOf(note.markdown)) });
     this.view = new EditorView(this.mount, this.editor, {
       ...opts,
+      // comments live in the note itself, so this host can offer them at all
+      ...(this.comments
+        ? {
+            onComment: (blockId, author) => this.comments?.onComment(this.editor!, blockId, author),
+            commentAuthor: { id: 'obsidian', name: 'Vous' },
+          }
+        : {}),
       // the `@` picker completes against the vault's notes; the id IS the
       // link text, because a vault resolves by name, not by uuid
       onSearchPages: (query) => {
@@ -606,6 +643,16 @@ class CarnetSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const save = () => void this.plugin.saveSettings();
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Commentaires')
+      .setDesc('Commenter un bloc depuis la marge droite. Les fils sont écrits dans la note elle-même, en syntaxe de commentaire Obsidian (%%…%%) — invisibles en mode lecture, et ils voyagent avec le fichier.')
+      .addToggle((t) =>
+        t.setValue(s.comments).onChange((v) => {
+          s.comments = v;
+          save();
+        }),
+      );
 
     new Setting(containerEl)
       .setName('Langue')
