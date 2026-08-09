@@ -15,6 +15,7 @@ import { EditorView, builtinBlocks, defaultFeatures, type EditorViewOptions } fr
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
+import { CODE_THEMES } from '@nbe/blocks-code';
 import { toc } from '@nbe/blocks-toc/dom';
 
 /**
@@ -81,6 +82,8 @@ interface CarnetSettings {
    * reader who wants the editor light regardless had no way to say so.
    */
   themeMode: 'vault' | 'light' | 'dark';
+  /** Which syntax palette code blocks use. See `CODE_THEMES`. */
+  codeTheme: string;
   /** One CSS custom property per line: `--nbe-accent-rgb: 220 38 38`. */
   theme: string;
   /** Chrome features toggled off, by feature name; absent means on. */
@@ -97,6 +100,7 @@ const DEFAULT_SETTINGS: CarnetSettings = {
   readOnly: false,
   defaultEditor: false,
   themeMode: 'vault',
+  codeTheme: 'one',
   theme: '',
   features: {},
 };
@@ -531,6 +535,13 @@ export default class CarnetPlugin extends Plugin {
     const mode = this.settings.themeMode;
     document.body.dataset.nbeTheme =
       mode === 'vault' ? (document.body.hasClass('theme-dark') ? 'dark' : 'light') : mode;
+    // the same shape as the editor's own theme hook: an attribute on <body>,
+    // which reaches the chrome portaled out of the editor as well as the page
+    if (this.settings.codeTheme && this.settings.codeTheme !== 'one') {
+      document.body.dataset.nbeCodeTheme = this.settings.codeTheme;
+    } else {
+      delete document.body.dataset.nbeCodeTheme;
+    }
   }
 
   /** Persist the settings and rebuild every open Carnet view with them. */
@@ -566,6 +577,19 @@ class CarnetSettingTab extends PluginSettingTab {
           .setValue(s.themeMode)
           .onChange((v) => {
             s.themeMode = v as CarnetSettings['themeMode'];
+            save();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('Coloration du code')
+      .setDesc('La palette des blocs de code. Chaque thème a sa version claire et sa version sombre ; celle qui s’applique suit le thème ci-dessus.')
+      .addDropdown((d) =>
+        d
+          .addOptions(Object.fromEntries(CODE_THEMES.map((t) => [t.id, t.label])))
+          .setValue(s.codeTheme)
+          .onChange((v) => {
+            s.codeTheme = v;
             save();
           }),
       );

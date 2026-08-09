@@ -12,6 +12,7 @@ import { PLUGIN_API_VERSION, plainText } from '@nbe/core';
 import { isLoaded, tokenize } from './highlight';
 
 export * from './highlight';
+export { CODE_THEMES, type CodeTheme } from './styles';
 
 const FENCE = /^(?:```|~~~)\s*([\w+-]*)\s*$/;
 
