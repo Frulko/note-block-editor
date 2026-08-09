@@ -320,11 +320,27 @@ class CarnetView extends TextFileView {
     return this.comments ? writeComments(markdown, this.comments.store.list()) : markdown;
   }
 
-  /** Obsidian hands over the file's content, on open and on external change. */
+  /**
+   * Obsidian hands over the file's content, on open and on external change.
+   *
+   * @remarks
+   * **Including after our own save**, which is where "I reordered a block and
+   * it scrolled to the top" came from. Every edit calls `requestSave`, the
+   * write raises a vault event, and the view is handed back the bytes it just
+   * produced — a full rebuild, and `this.mount` *is* the scroller, so emptying
+   * it clamps `scrollTop` to 0 and the content coming back does not put it
+   * back. The reader loses their place because they moved a block.
+   *
+   * Comparing is the sane and simple version of not doing that: if the file on
+   * disk is already what this view would write, there is nothing to rebuild.
+   * It costs one serialisation, on an event that only fires when a file
+   * changes — the same work the save that caused it already did.
+   */
   setViewData(data: string, clear: boolean): void {
+    const same = !clear && !!this.editor && data === this.getViewData();
     this.data = data;
-    if (clear || !this.editor) this.build(data);
-    else this.build(data); // an external edit replaces the document wholesale
+    if (same) return;
+    this.build(data);
   }
 
   clear(): void {
@@ -521,6 +537,15 @@ class CarnetView extends TextFileView {
 
   private build(markdown: string): void {
     if (!this.mount) return;
+    /*
+     * A genuine external change still rebuilds, and the reader still keeps
+     * their place: the mount is the scroller, and emptying it clamps the
+     * position to zero. Restored once the document is whole — a streamed
+     * opening render only has a screenful in it at first, so a position
+     * further down would clamp all over again.
+     */
+    const scroller = this.mount;
+    const wasAt = scroller.scrollTop;
     this.loading = true;
     this.view?.destroy();
     this.mount.empty();
@@ -594,6 +619,7 @@ class CarnetView extends TextFileView {
     });
     this.loading = false;
     this.plugin.refreshStatus();
+    if (wasAt) void this.view.whenComplete().then(() => (scroller.scrollTop = wasAt));
   }
 
   /**

@@ -108,3 +108,43 @@ describe('onRender', () => {
     destroy();
   });
 });
+
+/**
+ * When a streamed opening render is finished.
+ *
+ * A host that has to act on the *whole* document as soon as it exists needs to
+ * know — Obsidian restores the reader's scroll position across a rebuild, and
+ * a position further down than the first screenful would clamp against a
+ * document that has not finished arriving.
+ */
+describe('whenComplete', () => {
+  it('is already resolved when nothing is streaming', async () => {
+    const { view, destroy } = mount();
+    await expect(view.whenComplete()).resolves.toBeUndefined();
+    destroy();
+  });
+
+  it('waits for the tail of a long document, and the document is whole when it resolves', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const long: BlockJSON = {
+      id: 'root',
+      type: 'page',
+      version: 1,
+      children: Array.from({ length: 500 }, (_, i) => ({
+        id: `b${i}`,
+        type: 'paragraph',
+        version: 1,
+        text: [{ text: `ligne ${i}` }],
+      })),
+    };
+    const view = new EditorView(container, new Editor({ doc: docFromJSON(long) }), { features: [] });
+    // the first paint is a screenful, not the document
+    expect(view.content.children.length).toBeLessThan(500);
+
+    await view.whenComplete();
+    expect(view.content.children.length).toBe(500);
+    view.destroy();
+    container.remove();
+  });
+});

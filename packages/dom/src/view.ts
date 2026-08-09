@@ -673,12 +673,35 @@ export class EditorView {
         return;
       }
       const batch = this.tail.splice(0, TAIL_BATCH);
+      const more = this.tail.length > 0;
+      // cleared *before* the listeners run, so `whenComplete` can answer from
+      // the same state they see
+      if (!more) this.tail = null;
       this.withObserverPaused(() => this.content.append(...batch.map((id) => renderBlock(this, id))));
       this.rendered(batch);
-      if (this.tail.length) requestAnimationFrame(step);
-      else this.tail = null;
+      if (more) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
+  }
+
+  /**
+   * Resolves once a streamed opening render has finished.
+   *
+   * @remarks
+   * For a host that has to do something with the *whole* document as soon as
+   * it exists — Obsidian restoring the reader's scroll position across a
+   * rebuild, for one. Already-resolved when nothing is streaming, which is
+   * every moment except the few frames after a long document is mounted.
+   */
+  whenComplete(): Promise<void> {
+    if (!this.tail) return Promise.resolve();
+    return new Promise((resolve) => {
+      const off = this.onRender(() => {
+        if (this.tail) return;
+        off();
+        resolve();
+      });
+    });
   }
 
   /** Build whatever is left of the opening mount, now. */
