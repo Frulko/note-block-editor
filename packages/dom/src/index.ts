@@ -61,6 +61,7 @@ export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
 export { attachRemoteCarets, peerSelection, type RemotePeer, type RemoteSelection } from './remote-carets';
 export { attachViewportGuard, reveal } from './viewport';
+export { caretLine, isMod } from './keymap';
 export { attachFind, findHits, openFind } from './search';
 export { wordCountFeature, documentSize } from './word-count';
 export type { DocumentSize } from './word-count';

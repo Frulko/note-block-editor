@@ -8,12 +8,14 @@ import {
   WorkspaceLeaf,
   normalizePath,
   type App,
+  type TFile,
   type ViewState,
 } from 'obsidian';
-import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, uuidv7, type BlockJSON } from '@nbe/core';
+import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, isCollapsed, uuidv7, type BlockJSON } from '@nbe/core';
 import {
   EditorView,
   builtinBlocks,
+  caretLine,
   defaultFeatures,
   documentSize,
   exportFeature,
@@ -285,6 +287,7 @@ class CarnetView extends TextFileView {
   async onOpen(): Promise<void> {
     this.mount = this.contentEl.createDiv({ cls: 'carnet-host' });
     this.registerDomEvent(this.mount, 'click', (e) => this.followLink(e));
+    this.registerDomEvent(this.mount, 'keydown', (e) => this.onEditorKey(e));
     // an external rename (file explorer, sync) must reach the inline title;
     // Obsidian mutates the TFile in place, so identity survives the rename
     this.registerEvent(
@@ -335,7 +338,28 @@ class CarnetView extends TextFileView {
     }
   }
 
+  /**
+   * The rename has to survive the element being taken away.
+   *
+   * @remarks
+   * The title committed on `blur`, and removing a focused element from the
+   * document does not fire one — so typing a new name and then switching notes
+   * (⌘O, the file explorer, a link) discarded the rename silently, which is
+   * most of "you cannot always rename from the editor". Obsidian calls this
+   * before it unloads the file, and `this.file` is still the old one here,
+   * which is exactly what {@link commitTitle} needs.
+   *
+   * Before `super`, not after: the base class saves the note's *contents* and
+   * then clears the view, and a save that runs after the rename writes to the
+   * file Obsidian has already moved.
+   */
+  async onUnloadFile(file: TFile): Promise<void> {
+    await this.commitTitle();
+    await super.onUnloadFile(file);
+  }
+
   async onClose(): Promise<void> {
+    await this.commitTitle();
     this.view?.destroy();
     this.view = null;
     this.editor = null;
@@ -354,7 +378,7 @@ class CarnetView extends TextFileView {
       title.contentEditable = 'true';
     }
     title.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' || e.key === 'ArrowDown') {
         e.preventDefault();
         title.blur();
         this.enterNote();
@@ -364,6 +388,46 @@ class CarnetView extends TextFileView {
       }
     });
     title.addEventListener('blur', () => void this.commitTitle());
+  }
+
+  /** Put the caret at the end of the title, the way ArrowUp should leave it. */
+  private focusTitle(): void {
+    const title = this.inlineTitleEl;
+    if (!title) return;
+    title.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    range.collapse(false);
+    const sel = document.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+
+  /**
+   * ArrowUp off the top of the note lands in the title.
+   *
+   * @remarks
+   * The other half of "the title must always be editable": until now the only
+   * way into it was the mouse, so on a keyboard it was not reachable at all —
+   * and Obsidian's own inline title has been reachable this way since it
+   * shipped. The keymap leaves the key alone when there is no block above, so
+   * this only ever sees the event the editor declined; `caretLine` is the
+   * editor's own answer to "is the caret on the first visual line", which is
+   * the part that a wrapped paragraph makes hard.
+   */
+  private onEditorKey(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowUp' || e.defaultPrevented) return;
+    if (e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+    const view = this.view;
+    const editor = this.editor;
+    if (!view || !editor) return;
+    const sel = editor.selection;
+    if (sel?.kind !== 'text' || !isCollapsed(sel)) return;
+    const doc = editor.doc;
+    if (sel.head.blockId !== getBlock(doc, doc.rootId).children[0]) return;
+    if (!caretLine(view)?.first) return;
+    e.preventDefault();
+    this.focusTitle();
   }
 
   /** Enter from the title lands in a fresh first block (Notion), reusing an empty one. */

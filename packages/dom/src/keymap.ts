@@ -47,7 +47,19 @@ export function isMod(e: { metaKey: boolean; ctrlKey: boolean }): boolean {
   return e.metaKey || (e.ctrlKey && !IS_MAC);
 }
 
-function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
+/**
+ * Whether the caret is on the block's first or last *visual* line.
+ *
+ * @remarks
+ * Exported because a host has the same question at the edges of the document:
+ * Obsidian's inline title sits above the first block, and "ArrowUp reaches it"
+ * means exactly this. Answering it again in the host would be the second
+ * implementation of the hard half — a wrapped line is several lines on screen,
+ * and the empty line Enter has just made reports no rect at all.
+ *
+ * @category Interaction
+ */
+export function caretLine(view: EditorView): { first: boolean; last: boolean } | null {
   const s = document.getSelection();
   if (!s || s.rangeCount === 0) return null;
   const range = s.getRangeAt(0);
