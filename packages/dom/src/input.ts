@@ -71,18 +71,32 @@ function handleInsertText(view: EditorView, data: string): void {
   const atBreak = inlineBreak?.id === at.id && inlineBreak.offset === at.from;
   inlineBreak = null;
   insertText(editor, data, atBreak ? undefined : marksAt(block.text, at.from));
+  autoformatAt(view, at.id, at.from + data.length);
+}
 
-  // markdown autoformat: check the text before the caret after insertion
-  const after = getBlock(editor.doc, at.id);
-  const before = plainText(after.text).slice(0, at.from + data.length);
+/**
+ * The markdown pass, run on every text arrival: block prefixes first (`# `,
+ * ` ``` `), then inline spans (`**b**`, `` `c` ``).
+ *
+ * @remarks
+ * Called from the composition path too. A dead-key layout (French AZERTY,
+ * US-International) delivers `` ` `` as a composition, never as `insertText`,
+ * so both backtick rules — inline code and the code fence — were unreachable
+ * from a real keyboard while passing every test, since synthetic key events
+ * skip composition entirely.
+ */
+function autoformatAt(view: EditorView, id: BlockId, caret: number): void {
+  const editor = view.editor;
+  const after = getBlock(editor.doc, id);
+  const before = plainText(after.text).slice(0, caret);
   if (after.type === 'paragraph') {
     if (before === '---' && plainText(after.text) === '---') {
-      applyDividerAutoformat(editor, at.id);
+      applyDividerAutoformat(editor, id);
       return;
     }
     const rule = matchAutoformat(before, editor.plugins);
     if (rule) {
-      applyAutoformat(editor, at.id, rule);
+      applyAutoformat(editor, id, rule);
       return;
     }
   } else if (after.type === 'bulleted_list_item') {
@@ -95,15 +109,15 @@ function handleInsertText(view: EditorView, data: string): void {
      */
     const rule = matchAutoformat(before, editor.plugins);
     if (rule?.type === 'to_do') {
-      applyAutoformat(editor, at.id, rule);
+      applyAutoformat(editor, id, rule);
       return;
     }
   }
   if (editor.schema.get(after.type).literal) return; // the block holds literal text
   const inline = matchInlineFormat(before);
   if (inline) {
-    applyInlineFormat(editor, at.id, inline);
-    inlineBreak = { id: at.id, offset: inline.to - inline.prefix - inline.suffix };
+    applyInlineFormat(editor, id, inline);
+    inlineBreak = { id, offset: inline.to - inline.prefix - inline.suffix };
   }
 }
 
@@ -326,7 +340,12 @@ export function attachInput(view: EditorView): () => void {
   const onCompositionEnd = (e: Event) => {
     view.composing = false;
     const leaf = leafOf(e.target as Node);
-    if (leaf) reconcileLeaf(view, leaf);
+    if (!leaf) return;
+    reconcileLeaf(view, leaf);
+    // the text a dead key or an IME just committed gets the same markdown pass
+    // typed text does — `reconcileLeaf` left the caret after it
+    const at = singleBlockCaret(view);
+    if (at && at.from === at.to) autoformatAt(view, at.id, at.from);
   };
 
   const onClick = (e: MouseEvent) => {

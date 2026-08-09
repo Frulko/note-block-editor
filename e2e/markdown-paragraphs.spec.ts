@@ -122,6 +122,32 @@ test.describe('dynamic display follows the model', () => {
     expect((await editor.types())[0]).toBe('bulleted_list_item');
     expect(await page.locator('.nbe-editor .nbe-m-code').allTextContents()).toEqual(['ls -la']);
   });
+
+  /*
+   * On a French AZERTY or US-International layout ` is a dead key, so it never
+   * arrives as `insertText` — the browser composes it and commits at
+   * `compositionend`. Synthetic key events skip composition entirely, which is
+   * why the test above passed while both backtick rules were dead on a real
+   * keyboard. This one commits the text the way a dead key does.
+   */
+  test('a dead-key backtick still converts', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await page.evaluate(() => {
+      const leaf = document.querySelector('.nbe-editor .nbe-leaf')!;
+      leaf.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      leaf.textContent = '`ls -la`';
+      const range = document.createRange();
+      range.selectNodeContents(leaf);
+      range.collapse(false);
+      const sel = document.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      leaf.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '`' }));
+    });
+    expect(await page.locator('.nbe-editor .nbe-m-code').allTextContents()).toEqual(['ls -la']);
+    expect((await editor.texts())[0]).toBe('ls -la');
+  });
 });
 
 /**
