@@ -137,6 +137,48 @@ export const codeStyles = `
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
 }
+/* --- line numbers -------------------------------------------------------
+   A grid, so the gutter and the code share rows without the numbers ever
+   entering the leaf: the whole design of this block rests on that leaf holding
+   text nodes and nothing else, which is what lets the colours be painted
+   instead of marked up. user-select:none and aria-hidden keep the numbers
+   out of a hand selection, and the Copy button serialises the model, so
+   neither way of copying picks them up. */
+.nbe-t-code.nbe-code-numbered {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+}
+.nbe-code-gutter {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  font-family: var(--nbe-font-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+  text-align: right;
+  color: var(--nbe-text-faint);
+  user-select: none;
+  -webkit-user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.nbe-code-numbered .nbe-leaf {
+  grid-column: 2;
+}
+.nbe-code-numbered .nbe-code-caption {
+  grid-column: 1 / -1;
+}
+
+/* the caption, under the code: what this listing *is*, which a language tag
+   cannot say */
+.nbe-code-caption {
+  margin-top: 8px;
+  font-size: 0.85em;
+  line-height: 1.4;
+  color: var(--nbe-text-light);
+  user-select: none;
+}
+
 /* the language, shown in the corner: it is the block's most important prop and
    a hover toolbar is not discoverable enough to be its only home */
 .nbe-code-lang {

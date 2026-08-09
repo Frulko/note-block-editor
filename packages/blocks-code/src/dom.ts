@@ -78,7 +78,10 @@ export const code: DomBlockPlugin = {
     features: [{ name: 'code-highlight', attach: attachCodeHighlight }],
 
     decorate(ctx, block) {
-      if (block.props['wrap'] === false) ctx.root.classList.add('nbe-code-nowrap');
+      const numbered = block.props['lineNumbers'] === true;
+      // line numbers force `pre`: a wrapped line is several lines on screen
+      // and the gutter would drift a row further out of step with every one
+      if (block.props['wrap'] === false || numbered) ctx.root.classList.add('nbe-code-nowrap');
       const language = String(block.props['language'] ?? 'plain');
       if (language !== 'plain') {
         const tag = document.createElement('div');
@@ -87,9 +90,118 @@ export const code: DomBlockPlugin = {
         tag.setAttribute('contenteditable', 'false');
         ctx.root.append(tag);
       }
+
+      /*
+       * The numbers are a sibling of the leaf, never inside it.
+       *
+       * The whole design of this block rests on the leaf holding text nodes
+       * and nothing else — that is what lets the colours be painted rather
+       * than marked up, and what keeps the caret, the IME and the DOM→model
+       * reconciler out of trouble. A number per line inside it would undo all
+       * of that, so the gutter sits beside it: `contenteditable="false"`,
+       * `user-select: none`, `aria-hidden`. A hand selection cannot reach it
+       * and the Copy button serialises the model, so neither way of copying
+       * picks the numbers up.
+       */
+      if (numbered) {
+        ctx.root.classList.add('nbe-code-numbered');
+        const gutter = document.createElement('div');
+        gutter.className = 'nbe-code-gutter';
+        gutter.setAttribute('contenteditable', 'false');
+        gutter.setAttribute('aria-hidden', 'true');
+        const lines = plainText(block.text).split('\n').length;
+        for (let n = 1; n <= lines; n++) {
+          const row = document.createElement('span');
+          row.textContent = String(n);
+          gutter.append(row);
+        }
+        ctx.root.prepend(gutter);
+      }
+
+      const caption = String(block.props['caption'] ?? '');
+      if (caption) {
+        const el = document.createElement('figcaption');
+        el.className = 'nbe-code-caption';
+        el.setAttribute('contenteditable', 'false');
+        el.textContent = caption;
+        ctx.root.append(el);
+      }
     },
 
     keys: {
+      /*
+       * Backspace, as a plain-text editor means it.
+       *
+       * Two things were wrong, and both come from a code block being treated
+       * as an ordinary block. `⌘⌫` deleted the **whole block** — the editor's
+       * general binding, and the one thing you never want while editing code,
+       * where the platform's own meaning is "delete to the start of the line".
+       * And Backspace at offset 0 merged the code *into the prose above it*,
+       * turning a program into a paragraph with no way back except undo.
+       *
+       * `metaKey` and not `isMod`: off a Mac, `Ctrl+⌫` is the word delete
+       * every text field on the platform has, and taking it here would break
+       * the one binding Linux and Windows cannot reach any other way.
+       */
+      Backspace: ({ view, block, event }) => {
+        const sel = view.editor.selection;
+        if (sel?.kind !== 'text' || sel.head.blockId !== block.id) return false;
+        const from = Math.min(sel.anchor.offset, sel.head.offset);
+        const to = Math.max(sel.anchor.offset, sel.head.offset);
+        if (from !== to) return false; // a range delete is a range delete
+        if (event.metaKey) {
+          event.preventDefault();
+          const start = plainText(block.text).lastIndexOf('\n', from - 1) + 1;
+          if (start < from) {
+            view.editor.dispatch((tx) => tx.op({ type: 'delete_text', id: block.id, from: start, to: from }), {
+              origin: 'input',
+              selection: textCaret(block.id, start),
+            });
+          }
+          return true;
+        }
+        // at the very start there is nothing above *inside the block*, and
+        // what is above it is prose. Escape then Backspace still deletes it.
+        if (from === 0) {
+          event.preventDefault();
+          return true;
+        }
+        return false;
+      },
+
+      /**
+       * Delete, symmetrically.
+       *
+       * At the end of the block it used to pull the *next block in* — so one
+       * press turned the paragraph under a code sample into part of the
+       * sample, prose and all.
+       */
+      Delete: ({ view, block, event }) => {
+        const sel = view.editor.selection;
+        if (sel?.kind !== 'text' || sel.head.blockId !== block.id) return false;
+        const from = Math.min(sel.anchor.offset, sel.head.offset);
+        const to = Math.max(sel.anchor.offset, sel.head.offset);
+        if (from !== to) return false;
+        const text = plainText(block.text);
+        if (event.metaKey) {
+          event.preventDefault();
+          const nl = text.indexOf('\n', from);
+          const end = nl === -1 ? text.length : nl;
+          if (end > from) {
+            view.editor.dispatch((tx) => tx.op({ type: 'delete_text', id: block.id, from, to: end }), {
+              origin: 'input',
+              selection: textCaret(block.id, from),
+            });
+          }
+          return true;
+        }
+        if (from >= text.length) {
+          event.preventDefault();
+          return true;
+        }
+        return false;
+      },
+
       // Enter inserts a newline instead of splitting: a code block is one
       // block whatever its line count, which is what makes the fence
       // projection and the caret arithmetic agree
@@ -219,6 +331,39 @@ export const code: DomBlockPlugin = {
           title: wrap ? 'Ne pas retourner à la ligne' : 'Retour à la ligne',
           active: !wrap,
           onClick: () => setProps({ wrap: wrap ? false : undefined }),
+        },
+        {
+          icon: 'list',
+          title: block.props['lineNumbers'] === true ? 'Masquer les numéros de ligne' : 'Numéros de ligne',
+          active: block.props['lineNumbers'] === true,
+          onClick: () => setProps({ lineNumbers: block.props['lineNumbers'] === true ? undefined : true }),
+        },
+        {
+          icon: 'pilcrow',
+          title: String(block.props['caption'] ?? '') ? view.labels.editCaption : view.labels.addCaption,
+          active: !!String(block.props['caption'] ?? ''),
+          onClick: (_ctx, button) => {
+            const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
+            const wrap = document.createElement('div');
+            wrap.className = 'nbe-seltoolbar-linkform';
+            const input = document.createElement('input');
+            input.className = 'nbe-db-input';
+            input.placeholder = view.labels.captionPlaceholder;
+            input.value = String(block.props['caption'] ?? '');
+            // everything that is not navigation is typing, and must not reach
+            // the editor — the same rule the language filter follows
+            input.addEventListener('keydown', (e) => {
+              if (e.key !== 'Escape') e.stopPropagation();
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              menu.close();
+              setProps({ caption: input.value.trim() || undefined });
+            });
+            wrap.append(input);
+            menu.update([{ kind: 'custom', el: wrap }]);
+            menu.open(() => button.getBoundingClientRect(), { placement: 'bottom-end' });
+            requestAnimationFrame(() => input.focus());
+          },
         },
         {
           icon: 'copy',

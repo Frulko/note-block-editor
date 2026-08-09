@@ -166,6 +166,32 @@ function makeEditor(page: Page, errors: string[]): Editor {
  */
 export const TOPOLOGY = process.env.TOPOLOGY === 'single-host' ? 'single-host' : 'per-block';
 
+/**
+ * Drag a selection from one block into another, the way a mouse does.
+ *
+ * @remarks
+ * The only way to express a cross-block range under the per-block topology:
+ * `selectRange` builds it with `setBaseAndExtent`, which every engine clamps
+ * to the editing host it starts in (selection-topology.spec.ts measures it).
+ * WebKit clamps to the block's *end*, Chromium to the offset asked for — so a
+ * spec that reaches for `selectRange` across blocks asserts on the engine's
+ * clamping rather than on the editor, and disagrees per engine.
+ */
+export async function dragSelect(page: Page, from: number, to: number) {
+  const box = async (i: number) => {
+    const b = await page.locator('.nbe-editor .nbe-leaf').nth(i).boundingBox();
+    if (!b) throw new Error(`no box for leaf ${i}`);
+    return b;
+  };
+  const a = await box(from);
+  const b = await box(to);
+  await page.mouse.move(a.x + 8, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a.x + 40, a.y + a.height / 2, { steps: 4 });
+  await page.mouse.move(b.x + b.width - 8, b.y + b.height / 2, { steps: 8 });
+  await page.mouse.up();
+}
+
 export const test = base.extend<{ editor: Editor }>({
   editor: async ({ page }, use) => {
     const errors: string[] = [];

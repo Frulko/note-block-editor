@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, dragSelect } from './fixtures';
 
 /**
  * The command modifier, and what must be left alone.
@@ -30,17 +30,9 @@ test.describe('the command modifier', () => {
 
   test('a selection spanning blocks deletes all of them', async ({ page, editor }) => {
     await editor.setDocument(['un', 'deux', 'trois', 'quatre']);
-    // dragged rather than set with `setBaseAndExtent`, which WebKit clamps to
-    // the block it started in — the same reason cross-block-selection.spec.ts
-    // drives this with a mouse
-    const box = async (i: number) => (await page.locator('.nbe-editor .nbe-leaf').nth(i).boundingBox())!;
-    const a = await box(1);
-    const b = await box(2);
-    await page.mouse.move(a.x + 4, a.y + a.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(a.x + 20, a.y + a.height / 2, { steps: 4 });
-    await page.mouse.move(b.x + b.width - 4, b.y + b.height / 2, { steps: 8 });
-    await page.mouse.up();
+    // dragged rather than set with `setBaseAndExtent`, which every engine
+    // clamps to the block it started in
+    await dragSelect(page, 1, 2);
     await editor.press('Meta+Backspace');
 
     expect(await editor.texts()).toEqual(['un', 'quatre']);

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, dragSelect } from './fixtures';
 
 /**
  * A comment on a sentence, not on a paragraph.
@@ -103,7 +103,7 @@ test.describe('commenting a selection', () => {
   test('the button is absent when the selection spans blocks', async ({ page, editor }) => {
     // one comment, two anchors is a different feature and not this one
     await editor.setDocument(['premier paragraphe', 'second paragraphe']);
-    await editor.selectRange([0, 3], [1, 6]);
+    await dragSelect(page, 0, 1);
     await expect(page.locator('.nbe-seltoolbar')).toBeVisible();
     await expect(page.locator('.nbe-seltoolbar-comment')).toBeHidden();
   });

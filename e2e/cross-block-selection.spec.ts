@@ -1,4 +1,4 @@
-import { test, expect, TOPOLOGY } from './fixtures';
+import { test, expect, TOPOLOGY, dragSelect } from './fixtures';
 
 /**
  * Cross-block selection must work. This is the spec that says what "work"
@@ -9,22 +9,6 @@ import { test, expect, TOPOLOGY } from './fixtures';
  * it. What a user can observe — the selection is visible, and every command
  * acts on all of it — is asserted here rather than the mechanism.
  */
-
-/** Drag from one block into another, the way a mouse does. */
-async function dragSelect(page: import('@playwright/test').Page, from: number, to: number) {
-  const box = async (i: number) => {
-    const b = await page.locator('.nbe-editor .nbe-leaf').nth(i).boundingBox();
-    if (!b) throw new Error(`no box for leaf ${i}`);
-    return b;
-  };
-  const a = await box(from);
-  const b = await box(to);
-  await page.mouse.move(a.x + 8, a.y + a.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(a.x + 40, a.y + a.height / 2, { steps: 4 });
-  await page.mouse.move(b.x + b.width - 8, b.y + b.height / 2, { steps: 8 });
-  await page.mouse.up();
-}
 
 test.describe('a drag across blocks selects across blocks', () => {
   test('the model holds the whole range', async ({ page, editor }) => {

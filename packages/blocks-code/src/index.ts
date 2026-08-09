@@ -42,7 +42,14 @@ export const codeMarkdown: MarkdownProjection = {
     {
       match: /^(?:```|~~~)/,
       parse(lines, start) {
-        const open = FENCE.exec((lines[start] ?? '').trim());
+        /*
+         * The trailer comes off before the info string is read. The serialiser
+         * puts it on a block's *first* line, which for a fence is the opening
+         * one — and `FENCE` would otherwise read the whole comment as the
+         * language. The closing fence never carries one, so its own test is
+         * left alone.
+         */
+        const open = FENCE.exec((lines[start] ?? '').replace(/\s*<!--\s*nbe:code\b.*?-->\s*$/, '').trim());
         if (!open) return null;
         const body: string[] = [];
         let consumed = 1;
@@ -117,6 +124,14 @@ export const codePlugin: BlockPlugin = {
     inline: true,
     // what is typed is what is stored: no autoformat, no Markdown on paste
     literal: true,
+    /*
+     * The fence spells the language and nothing else, so anything else the
+     * block carries — a caption, line numbers, the wrap setting — rides in a
+     * trailer on the opening fence rather than being dropped on every save.
+     * Declaring this is what turns that on; without it the serialiser assumes
+     * the projection says everything.
+     */
+    spelledProps: ['language'],
     defaultProps: { language: 'plain' },
     placeholder: 'Code',
   },
