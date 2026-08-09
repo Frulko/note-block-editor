@@ -46,6 +46,49 @@ export interface BlockSpec {
    */
   literal?: boolean;
   defaultProps?: Record<string, unknown>;
+  /**
+   * The props this block's Markdown line already says out loud.
+   *
+   * @remarks
+   * Markdown is the storage format, so a prop the projection cannot write is a
+   * prop lost on every save — a file's mime type, an image's width, a heading's
+   * colour. Handling that per block type is how it gets forgotten, so it is
+   * declared here instead: `@nbe/markdown` writes everything *except* these
+   * into a `<!-- nbe:type {…} -->` trailer on the block's own line, and reads
+   * them back from it. The line stays the line every other Markdown tool
+   * renders; the trailer is invisible in rendered output.
+   *
+   * The list is what the syntax spells, so it must not be written twice: a
+   * heading says its level, a fence says its language. Anything omitted rides
+   * along automatically, including props added later.
+   *
+   * Undeclared (the default) means "assume the projection spells everything" —
+   * today's behaviour, and the right one for a block whose body is nested
+   * Markdown (a quote, a callout), where there is no single line to hang a
+   * trailer on.
+   *
+   * @example
+   * ```ts
+   * { type: 'heading', version: 1, inline: true, spelledProps: ['level'] }
+   * ```
+   */
+  spelledProps?: readonly string[];
+  /**
+   * The block's Markdown line cannot say which type it is.
+   *
+   * @remarks
+   * A toggle writes as a bullet, a file as a link, a sub-page as a wikilink —
+   * read back, each becomes the *other* block, which is the loss behind a
+   * toggle that comes home as a list item. When this is set the trailer is
+   * written even with nothing to carry, because the marker is then the only
+   * thing that says what the block was.
+   *
+   * Requires {@link BlockSpec.spelledProps} to be declared: the trailer rides
+   * on the same mechanism.
+   *
+   * @defaultValue false
+   */
+  markdownAmbiguous?: boolean;
   /** Placeholder shown by the view when the block is empty and focused. */
   placeholder?: string;
   /**
@@ -161,24 +204,65 @@ export function baseSchema(): Schema {
     inline: true,
     ...extra,
   });
+  /*
+   * `spelledProps` below reads as the Markdown grammar in one column: what
+   * each line already says, and therefore what it does not. A block type with
+   * no entry keeps its props to itself — see the field's own docs.
+   */
   s.register({ type: 'page', version: 1, inline: false, layout: true });
-  s.register(inline('paragraph'));
-  s.register(inline('heading', { defaultProps: { level: 1 }, placeholder: 'Heading' }));
-  s.register(inline('bulleted_list_item', { placeholder: 'List' }));
-  s.register(inline('numbered_list_item', { placeholder: 'List' }));
-  s.register(inline('to_do', { defaultProps: { checked: false }, placeholder: 'To-do' }));
-  s.register(inline('toggle', { defaultProps: { collapsed: false }, placeholder: 'Toggle' }));
+  s.register(inline('paragraph', { spelledProps: [] }));
+  s.register(inline('heading', { defaultProps: { level: 1 }, placeholder: 'Heading', spelledProps: ['level'] }));
+  s.register(inline('bulleted_list_item', { placeholder: 'List', spelledProps: [] }));
+  s.register(inline('numbered_list_item', { placeholder: 'List', spelledProps: [] }));
+  s.register(inline('to_do', { defaultProps: { checked: false }, placeholder: 'To-do', spelledProps: ['checked'] }));
+  // a toggle writes as a bullet: only the marker says it is one
+  s.register(
+    inline('toggle', {
+      defaultProps: { collapsed: false },
+      placeholder: 'Toggle',
+      spelledProps: [],
+      markdownAmbiguous: true,
+    }),
+  );
   s.register(inline('quote', { placeholder: 'Quote' }));
   s.register(inline('callout', { defaultProps: { icon: '💡' }, placeholder: 'Callout' }));
-  s.register({ type: 'divider', version: 1, inline: false });
-  s.register({ type: 'image', version: 1, inline: false, defaultProps: { src: '', caption: '' } });
+  s.register({ type: 'divider', version: 1, inline: false, spelledProps: [] });
+  s.register({
+    type: 'image',
+    version: 1,
+    inline: false,
+    defaultProps: { src: '', caption: '' },
+    spelledProps: ['src'],
+  });
   // any attachment that is not an image: the name and size come from the File,
   // because `asset:<hash>` is content-addressed and carries neither
-  s.register({ type: 'file', version: 1, inline: false, defaultProps: { src: '', name: '', size: 0, mime: '' } });
-  s.register({ type: 'link_to_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
+  s.register({
+    type: 'file',
+    version: 1,
+    inline: false,
+    defaultProps: { src: '', name: '', size: 0, mime: '' },
+    // a link, until the marker says otherwise
+    spelledProps: ['src', 'name'],
+    markdownAmbiguous: true,
+  });
+  s.register({
+    type: 'link_to_page',
+    version: 1,
+    inline: false,
+    defaultProps: { pageId: '', title: '' },
+    spelledProps: ['title', 'target'],
+  });
   // a sub-page: the child page *lives* here, where a link_to_page only points
   // at it. The workspace tree is derived from these (@nbe/workspace).
-  s.register({ type: 'sub_page', version: 1, inline: false, defaultProps: { pageId: '', title: '' } });
+  s.register({
+    type: 'sub_page',
+    version: 1,
+    inline: false,
+    defaultProps: { pageId: '', title: '' },
+    // the same wikilink as a link_to_page, so it needs the marker to come home
+    spelledProps: ['title', 'target'],
+    markdownAmbiguous: true,
+  });
   s.register({ type: 'column_list', version: 1, inline: false, layout: true });
   s.register({ type: 'column', version: 1, inline: false, layout: true, defaultProps: {} });
   // the database VIEW BLOCK: placement of a collection view in a page (§2.5)

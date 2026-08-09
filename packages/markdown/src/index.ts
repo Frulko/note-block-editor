@@ -5,8 +5,8 @@
  * @module @nbe/markdown
  */
 
-import type { Block, BlockJSON, Mark, MarkdownRule, PluginRegistry, Run } from '@nbe/core';
-import { uuidv7 } from '@nbe/core';
+import type { Block, BlockJSON, BlockSpec, Mark, MarkdownRule, PluginRegistry, Run } from '@nbe/core';
+import { baseSchema, uuidv7 } from '@nbe/core';
 
 // ---------------------------------------------------------------------------
 // Inline: runs → markdown
@@ -383,6 +383,19 @@ const LIST_TYPES = new Set(['bulleted_list_item', 'numbered_list_item', 'to_do',
 export interface MarkdownOptions {
   /** Block plugins whose markdown projections should be consulted first. */
   plugins?: PluginRegistry;
+  /**
+   * Write the `<!-- nbe:type {…} -->` trailers that carry what a line cannot
+   * spell (see {@link @nbe/core!BlockSpec.spelledProps}).
+   *
+   * @remarks
+   * On by default, because the usual destination is a file this editor will
+   * read back. Turn it off for text going somewhere else — the plain-text
+   * clipboard flavour, a preview — where an invisible-in-rendering comment is
+   * still visible in the paste, and where fidelity is another flavour's job.
+   *
+   * @defaultValue true
+   */
+  markers?: boolean;
 }
 
 /**
@@ -443,7 +456,19 @@ function indented(pad: string, text: string): string {
   return pad + text.split('\n').join(`\n${pad}`);
 }
 
+/**
+ * One block, as the lines it occupies — plus the trailer its spec asks for.
+ *
+ * @remarks
+ * The trailer is added here rather than in each branch, so it reaches the
+ * plugin projections too: a plugin declares `spelledProps` and its own props
+ * start surviving the file, with no change to its `toMarkdown`.
+ */
 function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, ordinal = 1): string[] {
+  return withTrailer(b, renderLines(b, depth, opts, ordinal), opts);
+}
+
+function renderLines(b: BlockJSON, depth: number, opts: MarkdownOptions, ordinal: number): string[] {
   // a plugin's projection wins over the built-in switch; the switch is what
   // the block types not yet extracted still use
   const projection = opts.plugins?.get(b.type)?.markdown;
@@ -496,7 +521,8 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
     case 'to_do':
       return [indented(pad, (p['checked'] === true ? '- [x] ' : '- [ ] ') + text), ...kids()];
     case 'toggle':
-      // documented loss: toggle-ness is lost — serialized as a plain list item with indented children
+      // a bullet for every other tool; the trailer its spec asks for is what
+      // makes it a toggle again here, children and collapsed state included
       return [indented(pad, '- ' + text), ...kids()];
     case 'quote':
       return [pad + '> ' + text, ...quotedKids(true)];
@@ -513,7 +539,7 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
       // the caption, the alignment and the width ride in the trailer: an image
       // that came back left-aligned and full-width every time it was saved was
       // losing the only thing the block stores beyond its source
-      return [pad + `![${text}](${String(p['src'] ?? '')})${trailer('image', p)}`];
+      return [pad + `![${text}](${String(p['src'] ?? '')})`];
     /*
      * The link is what other Markdown tools render, and the `asset:` ref in it
      * is resolved by the host, so the bytes are reachable from the vault.
@@ -531,7 +557,7 @@ function renderBlock(b: BlockJSON, depth: number, opts: MarkdownOptions = {}, or
      * marker *is* the type.
      */
     case 'file':
-      return [pad + `[${String(p['name'] ?? 'fichier')}](${String(p['src'] ?? '')}) ${marker('file', hidden('file', p))}`];
+      return [pad + `[${String(p['name'] ?? 'fichier')}](${String(p['src'] ?? '')})`];
     case 'link_to_page':
     case 'sub_page': {
       // documented loss (D7): both become a wikilink, so a re-import cannot
@@ -580,30 +606,43 @@ function marker(type: string, payload: Record<string, unknown>): string {
 }
 
 /**
- * The props a line's own syntax already says, and which therefore never ride
- * in a marker: repeating them is how the file and the marker come to disagree
- * after someone renames a link by hand in Obsidian.
+ * The spec a block type declares, whether it is built in or brought by a
+ * plugin — the two places a `spelledProps` declaration can come from.
  */
-const SPELLED: Record<string, readonly string[]> = {
-  image: ['src'],
-  file: ['src', 'name'],
-};
+const BASE = baseSchema();
 
-/** The props of `b` that its line cannot spell, as a marker payload. */
-function hidden(type: string, p: Record<string, unknown>): Record<string, unknown> {
-  const spelled = SPELLED[type] ?? [];
-  const rest = Object.fromEntries(Object.entries(p).filter(([k, v]) => !spelled.includes(k) && v !== undefined));
-  return Object.keys(rest).length ? { props: rest } : {};
+function specOf(type: string, opts: MarkdownOptions): BlockSpec | undefined {
+  return opts.plugins?.get(type)?.schema ?? (BASE.has(type) ? BASE.get(type) : undefined);
 }
 
-/** The same, as the suffix a line carries — empty when there is nothing to hide. */
-function trailer(type: string, p: Record<string, unknown>): string {
-  const payload = hidden(type, p);
-  return Object.keys(payload).length ? ` ${marker(type, payload)}` : '';
+/**
+ * What a block's own line cannot say, as the marker that follows it.
+ *
+ * @remarks
+ * Driven entirely by {@link @nbe/core!BlockSpec.spelledProps}: no list of
+ * types lives here, so a block that grows a prop — or a plugin that ships a
+ * new one — is carried without this package learning about it. A type that
+ * declares nothing keeps today's behaviour and writes no trailer.
+ */
+function trailer(b: BlockJSON, opts: MarkdownOptions): string {
+  const spec = specOf(b.type, opts);
+  if (opts.markers === false || !spec?.spelledProps) return '';
+  const rest = Object.fromEntries(
+    Object.entries(b.props ?? {}).filter(([k, v]) => !spec.spelledProps!.includes(k) && v !== undefined),
+  );
+  const payload = Object.keys(rest).length ? { props: rest } : {};
+  // the marker is written for nothing only when it is the one thing saying
+  // which block this line was
+  if (!Object.keys(payload).length && !spec.markdownAmbiguous) return '';
+  return ` ${marker(b.type, payload)}`;
 }
 
-/** The marker a block of an unregistered type round-trips through. */
-export const UNKNOWN_MARKER = /^<!--\s*nbe:([A-Za-z0-9_-]+)\s*(.*?)\s*-->$/;
+/** Append a block's trailer to its own line — the first of the lines it wrote. */
+function withTrailer(b: BlockJSON, lines: string[], opts: MarkdownOptions): string[] {
+  const suffix = trailer(b, opts);
+  if (!suffix || !lines.length) return lines;
+  return [lines[0] + suffix, ...lines.slice(1)];
+}
 
 /** The props a trailing marker carries, or none if it is absent or corrupt. */
 function trailerProps(payload: string | undefined): Record<string, unknown> {
@@ -682,11 +721,21 @@ function stripColumns(line: string, cols: number): string {
   return line.slice(i);
 }
 
+/**
+ * The marker a line carries after the construct it is: `<!-- nbe:type {…} -->`.
+ *
+ * @remarks
+ * It says what the line could not — the props the syntax has no room for, and
+ * for an ambiguous line (a toggle written as a bullet, a file written as a
+ * link) the type itself. Stripped before the line is matched, so every
+ * construct reads exactly as it did before markers existed.
+ */
+const TRAILER = /\s*<!--\s*nbe:([A-Za-z0-9_-]+)\s*(.*?)\s*-->\s*$/;
+
 const CONSTRUCT_STARTS: RegExp[] = [
   /^<!--\s*nbe:/, // an unloaded plugin's block
   /^-{3,}\s*$/, // divider
-  /^!\[.*?\]\(.*?\)(?:\s*<!--\s*nbe:image.*)?\s*$/, // lone image
-  /^\[.*?\]\(.*?\)\s*<!--\s*nbe:file/, // a file card
+  /^!\[.*?\]\(.*?\)\s*$/, // lone image
   /^\[\[.+?\]\]\s*$/, // lone wikilink
   /^#{1,6}\s+/, // heading
   /^>\s?/, // quote or callout
@@ -711,7 +760,10 @@ function startsConstruct(
    */
   if (rules.some(({ rule }) => rule.match.test(line) && rule.parse(lines.map((l) => stripColumns(l, level)), pos)))
     return true;
-  return CONSTRUCT_STARTS.some((re) => re.test(line));
+  // a marker makes the line a block of its own — including a link, which is
+  // prose without one. The constructs are matched on the line without it.
+  if (TRAILER.test(line)) return true;
+  return CONSTRUCT_STARTS.some((re) => re.test(line.replace(TRAILER, '')));
 }
 
 /**
@@ -759,7 +811,8 @@ function takeInlineText(
     const line = stripColumns(raw, level).trimStart();
     if (parts.length && startsConstruct(line, lines, pos, level, rules)) break;
     hard.push(/(\\|\s{2,})$/.test(raw));
-    parts.push(line.replace(/(\\|\s+)$/, ''));
+    // a marker is never content: it belongs to the block, not to its text
+    parts.push(line.replace(TRAILER, '').replace(/(\\|\s+)$/, ''));
     pos++;
   }
   const text = parts.reduce((acc, line, i) => (i === 0 ? line : acc + (hard[i - 1] ? '\n' : ' ') + line), '');
@@ -790,7 +843,30 @@ function parseLevel(
      * whose text literally began with "- ". Indented code blocks are not a
      * construct here — only fenced ones — so nothing is lost by trimming.
      */
-    const content = raw.trimStart();
+    const full = raw.trimStart();
+    /*
+     * The trailer is read once, here, and taken off the line before anything
+     * tries to match it: a construct must parse the same whether or not it
+     * carries one. Every block this iteration produces then goes through
+     * `push`, which is where the marker's type and props are put back on —
+     * so no branch below has to know markers exist.
+     */
+    const trail = TRAILER.exec(full);
+    const content = trail ? full.slice(0, trail.index) : full;
+    const push = (b: BlockJSON): void => {
+      if (!trail) {
+        out.push(b);
+        return;
+      }
+      // the line wins over the marker: a name edited by hand in the file is the
+      // one the reader meant, and the writer never puts a spelled prop in both
+      const props = { ...trailerProps(trail[2]), ...b.props };
+      out.push({
+        ...b,
+        type: trail[1] ?? b.type,
+        ...(Object.keys(props).length ? { props } : {}),
+      });
+    };
     let m: RegExpExecArray | null;
 
     // contributed rules first: a plugin owns its own syntax
@@ -800,7 +876,7 @@ function parseLevel(
       const parsed = rule.parse(lines.map((l) => stripColumns(l, level)), pos);
       if (!parsed) continue;
       const block = parsed.block as unknown as BlockJSON;
-      out.push({ ...block, id: block.id || uuidv7() });
+      push({ ...block, id: block.id || uuidv7() });
       pos += parsed.consumed;
       claimed = true;
       break;
@@ -808,57 +884,58 @@ function parseLevel(
     if (claimed) continue;
 
     /*
-     * A block whose plugin was not registered when the file was written. Read
-     * back as the type it names, with whatever props and text the marker
-     * carried: the plugin may well be loaded *now*, in which case the block
-     * simply works again, and if it is not, `@nbe/dom` renders it as an
-     * unrecognised block rather than dropping it.
+     * A marker with no construct in front of it: a block whose plugin was not
+     * registered when the file was written. Read back as the type it names,
+     * with whatever props and text it carried — the plugin may well be loaded
+     * *now*, in which case the block simply works again, and if it is not,
+     * `@nbe/dom` renders it as an unrecognised block rather than dropping it.
      *
      * After the contributed rules, so a plugin that wants to own its own
      * marker syntax still wins.
      */
-    if ((m = UNKNOWN_MARKER.exec(content))) {
+    if (trail && !content.trim()) {
       let payload: { props?: Record<string, unknown>; text?: Run[] } = {};
       // a corrupted payload costs the props, never the block
-      if (m[2]?.startsWith('{')) try { payload = JSON.parse(m[2]) as typeof payload; } catch { payload = {}; }
-      out.push(mk(m[1]!, payload.props ?? {}, payload.text));
+      if (trail[2]?.startsWith('{')) try { payload = JSON.parse(trail[2]) as typeof payload; } catch { payload = {}; }
+      out.push(mk(trail[1]!, payload.props ?? {}, payload.text));
       pos++;
       continue;
     }
 
     // divider
     if (/^-{3,}\s*$/.test(content)) {
-      out.push(mk('divider', {}));
+      push(mk('divider', {}));
       pos++;
       continue;
     }
 
-    // image alone on a line, with whatever its line could not spell
-    if ((m = /^!\[(.*?)\]\((.*?)\)(?:\s*<!--\s*nbe:image\s*(\{.*\})?\s*-->)?\s*$/.exec(content))) {
-      out.push(mk('image', { ...trailerProps(m[3]), src: m[2]! }, m[1] ? markdownToRuns(m[1]) : undefined));
+    // image alone on a line
+    if ((m = /^!\[(.*?)\]\((.*?)\)\s*$/.exec(content))) {
+      push(mk('image', { src: m[2]! }, m[1] ? markdownToRuns(m[1]) : undefined));
       pos++;
       continue;
     }
 
     /*
-     * A file: a link the rest of the world renders, and a marker that says the
-     * link is a block rather than prose. Both halves are required — a bare
-     * link stays a paragraph, exactly as before.
+     * A lone link is prose — unless the marker says the line is a file card.
+     * That is the whole of what makes a file readable again, and why the type
+     * declares itself `markdownAmbiguous`: nothing in `[nom](cible)` says
+     * "block".
      */
-    if ((m = /^\[(.*?)\]\((.*?)\)\s*<!--\s*nbe:file\s*(\{.*\})?\s*-->\s*$/.exec(content))) {
-      out.push(mk('file', { ...trailerProps(m[3]), src: m[2]!, name: m[1]! }));
+    if (trail?.[1] === 'file' && (m = /^\[(.*?)\]\((.*?)\)\s*$/.exec(content))) {
+      push(mk('file', { src: m[2]!, name: m[1]! }));
       pos++;
       continue;
     }
 
     // wikilink alone on a line
     if ((m = /^\[\[(.+?)\]\]\s*$/.exec(content))) {
-      const raw = m[1]!;
-      const pipe = raw.indexOf('|');
-      out.push(
+      const target = m[1]!;
+      const pipe = target.indexOf('|');
+      push(
         mk('link_to_page', {
-          title: raw.slice(pipe + 1),
-          target: pipe === -1 ? raw : raw.slice(0, pipe),
+          title: target.slice(pipe + 1),
+          target: pipe === -1 ? target : target.slice(0, pipe),
         }),
       );
       pos++;
@@ -867,7 +944,7 @@ function parseLevel(
 
     // heading
     if ((m = /^(#{1,6})\s+(.*)$/.exec(content))) {
-      out.push(mk('heading', { level: Math.min(3, m[1]!.length) }, markdownToRuns(m[2]!)));
+      push(mk('heading', { level: Math.min(3, m[1]!.length) }, markdownToRuns(m[2]!)));
       pos++;
       continue;
     }
@@ -904,9 +981,9 @@ function parseLevel(
         // 'note' is the default rendering, so it is never stored — that keeps
         // documents lean and makes the markdown round-trip byte-stable
         const variant = cm[1]!.toLowerCase();
-        out.push(mk('callout', variant === 'note' ? {} : { variant }, leadText, children));
+        push(mk('callout', variant === 'note' ? {} : { variant }, leadText, children));
       }
-      else out.push(mk('quote', {}, leadText, children));
+      else push(mk('quote', {}, leadText, children));
       continue;
     }
 
@@ -944,13 +1021,13 @@ function parseLevel(
         if (children.length) item.children = children;
         pos = next;
       }
-      out.push(item);
+      push(item);
       continue;
     }
 
     const [text, nextPos] = takeInlineText(lines, pos, level, rules);
     pos = nextPos;
-    out.push(mk('paragraph', {}, markdownToRuns(text)));
+    push(mk('paragraph', {}, markdownToRuns(text)));
   }
   return [out, pos];
 }

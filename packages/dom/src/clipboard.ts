@@ -537,8 +537,11 @@ export function attachClipboard(view: EditorView): () => void {
         ? runsToMarkdown(slice.blocks[0]!.text)
         : // with the registry, or a plugin's block serializes to the
           // `<!-- nbe:code -->` marker that means "this format cannot say it":
-          // copying a code block put *that* on the clipboard, not the code
-          blocksToMarkdown(slice.blocks, { plugins: view.plugins }),
+          // copying a code block put *that* on the clipboard, not the code.
+          // `markers: false` because this flavour is for somewhere else: a
+          // paste back into this editor reads `application/x-nbe`, so the
+          // trailers would only be comments in someone's chat message.
+          blocksToMarkdown(slice.blocks, { plugins: view.plugins, markers: false }),
     );
     return slice;
   };

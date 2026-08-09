@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { BlockJSON, Run } from '@nbe/core';
+import type { BlockJSON, BlockPlugin, Run } from '@nbe/core';
+import { PLUGIN_API_VERSION, PluginRegistry } from '@nbe/core';
 import { blocksToMarkdown, markdownToBlocks, markdownToRuns, runsToMarkdown } from '../src/index';
 
 function b(type: string, extra: Partial<Omit<BlockJSON, 'id' | 'type' | 'version'>> = {}): BlockJSON {
@@ -174,17 +175,29 @@ describe('blocksToMarkdown', () => {
     expect(md).toBe('> [!note] 💡 heads up\n> details');
   });
 
-  it('serializes toggle as a list item (toggle-ness lost) and its child survives a re-read', () => {
+  it('serializes toggle as a list item that says it is one, and comes back a toggle', () => {
     const md = blocksToMarkdown([
-      b('toggle', { text: [{ text: 'more' }], children: [b('paragraph', { text: [{ text: 'hidden' }] })] }),
+      b('toggle', {
+        props: { collapsed: true },
+        text: [{ text: 'more' }],
+        children: [b('paragraph', { text: [{ text: 'hidden' }] })],
+      }),
     ]);
     // the blank line is load-bearing: written tight, the indented child is a
     // lazy continuation and comes back merged into the item's own text
-    expect(md).toBe('- more\n\n    hidden');
+    expect(md).toBe('- more <!-- nbe:toggle {"props":{"collapsed":true}} -->\n\n    hidden');
     const back = markdownToBlocks(md);
     expect(back).toHaveLength(1);
+    expect(back[0]!.type).toBe('toggle');
+    expect(back[0]!.props).toEqual({ collapsed: true });
     expect(back[0]!.text).toEqual([{ text: 'more' }]);
     expect(back[0]!.children![0]!.text).toEqual([{ text: 'hidden' }]);
+  });
+
+  it('leaves a toggle that is open and empty-propped as a bare marker', () => {
+    // `collapsed: false` is the default state, but the marker still rides —
+    // without it the block comes back as a bullet, which is a different block
+    expect(blocksToMarkdown([b('toggle', { text: [{ text: 'plié' }] })])).toBe('- plié <!-- nbe:toggle -->');
   });
 
   it('flattens column_list contents sequentially', () => {
@@ -204,6 +217,69 @@ describe('blocksToMarkdown', () => {
       b('bookmark_wat', { children: [b('paragraph', { text: [{ text: 'kept' }] })] }),
     ]);
     expect(md).toBe('<!-- nbe:bookmark_wat -->\nkept');
+  });
+});
+
+/**
+ * The mechanism, rather than the block types that happen to use it: what a
+ * line cannot spell is declared on the *spec*, so a block type — built in or
+ * brought by a plugin — starts surviving the file without this package, or the
+ * plugin's own projection, learning anything new.
+ */
+describe('what a line cannot spell is declared, not coded', () => {
+  /** A plugin whose line says its type but nothing about its props. */
+  const gauge: BlockPlugin = {
+    apiVersion: PLUGIN_API_VERSION,
+    schema: { type: 'gauge', version: 1, inline: false, spelledProps: [] },
+    markdown: {
+      toMarkdown: () => [':gauge:'],
+      fromMarkdown: [
+        {
+          match: /^:gauge:/,
+          parse: (lines, start) =>
+            /^:gauge:/.test(lines[start] ?? '')
+              ? { block: { id: '', type: 'gauge', version: 1, props: {}, text: [], children: [], parentId: null }, consumed: 1 }
+              : null,
+        },
+      ],
+    },
+  };
+  const plugins = new PluginRegistry().registerAll([gauge]);
+
+  it("carries a plugin's props with no change to its projection", () => {
+    const md = blocksToMarkdown([b('gauge', { props: { value: 42, unit: '%' } })], { plugins });
+    expect(md).toBe(':gauge: <!-- nbe:gauge {"props":{"value":42,"unit":"%"}} -->');
+    expect(markdownToBlocks(md, { plugins })[0]!.props).toEqual({ value: 42, unit: '%' });
+  });
+
+  it('writes nothing extra when the block has nothing the line cannot say', () => {
+    expect(blocksToMarkdown([b('gauge')], { plugins })).toBe(':gauge:');
+  });
+
+  it('keeps a colour, on any block that declares its syntax', () => {
+    const md = blocksToMarkdown([
+      b('heading', { props: { level: 2, color: 'red' }, text: [{ text: 'Titre' }] }),
+      b('paragraph', { props: { backgroundColor: 'yellow' }, text: [{ text: 'surligné' }] }),
+    ]);
+    expect(md.split('\n')[0]).toBe('## Titre <!-- nbe:heading {"props":{"color":"red"}} -->');
+    const back = markdownToBlocks(md);
+    expect(back[0]!.props).toEqual({ level: 2, color: 'red' });
+    expect(back[1]!.props).toEqual({ backgroundColor: 'yellow' });
+    // and the text is the text: the marker is never content
+    expect(back[1]!.text).toEqual([{ text: 'surligné' }]);
+  });
+
+  it('leaves them out when the text is going somewhere else', () => {
+    const blocks = [b('toggle', { text: [{ text: 'plié' }] })];
+    expect(blocksToMarkdown(blocks, { markers: false })).toBe('- plié');
+  });
+
+  it('brings a sub-page home as a sub-page, not as a link to one', () => {
+    const md = blocksToMarkdown([b('sub_page', { props: { title: 'Notes', target: 'Notes', pageId: 'p1' } })]);
+    expect(md.startsWith('[[Notes]]')).toBe(true);
+    const [back] = markdownToBlocks(md);
+    expect(back!.type).toBe('sub_page');
+    expect(back!.props).toEqual({ title: 'Notes', target: 'Notes', pageId: 'p1' });
   });
 });
 
