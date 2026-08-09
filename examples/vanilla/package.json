@@ -16,7 +16,8 @@
     "@nbe/workspace": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
     "@nbe/blocks-code": "workspace:*",
-    "@nbe/blocks-toc": "workspace:*"
+    "@nbe/blocks-toc": "workspace:*",
+    "@nbe/static-renderer": "workspace:*"
   },
   "devDependencies": {
     "vite": "^6.0.0"

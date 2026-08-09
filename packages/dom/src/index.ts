@@ -60,6 +60,8 @@ export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-hig
 export { attachRemoteCarets, peerSelection, type RemotePeer, type RemoteSelection } from './remote-carets';
 export { attachViewportGuard, reveal } from './viewport';
 export { attachFind, findHits } from './search';
+export { createExport, exportFeature, defaultExportFormats, markdownFormat, textFormat, printFormat } from './export';
+export type { ExportFormat } from './export';
 export { attachMentions, mentionRuns, MENTION_MARK } from './mention';
 export type { MentionCandidate } from './mention';
 export { attachTriggerMenu } from './trigger-menu';

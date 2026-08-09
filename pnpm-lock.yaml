@@ -229,6 +229,9 @@ importers:
       '@nbe/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
+      '@nbe/static-renderer':
+        specifier: workspace:*
+        version: link:../../packages/static-renderer
       '@nbe/workspace':
         specifier: workspace:*
         version: link:../../packages/workspace

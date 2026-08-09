@@ -11,7 +11,14 @@ import {
   type ViewState,
 } from 'obsidian';
 import { Editor, PluginRegistry, docFromJSON, docToJSON, getBlock, uuidv7, type BlockJSON } from '@nbe/core';
-import { EditorView, builtinBlocks, defaultFeatures, findFeature, type EditorViewOptions } from '@nbe/dom';
+import {
+  EditorView,
+  builtinBlocks,
+  defaultFeatures,
+  exportFeature,
+  findFeature,
+  type EditorViewOptions,
+} from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
@@ -115,6 +122,7 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   { name: 'link-hover', label: 'Carte de lien', desc: 'La carte d’édition au survol d’un lien.' },
   { name: 'database', label: 'Bases de données', desc: 'Les vues de base de données interactives.' },
   { name: 'find', label: 'Recherche ⌘F', desc: 'Rechercher dans la note ouverte, surlignage des résultats.' },
+  { name: 'export', label: 'Export ⌘P', desc: 'Markdown, texte ou impression PDF de la note ouverte.' },
 ];
 
 /** Project the vault settings onto the editor's options, defaults preserved. */
@@ -133,7 +141,7 @@ function viewOptions(s: CarnetSettings): EditorViewOptions {
    * here, so this host offers it and lets the setting turn it off.
    */
   if (!s.readOnly)
-    opts.features = [...defaultFeatures, findFeature].filter((f) => s.features[f.name] !== false);
+    opts.features = [...defaultFeatures, findFeature, exportFeature].filter((f) => s.features[f.name] !== false);
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
   const padding: { top?: string; bottom?: string; x?: string } = {};
   if (s.padTop.trim()) padding.top = s.padTop.trim();

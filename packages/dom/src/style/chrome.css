@@ -483,3 +483,38 @@
   background: var(--nbe-hover);
   color: var(--nbe-text);
 }
+
+/* --- printing (opt-in `exportFeature`) -----------------------------------
+   A class rather than a rule about `body > *`: this package cannot know what
+   a host puts around the editor, only which element is the document. */
+@media print {
+  body.nbe-printing > * {
+    display: none !important;
+  }
+  body.nbe-printing .nbe-print-target {
+    display: block !important;
+    position: static;
+    max-width: none;
+    padding: 0;
+    background: none;
+  }
+  /* every ancestor of the editor has to stay laid out for it to be reachable */
+  body.nbe-printing :has(.nbe-print-target) {
+    display: block !important;
+    position: static;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
+  /* chrome is not the document */
+  .nbe-controls,
+  .nbe-blocktoolbar,
+  .nbe-comment-marker,
+  .nbe-find-bar,
+  .nbe-portal {
+    display: none !important;
+  }
+  .nbe-block {
+    break-inside: avoid;
+  }
+}

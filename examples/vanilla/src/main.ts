@@ -1,5 +1,6 @@
 import { docFromJSON, docToJSON, Editor, uuidv7, type BlockJSON, type Run } from '@nbe/core';
-import { EditorView, defaultFeatures, findFeature, perBlockTopology, singleHostTopology } from '@nbe/dom';
+import { EditorView, createExport, defaultFeatures, findFeature, perBlockTopology, singleHostTopology } from '@nbe/dom';
+import { renderToHTML } from '@nbe/static-renderer';
 import { callout } from '@nbe/blocks-callout/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { code } from '@nbe/blocks-code/dom';
@@ -415,6 +416,23 @@ function openPage(pageId: string): void {
   view?.destroy();
   detachInspector?.();
   editor = new Editor({ doc: docFromJSON(page) });
+  const flags = new URLSearchParams(location.search);
+  const extraFeatures = [
+    ...(flags.get('find') === 'on' ? [findFeature] : []),
+    ...(flags.get('export') === 'on'
+      ? [
+          createExport([
+            {
+              id: 'html',
+              label: 'HTML (.html)',
+              // the static renderer is the demo's to depend on; `@nbe/dom` may
+              // depend on core and markdown and nothing else, and CI says so
+              text: (v) => renderToHTML(docToJSON(v.editor.doc), { plugins: PLUGINS }),
+            },
+          ]),
+        ]
+      : []),
+  ];
   view = new EditorView(editorEl, editor, {
     // ?topology=single-host to exercise the alternative editable boundary
     topology:
@@ -430,10 +448,12 @@ function openPage(pageId: string): void {
      * The hosts with no browser find of their own — the Obsidian pane, the
      * desktop shell — turn it on.
      */
-    features:
-      new URLSearchParams(location.search).get('find') === 'on'
-        ? [...defaultFeatures, findFeature]
-        : undefined,
+    /*
+     * ?export=on adds ⌘P — Markdown, texte, HTML and print-to-PDF. Off here
+     * for the same reason as the find bar: ⌘P is the browser's print dialog,
+     * and a page that takes it had better be offering more than a worse one.
+     */
+    features: extraFeatures.length ? [...defaultFeatures, ...extraFeatures] : undefined,
     // activation is an import plus an array entry
     blocks: BLOCKS,
     onOpenPage: (id) => openPage(id),
