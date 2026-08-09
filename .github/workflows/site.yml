@@ -1,0 +1,51 @@
+name: Site only
+
+# Le site seul : la même construction et le même déploiement que `deploy.yml`,
+# sans la matrice de tests. Déclenchement manuel uniquement — sur `push`, il
+# ferait doublon avec `deploy.yml` et les deux se disputeraient Pages.
+#   gh workflow run site.yml            (ou : pnpm site:deploy)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Même groupe que `deploy.yml`, sans annulation : deux déploiements Pages ne
+# doivent pas se croiser, et un lancement manuel ne doit pas tuer la CI en cours.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # la référence d'API est générée, pas versionnée : sans elle, les pages
+      # /docs/api/ construisent à vide
+      - run: pnpm docs:api
+      - run: pnpm --filter site build
+        env:
+          BASE_PATH: /note-block-editor
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -7,7 +7,7 @@
  */
 import { visibleBlocks, plainText, type Block } from '@nbe/core';
 import { renderBlock, reveal, type DomBlockPlugin, type EditorFeature } from '@nbe/dom';
-import { tocPlugin, type TocEntry } from './index';
+import { tocPlugin, tocStyle, TOC_STYLES, type TocEntry } from './index';
 
 /** The page's headings, read from the live document rather than a snapshot. */
 function headings(view: { editor: { doc: Parameters<typeof visibleBlocks>[0] } }): TocEntry[] {
@@ -111,8 +111,22 @@ export const toc: DomBlockPlugin = {
       // void: no caret goes in here, and a press on it is a grab, not an edit
       ctx.root.setAttribute('contenteditable', 'false');
       ctx.root.dataset['blockId'] = block.id;
+      ctx.root.dataset['tocStyle'] = tocStyle(block.props);
       ctx.root.append(nav);
       return ctx.root;
+    },
+
+    actions(ctx) {
+      const current = tocStyle(ctx.block.props);
+      return [
+        { kind: 'section', label: 'Affichage' },
+        ...TOC_STYLES.map((preset) => ({
+          label: preset.label,
+          icon: preset.icon,
+          hint: current === preset.name ? '✓' : undefined,
+          onSelect: () => ctx.setProps({ style: preset.name }),
+        })),
+      ];
     },
 
     slash: {
@@ -131,14 +145,13 @@ export const toc: DomBlockPlugin = {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-left: 2px solid var(--nbe-border);
 }
 .nbe-toc-list li {
   margin: 0;
 }
 .nbe-toc-list a {
   display: block;
-  padding: 2px 10px;
+  padding: 4px 10px;
   color: var(--nbe-text-muted);
   text-decoration: none;
   border-radius: var(--nbe-radius-sm, 4px);
@@ -148,15 +161,46 @@ export const toc: DomBlockPlugin = {
   background: var(--nbe-hover);
   color: var(--nbe-text);
 }
-.nbe-toc-l2 a { padding-left: 26px; }
-.nbe-toc-l3 a { padding-left: 42px; }
+.nbe-toc-l2 a { padding-left: 34px; }
+.nbe-toc-l3 a { padding-left: 58px; }
 .nbe-toc-empty {
-  padding: 2px 10px;
+  padding: 4px 10px;
   color: var(--nbe-placeholder);
 }
+
+/* underline — the default: gray links, each rule hugging its own text */
+[data-toc-style='underline'] .nbe-toc-list a {
+  display: inline-block;
+  text-decoration: underline;
+  text-decoration-color: var(--nbe-border);
+  text-underline-offset: 5px;
+  transition: background var(--nbe-fast) var(--nbe-ease), color var(--nbe-fast) var(--nbe-ease),
+    text-decoration-color var(--nbe-fast) var(--nbe-ease);
+}
+[data-toc-style='underline'] .nbe-toc-list a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* rail — the vertical bar the block used to have unconditionally */
+[data-toc-style='rail'] .nbe-toc-list {
+  border-left: 2px solid var(--nbe-border);
+}
+
+/* numbered — 1. / 1.2. / 1.2.3., counted in CSS so the DOM stays a flat list */
+[data-toc-style='numbered'] .nbe-toc-list { counter-reset: nbe-h1 nbe-h2 nbe-h3; }
+[data-toc-style='numbered'] .nbe-toc-l1 { counter-increment: nbe-h1; counter-reset: nbe-h2 nbe-h3; }
+[data-toc-style='numbered'] .nbe-toc-l2 { counter-increment: nbe-h2; counter-reset: nbe-h3; }
+[data-toc-style='numbered'] .nbe-toc-l3 { counter-increment: nbe-h3; }
+[data-toc-style='numbered'] .nbe-toc-list a::before {
+  color: var(--nbe-placeholder);
+  margin-right: 6px;
+}
+[data-toc-style='numbered'] .nbe-toc-l1 a::before { content: counter(nbe-h1) '.'; }
+[data-toc-style='numbered'] .nbe-toc-l2 a::before { content: counter(nbe-h1) '.' counter(nbe-h2) '.'; }
+[data-toc-style='numbered'] .nbe-toc-l3 a::before { content: counter(nbe-h1) '.' counter(nbe-h2) '.' counter(nbe-h3) '.'; }
 `,
   },
 };
 
-export { tocPlugin, tocMarkdown, tocEntries, TOC_MARKER } from './index';
-export type { TocEntry } from './index';
+export { tocPlugin, tocMarkdown, tocEntries, tocStyle, TOC_MARKER, TOC_STYLES } from './index';
+export type { TocEntry, TocStyle } from './index';

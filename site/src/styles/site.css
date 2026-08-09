@@ -318,6 +318,62 @@ a.card:hover {
   font-size: 0.92rem;
 }
 
+/* The feature grid is a list, not a card wall: what the editor does is read,
+   not scanned, and a bullet is the honest shape for it. */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.6rem 2.5rem;
+  padding: 1rem 0 1.5rem;
+}
+.feature h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+.feature ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+.feature li {
+  margin-bottom: 0.35rem;
+}
+.feature-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0.5rem 0 1rem;
+  margin: 0;
+}
+.proof li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border-left: 2px solid var(--border-strong);
+  padding-left: 0.9rem;
+}
+.proof b {
+  font-size: 1.7rem;
+  font-weight: 640;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.proof span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
 /* --- callouts inside docs ---------------------------------------------- */
 
 .note {

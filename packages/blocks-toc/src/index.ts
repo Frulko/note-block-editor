@@ -33,7 +33,35 @@ export interface TocEntry {
 /** The marker a table of contents is written as in Markdown. */
 export const TOC_MARKER = '[TOC]';
 
-const TOC_LINE = /^\[TOC\]\s*$/i;
+const TOC_LINE = /^\[TOC(?::([a-z]+))?\]\s*$/i;
+
+/**
+ * The looks a contents block can take, in the order they appear in menus.
+ *
+ * @remarks
+ * Presentation only — every preset lists the same headings and links to the
+ * same anchors, so switching one never changes what the block *means*. That is
+ * why the style is a prop and not a block type.
+ *
+ * @category Plugins
+ */
+export const TOC_STYLES = [
+  { name: 'underline', label: 'Souligné', icon: '﹍' },
+  { name: 'plain', label: 'Simple', icon: '☰' },
+  { name: 'rail', label: 'Barre latérale', icon: '▏' },
+  { name: 'numbered', label: 'Numéroté', icon: '1.' },
+] as const;
+
+/** One of {@link TOC_STYLES}' names. */
+export type TocStyle = (typeof TOC_STYLES)[number]['name'];
+
+const DEFAULT_STYLE: TocStyle = 'underline';
+
+/** The block's style, falling back to the default for anything unknown. */
+export function tocStyle(props: Record<string, unknown> | undefined): TocStyle {
+  const value = props?.['style'];
+  return TOC_STYLES.some((s) => s.name === value) ? (value as TocStyle) : DEFAULT_STYLE;
+}
 
 /**
  * The headings of a page, in document order.
@@ -70,16 +98,30 @@ const escapeHtml = (s: string): string =>
  * @category Projections
  */
 export const tocMarkdown: MarkdownProjection = {
-  toMarkdown(_block, ctx) {
-    return [`${'    '.repeat(ctx.depth)}${TOC_MARKER}`];
+  toMarkdown(block, ctx) {
+    // the default style stays a bare `[TOC]`, so the common file is the one
+    // every other Markdown tool already reads
+    const style = tocStyle(block.props);
+    const marker = style === DEFAULT_STYLE ? TOC_MARKER : `[TOC:${style}]`;
+    return [`${'    '.repeat(ctx.depth)}${marker}`];
   },
   fromMarkdown: [
     {
       match: TOC_LINE,
       parse(lines, start) {
-        if (!TOC_LINE.test(lines[start] ?? '')) return null;
+        const m = TOC_LINE.exec(lines[start] ?? '');
+        if (!m) return null;
+        const style = m[1] ? tocStyle({ style: m[1].toLowerCase() }) : DEFAULT_STYLE;
         return {
-          block: { id: '', type: 'table_of_contents', version: 1, props: {}, text: [], children: [], parentId: null },
+          block: {
+            id: '',
+            type: 'table_of_contents',
+            version: 1,
+            props: style === DEFAULT_STYLE ? {} : { style },
+            text: [],
+            children: [],
+            parentId: null,
+          },
           consumed: 1,
         };
       },
@@ -101,14 +143,14 @@ export const tocPlugin: BlockPlugin = {
     placeholder: 'Aucun titre dans cette page',
   },
   markdown: tocMarkdown,
-  html(_block, ctx) {
+  html(block, ctx) {
     // no page in context means this block was rendered on its own — a clipboard
     // slice, a fragment. An empty nav is honest; inventing a list is not.
     const entries = tocEntries(ctx.page ?? []);
     const items = entries
       .map((e) => `<li class="nbe-toc-l${e.level}"><a href="#${escapeHtml(e.id)}">${escapeHtml(e.text)}</a></li>`)
       .join('');
-    return `<nav class="nbe-t-table_of_contents" aria-label="Table des matières"><ul>${items}</ul></nav>`;
+    return `<nav class="nbe-t-table_of_contents" data-toc-style="${tocStyle(block.props)}" aria-label="Table des matières"><ul>${items}</ul></nav>`;
   },
 };
 

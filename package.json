@@ -9,6 +9,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "docs:api": "typedoc --options typedoc.json",
+    "site": "pnpm docs:api && pnpm --filter site dev",
+    "site:build": "pnpm docs:api && pnpm --filter site build",
+    "site:deploy": "gh workflow run site.yml",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:debug": "playwright test --debug"

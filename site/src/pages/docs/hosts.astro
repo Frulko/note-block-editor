@@ -29,8 +29,9 @@ editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)))
   <p>
     Le cœur ne connaît ni le DOM, ni React, ni un serveur. Ce n'est pas une
     élégance d'architecture&nbsp;: c'est la raison pour laquelle le même éditeur
-    est une bibliothèque à embarquer, une application de bureau et un plugin
-    Obsidian, sans qu'aucune de ces trois formes soit un portage de l'autre.
+    est une bibliothèque à embarquer, une application de bureau, un plugin
+    Obsidian, une application iOS et un pair sans écran, sans qu'aucune de ces
+    formes soit un portage d'une autre.
   </p>
 
   <h2 id="bibliotheque">Une bibliothèque à embarquer</h2>
@@ -95,6 +96,48 @@ editor.on(() => obsidian.save(blocksToMarkdown(docToJSON(editor.doc).children)))
     </p>
   </div>
 
+  <h2 id="natif">Une application iOS, et un format lu par une autre langue</h2>
+  <p>
+    <code>native/swift</code> est une <em>seconde implémentation</em> du format et
+    du CRDT&nbsp;: elle lit et écrit le même document, avec ses propres commandes
+    structurelles — scinder, fusionner, changer de type, indenter, déplacer —
+    reflétées ligne à ligne depuis <code>packages/core</code>. Un test échoue si
+    les deux tables d'autoformat divergent, parce que c'est exactement le bug
+    qu'une deuxième implémentation produit&nbsp;: les deux côtés marchent, et la
+    même frappe fait deux choses différentes.
+  </p>
+  <p>
+    L'application iOS s'appuie dessus&nbsp;: SwiftUI, un <code>UITextView</code>
+    par bloc — parce que les contrôles de texte SwiftUI ne savent ni signaler un
+    Retour arrière en position 0 ni intercepter Entrée, et que c'est l'essentiel
+    de ce qui fait un éditeur de blocs —, le menu «&nbsp;/&nbsp;», les préfixes
+    Markdown, l'indentation, le réordonnancement et une barre de clavier qui est
+    la réponse du téléphone à la touche Tab.
+  </p>
+  <div class="note">
+    <p>
+      Un intérêt qui n'était pas prévu&nbsp;: une seconde implémentation trouve
+      les angles morts de la première. Protéger Swift contre l'écriture pendant
+      une composition a mené directement au bug miroir côté web, où une édition
+      distante reconstruisait le DOM sous un mot à moitié tapé.
+    </p>
+  </div>
+
+  <h2 id="p2p">Entre pairs, sans serveur au milieu</h2>
+  <p>
+    La synchronisation passe par un CRDT (Loro), donc l'ordre d'arrivée des
+    modifications n'a pas d'importance et le mode hors ligne n'est pas un cas
+    particulier. Le transport, lui, tient en une phrase&nbsp;: <strong>le relais
+    négocie la connexion, puis sort du chemin, et sert aussi de repli.</strong>
+    Il n'y a donc pas de serveur TURN à héberger — un port, un service, et une
+    ligne d'état qui dit quel chemin est actif, parce qu'une optimisation que
+    personne ne peut observer est une optimisation que personne ne peut déboguer.
+  </p>
+  <p>
+    Trois clients ont tenu un même document de bout en bout&nbsp;: une frappe
+    dans Chrome, lue sur un iPhone, écrite sur le disque par <code>nbe peer</code>.
+  </p>
+
   <h2 id="headless">Sans interface du tout</h2>
   <p>
     <code>@nbe/cli</code> fait tourner le même modèle en ligne de commande&nbsp;:
@@ -109,5 +152,6 @@ nbe search <requête>      # recherche classée (index SQLite)
 nbe sync                  # régénère le miroir Markdown
 nbe check                 # vérifie que tout est lisible sans cet outil
 nbe relay --port 8787     # relais entre pairs
-nbe serve --port 8787     # relais + pair permanent (un NAS)`}</code></pre>
+nbe serve --port 8787     # relais + pair permanent (un NAS)
+nbe peer <salle>          # un pair WebRTC sans écran, qui écrit sur le disque`}</code></pre>
 </Docs>

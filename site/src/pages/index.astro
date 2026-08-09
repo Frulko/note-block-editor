@@ -1,19 +1,103 @@
 ---
 import Base from '../layouts/Base.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+/** Ce qui distingue l'éditeur — quatre décisions, pas quatre arguments. */
 const pillars = [
   { t: 'Un schéma intermédiaire', d: "Le document est une donnée, pas du HTML. Le DOM n'est qu'une projection jetable — jamais la source de vérité.", href: `${base}/docs/concepts/projections/` },
-  { t: 'Lisible sans l\'outil', d: 'Markdown, CSV, SQLite. Supprimez l\'éditeur, vos fichiers restent ouvrables et modifiables ailleurs.', href: `${base}/docs/markdown/` },
+  { t: 'Lisible sans l\'outil', d: 'Markdown, CSV, SQLite. Supprimez l\'éditeur, vos fichiers restent ouvrables et modifiables ailleurs — et une commande de vérification échoue si ça cesse d\'être vrai.', href: `${base}/docs/markdown/` },
   { t: 'Sept opérations', d: 'Tout changement passe par sept opérations inversibles. L\'annulation, la persistance et la synchronisation en découlent.', href: `${base}/docs/concepts/operations/` },
-  { t: 'TypeScript vanilla', d: 'Le cœur ne connaît ni le DOM ni React. Les liaisons React, Vue et Svelte sont des montages minces.', href: `${base}/docs/api/editor/` },
+  { t: 'TypeScript vanilla', d: 'Le cœur ne connaît ni le DOM ni React. Les liaisons React, Vue et Svelte ont exactement deux dépendances, vérifiées en intégration continue.', href: `${base}/docs/api/editor/` },
 ];
 
-/** The same editor, in four shapes. Each one links to how it is actually done. */
+/** Ce qu'il sait faire, groupé par ce qu'on vient y chercher. */
+const features = [
+  {
+    t: 'Écrire',
+    href: `${base}/demo/`,
+    linkLabel: 'Essayer',
+    items: [
+      'Le menu « / » pour poser un bloc, l\'autoformat Markdown pour ceux qui préfèrent la syntaxe',
+      'Le keymap standard du système à l\'intérieur du contenteditable : ^A, ^E, ^K, ⌥⌫, ⌘⌫',
+      '⌥↑/⌥↓ déplacent un bloc, ⇧⌥↑/⇧⌥↓ le dupliquent',
+      'Sélection multi-blocs, poignée de glisser-déposer, colonnes (expérimental)',
+      'Gras, italique, souligné, barré, code, exposant, indice, ==surlignage== — tous conservés en Markdown',
+      'Presse-papiers à trois formats, saisie IME sûre, mentions « @ »',
+    ],
+  },
+  {
+    t: 'Des blocs, y compris les vôtres',
+    href: `${base}/docs/extending/plugins/`,
+    linkLabel: 'Écrire un bloc',
+    items: [
+      'Titres, listes, cases à cocher, citations, toggles, séparateurs, images, sous-pages',
+      'Déposez n\'importe quel fichier : il devient un bloc, et un PDF se prévisualise',
+      'Tableaux avec cellules fusionnées et sélection de cellules',
+      'Blocs de code : la coloration est peinte via la CSS Custom Highlight API, jamais injectée dans le texte éditable',
+      'Callouts, sommaire dont les ancres survivent à l\'export',
+      'Un bloc = un paquet : son schéma, sa vue, ses projections Markdown et HTML',
+    ],
+  },
+  {
+    t: 'Des bases de données',
+    items: [
+      'Vues table, tableau, liste et galerie sur la même collection',
+      'Groupement, filtres multiples, tris',
+      'Un langage de formules pur, des relations, des rollups',
+      'Projeté sur le disque : un CSV, un fichier .md par ligne, un fichier .base par vue',
+    ],
+  },
+  {
+    t: 'Un espace de travail',
+    href: `${base}/docs/hosts/#desktop`,
+    linkLabel: 'Le dossier',
+    items: [
+      'Arborescence de pages, rétroliens, recherche classée sur un index SQLite',
+      'Un vault Markdown qui fait l\'aller-retour : exportez-le, éditez-le dans Obsidian, réimportez-le avec les identifiants intacts',
+      'Import Notion',
+      'Le JSON canonique fait foi, le Markdown est régénéré — deux copies, une seule vérité',
+    ],
+  },
+  {
+    t: 'À plusieurs',
+    href: `${base}/collab/`,
+    linkLabel: 'Ouvrir deux fenêtres',
+    items: [
+      'CRDT Loro : fusion du texte caractère par caractère, hors ligne compris',
+      'Curseurs en direct, commentaires ancrés au texte et non à un décalage',
+      'Historique du document, avec restauration',
+      'Pair-à-pair WebRTC : le relais négocie puis sort du chemin, et sert de repli — un port, aucun serveur TURN',
+      'nbe serve : un pair permanent sur un NAS, sans base de données',
+    ],
+  },
+  {
+    t: 'À intégrer',
+    href: `${base}/integrations/`,
+    linkLabel: 'Voir les trois',
+    items: [
+      'React, Vue et Svelte : cycle de vie, projection d\'état, portails — rien d\'autre',
+      'Rendu statique en HTML sans navigateur ni instance d\'éditeur',
+      'Chaque fonctionnalité s\'attache ou non : ce que vous retirez n\'est pas dans votre bundle',
+      'Lecture seule, libellés traduisibles, thème par canaux CSS',
+    ],
+  },
+];
+
+/** Le même éditeur, en cinq clients. Chacun pointe vers comment c'est fait. */
 const shapes = [
   { t: 'Une bibliothèque', d: 'Un éditeur de texte sans interface, à embarquer dans un produit qui a déjà le sien. Cinq lignes pour la version minimale.', href: `${base}/docs/examples/#minimal` },
   { t: 'Une app de bureau', d: 'Carnet : une fenêtre Tauri dont le stockage est un dossier lisible — un vault Markdown à côté des documents canoniques.', href: `${base}/docs/hosts/#desktop` },
   { t: 'Un plugin Obsidian', d: 'L\'édition par blocs sur une note à la fois. Le fichier reste du Markdown, et Obsidian garde la main sur tout le reste.', href: `${base}/docs/hosts/#obsidian` },
-  { t: 'Un relais headless', d: 'nbe relay : un WebSocket, un port, aucune base de données. Plusieurs navigateurs sur un même document.', href: `${base}/docs/examples/#relais` },
+  { t: 'Une app iOS', d: 'SwiftUI, un UITextView par bloc, du vrai WebRTC. Une seconde implémentation du format, en Swift, qui lit et écrit le même document.', href: `${base}/docs/hosts/#natif` },
+  { t: 'Un relais headless', d: 'nbe relay : un WebSocket, un port, aucune base de données. Plusieurs navigateurs — et nbe peer, un pair sans écran.', href: `${base}/docs/examples/#relais` },
+];
+
+/** Mesuré, pas revendiqué : docs/NEXT.md, 2026-08-09. */
+const proof = [
+  { n: '1012', l: 'tests unitaires' },
+  { n: '4', l: 'suites navigateur qui bloquent la CI' },
+  { n: '8,3 ms', l: 'par frappe à 500 blocs' },
+  { n: '3', l: 'clients sur un même document, sans serveur' },
 ];
 ---
 <Base title="nbe — un éditeur de blocs qui ne séquestre pas vos données">
@@ -40,10 +124,29 @@ const shapes = [
     </section>
 
     <section class="band">
-      <h2>Le même éditeur, sous quatre formes</h2>
+      <h2>Ce qu'il sait faire</h2>
+      <p class="band-lede">
+        L'écart visé est étroit et, autant qu'une étude de 2026 ait pu le dire,
+        inoccupé&nbsp;: <strong>personne ne propose une édition de la classe de
+        Notion dont le stockage est un dossier de fichiers Markdown.</strong>
+        Obsidian a les fichiers, Notion a l'édition.
+      </p>
+      <div class="feature-grid">
+        {features.map((f) => (
+          <div class="feature">
+            <h3>{f.t}</h3>
+            <ul>{f.items.map((i) => <li>{i}</li>)}</ul>
+            {f.href && <a class="feature-link" href={f.href}>{f.linkLabel} →</a>}
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>Le même éditeur, sous cinq formes</h2>
       <p class="band-lede">
         Le cœur ne connaît ni le DOM, ni React, ni un serveur — c'est ce qui
-        rend ces quatre formes possibles sans qu'aucune soit le portage d'une
+        rend ces cinq formes possibles sans qu'aucune soit le portage d'une
         autre.
       </p>
       <div class="cards cards-tight">
@@ -51,6 +154,22 @@ const shapes = [
           <a class="card" href={s.href}><h3>{s.t}</h3><p>{s.d}</p></a>
         ))}
       </div>
+    </section>
+
+    <section class="band">
+      <h2>Ce qui le tient debout</h2>
+      <p class="band-lede">
+        Des chiffres mesurés plutôt que des adjectifs. Chromium, WebKit — le
+        moteur de Safari et donc d'iOS —, le tactile aux tailles de téléphone et
+        une topologie d'édition alternative bloquent tous la CI&nbsp;; le port
+        Swift a sa propre suite, et un test échoue si les deux implémentations
+        divergent sur une seule règle d'autoformat.
+      </p>
+      <ul class="proof">
+        {proof.map((p) => (
+          <li><b>{p.n}</b><span>{p.l}</span></li>
+        ))}
+      </ul>
     </section>
   </div>
 </Base>

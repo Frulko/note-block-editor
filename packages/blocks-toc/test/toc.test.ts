@@ -3,7 +3,7 @@ import type { BlockJSON } from '@nbe/core';
 import { PluginRegistry } from '@nbe/core';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { renderToHTML } from '@nbe/static-renderer';
-import { TOC_MARKER, tocBlocks, tocEntries, tocPlugin } from '../src/index';
+import { TOC_MARKER, tocBlocks, tocEntries, tocPlugin, tocStyle } from '../src/index';
 
 function b(type: string, extra: Partial<Omit<BlockJSON, 'id' | 'type' | 'version'>> = {}, id = 'x'): BlockJSON {
   return { id, type, version: 1, ...extra };
@@ -47,6 +47,17 @@ describe('markdown', () => {
     const md = blocksToMarkdown([b('table_of_contents')], { plugins });
     expect(md).toBe(TOC_MARKER);
     expect(markdownToBlocks(md, { plugins })[0]!.type).toBe('table_of_contents');
+  });
+
+  it('keeps a non-default style through the file, and only then', () => {
+    expect(blocksToMarkdown([b('table_of_contents', { props: { style: 'numbered' } })], { plugins })).toBe('[TOC:numbered]');
+    expect(blocksToMarkdown([b('table_of_contents', { props: { style: 'underline' } })], { plugins })).toBe(TOC_MARKER);
+    expect(markdownToBlocks('[TOC:rail]', { plugins })[0]!.props).toEqual({ style: 'rail' });
+  });
+
+  it('falls back to the default rather than emitting a style nothing styles', () => {
+    expect(tocStyle({ style: 'wat' })).toBe('underline');
+    expect(markdownToBlocks('[TOC:wat]', { plugins })[0]!.props).toEqual({});
   });
 
   it('round-trips inside a page without swallowing what follows', () => {

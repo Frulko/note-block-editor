@@ -1,7 +1,7 @@
 import type { BlockId, TextSelection } from '@nbe/core';
 import { getBlock, textLength } from '@nbe/core';
 import type { EditorView } from './view';
-import { domToModelPoint } from './selection';
+import { domToModelPoint, modelPointToDom } from './selection';
 import { leafOf } from './topology';
 
 /**
@@ -206,3 +206,33 @@ export function caretClientX(view: EditorView): number | null {
   return leafOf(range.startContainer)?.getBoundingClientRect().left ?? null;
 }
 
+/**
+ * Where a trigger menu points: at the character that opened it.
+ *
+ * @remarks
+ * The leaf's own rect starts at the left edge of the block, so typing `/` in
+ * the middle of a sentence opened the palette back at the margin — nowhere
+ * near the caret, which is where the eye is. A collapsed `Range` at the
+ * trigger offset is the character's own box.
+ *
+ * Falls back to the leaf when the range reports nothing, which is what an
+ * empty leaf does, and returns `null` once the leaf is gone so `autoUpdate`
+ * leaves the menu where it was instead of clamping it to the corner.
+ */
+export function triggerAnchor(view: EditorView, blockId: BlockId, offset: number): DOMRect | null {
+  const leaf = view.leafEl(blockId);
+  if (!leaf) return null;
+  const at = modelPointToDom(view, { blockId, offset });
+  if (at) {
+    try {
+      const range = document.createRange();
+      range.setStart(at.node, at.offset);
+      range.collapse(true);
+      const rect = range.getBoundingClientRect();
+      if (rect.height) return rect;
+    } catch {
+      /* the leaf was replaced between the model read and this frame */
+    }
+  }
+  return leaf.getBoundingClientRect();
+}

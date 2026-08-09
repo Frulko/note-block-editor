@@ -1,6 +1,7 @@
 import type { Block, BlockId } from '@nbe/core';
 import { childIndex, getBlock, plainText, textLength, uuidv7 } from '@nbe/core';
 import type { EditorView } from './view';
+import { triggerAnchor } from './caret';
 import { createMenu, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
 import type { EditorLabels } from './labels';
@@ -102,7 +103,9 @@ export function attachSlashMenu(view: EditorView): () => void {
     open = true;
     menu.update(toEntries(filterItems('', !!view.options.onCreatePage, !!view.options.database, slashItems(view))));
     // live anchor: re-resolved on scroll/re-render, so it survives leaf replacement
-    menu.open(() => view.leafEl(blockId)?.getBoundingClientRect() ?? null, {
+    // anchored to the `/` itself, not to the block: the palette used to open
+    // back at the left margin when the trigger was mid-sentence
+    menu.open(() => triggerAnchor(view, blockId, triggerOffset), {
       placement: 'bottom-start',
     });
   };

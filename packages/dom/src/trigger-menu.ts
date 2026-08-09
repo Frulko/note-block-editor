@@ -1,6 +1,7 @@
 import type { BlockId } from '@nbe/core';
 import { plainText } from '@nbe/core';
 import type { EditorView } from './view';
+import { triggerAnchor } from './caret';
 import { createMenu, type MenuEntry } from './ui';
 
 /**
@@ -84,7 +85,8 @@ export function attachTriggerMenu<T>(view: EditorView, opts: TriggerMenuOptions<
     open = true;
     // live anchor: re-resolved on scroll and re-render, so it survives the
     // leaf being replaced under it
-    menu.open(() => view.leafEl(blockId)?.getBoundingClientRect() ?? null, { placement: 'bottom-start' });
+    // anchored to the trigger character, not to the block (see triggerAnchor)
+    menu.open(() => triggerAnchor(view, blockId, triggerOffset), { placement: 'bottom-start' });
   };
 
   const update = () => {
