@@ -22,7 +22,7 @@ import {
   refreshCommentMarkers,
   reveal,
 } from '@nbe/dom';
-import { blocksToMarkdown, slugify } from '@nbe/markdown';
+import { Frontmatter, documentToMarkdown, readFrontmatter, slugify } from '@nbe/markdown';
 import { createNoteComments, readComments, restoreAnchors, writeComments } from './comments';
 import { MARKDOWN_PLUGINS, pageOf } from './document';
 import { viewOptions } from './settings';
@@ -129,6 +129,18 @@ export class CarnetView extends TextFileView {
   private comments: ReturnType<typeof createNoteComments> | null = null;
 
   /**
+   * The note's YAML header, held for as long as the note is open.
+   *
+   * @remarks
+   * Held rather than re-read, because it is *edited* while the note is open —
+   * the title goes in it, the threads go in it — and because everything in it
+   * that is not ours has to come back out untouched. `Frontmatter` keeps the
+   * source of every key nobody changed, so a vault's `tags`, `aliases` and
+   * `cssclasses` survive a save by this editor exactly as they were written.
+   */
+  private frontmatter = new Frontmatter();
+
+  /**
    * Keep Obsidian's *own* status-bar word count honest while typing.
    *
    * @remarks
@@ -165,7 +177,29 @@ export class CarnetView extends TextFileView {
   }
 
   getDisplayText(): string {
-    return this.file?.basename ?? 'Carnet';
+    return this.displayTitle() || 'Carnet';
+  }
+
+  /**
+   * What the note is called: its `title` property when it has one, its filename
+   * otherwise.
+   *
+   * @remarks
+   * The two differ whenever a title holds something a filename cannot — « Daily
+   * 10/08 », « Réunion : 2026 » — which used to mean the title simply lost the
+   * character: {@link commitTitle} reduced it through `slugify` and what came
+   * back on screen was the reduction. The file still has to be named something
+   * a filesystem accepts, so the *name* is still the slug; the title itself now
+   * lives in the frontmatter, which is where a document's metadata belongs and
+   * what Obsidian's own front-matter-title plugins read. The tab, the inline
+   * title and this view all show it.
+   */
+  private displayTitle(): string {
+    // a number too: `title: 2026` is a title someone typed, and YAML reads it
+    // as a number whatever they meant by it
+    const title = this.frontmatter.get('title');
+    const text = typeof title === 'string' || typeof title === 'number' ? String(title).trim() : '';
+    return text || this.file?.basename || '';
   }
 
   /** Obsidian asks for the file's content. This is the L1 projection. */
@@ -180,10 +214,10 @@ export class CarnetView extends TextFileView {
      */
     const page = docToJSON(this.editor.doc) as BlockJSON;
     const blocks = this.comments ? restoreAnchors(page.children ?? []) : (page.children ?? []);
-    const markdown = blocksToMarkdown(blocks, { plugins: MARKDOWN_PLUGINS });
-    // the threads go back at the end, in Obsidian's own comment syntax, so the
-    // discussion travels with the file and reading mode shows none of it
-    return this.comments ? writeComments(markdown, this.comments.store.list()) : markdown;
+    // the threads go back into the note's header, so the discussion travels
+    // with the file and no reader mistakes it for prose
+    if (this.comments) writeComments(this.frontmatter, this.comments.store.list());
+    return documentToMarkdown({ frontmatter: this.frontmatter, blocks }, { plugins: MARKDOWN_PLUGINS });
   }
 
   /**
@@ -295,7 +329,7 @@ export class CarnetView extends TextFileView {
     // Obsidian mutates the TFile in place, so identity survives the rename
     this.registerEvent(
       this.app.vault.on('rename', (file) => {
-        if (file === this.file && this.inlineTitleEl) this.inlineTitleEl.textContent = this.file.basename;
+        if (file === this.file && this.inlineTitleEl) this.inlineTitleEl.textContent = this.displayTitle();
       }),
     );
   }
@@ -437,7 +471,7 @@ export class CarnetView extends TextFileView {
   private buildTitle(host: HTMLElement): void {
     const title = host.createDiv({ cls: 'carnet-title' });
     this.inlineTitleEl = title;
-    title.textContent = this.file?.basename ?? '';
+    title.textContent = this.displayTitle();
     try {
       title.contentEditable = 'plaintext-only';
     } catch {
@@ -449,7 +483,7 @@ export class CarnetView extends TextFileView {
         title.blur();
         this.enterNote();
       } else if (e.key === 'Escape') {
-        title.textContent = this.file?.basename ?? '';
+        title.textContent = this.displayTitle();
         title.blur();
       }
     });
@@ -519,36 +553,47 @@ export class CarnetView extends TextFileView {
   }
 
   /**
-   * Rename the file to match the edited title; revert the text on refusal.
+   * Commit the edited title: the filename takes what it can hold, the
+   * frontmatter keeps the rest.
    *
    * @remarks
-   * Through `slugify`, because a title is not a filename: « Daily 10/08 » went
-   * to the vault verbatim and the slash was read as a folder that does not
-   * exist, so renaming a note reported `ENOENT … Daily/Daily 10/08.md` — a
-   * filesystem error for something the user did nothing wrong to cause. It is
-   * the same reduction `@nbe/markdown` applies when it writes `[[Titre]]`, and
-   * for the same reason: a vault names a note `<Titre>.md` and links to it by
-   * that name, so what a filename cannot hold, a title cannot keep. The field
-   * is set back to `basename` below either way, so what is on screen is always
-   * what is on disk.
+   * The file is named through `slugify`, because a title is not a filename:
+   * « Daily 10/08 » went to the vault verbatim and the slash was read as a
+   * folder that does not exist, so renaming a note reported `ENOENT … Daily/
+   * Daily 10/08.md` — a filesystem error for something the user did nothing
+   * wrong to cause. It is the same reduction `@nbe/markdown` applies when it
+   * writes `[[Titre]]`, and for the same reason: a vault names a note
+   * `<Titre>.md` and links to it by that name.
+   *
+   * What is new is that the reduction is no longer the *title*. A `title:`
+   * property carries what the author typed, so « Réunion : 2026/07 » is a note
+   * called « Réunion : 2026/07 » in a file called `Réunion 2026 07.md` — and
+   * the property is only written when the two actually differ, so renaming an
+   * ordinary note still leaves an ordinary note.
    */
   private async commitTitle(): Promise<void> {
     const title = this.inlineTitleEl;
     if (!title || !this.file) return;
     const typed = (title.textContent ?? '').trim();
     const name = typed ? slugify(typed) : '';
-    if (!name || name === this.file.basename) {
-      title.textContent = this.file.basename;
+    if (!name || typed === this.displayTitle()) {
+      title.textContent = this.displayTitle();
       return;
     }
-    const folder = this.file.parent?.path ?? '';
-    try {
-      // fileManager, not vault: this is the rename that updates backlinks
-      await this.app.fileManager.renameFile(this.file, normalizePath(`${folder}/${name}.${this.file.extension}`));
-    } catch (err) {
-      new Notice(err instanceof Error ? err.message : String(err));
+    if (this.frontmatter.get('title') !== (name === typed ? undefined : typed)) {
+      this.frontmatter.set('title', name === typed ? undefined : typed);
+      this.requestSave();
     }
-    title.textContent = this.file.basename;
+    if (name !== this.file.basename) {
+      const folder = this.file.parent?.path ?? '';
+      try {
+        // fileManager, not vault: this is the rename that updates backlinks
+        await this.app.fileManager.renameFile(this.file, normalizePath(`${folder}/${name}.${this.file.extension}`));
+      } catch (err) {
+        new Notice(err instanceof Error ? err.message : String(err));
+      }
+    }
+    title.textContent = this.displayTitle();
   }
 
   private build(markdown: string): void {
@@ -571,9 +616,19 @@ export class CarnetView extends TextFileView {
     // the title supplies the top spacing; keep the editor close under it
     if (!this.plugin.settings.padTop.trim()) opts.padding = { ...opts.padding, top: '12px' };
 
+    /*
+     * The header comes off first: it is not prose, and everything under it —
+     * the title, the discussion — is read from there rather than found in the
+     * text. What we do not read is kept as it was written, and goes back out
+     * that way on the next save.
+     */
+    const file = readFrontmatter(markdown);
+    this.frontmatter = file.frontmatter;
     // the threads come out of the note before it is parsed as blocks; the
     // anchors stay in the text, where `applyAnchors` turns them into marks
-    const note = this.plugin.settings.comments ? readComments(markdown) : { markdown, threads: [] };
+    const note = this.plugin.settings.comments
+      ? readComments(file.frontmatter, file.body)
+      : { markdown: file.body, threads: [] };
     this.comments = this.plugin.settings.comments
       ? createNoteComments(note.threads, () => {
           if (!this.loading) this.requestSave();

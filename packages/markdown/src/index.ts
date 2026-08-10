@@ -7,6 +7,18 @@
 
 import type { Block, BlockJSON, BlockSpec, Mark, MarkdownRule, PluginRegistry, Run } from '@nbe/core';
 import { baseSchema, uuidv7 } from '@nbe/core';
+import { Frontmatter, readFrontmatter, writeFrontmatter } from './frontmatter';
+
+export {
+  APP_SECTION,
+  Frontmatter,
+  emitScalar,
+  parseScalar,
+  readFrontmatter,
+  unquote,
+  writeFrontmatter,
+  type FrontmatterSplit,
+} from './frontmatter';
 
 // ---------------------------------------------------------------------------
 // Inline: runs → markdown
@@ -361,6 +373,62 @@ function parseInline(text: string, marks: Mark[]): Run[] {
   }
   flush();
   return runs;
+}
+
+// ---------------------------------------------------------------------------
+// A whole file: frontmatter + blocks
+// ---------------------------------------------------------------------------
+
+/**
+ * A Markdown file as this editor sees it: what the document *is*, and what it
+ * is *about*.
+ *
+ * @remarks
+ * The pair exists because those are two different questions with two different
+ * answers in the file. The blocks are the prose; the frontmatter is everything
+ * else — the title a filename could not hold, the discussion threads, whatever
+ * a plugin needs to remember about the note as a whole (see
+ * {@link Frontmatter}). A host that only wants the prose keeps calling
+ * {@link markdownToBlocks} and nothing changes for it.
+ *
+ * @category Projections
+ */
+export interface MarkdownDocument {
+  frontmatter: Frontmatter;
+  blocks: BlockJSON[];
+}
+
+/**
+ * Read a Markdown file: its frontmatter, then its blocks.
+ *
+ * @category Projections
+ */
+export function markdownToDocument(text: string, opts: MarkdownOptions = {}): MarkdownDocument {
+  const { frontmatter, body } = readFrontmatter(text);
+  return { frontmatter, blocks: markdownToBlocks(body, opts) };
+}
+
+/**
+ * Write one back.
+ *
+ * @remarks
+ * The frontmatter is written first and unchanged apart from the keys the caller
+ * touched, so a note that came from a vault goes back to it with its properties
+ * where the vault left them.
+ *
+ * A blank line separates the header from the prose. Not {@link writeFrontmatter},
+ * which is byte-exact and knows the body it was handed: this rebuilds the body
+ * from blocks, where the source layout is already normalised (D7 — wrapping,
+ * indentation and numbering are all re-emitted). The gap is source layout too,
+ * so it follows the same rule: a file may differ from its source once, and
+ * never again.
+ *
+ * @category Projections
+ */
+export function documentToMarkdown(doc: MarkdownDocument, opts: MarkdownOptions = {}): string {
+  const header = doc.frontmatter.toString();
+  const body = blocksToMarkdown(doc.blocks, opts);
+  return header && body ? `${header}\n${body}` : header + body;
 }
 
 // ---------------------------------------------------------------------------

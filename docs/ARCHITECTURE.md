@@ -519,6 +519,33 @@ Three layers with explicit fidelity contracts:
   the runtime rather than baked into the model: an index that holds nothing
   unique can be swapped, or absent, without the document layer noticing.
 
+**The frontmatter is the document's own metadata layer** (added 2026-08-10,
+`packages/markdown/src/frontmatter.ts`). Everything that is *about* a note
+rather than *in* it goes in the YAML header, under two rules that make it safe
+to share a file with a vault, a static site generator and whatever else already
+writes there:
+
+- **A key we did not touch is re-emitted verbatim** — copied, not re-serialized,
+  so a hand-written `tags:` list, its comments and its alignment survive a save
+  by this editor. Three ad-hoc readers used to grep the header for the two keys
+  their writer had written (`vault.ts`, `collections.ts`, the Obsidian host);
+  each one dropped everything else on the way through.
+- **Everything this editor owns hangs under one key, `nbe`.** A note's own
+  `title`, `tags` or `comments` can never collide with ours, and a plugin adding
+  a section (`Frontmatter.setSection`) merges rather than replaces, so two
+  plugins cannot clobber each other. Structured values are written as JSON,
+  which is YAML flow style — valid to every parser, read back without carrying a
+  YAML implementation.
+
+Two things moved there. **Comment threads**, which were a `%%carnet-comments%%`
+block at the end of the note — invisible when rendered, but prose all the same:
+it moved when the note was appended to, the word count counted it, search
+matched inside it. And **the title a filename cannot hold**: a note called
+« Réunion : 2026/07 » is the file `Réunion 2026 07.md` with `title: "Réunion :
+2026/07"` in its header, because a vault names a note `<Titre>.md` and resolves
+`[[wikilinks]]` by that name. The property is written only when the two differ,
+so an ordinary note stays ordinary.
+
 **Authority flow:** exactly one layer is input at any instant. The editor
 writes L0 → regenerates L1 → incrementally updates L2. External edits to L1
 (Obsidian, vim) are detected (mtime/hash) and imported through the same parser

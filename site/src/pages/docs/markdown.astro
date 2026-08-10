@@ -45,6 +45,30 @@ const html = renderToHTML(doc);
 
 Un [rapport](assets/3f9a1c…pdf) <!-- nbe:file {"props":{"mime":"application/pdf","size":184320}} -->`;
 
+const frontmatterFile = `---
+title: "Réunion : 2026/07"     ← le titre que le nom de fichier ne peut pas porter
+tags:
+  - projet
+  - 2026
+# une note laissée par quelqu'un : elle ressort telle quelle
+aliases: ["Réu"]
+nbe: {"comments":[{"id":"t1","blockId":"019f…","messages":[…]}]}
+---
+
+# Ce qu'on s'est dit`;
+
+const frontmatterApi = `import { markdownToDocument, documentToMarkdown } from '@nbe/markdown';
+
+const doc = markdownToDocument(await readFile('note.md', 'utf8'));
+doc.blocks;                      // la prose
+doc.frontmatter.get('tags');     // ['projet', 2026]
+
+// ce qui vous appartient vit dans votre section, jamais à la racine
+doc.frontmatter.setSection('révision', { relu: '2026-08-10' });
+
+// tout ce qu'on n'a pas touché ressort octet pour octet
+await writeFile('note.md', documentToMarkdown(doc));`;
+
 const parsing = `import { markdownToBlocks } from '@nbe/markdown';
 import { tableBlocks } from '@nbe/blocks-table';
 
@@ -185,10 +209,11 @@ const fidelity = [
   <ol>
     <li>
       <strong>Le frontmatter YAML</strong>, pour ce qui appartient à la
-      <em>page</em>&nbsp;: son identifiant et son titre. L'identifiant est ce qui
-      fait qu'un aller-retour par un éditeur de texte garde intacts les ancres,
-      les rétroliens et les liens profonds. Le titre est écrit entre guillemets,
-      parce qu'un titre peut contenir un deux-points et que YAML y lirait une map.
+      <em>page</em> plutôt qu'à une ligne&nbsp;: son identifiant, son titre, sa
+      discussion. L'identifiant est ce qui fait qu'un aller-retour par un éditeur
+      de texte garde intacts les ancres, les rétroliens et les liens profonds.
+      Une valeur n'est mise entre guillemets que si elle se relirait autrement —
+      un titre avec un deux-points, un titre qui s'écrit «&nbsp;42&nbsp;».
     </li>
     <li>
       <strong>La ligne elle-même</strong>, pour ce que le Markdown sait dire&nbsp;:
@@ -222,6 +247,59 @@ const fidelity = [
     rendu.
   </p>
   <Code code={clipboard} lang="ts" />
+
+  <h2 id="frontmatter">Le frontmatter&nbsp;: l'entête partagé</h2>
+  <p>
+    Trois tirets, une map YAML, trois tirets, tout en haut du fichier&nbsp;: c'est
+    la seule convention sur laquelle tous les outils Markdown se sont déjà mis
+    d'accord. Obsidian l'affiche en propriétés, Jekyll, Hugo, Astro et Zola le
+    lisent comme des métadonnées, un éditeur de texte le montre comme cinq lignes
+    lisibles. C'est donc là que va tout ce qui parle du <em>document</em> — et
+    nulle part dans la prose.
+  </p>
+  <Code code={frontmatterFile} lang="md" />
+  <p>
+    L'entête n'est pas le nôtre&nbsp;: c'est celui du fichier, et quelqu'un
+    d'autre y écrit aussi. Deux règles rendent ça vivable.
+  </p>
+  <ol>
+    <li>
+      <strong>Une clé qu'on n'a pas touchée ressort telle quelle</strong> —
+      recopiée, pas ré-écrite&nbsp;: la liste <code>tags</code> tapée à la main,
+      ses commentaires et son alignement traversent une sauvegarde intacts.
+      Autrement, ouvrir une note et la refermer laisserait un diff sur les
+      propriétés de quelqu'un, ce que ce projet promet précisément de ne pas
+      faire.
+    </li>
+    <li>
+      <strong>Tout ce qui nous appartient tient sous une seule clé,
+      <code>nbe</code>.</strong> Le <code>title</code>, les <code>tags</code> ou
+      même un <code>comments</code> de la note ne peuvent pas entrer en collision
+      avec les nôtres. Les valeurs structurées sont écrites en JSON, qui est le
+      style <em>flow</em> de YAML&nbsp;: valide pour tous les analyseurs, et relu
+      sans embarquer une implémentation YAML.
+    </li>
+  </ol>
+  <p>
+    C'est aussi le point d'extension. Un greffon qui veut retenir quelque chose
+    sur la note appelle <code>setSection</code> avec son propre nom&nbsp;: la
+    section est fusionnée, jamais substituée, donc deux greffons ne s'écrasent
+    pas — et la dernière section retirée emporte la clé <code>nbe</code> avec
+    elle, pour qu'une note sans rien à retenir ne garde aucune trace de cet
+    éditeur.
+  </p>
+  <Code code={frontmatterApi} lang="ts" />
+  <p>
+    Deux choses y ont déménagé. <strong>Les fils de commentaires</strong>, qui
+    étaient un bloc en fin de note&nbsp;: invisible au rendu, mais du texte quand
+    même — il bougeait dès qu'on ajoutait à la note, le compteur de mots le
+    comptait, la recherche trouvait dedans. Et <strong>le titre qu'un nom de
+    fichier ne peut pas porter</strong>&nbsp;: «&nbsp;Réunion&nbsp;: 2026/07&nbsp;»
+    est une note appelée ainsi dans un fichier <code>Réunion 2026 07.md</code>,
+    parce qu'un vault nomme une note <code>&lt;Titre&gt;.md</code> et résout les
+    <code>[[wikilinks]]</code> par ce nom. La propriété n'est écrite que si les
+    deux diffèrent&nbsp;: une note ordinaire reste ordinaire.
+  </p>
 
   <h2 id="parsing">Le parsing</h2>
   <p>

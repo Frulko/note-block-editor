@@ -1,6 +1,7 @@
 import type { BlockJSON, CollectionSchema, PropertyDef, RowData, ViewConfig } from '@nbe/core';
 import { COMPUTED_TYPES, formatValue, uuidv7 } from '@nbe/core';
 import { blocksToMarkdown, markdownToBlocks } from './index';
+import { emitScalar, readFrontmatter } from './frontmatter';
 
 /**
  * Collection projection (ARCHITECTURE §10, L1): a database becomes plain text
@@ -147,21 +148,22 @@ export function csvToRows(
 
 // -------------------------------------------------------------- YAML bits
 
-function yamlScalar(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'boolean' || typeof value === 'number') return String(value);
-  const text = String(value);
-  return /^[\w./\- àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ']+$/.test(text) && text.trim() === text
-    ? text
-    : JSON.stringify(text);
-}
-
+/**
+ * A property value as YAML: a scalar, or a block sequence for a multi-value.
+ *
+ * @remarks
+ * The scalar half lives in `./frontmatter` — it was written twice, here and
+ * there, and the two copies had already drifted: this one wrote a title of
+ * « 42 » unquoted, which reads back as the number. A list stays a *block*
+ * sequence rather than the flow style the frontmatter module writes, because a
+ * row file is meant to be read and edited by hand in a vault.
+ */
 function yamlValue(value: unknown, indent: string): string {
   if (Array.isArray(value)) {
     if (!value.length) return '[]';
-    return '\n' + value.map((v) => `${indent}  - ${yamlScalar(v)}`).join('\n');
+    return '\n' + value.map((v) => `${indent}  - ${emitScalar(v)}`).join('\n');
   }
-  return yamlScalar(value);
+  return emitScalar(value);
 }
 
 /** One markdown file per row: frontmatter properties + the row page body. */
@@ -171,7 +173,7 @@ export function rowToMarkdown(
   page?: BlockJSON,
 ): string {
   const lines = ['---'];
-  if (row.title) lines.push(`title: ${yamlScalar(row.title)}`);
+  if (row.title) lines.push(`title: ${emitScalar(row.title)}`);
   for (const prop of schema.properties) {
     const value = row.properties[prop.id];
     if (value === undefined || value === '' || (Array.isArray(value) && !value.length)) continue;
@@ -187,59 +189,43 @@ export function rowToMarkdown(
   return lines.join('\n') + body;
 }
 
-/** Read a row back from its markdown file (frontmatter + body). */
+/**
+ * Read a row back from its markdown file (frontmatter + body).
+ *
+ * @remarks
+ * The YAML is `readFrontmatter`'s to read — this used to walk the lines itself,
+ * tracking whether the previous key had opened a list, which is a second
+ * parser for a format the package already parses. Values arrive typed, so all
+ * that is left here is the part that is actually about collections: matching a
+ * key to a property by *name*, and refusing to re-import a computed value.
+ */
 export function markdownToRow(
   text: string,
   schema: CollectionSchema,
 ): { row: RowData; blocks: BlockJSON[] } {
-  const match = /^---\n([\s\S]*?)\n---\n?/.exec(text);
+  const { frontmatter, body } = readFrontmatter(text);
   const properties: Record<string, unknown> = {};
+  const byName = new Map(schema.properties.map((p) => [p.name.toLowerCase(), p]));
   let title = '';
-  if (match) {
-    const byName = new Map(schema.properties.map((p) => [p.name.toLowerCase(), p]));
-    let currentList: { prop: PropertyDef; values: string[] } | null = null;
-    for (const line of match[1]!.split('\n')) {
-      const listItem = /^\s+-\s+(.*)$/.exec(line);
-      if (listItem && currentList) {
-        currentList.values.push(unquote(listItem[1]!));
-        continue;
-      }
-      currentList = null;
-      const kv = /^([^:]+):\s*(.*)$/.exec(line);
-      if (!kv) continue;
-      const rawKey = kv[1]!.trim();
-      const raw = kv[2]!.trim();
-      if (/^title$/i.test(rawKey)) {
-        title = unquote(raw);
-        continue;
-      }
-      if (/\(calculé\)$/i.test(rawKey)) continue; // materialized cache — never re-imported
-      const prop = byName.get(rawKey.toLowerCase());
-      if (!prop) continue;
-      if (raw === '') {
-        currentList = { prop, values: [] };
-        properties[prop.id] = currentList.values;
-        continue;
-      }
-      properties[prop.id] = raw === '[]' ? [] : parseValue(unquote(raw), prop.type);
+  for (const key of frontmatter.keys()) {
+    const value = frontmatter.get(key);
+    if (/^title$/i.test(key)) {
+      title = value === null || value === undefined ? '' : String(value);
+      continue;
     }
+    if (/\(calculé\)$/i.test(key)) continue; // materialized cache — never re-imported
+    const prop = byName.get(key.toLowerCase());
+    if (!prop) continue;
+    // a list is already a list; a scalar goes back through the CSV coercion, so
+    // one property type means one parse whichever projection it arrived by
+    properties[prop.id] = Array.isArray(value)
+      ? value.map((v) => String(v))
+      : parseValue(value === null || value === undefined ? '' : String(value), prop.type);
   }
-  const bodyText = match ? text.slice(match[0].length) : text;
   return {
     row: { pageId: uuidv7(), title, properties },
-    blocks: bodyText.trim() ? markdownToBlocks(bodyText) : [],
+    blocks: body.trim() ? markdownToBlocks(body) : [],
   };
-}
-
-function unquote(s: string): string {
-  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-    try {
-      return JSON.parse(s.startsWith("'") ? `"${s.slice(1, -1)}"` : s) as string;
-    } catch {
-      return s.slice(1, -1);
-    }
-  }
-  return s;
 }
 
 /** Obsidian-Bases-shaped view definition (ARCHITECTURE §10 interop target). */
@@ -266,14 +252,14 @@ export function viewToBase(schema: CollectionSchema, view: ViewConfig): string {
   }
   lines.push('views:');
   lines.push(`  - type: ${view.layout}`);
-  lines.push(`    name: ${yamlScalar(schema.name)}`);
-  if (view.groupBy) lines.push(`    group_by: ${yamlScalar(name(view.groupBy))}`);
+  lines.push(`    name: ${emitScalar(schema.name)}`);
+  if (view.groupBy) lines.push(`    group_by: ${emitScalar(name(view.groupBy))}`);
   if (view.sorts.length) {
     lines.push('    order:');
-    for (const s of view.sorts) lines.push(`      - ${yamlScalar(name(s.propertyId))} ${s.dir}`);
+    for (const s of view.sorts) lines.push(`      - ${emitScalar(name(s.propertyId))} ${s.dir}`);
   }
   lines.push('    properties:');
-  for (const p of schema.properties) lines.push(`      - ${yamlScalar(p.name)}`);
+  for (const p of schema.properties) lines.push(`      - ${emitScalar(p.name)}`);
   return lines.join('\n') + '\n';
 }
 

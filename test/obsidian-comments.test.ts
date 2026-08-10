@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { BlockJSON, CommentThread } from '../packages/core/src/index';
+import { Frontmatter, readFrontmatter, writeFrontmatter } from '../packages/markdown/src/index';
 import { applyAnchors, readComments, restoreAnchors, writeComments } from '../apps/obsidian/src/comments';
 
 /**
  * In a vault the Markdown *is* the document, so a thread has nowhere else to
  * live — and a sidecar file is exactly what this project refuses, because a
  * note carried away on a USB stick would arrive with its discussion left
- * behind. So the note carries it, in Obsidian's own comment syntax, and these
- * are the two halves of that: the anchor in the line, the threads at the end.
+ * behind. So the note carries it, and these are the two halves of that: the
+ * anchor in the line, the threads in the header.
  */
 const thread = (id: string, blockId: string): CommentThread => ({
   id,
@@ -23,25 +24,64 @@ const block = (text: string, id = 'b1'): BlockJSON => ({
   text: [{ text }],
 });
 
-describe('the threads at the end of the note', () => {
-  it('round-trips through the note, and leaves prose alone', () => {
-    const note = 'un paragraphe\n\nun autre\n';
-    const written = writeComments(note, [thread('t1', 'b1')]);
-    expect(written).toContain('%%carnet-comments');
+/** A note as a file: the header written back over the prose. */
+function fileOf(frontmatter: Frontmatter, body: string): string {
+  return writeFrontmatter(frontmatter, body);
+}
 
-    const read = readComments(written);
-    expect(read.markdown.trimEnd()).toBe(note.trimEnd());
+describe('the threads in the note header', () => {
+  it('round-trips through the file, and leaves the prose alone', () => {
+    const body = 'un paragraphe\n\nun autre\n';
+    const fm = new Frontmatter();
+    writeComments(fm, [thread('t1', 'b1')]);
+    const written = fileOf(fm, body);
+    expect(written).toContain('nbe: {"comments"');
+
+    const file = readFrontmatter(written);
+    const read = readComments(file.frontmatter, file.body);
+    expect(read.markdown).toBe(body);
     expect(read.threads.map((t) => t.id)).toEqual(['t1']);
   });
 
   it('writes nothing at all when there is nothing to say', () => {
-    expect(writeComments('un paragraphe\n', [])).toBe('un paragraphe\n');
-    expect(readComments('un paragraphe\n').threads).toEqual([]);
+    const fm = new Frontmatter();
+    writeComments(fm, []);
+    expect(fileOf(fm, 'un paragraphe\n')).toBe('un paragraphe\n');
+    expect(readComments(fm, 'un paragraphe\n').threads).toEqual([]);
   });
 
-  it('keeps a block it cannot parse rather than deleting what someone wrote', () => {
+  it('leaves the rest of the header exactly where the vault put it', () => {
+    const note = '---\ntags:\n  - projet\n---\n\nun paragraphe\n';
+    const file = readFrontmatter(note);
+    writeComments(file.frontmatter, [thread('t1', 'b1')]);
+    const written = fileOf(file.frontmatter, file.body);
+    expect(written).toContain('tags:\n  - projet');
+
+    // and taking the discussion away takes every trace of it with it
+    const cleared = readFrontmatter(written);
+    writeComments(cleared.frontmatter, []);
+    expect(fileOf(cleared.frontmatter, cleared.body)).toBe(note);
+  });
+
+  it('ignores what a hand edit made of it, rather than trusting the file', () => {
+    const fm = new Frontmatter().set('nbe', { comments: ['pas un fil', { id: 'x' }] });
+    expect(readComments(fm, 'un paragraphe\n').threads).toEqual([]);
+  });
+
+  it('still reads a note written the old way, and moves it over', () => {
+    const legacy = 'un paragraphe\n\n%%carnet-comments\n' + JSON.stringify(thread('t1', 'b1')) + '\n%%\n';
+    const read = readComments(new Frontmatter(), legacy);
+    expect(read.threads.map((t) => t.id)).toEqual(['t1']);
+    expect(read.markdown).toBe('un paragraphe\n');
+
+    const fm = new Frontmatter();
+    writeComments(fm, read.threads);
+    expect(fileOf(fm, read.markdown)).not.toContain('%%carnet-comments');
+  });
+
+  it('keeps an old block it cannot parse rather than deleting what someone wrote', () => {
     const note = 'un paragraphe\n\n%%carnet-comments\nceci nest pas du JSON\n%%\n';
-    const read = readComments(note);
+    const read = readComments(new Frontmatter(), note);
     expect(read.threads).toEqual([]);
     expect(read.markdown).toBe(note);
   });

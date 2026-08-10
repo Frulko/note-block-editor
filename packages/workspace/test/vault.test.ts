@@ -51,7 +51,18 @@ describe('the layout is a vault a person can read', () => {
     const id = await ws.createPage({ title: 'Journal' });
     const [file] = exportVault(ws);
     expect(file!.text).toContain(`id: ${id}`);
-    expect(file!.text).toContain('title: "Journal"');
+    // plain where YAML reads it back as itself; quoted only where it would not
+    expect(file!.text).toContain('title: Journal');
+  });
+
+  it('keeps a title the filename could not, and quotes it where YAML needs it', async () => {
+    const id = await ws.createPage({ title: 'Réunion : 2026/07' });
+    const [file] = exportVault(ws);
+    expect(file!.path).toBe('Réunion 2026 07.md');
+    expect(file!.text).toContain('title: "Réunion : 2026/07"');
+    // and the title comes back off the file, not off its name
+    expect(importVault([file!])[0]!.props!['title']).toBe('Réunion : 2026/07');
+    expect(importVault([file!])[0]!.id).toBe(id);
   });
 
   it('writes the body as plain markdown, with no JSON and no HTML', async () => {

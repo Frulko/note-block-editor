@@ -1,4 +1,12 @@
-import { blocksToMarkdown, markdownToBlocks, slugify, type MarkdownOptions } from '@nbe/markdown';
+import {
+  Frontmatter,
+  blocksToMarkdown,
+  markdownToBlocks,
+  readFrontmatter,
+  slugify,
+  writeFrontmatter,
+  type MarkdownOptions,
+} from '@nbe/markdown';
 import { uuidv7, type BlockJSON } from '@nbe/core';
 import { SUB_PAGE, pageTitle } from './index';
 import type { Workspace } from './index';
@@ -79,26 +87,20 @@ export interface ExportOptions {
   plugins?: MarkdownOptions['plugins'];
 }
 
-function frontmatter(id: string, title: string): string {
-  // quoted, because a title may contain a colon and YAML would read it as a map
-  return `---\nid: ${id}\ntitle: ${JSON.stringify(title)}\n---\n\n`;
-}
-
-/** Read `id` and `title` back, and return the body after them. */
-function parseFrontmatter(text: string): { id: string | null; title: string | null; body: string } {
-  const match = /^---\n([\s\S]*?)\n---\n?/.exec(text);
-  if (!match) return { id: null, title: null, body: text };
-  const read = (key: string): string | null => {
-    const line = new RegExp(`^${key}:\\s*(.*)$`, 'm').exec(match[1]!);
-    if (!line) return null;
-    const raw = line[1]!.trim();
-    try {
-      return raw.startsWith('"') ? (JSON.parse(raw) as string) : raw;
-    } catch {
-      return raw;
-    }
-  };
-  return { id: read('id'), title: read('title'), body: text.slice(match[0].length) };
+/**
+ * The header of a page file: the id that makes the round trip lossless, and
+ * the title the filename had to reduce.
+ *
+ * @remarks
+ * `@nbe/markdown` owns the format now — this file used to hand-roll both
+ * directions, which is a second YAML dialect to keep in step with the first for
+ * no gain. What a vault's own frontmatter holds (`tags`, `aliases`,
+ * `cssclasses`) is read as a map rather than grepped for two lines; a workspace
+ * has nowhere to *keep* those keys yet, so import still leaves them behind —
+ * but it no longer does so because the reader cannot see them.
+ */
+function header(id: string, title: string): Frontmatter {
+  return new Frontmatter().set('id', id).set('title', title);
 }
 
 /**
@@ -148,11 +150,15 @@ export function exportVault(workspace: Workspace, opts: ExportOptions = {}): Vau
     const upwards = '../'.repeat(depth);
     files.push({
       path: `${directory}${slug}.md`,
-      text:
-        frontmatter(pageId, node.title) +
-        blocksToMarkdown((doc.children ?? []).map((block) => prepare(block, upwards)), {
-          plugins: opts.plugins,
-        }),
+      // the blank line between the header and the prose is the body's, not the
+      // frontmatter's: a note that arrives without one must not grow one
+      text: writeFrontmatter(
+        header(pageId, node.title),
+        '\n' +
+          blocksToMarkdown((doc.children ?? []).map((block) => prepare(block, upwards)), {
+            plugins: opts.plugins,
+          }),
+      ),
     });
     // children live in a folder named after their parent, so the hierarchy is
     // the folder tree — what a vault reader already understands
@@ -197,12 +203,12 @@ export function importVault(files: VaultFile[], opts: MarkdownOptions = {}): Blo
 
   // pass 1: give every file an identity, so links can be resolved in pass 2
   const parsed = markdown.map((file) => {
-    const { id, title, body: p_body } = parseFrontmatter(file.text!);
+    const { frontmatter, body: p_body } = readFrontmatter(file.text!);
     const stem = stemOf(file.path);
     return {
       path: file.path,
-      id: id || uuidv7(),
-      title: title || stem,
+      id: String(frontmatter.get('id') ?? '') || uuidv7(),
+      title: String(frontmatter.get('title') ?? '') || stem,
       stem,
       directory: directoryOf(file.path),
       body: p_body,

@@ -137,7 +137,8 @@ describe('the files stay the truth', () => {
      * mistake, and the frontmatter is where it would land.
      */
     const vault = readFileSync(join(ROOT, 'packages/workspace/src/vault.ts'), 'utf8');
-    const frontmatter = /function frontmatter\([\s\S]*?\n}/.exec(vault)?.[0] ?? '';
+    // `header` builds it; `@nbe/markdown` only knows how to write what it is given
+    const frontmatter = /function header\([\s\S]*?\n}/.exec(vault)?.[0] ?? '';
     expect(frontmatter).toBeTruthy();
     for (const leak of ['user', 'author', 'email', 'machine', 'hostname', 'device']) {
       expect(frontmatter.toLowerCase(), `frontmatter should not carry ${leak}`).not.toContain(leak);

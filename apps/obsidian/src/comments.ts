@@ -8,6 +8,7 @@ import {
   type Run,
 } from '@nbe/core';
 import { fr, openCommentThread, type CommentAuthor, type CommentContext } from '@nbe/dom';
+import type { Frontmatter } from '@nbe/markdown';
 
 /**
  * Comments in a vault, kept in the note itself.
@@ -19,24 +20,31 @@ import { fr, openCommentThread, type CommentAuthor, type CommentContext } from '
  * exactly what this project refuses elsewhere, because a note carried to
  * another machine on a USB stick would arrive with its discussion left behind.
  *
- * So the note carries it, in Obsidian's own comment syntax, which reading mode
- * renders as nothing:
+ * So the note carries it, in two halves:
  *
- * - the **anchor** is `%%^<id>%%` at the end of the commented block's line. It
+ * - the **anchor** is `%%^<id>%%` at the end of the commented block's line,
+ *   Obsidian's own comment syntax, which reading mode renders as nothing. It
  *   travels with the block through a reorder, a rename or an edit made in
  *   another editor, which is what an index into the file cannot do.
- * - the **threads** are one `%%carnet-comments … %%` block at the end of the
- *   note, JSON, one per line.
+ * - the **threads** are the `comments` section of the note's YAML frontmatter
+ *   ({@link @nbe/markdown!Frontmatter}), where a document's metadata belongs
+ *   and where no reader mistakes it for prose.
  *
- * Both are stripped on the way in and written on the way out, here — nothing
- * in `@nbe/markdown` knows about any of it, and a note edited by a plugin that
- * has been uninstalled is still a note.
+ * They used to be a `%%carnet-comments … %%` block at the *end* of the note —
+ * invisible when rendered, but text all the same: it moved when the note was
+ * appended to, Obsidian's word count counted it, a search matched inside it,
+ * and a `%%` typed by hand could swallow it. The frontmatter is the place every
+ * other tool already agrees is not prose. Notes written the old way are still
+ * read ({@link legacyThreads}) and move over on the next save.
  *
  * @module
  */
 
 /** `%%^abc123%%` — the anchor, at the end of a block's text. */
 const ANCHOR = /\s*%%\^([A-Za-z0-9_-]+)%%/g;
+
+/** The frontmatter section the discussion lives in: `nbe.comments`. */
+export const COMMENTS_SECTION = 'comments';
 
 const OPEN = '%%carnet-comments';
 const CLOSE = '%%';
@@ -46,15 +54,33 @@ export interface NoteComments {
   threads: CommentThread[];
 }
 
+/** Anything that is not a thread, out — the file is text, and text is edited. */
+function threadsOf(value: unknown): CommentThread[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((t): t is CommentThread => !!t && typeof t.id === 'string' && Array.isArray(t.messages));
+}
+
 /**
- * Split a note into its text and its threads.
+ * The threads a note carries, and the prose with nothing extra left in it.
+ *
+ * @param frontmatter - The note's header, already split off by `readFrontmatter`.
+ * @param markdown - The body under it.
+ */
+export function readComments(frontmatter: Frontmatter, markdown: string): NoteComments {
+  const own = threadsOf(frontmatter.section(COMMENTS_SECTION));
+  if (own.length) return { markdown, threads: own };
+  return legacyThreads(markdown);
+}
+
+/**
+ * A note written before the threads moved to the frontmatter.
  *
  * @remarks
  * A malformed block is *kept as text* rather than dropped: a thread nobody can
  * parse is still something someone wrote, and silently deleting it on the next
  * save is the one outcome worse than showing it.
  */
-export function readComments(markdown: string): NoteComments {
+export function legacyThreads(markdown: string): NoteComments {
   const start = markdown.lastIndexOf(`\n${OPEN}`);
   if (start === -1) return { markdown, threads: [] };
   const body = markdown.slice(start + OPEN.length + 1);
@@ -73,11 +99,15 @@ export function readComments(markdown: string): NoteComments {
   return { markdown: markdown.slice(0, start), threads };
 }
 
-/** Put the threads back at the end of the note, or leave it as it is. */
-export function writeComments(markdown: string, threads: readonly CommentThread[]): string {
-  if (!threads.length) return markdown;
-  const lines = threads.map((thread) => JSON.stringify(thread)).join('\n');
-  return `${markdown.replace(/\s*$/, '')}\n\n${OPEN}\n${lines}\n${CLOSE}\n`;
+/**
+ * Put the threads back into the note's header, or take the section away.
+ *
+ * @remarks
+ * Removing it when there is nothing to say is what keeps a note that was never
+ * commented on identical to one this plugin has never opened.
+ */
+export function writeComments(frontmatter: Frontmatter, threads: readonly CommentThread[]): void {
+  frontmatter.setSection(COMMENTS_SECTION, threads.length ? threads : undefined);
 }
 
 /**

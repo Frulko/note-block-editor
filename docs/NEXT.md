@@ -26,6 +26,40 @@ reopened in a new process converges with a browser holding nothing.
 simulator, stored to disk by `nbe peer` — three peers, three languages, a full
 WebRTC mesh, and the relay watching none of it go by. Run it: `apps/ios/README.md`.
 
+## The frontmatter is a place to put things, 2026-08-10
+
+Everything that is *about* a note now goes in its YAML header — three dashes, a
+YAML map, three dashes, the one convention every Markdown tool already agrees
+on. `packages/markdown/src/frontmatter.ts`, ~230 lines, no YAML dependency.
+
+- **A key we did not touch is re-emitted verbatim.** `Frontmatter` keeps the
+  source lines of every key nobody changed and copies them back out, so a
+  hand-written `tags:` list, its comments and its alignment survive a save. It
+  is the only rule that makes writing into somebody else's header acceptable.
+- **One key for everything of ours: `nbe`.** `setSection(name, value)` merges,
+  so two plugins cannot clobber each other, and removing the last section
+  removes the key — a note with nothing to remember carries no trace of this
+  editor. That is the extension point: adding a field needs no change here.
+  Structured values are JSON, which *is* YAML's flow style.
+- **Threads moved out of the prose.** They were a `%%carnet-comments%%` block at
+  the end of the note: invisible when rendered, but text — it moved when the
+  note was appended to, the word count counted it, search matched inside it.
+  Notes written the old way are still read (`legacyThreads`) and move over on
+  the next save.
+- **A title the filename cannot hold.** « Réunion : 2026/07 » is a note called
+  that, in `Réunion 2026 07.md`, with `title:` in its header; the tab and the
+  inline title show it. Written only when the slug and the title differ.
+- **Three hand-rolled readers are gone**: `vault.ts` grepped the header for the
+  two keys its own writer had written, `collections.ts` walked the lines
+  tracking whether the last key had opened a list, and the Obsidian host had the
+  `%%` block. One reader, one writer, `markdownToDocument`/`documentToMarkdown`
+  over both halves of a file.
+
+`packages/markdown/test/frontmatter.test.ts` and `test/obsidian-comments.test.ts`.
+What is *not* done: `importVault` reads a vault's own properties and still drops
+them, because a `Workspace` page has nowhere to keep them — the reader can see
+them now, which is the half that was missing.
+
 ## Comments are a discussion, 2026-08-09
 
 Reported as a rendering fault — the marker on a commented block and the hover
