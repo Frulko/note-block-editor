@@ -1,0 +1,234 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import Code from '../../components/Code.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const mount = `import { createMdx } from '@nbe/blocks-mdx/dom'
+import { EditorView } from '@nbe/dom'
+
+const mdx = createMdx({
+  components: {
+    // le fichier donne le nom et les attributs ; ceci donne le comportement
+    Counter: ({ props, setProps }) => {
+      const n = Number(props.start ?? 0)
+      const el = document.createElement('div')
+      const plus = Object.assign(document.createElement('button'), { textContent: '+' })
+      plus.addEventListener('click', () => setProps({ start: n + 1 }))
+      el.append(\`\${props.label ?? 'Compteur'} : \${n}\`, plus)
+      return el
+    },
+  },
+})
+
+new EditorView(el, editor, { blocks: [...builtinBlocks, mdx] })`;
+
+const context = `type MdxComponentRenderer = (ctx: {
+  name: string                              // <Counter …> → 'Counter'
+  props: Record<string, unknown>            // les attributs, lus
+  children: string                          // le texte entre les balises
+  source: string                            // la source entière, verbatim
+  setProps(patch: Record<string, unknown>): void
+}) => HTMLElement | null                    // null : « je ne sais pas dessiner ça »`;
+
+const props = `<Counter start={3} label="Vues" wide total={count + 1} />
+
+// props === {
+//   start: 3,              // {…} qui est du JSON → la valeur
+//   label: 'Vues',         // "…" → une chaîne
+//   wide: true,            // attribut nu → true (la règle de JSX)
+//   total: 'count + 1',    // {…} qui n'est pas du JSON → le texte, jamais évalué
+// }`;
+
+const persist = `// avant
+<Counter start={3} label="Vues" />
+
+// setProps({ start: 5 }) — et le fichier dit maintenant :
+<Counter start={5} label="Vues" />`;
+
+const expression = `// setProps({ start: 9 }) sur :
+<Counter start={3} total={count + 1} />
+
+// écrit ceci, et surtout PAS total="count + 1" :
+<Counter start={9} total={count + 1} />`;
+
+/** What a tag becomes, by where the host stands. */
+const rows = [
+  {
+    what: 'Un nom que l’hôte connaît',
+    editor: 'le composant, dessiné par l’hôte',
+    markdown: 'la balise, octet pour octet',
+    html: 'sa source, échappée',
+  },
+  {
+    what: 'Un nom inconnu',
+    editor: 'une carte avec sa source',
+    markdown: 'la balise, octet pour octet',
+    html: 'sa source, échappée',
+  },
+  {
+    what: '<div>, en minuscule',
+    editor: 'de la prose',
+    markdown: 'de la prose',
+    html: 'de la prose',
+  },
+];
+---
+<Docs
+  title="MDX : des composants gardés, et dessinés si vous voulez"
+  description="Comment le bloc MDX préserve un fichier .mdx, et comment un hôte peut rendre ses composants — sans que rien du fichier ne soit exécuté."
+  wide
+>
+  <p>
+    <strong>Ce bloc n’exécute rien, et c’est la décision dont tout le reste
+    découle.</strong> MDX, c’est du Markdown avec du JSX dedans&nbsp;; évaluer
+    du JSX demande un runtime, un compilateur, et du code arbitraire venu d’un
+    fichier qu’on vous a donné — dans un éditeur dont toute la promesse est que
+    vos notes sont des fichiers lisibles sans lui. C’est la même réponse que
+    pour l’iframe d’une page déposée, pour la même raison.
+  </p>
+  <p>
+    Ce que ça achète est ce qui manquait&nbsp;: <strong>un <code>.mdx</code>
+    s’ouvre ici et se referme identique</strong>. Sans ce bloc, une balise de
+    composant est de la prose — <code>&lt;Callout type="warning"&gt;</code> est
+    lu comme un paragraphe, ses chevrons sont échappés à l’enregistrement, et le
+    fichier cesse d’être du MDX.
+  </p>
+
+  <h2 id="sans-hote">Sans rien de plus</h2>
+  <p>
+    Importez le bloc et un composant s’affiche comme ce qu’il est&nbsp;: son nom
+    et sa source, dans une carte. C’est le comportement par défaut et il ne
+    demande aucune configuration. La majuscule est la règle de JSX, pas une
+    invention d’ici&nbsp;: <code>&lt;div&gt;</code> reste de la prose — Markdown
+    la porte déjà très bien — et <code>&lt;Callout&gt;</code> devient un bloc.
+  </p>
+
+  <h2 id="composants">Quand l’hôte sait dessiner</h2>
+  <p>
+    L’autre moitié, et celle qui rend le bloc utile plutôt que conservateur.{' '}
+    <strong>Le fichier fournit les données</strong> — un nom, des attributs, le
+    texte entre les balises. <strong>L’hôte fournit le code</strong>, qu’il a
+    écrit lui-même et à qui il fait déjà confiance. <code>&lt;Counter
+    start={'{3}'} /&gt;</code> devient un vrai compteur cliquable, et pas un
+    caractère du fichier n’a été exécuté pour ça.
+  </p>
+  <Code code={mount} lang="ts" />
+  <p>
+    C’est la même division que tous les autres crochets d’hôte de cet
+    éditeur&nbsp;: <code>onStoreAsset</code> n’invente pas une politique de
+    stockage, <code>onSearchPages</code> n’invente pas un magasin de pages. Un
+    nom qui n’est pas dans la table retombe sur la carte de source, donc ajouter
+    des composants est purement additif&nbsp;: un montage existant ne change pas.
+  </p>
+
+  <h2 id="contexte">Ce qu’un composant reçoit</h2>
+  <Code code={context} lang="ts" />
+  <p>
+    Rendre <code>null</code> est une vraie réponse, pas un chemin d’erreur&nbsp;:
+    un rendu enregistré pour <code>Chart</code> peut refuser un <code>Chart</code>
+    dont il ne sait pas lire les données, et le lecteur voit
+    la source plutôt qu’un dessin cassé.
+  </p>
+
+  <h2 id="props">Comment les attributs sont lus</h2>
+  <Code code={props} lang="jsx" />
+  <p>
+    Un <code>{'{…}'}</code> est du JSON quand il en est — ce qui couvre les
+    nombres, les booléens, les tableaux et les objets, c’est-à-dire tout ce que
+    quelqu’un écrit comme valeur littérale. Quand ce n’en est pas, la valeur
+    arrive <em>en texte</em> et n’est jamais évaluée. Un rendu peut en faire ce
+    qu’il veut, y compris rien.
+  </p>
+
+  <h2 id="etat">L’état qui survit à un rechargement</h2>
+  <p>
+    Un composant qui garde son compte dans une fermeture revient à zéro dès
+    qu’on rouvre le fichier. <code>setProps</code> écrit l’état là où il
+    appartient&nbsp;: <strong>dans la balise</strong>. Le fichier dit alors où en
+    est le compteur, n’importe quel autre outil MDX lit la même valeur, et
+    rouvrir le fichier ramène le composant tel qu’on l’a laissé.
+  </p>
+  <Code code={persist} lang="jsx" />
+  <p>
+    C’est une <em>vraie</em> modification — annulable, et elle salit le document
+    — parce que c’en est une. Un composant qui stocke quelque chose que personne
+    n’a voulu garder ne doit pas appeler <code>setProps</code>.
+  </p>
+  <p>
+    Les deux autres endroits possibles ont été écartés, et pour des raisons
+    concrètes&nbsp;: un marqueur en commentaire casserait l’aller-retour octet
+    pour octet qui est la raison d’être du bloc, et une clé dans l’en-tête YAML
+    demanderait un identifiant stable que ce bloc ne persiste pas.
+  </p>
+
+  <h3 id="expressions">La règle qui rend ça sûr</h3>
+  <p>
+    <strong>Seules les clés modifiées sont réécrites.</strong> Tout le reste
+    garde exactement les octets avec lesquels il a été écrit — c’est la règle
+    que <code>Frontmatter</code> applique déjà aux clés que personne n’a touchées.
+  </p>
+  <Code code={expression} lang="jsx" />
+  <p>
+    Sans elle&nbsp;: <code>{'{count + 1}'}</code> se lit comme la <em>chaîne</em>{' '}
+    <code>count + 1</code>, donc réécrire tous les attributs
+    l’émettrait en <code>total="count + 1"</code> — une expression transformée en
+    littéral, dans un fichier que personne ne pensait avoir changé.
+  </p>
+
+  <h2 id="menu">Dans le menu «&nbsp;/&nbsp;»</h2>
+  <p>
+    Une entrée <em>Composant</em>, plus une par composant enregistré, chacune
+    marquée <code>mdx</code> à droite&nbsp;: «&nbsp;Composant&nbsp;» ne dit pas à
+    quel monde il appartient, et allonger le libellé coûterait la chose qu’un
+    lecteur parcourt vraiment.
+  </p>
+
+  <h2 id="export">Aux exports</h2>
+  <div class="api-scroll">
+    <table class="api-table">
+      <thead>
+        <tr><th>Dans le fichier</th><th>Dans l’éditeur</th><th>En Markdown</th><th>En HTML</th></tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr><td>{r.what}</td><td>{r.editor}</td><td>{r.markdown}</td><td>{r.html}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <p>
+    L’export HTML montre la source échappée&nbsp;— montrée, jamais exécutée,
+    la même promesse que dans l’éditeur — et l’état voyage avec, puisqu’il est
+    dans la balise. Le bloc y porte son identifiant comme tous les autres, donc
+    un lien vers lui fonctionne.
+  </p>
+  <p>
+    Le reste d’un vrai fichier <code>.mdx</code> traverse aussi&nbsp;:
+    un <code>import</code>, un <code>export const</code>, une
+    expression <code>{'{frontmatter.title}'}</code> en début de ligne sont de la
+    prose pour cet éditeur, et de la prose qui ressort telle quelle.
+  </p>
+
+  <h2 id="limites">Ce que ce n’est pas</h2>
+  <ul>
+    <li>
+      Ce n’est pas un compilateur MDX. Rien n’est évalué, ni les composants, ni
+      les expressions, ni les <code>import</code> en tête de fichier.
+    </li>
+    <li>
+      Un composant dessiné par l’hôte est du code de l’hôte&nbsp;: c’est lui qui
+      décide de ce qu’il fait, et c’est à lui de ne pas y mettre ce qu’il ne veut
+      pas exécuter.
+    </li>
+    <li>
+      Un bloc MDX n’a pas de curseur — comme une image. On le sélectionne en
+      appuyant dessus, et Entrée ouvre un paragraphe en dessous.
+    </li>
+  </ul>
+
+  <p>
+    Le <a href={`${base}/demo/`}>bac à sable</a> monte un <code>Counter</code> et
+    un <code>Callout</code>&nbsp;: cliquez le compteur, ouvrez
+    l’onglet <strong>Markdown</strong>, et regardez la balise changer.
+  </p>
+</Docs>
