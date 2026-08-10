@@ -33,6 +33,18 @@ test.describe('the editor fits a phone', () => {
     expect(editor.width).toBeGreaterThan(300);
   });
 
+  /*
+   * And so does the text, which is not the same claim. The editor filled the
+   * screen while reserving 58px of gutter on each side for a 26px button that
+   * is only there while a block is being pointed at — a third of a phone,
+   * spent on margin. The block is what a reader sees.
+   */
+  test('the text column takes the width too, not just the page', async ({ page }) => {
+    await open(page);
+    const block = (await page.locator('.nbe-editor > .nbe-block').first().boundingBox())!;
+    expect(block.width).toBeGreaterThan(320);
+  });
+
   test('the panels are drawers, closed until asked for', async ({ page }) => {
     await open(page);
     const sidebar = (await page.locator('#sidebar').boundingBox())!;

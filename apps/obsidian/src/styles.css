@@ -9,9 +9,32 @@
 
 @import '@nbe/dom/style.css';
 
+/* ==========================================================================
+   The scroller.
+
+   `height: 100%` needs a parent with a definite height, and on a phone
+   `.view-content` is a flex column carrying a toolbar as well as us — so the
+   percentage resolved against nothing, the box took its content's height, and
+   the note ran off the bottom of a pane that would not scroll.
+
+   A flex item with `min-height: 0` is the fix and it is not a nicety: the
+   default is `min-height: auto`, which refuses to shrink below the content —
+   an `overflow: auto` box that is never smaller than what is in it has nothing
+   to scroll, which is exactly "le scroll est cassé".
+   ========================================================================== */
+.workspace-leaf-content[data-type='carnet-editor'] .view-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
 .carnet-host {
+  flex: 1 1 auto;
+  min-height: 0;
   height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  /* a phone must not hand the overscroll to the pane behind it */
+  overscroll-behavior: contain;
 }
 
 /* ==========================================================================
@@ -35,9 +58,12 @@
 }
 
 /* The inline title: the filename, edited in place like Obsidian's own.
-   ponytail: the horizontal formula copies .nbe-editor's defaults (24px pad,
-   58px gutter, 708px measure); a custom maxWidth/padX vault setting will
-   shift the body but not the title — wire the settings through if that bites. */
+   The horizontal formula copies .nbe-editor's, through the same custom
+   properties — so a narrow pane, a phone or a vault setting moves the title
+   and the body together instead of leaving the title indented past the text.
+   ponytail: a custom maxWidth/padX vault setting still only reaches the body,
+   because the editor sets those on its own element — wire them through here if
+   that bites. */
 .carnet-title {
   padding: 40px max(24px, 58px, calc((100% - 708px) / 2)) 0;
   background: var(--background-primary);
@@ -50,6 +76,16 @@
   word-break: break-word;
   cursor: text;
   user-select: text;
+}
+/* The same numbers the editor uses at this width (reset.css). Restated rather
+   than read from `--nbe-pad-x`, because the editor declares those on its own
+   element and the title is its sibling — an inherited value would lose to the
+   declaration. Two numbers, and a title indented past its own text is the
+   thing this prevents. */
+@media (max-width: 600px) {
+  .carnet-title {
+    padding: 20px 32px 0;
+  }
 }
 
 /* ==========================================================================

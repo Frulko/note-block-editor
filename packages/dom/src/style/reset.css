@@ -40,6 +40,24 @@
   cursor: text;
 }
 
+/* On a narrow screen — a phone, or a side pane — the two 58px gutter columns
+   are a third of the width, and they are reserved for a 26px button that is
+   only there while the pointer is near a block. At 390px that left 274px of
+   text. Giving most of it back is the whole of "revoir le responsive".
+
+   ponytail: the gutter clamps to the editor's edge (`Math.max(0, at.x)` in
+   controls.ts) and so overlays about 26px of the first line while it is
+   showing — the degradation `padding.x: 0` already documents, and what a phone
+   editor does. Drop a button from the narrow gutter if that turns out to
+   matter more than the width does. */
+@media (max-width: 600px) {
+  .nbe-editor {
+    --nbe-pad-top: 24px;
+    --nbe-pad-x: 32px;
+    --nbe-gutter-width: 32px;
+  }
+}
+
 .nbe-editor ::selection {
   background: rgb(var(--nbe-accent-rgb) / 0.28);
 }

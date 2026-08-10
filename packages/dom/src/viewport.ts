@@ -184,10 +184,24 @@ export function attachViewportGuard(view: EditorView): () => void {
     const bottom = viewport.offsetTop + viewport.height;
     const overflow = caret.bottom + MARGIN - bottom;
     if (overflow <= 0) return; // visible: leave the page where the user put it
-    // `scrollBy` on the window, because the caret may be inside a scroller we
-    // do not own and the browser resolves that for us
-    window.scrollBy({ top: overflow, behavior: 'instant' as ScrollBehavior });
-    view.content.closest('[data-nbe-scroller], .page-scroll')?.scrollBy?.({ top: overflow });
+    /*
+     * The scroller that shows the editor, found the way `reveal` finds it.
+     *
+     * This used to scroll the window *and* `.page-scroll` — a class belonging
+     * to the demo. In a host whose scroller is named anything else, and
+     * Obsidian's is `.carnet-host`, the second call reached nothing and the
+     * first moved a window that does not scroll: on a phone the keyboard came
+     * up, the caret went behind it, and the app shell twitched instead. Every
+     * `selectionchange` with the keyboard up did it again, which is what a
+     * blink is.
+     */
+    const scroller = findScrollParent(view.content);
+    const paging = scroller === document.scrollingElement || scroller === document.documentElement;
+    if (paging) window.scrollBy({ top: overflow, behavior: 'instant' as ScrollBehavior });
+    else scroller.scrollTop += overflow;
+    // and it is the editor's own scroll, so `holdScroll` must not put it back —
+    // the two undoing each other is the other half of the twitch
+    deliberate.set(paging ? (document.scrollingElement ?? document.documentElement) : scroller, Date.now());
   };
 
   /**

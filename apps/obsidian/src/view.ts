@@ -410,6 +410,17 @@ export class CarnetView extends TextFileView {
         if (file === this.file && this.inlineTitleEl) this.inlineTitleEl.textContent = this.displayTitle();
       }),
     );
+
+    /*
+     * The note may already be here.
+     *
+     * `build` needs the mount and gives up quietly without one — and nothing
+     * ever asked again, so a `setViewData` that landed before this ran left a
+     * blank pane for good. That is "parfois rien ne s'affiche": it is a race,
+     * so it is intermittent, and it is likeliest where the view is created
+     * lazily, which is what a phone does with every pane it is not showing.
+     */
+    if (this.data) this.build(this.data);
   }
 
   /**
