@@ -32,6 +32,30 @@ export interface LinkPasteOptions {
   href: string;
 }
 
+/**
+ * A URL as short as it can be and still say where it goes.
+ *
+ * @remarks
+ * The host, and the last thing on the path — `example.com/…/article`. Which is
+ * what a reader of a sentence needs from a link: the scheme is noise, `www.` is
+ * noise, and a forty-character tracking query in the middle of a paragraph is
+ * worse than noise. The `href` keeps all of it.
+ *
+ * Shared with the hover card's rename field, which pre-fills with exactly this.
+ *
+ * @category Interaction
+ */
+export function shortenUrl(href: string): string {
+  try {
+    const url = new URL(href);
+    const host = url.hostname.replace(/^www\./, '');
+    const last = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() ?? '');
+    return last ? `${host}/${last}` : host;
+  } catch {
+    return href;
+  }
+}
+
 /** The page a URL might be, by the name at the end of it. */
 function pageFor(view: EditorView, href: string): { pageId: string; title: string } | null {
   const search = view.options.onSearchPages;
@@ -95,7 +119,78 @@ export function offerLinkTreatments(view: EditorView, at: LinkPasteOptions): voi
     view.syncDomSelection();
   };
 
+  /**
+   * Whether the link is the whole paragraph, which decides what goes first.
+   *
+   * @remarks
+   * Enter takes the first entry, so the order *is* the default — and the right
+   * default depends on where the link landed. Alone on a line, a URL is
+   * something you pasted to look at: the embed leads, as it always has. In the
+   * middle of a sentence it is a reference, and turning it into a block would
+   * tear the sentence in half — so there the inline treatments lead.
+   *
+   * Same test `becomeBlock` uses to decide whether to take the paragraph with
+   * it, which is the same question asked from the other side.
+   */
+  const block = editor.doc.blocks.get(at.blockId);
+  const whole = plainText(block?.text).trim();
+  const alone = whole === whole.slice(at.from, at.to).trim();
+
   const entries: MenuEntry[] = [{ kind: 'section', label: labels.pasteLinkAs }];
+
+  /** Keep the link, change what it reads as. */
+  const rename = (label: string) => {
+    editor.dispatch(
+      (tx) => {
+        tx.op({ type: 'delete_text', id: at.blockId, from: at.from, to: at.to });
+        tx.op({
+          type: 'insert_text',
+          id: at.blockId,
+          offset: at.from,
+          runs: [{ text: label, marks: [{ type: 'link', attrs: { href: at.href } }] }],
+        });
+      },
+      { origin: 'input', selection: textCaret(at.blockId, at.from + label.length) },
+    );
+    done();
+  };
+
+  /*
+   * The two that keep the link *inline*, which is what a URL dropped into the
+   * middle of a sentence usually is. Both are ordinary Markdown links with a
+   * different text — `[example.com/article](https://…)` — so they need no
+   * marker, no prop and no new syntax, and the file round-trips byte for byte.
+   *
+   * The short one is always offered: it is a string operation and needs
+   * nothing. The title needs the network, and the network belongs to a host —
+   * so it is absent rather than dead where nobody can answer, the same rule the
+   * mention below already follows.
+   */
+  const inline: MenuEntry[] = [];
+  const short = shortenUrl(at.href);
+  if (short !== at.href) {
+    inline.push({ label: labels.pasteAsShort, icon: 'link', hint: short, onSelect: () => rename(short) });
+  }
+  if (view.options.onResolveLink) {
+    inline.push({
+      label: labels.pasteAsTitle,
+      icon: 'file-text',
+      onSelect: () => {
+        void Promise.resolve(view.options.onResolveLink?.(at.href))
+          .then((meta) => {
+            // no title is not an error: the link stays exactly as the paste
+            // made it, which is the same thing choosing « Lien simple » does
+            const title = meta?.title?.trim();
+            if (title) rename(title);
+            else done();
+          })
+          .catch(() => done());
+      },
+    });
+  }
+  // in a sentence, reading well is the likeliest intent, so it leads
+  if (!alone) entries.push(...inline);
+
   if (page) {
     entries.push({
       label: labels.pasteAsMention,
@@ -142,6 +237,8 @@ export function offerLinkTreatments(view: EditorView, at: LinkPasteOptions): voi
       },
     );
   }
+  // alone on a line the block treatments lead, so these come after them
+  if (alone) entries.push(...inline);
   // last, and named for what it is: the paste already did this, so choosing it
   // is choosing to change nothing
   entries.push({ label: labels.pasteAsUrl, icon: 'check', onSelect: done });

@@ -134,6 +134,8 @@ export const de: EditorLabels = {
   pasteAsMention: 'Erwähnung',
   pasteAsEmbed: 'Einbettung',
   pasteAsBookmark: 'Lesezeichen',
+  pasteAsShort: 'Kurzer Link',
+  pasteAsTitle: 'Titel der Seite',
   pasteAsUrl: 'Einfacher Link',
   convertToEmbed: 'In eine Einbettung umwandeln',
   dbUnavailable: 'Datenbank nicht verfügbar',

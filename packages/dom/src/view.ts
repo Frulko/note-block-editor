@@ -307,6 +307,23 @@ export interface EditorViewOptions {
    * call site: a refusal is a missing title, not a broken card.
    */
   onResolveLink?: (url: string) => Promise<{ title?: string } | null>;
+  /**
+   * Draw each named external link's favicon before its text.
+   *
+   * @remarks
+   * What makes a link read as a *reference* rather than as a URL somebody left
+   * in a sentence — the mention shape, for something outside the vault. Only
+   * links whose text is not the URL get one: a bare `https://…` already says
+   * where it goes.
+   *
+   * Off by default, and that is not timidity: it is one request to a third
+   * party for every link a reader scrolls past, from the link's own origin, and
+   * an editor whose claim is that your notes are yours does not do that behind
+   * anyone's back. A host that wants it says so.
+   *
+   * @defaultValue false
+   */
+  linkIcons?: boolean;
   /** Collections/views/row-pages live in the host workspace (phase 3, §2.5). */
   database?: import('./database').DatabaseHost;
   /**

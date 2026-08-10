@@ -57,6 +57,8 @@ export interface CarnetSettings {
   typeface: string;
   /** Pin the format bar above the note instead of floating it over a selection. */
   stickyToolbar: boolean;
+  /** Draw a favicon before each named external link. One request per link. */
+  linkIcons: boolean;
   /** The editor's interface language. `LOCALE_NAMES` lists what ships. */
   locale: string;
   /** Comments, kept in the note itself as Obsidian comment syntax. */
@@ -81,6 +83,7 @@ export const DEFAULT_SETTINGS: CarnetSettings = {
   codeTheme: 'one',
   typeface: 'sans',
   stickyToolbar: false,
+  linkIcons: false,
   // the vault is most likely French if this plugin is installed; the editor's
   // own default is English and every other language is one setting away
   locale: 'fr',
@@ -132,6 +135,7 @@ export function viewOptions(s: CarnetSettings): EditorViewOptions {
   const opts: EditorViewOptions = {
     labels: labelsFor(s.locale),
     spellcheck: s.spellcheck,
+    linkIcons: s.linkIcons,
     columns: s.columns,
     readOnly: s.readOnly,
     // the table is a plugin: without it a note's `| a | b |` stays a paragraph
@@ -258,6 +262,18 @@ export class CarnetSettingTab extends PluginSettingTab {
       .addToggle((t) =>
         t.setValue(s.stickyToolbar).onChange((v) => {
           s.stickyToolbar = v;
+          save();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName('Favicon des liens')
+      .setDesc(
+        'Affiche l’icône du site devant un lien qui porte un nom — pas devant une URL nue, qui dit déjà où elle va. Désactivé par défaut : c’est une requête vers le site en question pour chaque lien affiché.',
+      )
+      .addToggle((t) =>
+        t.setValue(s.linkIcons).onChange((v) => {
+          s.linkIcons = v;
           save();
         }),
       );

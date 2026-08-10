@@ -487,6 +487,12 @@ function openPage(pageId: string): void {
     // ?columns=on to exercise the experimental side-drop that builds columns
     columns: new URLSearchParams(location.search).get('columns') === 'on',
     /*
+     * ?icons=on draws each named link's favicon. Off by default here for the
+     * reason it is off everywhere: one request to the linked site for every
+     * link on screen, which a reader did not ask for.
+     */
+    linkIcons: flags.get('icons') === 'on',
+    /*
      * ?find=on for the in-page search. Off by default here on purpose: in a
      * browser `⌘F` is the browser's, and a web page that takes it away to
      * offer something worse is exactly what this project set out not to be.

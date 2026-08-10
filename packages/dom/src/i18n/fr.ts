@@ -143,6 +143,8 @@ export const fr: EditorLabels = {
   pasteAsMention: 'Mention',
   pasteAsEmbed: 'Intégration',
   pasteAsBookmark: 'Signet',
+  pasteAsShort: 'Lien court',
+  pasteAsTitle: 'Titre de la page',
   pasteAsUrl: 'Lien simple',
   convertToEmbed: 'Transformer en intégration',
 

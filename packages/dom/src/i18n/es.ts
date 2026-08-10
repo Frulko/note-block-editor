@@ -134,6 +134,8 @@ export const es: EditorLabels = {
   pasteAsMention: 'Mención',
   pasteAsEmbed: 'Integración',
   pasteAsBookmark: 'Marcador',
+  pasteAsShort: 'Enlace corto',
+  pasteAsTitle: 'Título de la página',
   pasteAsUrl: 'Enlace simple',
   convertToEmbed: 'Convertir en integración',
   dbUnavailable: 'Base de datos no disponible',

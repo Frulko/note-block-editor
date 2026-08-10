@@ -3,25 +3,7 @@ import { mountPortal } from './ui/portal';
 import type { EditorView } from './view';
 import { autoUpdate, createActionButton, pushOverlay, type IconName } from './ui';
 import { inlineTextRange, selectInlineText } from './selection';
-
-/**
- * A URL as short as it can be and still say where it goes.
- *
- * @remarks
- * The host, and the last thing on the path — `example.com/…/article`. Which is
- * what a reader of a sentence needs from a link: a forty-character tracking
- * query in the middle of a paragraph is noise, and the href keeps all of it.
- */
-function shorten(href: string): string {
-  try {
-    const url = new URL(href);
-    const host = url.hostname.replace(/^www\./, '');
-    const last = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() ?? '');
-    return last ? `${host}/${last}` : host;
-  } catch {
-    return href;
-  }
-}
+import { shortenUrl } from './link-paste';
 
 /** Swap a link's text, keeping the link. */
 function rename(
@@ -148,7 +130,7 @@ export function attachLinkHover(view: EditorView): () => void {
          * and is already most of what was asked for; the title is the better
          * answer when it arrives, and it only replaces text nobody has touched.
          */
-        input.value = shorten(href);
+        input.value = shortenUrl(href);
         input.addEventListener('keydown', (e) => {
           e.stopPropagation();
           if (e.key === 'Escape') hide();

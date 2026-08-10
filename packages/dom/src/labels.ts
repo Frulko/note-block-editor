@@ -276,6 +276,10 @@ export interface EditorLabels {
   pasteAsEmbed: string;
   /** Turn it into an embed block showing a card. */
   pasteAsBookmark: string;
+  /** Keep it inline, reading as the host and the last path segment. */
+  pasteAsShort: string;
+  /** Keep it inline, reading as the page's own title. Needs `onResolveLink`. */
+  pasteAsTitle: string;
   /** Leave it as the link the paste already made. */
   pasteAsUrl: string;
   /** Block-menu entry on a paragraph whose whole text is one link. */

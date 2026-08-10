@@ -65,8 +65,8 @@
 .nbe-checked > .nbe-row > .nbe-checkbox::after {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 1px;
+  top: 2px;
+  left: 5px;
   width: 4px;
   height: 8px;
   border: solid var(--nbe-on-accent);
@@ -122,9 +122,10 @@
 }
 
 .nbe-t-quote {
-  border-left: 3px solid currentColor;
+  border-left: 3px solid var(--nbe-border);
   padding-left: 14px;
   margin: 4px 0;
+  border-radius: 0;
 }
 
 .nbe-t-divider {
@@ -207,6 +208,7 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background var(--nbe-fast) var(--nbe-ease);
+  margin-right: 10px;
 }
 .nbe-callout-icon:hover {
   background: var(--nbe-hover-strong);
@@ -524,4 +526,15 @@ a.nbe-m-link:hover {
 .nbe-media-resizing-y,
 .nbe-media-resizing-y * {
   cursor: ns-resize !important;
+}
+
+/* the favicon in front of a named link (EditorViewOptions.linkIcons): small
+   enough to be punctuation, aligned to the text rather than to the line box */
+.nbe-m-link-icon {
+  width: 1em;
+  height: 1em;
+  margin-right: 0.25em;
+  border-radius: 2px;
+  vertical-align: -0.15em;
+  object-fit: contain;
 }

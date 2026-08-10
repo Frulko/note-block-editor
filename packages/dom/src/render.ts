@@ -172,7 +172,58 @@ function renderRun(view: EditorView, run: Run): Node {
     return span;
   }
   span.textContent = run.text;
+
+  /*
+   * A favicon in front of a *named* link, which is what makes it read as a
+   * reference rather than as a URL somebody left in a sentence — the mention
+   * shape, for something outside the vault.
+   *
+   * Only when the text is not the URL itself: a bare `https://…` already says
+   * where it goes, and an icon in front of it is decoration on a thing that
+   * needed none. So choosing « Lien court » or « Titre de la page » is what
+   * turns the icon on, per link, with nothing stored — the difference between
+   * the text and the href *is* the flag, so the Markdown is an ordinary link
+   * and round-trips untouched.
+   *
+   * Behind an option because it is a request to a third party for every link a
+   * reader scrolls past, and this editor does not do that behind anyone's back.
+   */
+  if (link && view.options.linkIcons) {
+    const href = String(link.attrs?.['href'] ?? '');
+    const icon = faviconFor(href, run.text);
+    if (icon) span.prepend(icon);
+  }
   return span;
+}
+
+/**
+ * The site's own favicon, or nothing.
+ *
+ * @remarks
+ * `/favicon.ico` on the link's own origin — not a third-party icon service,
+ * which would tell one company every site anyone links to. An `<img>` rather
+ * than a fetch, so no CORS is involved and a site that has none simply fails to
+ * load: `onerror` removes it and the link reads exactly as it did before.
+ */
+function faviconFor(href: string, text: string): HTMLElement | null {
+  let origin: string;
+  try {
+    const url = new URL(href);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    // the text is the URL: it already says where it goes
+    if (text.trim() === href || text.trim() === href.replace(/\/$/, '')) return null;
+    origin = url.origin;
+  } catch {
+    return null;
+  }
+  const img = document.createElement('img');
+  img.className = 'nbe-m-link-icon';
+  img.src = `${origin}/favicon.ico`;
+  img.alt = '';
+  img.setAttribute('aria-hidden', 'true');
+  img.loading = 'lazy';
+  img.addEventListener('error', () => img.remove());
+  return img;
 }
 
 function renderLeaf(view: EditorView, block: Block): HTMLElement {
