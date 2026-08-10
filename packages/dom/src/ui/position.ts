@@ -162,7 +162,9 @@ export function toContainerPoint(
   container: HTMLElement,
   x: number,
   y: number,
+  /** The container's box, when the caller already measured it — two calls in a row cost two layouts. */
+  box?: DOMRect,
 ): { x: number; y: number } {
-  const rect = container.getBoundingClientRect();
+  const rect = box ?? container.getBoundingClientRect();
   return { x: x - rect.left + container.scrollLeft, y: y - rect.top + container.scrollTop };
 }

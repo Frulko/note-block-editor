@@ -158,6 +158,11 @@
 .nbe-controls.nbe-ctrl-hidden {
   visibility: hidden;
 }
+/* not hovering anything — the gutter stays mounted rather than being removed
+   and re-inserted, which invalidated the style of every sibling block */
+.nbe-controls.nbe-ctrl-off {
+  display: none;
+}
 
 /* --- drag ghost + drop guide --- */
 

@@ -31,6 +31,16 @@ import {
 
 type Edge = 'before' | 'after' | 'left' | 'right';
 
+/**
+ * Not hovering anything: `display: none`, so the gutter stays mounted.
+ *
+ * @remarks
+ * Distinct from `nbe-ctrl-hidden`, which a drag uses to keep the box in
+ * layout. `display` is what re-plays the fade-in when it comes back, which
+ * un-mounting used to do for free.
+ */
+const OFF = 'nbe-ctrl-off';
+
 import { COLORS } from './colors';
 import { isActiveTarget, turnIntoTargets } from './block-types';
 import { blockActionEntries } from './block-actions';
@@ -146,7 +156,9 @@ export function attachControls(view: EditorView): () => void {
             // has visibly nothing to do with what was pressed
             if (hoveredId)
               view.options.onComment!(hoveredId, view.options.commentAuthor ?? null, {
-                getAnchor: () => (button.isConnected ? button.getBoundingClientRect() : null),
+                // the gutter is now hidden rather than un-mounted, so being in
+                // the document is no longer the same question as being on screen
+                getAnchor: () => (button.checkVisibility() ? button.getBoundingClientRect() : null),
               });
           },
         });
@@ -194,16 +206,52 @@ export function attachControls(view: EditorView): () => void {
    * of the editor whenever the host was narrower than the gutter is wide, and
    * it followed only the window's scroll — not the editor's own.
    */
+  /**
+   * The gutter is a row of fixed-size buttons, so its box is measured once.
+   *
+   * @remarks
+   * ponytail: cached for the lifetime of the editor. It would be stale if a
+   * host restyled `.nbe-ctrl-btn` after the first hover; re-measure on the
+   * gutter with a `ResizeObserver` if that ever becomes a real case.
+   */
+  let gutterBox: { width: number; height: number } | null = null;
+
+  /*
+   * The gutter lives **inside** the editor, in the margin the page geometry
+   * reserves for it (`--nbe-gutter-width`). On `document.body` it drifted out
+   * of the editor whenever the host was narrower than the gutter is wide, and
+   * it followed only the window's scroll — not the editor's own.
+   */
   const showControlsFor = (blockEl: HTMLElement) => {
     hoveredId = blockEl.dataset['blockId']!;
-    view.content.append(controls);
+    /*
+     * Shown and hidden by a class, mounted once — not appended on every move.
+     *
+     * `append` on a node that is already there is still a remove and an
+     * insert, and a mutation among the content's children is not local: one
+     * sibling selector anywhere in the page's CSS (`div + div` — Obsidian
+     * plugins ship several) makes Blink invalidate every following sibling,
+     * so re-mounting the gutter recalculated the style of the whole document.
+     * A 60s profile of hovering and scrolling one note: 650_000 element style
+     * resolutions, up to 44_000 in a single recalc, 116ms per scroll event.
+     *
+     * The condition is still needed because a full re-render replaces the
+     * content's children, which takes the gutter out with them.
+     */
+    if (controls.parentElement !== view.content) view.content.append(controls);
+    controls.classList.remove(OFF);
+    // one read each, and one for the container: every one of them flushes
+    // style and layout, and this runs under the pointer and under scroll
     const rect = blockEl.getBoundingClientRect();
+    const box = view.content.getBoundingClientRect();
+    const style = getComputedStyle(blockEl);
+    gutterBox ??= { width: controls.offsetWidth, height: controls.offsetHeight };
     // align to the block's first line rather than its box, so the gutter sits
     // next to the text on tall blocks (callouts, code, images)
-    const line = parseFloat(getComputedStyle(blockEl).lineHeight) || 24;
-    const padTop = parseFloat(getComputedStyle(blockEl).paddingTop) || 0;
-    const lineTop = rect.top + padTop + Math.max(0, (line - controls.offsetHeight || 0) / 2);
-    const at = toContainerPoint(view.content, rect.left - controls.offsetWidth - 6, lineTop);
+    const line = parseFloat(style.lineHeight) || 24;
+    const padTop = parseFloat(style.paddingTop) || 0;
+    const lineTop = rect.top + padTop + Math.max(0, (line - gutterBox.height || 0) / 2);
+    const at = toContainerPoint(view.content, rect.left - gutterBox.width - 6, lineTop, box);
     // a host that sets `padding.x: 0` leaves no margin to sit in; hugging the
     // edge and overlapping the text is worse-looking but still inside
     controls.style.left = `${Math.max(0, at.x)}px`;
@@ -219,16 +267,17 @@ export function attachControls(view: EditorView): () => void {
      * not hovering. Any other right-gutter action a host added still shows.
      */
     rightControls.classList.toggle('nbe-has-marker', blockEl.hasAttribute('data-comments'));
-    view.content.append(rightControls);
-    const right = toContainerPoint(view.content, rect.right + 6, lineTop);
+    if (rightControls.parentElement !== view.content) view.content.append(rightControls);
+    rightControls.classList.remove(OFF);
+    const right = toContainerPoint(view.content, rect.right + 6, lineTop, box);
     rightControls.style.left = `${right.x}px`;
     rightControls.style.top = `${right.y}px`;
   };
 
   const hideControls = () => {
     hoveredId = null;
-    controls.remove();
-    rightControls.remove();
+    controls.classList.add(OFF);
+    rightControls.classList.add(OFF);
   };
 
   /**
@@ -310,12 +359,25 @@ export function attachControls(view: EditorView): () => void {
    *
    * Client coordinates survive a scroll unchanged, so the stored event stays
    * valid; capture is needed because scroll does not bubble.
+   *
+   * Coalesced to one answer per frame. Capture on `document` means this fires
+   * for every scroller the host has — in Obsidian that is the file explorer,
+   * both sidebars and every other open pane — and re-answering the hover
+   * measures the content, the block and its computed style. Profiled at 116ms
+   * per scroll event before this; the gutter only has to be right once per
+   * painted frame.
    */
-  const onScroll = (): void => {
+  let scrollFrame = 0;
+  const answerScroll = (): void => {
+    scrollFrame = 0;
     if (!lastPointer || !hoveredId) return;
     const block = resolveBlock(lastPointer);
     if (block) showControlsFor(block);
     else hideControls();
+  };
+  const onScroll = (): void => {
+    if (!lastPointer || !hoveredId || scrollFrame) return;
+    scrollFrame = requestAnimationFrame(answerScroll);
   };
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
 
@@ -741,6 +803,7 @@ export function attachControls(view: EditorView): () => void {
 
   return () => {
     document.removeEventListener('scroll', onScroll, { capture: true });
+    cancelAnimationFrame(scrollFrame);
     hover.destroy();
     menu.close();
     unDrag();

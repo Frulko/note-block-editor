@@ -219,14 +219,33 @@ export function attachViewportGuard(view: EditorView): () => void {
    */
   const shrunk = (): boolean => viewport.offsetTop + viewport.height < window.innerHeight - 40;
 
+  /*
+   * Remembered, not re-asked.
+   *
+   * `visualViewport.offsetTop` is a layout read, and it was being taken on
+   * every `selectionchange` — which is every keystroke, and every pointer move
+   * of a drag-selection. On a desktop the answer is always `false`, so it was
+   * flushing layout to decide to do nothing: 335ms of it in one profile, right
+   * where dragging a selection felt heavy. Only a viewport resize can change
+   * the answer, and that is exactly when the keyboard comes and goes.
+   */
+  let keyboard = shrunk();
+
   // the resize lands before the layout settles on some engines; one frame later
   // the caret rect is trustworthy
-  const onResize = () => requestAnimationFrame(() => shrunk() && revealCaret());
+  const onResize = () =>
+    requestAnimationFrame(() => {
+      keyboard = shrunk();
+      if (keyboard) revealCaret();
+    });
+  const onSelectionChange = () => {
+    if (keyboard) requestAnimationFrame(revealCaret);
+  };
   viewport.addEventListener('resize', onResize);
-  document.addEventListener('selectionchange', onResize);
+  document.addEventListener('selectionchange', onSelectionChange);
 
   return () => {
     viewport.removeEventListener('resize', onResize);
-    document.removeEventListener('selectionchange', onResize);
+    document.removeEventListener('selectionchange', onSelectionChange);
   };
 }
