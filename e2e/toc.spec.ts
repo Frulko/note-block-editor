@@ -143,6 +143,33 @@ test.describe('the floating outline', () => {
     expect(editor.errors()).toEqual([]);
   });
 
+  /**
+   * The two halves of following an entry, and both were wrong.
+   *
+   * `reveal` parks a followed heading 12px below the fold and the marking rule
+   * called a heading read at 8, so the entry you clicked scrolled to the right
+   * place and lit up its neighbour — four pixels of disagreement between two
+   * constants for one position. And the panel closed itself on the way, which
+   * makes reading a document section by section a click on the button between
+   * every one of them.
+   */
+  test('following an entry marks that entry, and leaves the panel open', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await page.goto('/?outline=on');
+    await page.locator('.nbe-editor .nbe-leaf').first().click();
+    await editor.type('# Un\n');
+    for (let i = 0; i < 25; i++) await editor.type(`ligne ${i}\n`);
+    await editor.type('# Deux\n');
+    for (let i = 0; i < 25; i++) await editor.type(`autre ${i}\n`);
+
+    await page.locator('.nbe-toc-float > summary').click();
+    await page.locator('.nbe-toc-float a', { hasText: 'Deux' }).click();
+
+    await expect.poll(() => page.locator('.nbe-toc-float a.nbe-toc-here').textContent()).toBe('Deux');
+    await expect(page.locator('.nbe-toc-float[open]')).toHaveCount(1);
+    expect(editor.errors()).toEqual([]);
+  });
+
   test('a note with no headings gets no panel', async ({ page, editor }) => {
     await editor.setDocument(['juste du texte']);
     await page.goto('/?outline=on');

@@ -220,6 +220,25 @@ export interface EditorViewOptions {
    */
   commentAuthor?: CommentAuthor;
   /**
+   * What the margin marker counts, when threads are not the honest answer.
+   *
+   * @remarks
+   * The document knows how many *threads* a block carries — each is a `comment`
+   * mark with a `threadId` — and that needed no host API, which is why the
+   * marker had none. It is the wrong number to show: three comments made one
+   * after another join one thread, so the margin said "1" beside a panel with
+   * three messages in it.
+   *
+   * The messages are the host's, so the host counts them. Call
+   * {@link refreshCommentMarkers} after a change the document cannot see —
+   * a reply adds no mark, so nothing else tells the margin.
+   *
+   * @param blockId - The block being marked.
+   * @param threadIds - The threads anchored on it, in document order.
+   * @returns How many comments to show. Defaults to `threadIds.length`.
+   */
+  commentCount?: (blockId: BlockId, threadIds: readonly string[]) => number;
+  /**
    * What the two hover gutters contain.
    *
    * @remarks
@@ -1109,7 +1128,16 @@ export class EditorView {
     const existing = this.slots.get(where);
     if (existing) return existing;
     const el = document.createElement('div');
-    el.className = `nbe-slot nbe-slot-${where}`;
+    /*
+     * `nbe-portal` because a slot is *outside* `.nbe-editor` — it is a sibling
+     * of the content element, which is the whole point of it — and the tokens
+     * are scoped to the editor and the portals. Without the marker every slot
+     * painted with `var(--nbe-surface)` and friends undefined: the floating
+     * outline came out transparent over the text, unreadable, with nothing
+     * highlighted. The class is the documented marker for exactly this — chrome
+     * mounted outside the editor (see `style/tokens.css`).
+     */
+    el.className = `nbe-portal nbe-slot nbe-slot-${where}`;
     el.dataset['nbeUi'] = '';
     if (where === 'top') this.content.before(el);
     else this.content.after(el);

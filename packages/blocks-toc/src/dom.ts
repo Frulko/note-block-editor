@@ -8,9 +8,11 @@
 import { visibleBlocks, plainText, type Block } from '@nbe/core';
 import {
   findScrollParent,
+  icon,
   injectBlockStyles,
   renderBlock,
   reveal,
+  REVEAL_MARGIN,
   type DomBlockPlugin,
   type EditorFeature,
 } from '@nbe/dom';
@@ -30,22 +32,53 @@ const FLOAT_STYLES = `
   position: absolute;
   right: 12px;
   bottom: 20px;
-  width: 200px;
-  max-height: 50vh;
-  overflow: auto;
-  padding: 6px 2px;
-  border-radius: var(--nbe-radius, 6px);
+  /* reversed, so the list opens *upward* from the button that summons it */
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  font-size: 12px;
+  line-height: 1.4;
+}
+/* the flex above outranks the UA rule for the attribute, and a note with no
+   headings would keep an empty panel — e2e/toc.spec.ts caught it */
+.nbe-toc-float[hidden] { display: none; }
+.nbe-toc-float > summary {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
   background: var(--nbe-surface);
   border: 1px solid var(--nbe-border);
   box-shadow: 0 1px 2px rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-ring)),
     0 4px 12px rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-near));
-  font-size: 12px;
-  line-height: 1.4;
-}
-.nbe-toc-float ul {
-  margin: 0;
-  padding: 0;
+  color: var(--nbe-text-light);
+  cursor: pointer;
   list-style: none;
+  transition: color var(--nbe-fast) var(--nbe-ease), background var(--nbe-fast) var(--nbe-ease);
+}
+/* the disclosure triangle; Safari needs the vendor pseudo-element */
+.nbe-toc-float > summary::-webkit-details-marker { display: none; }
+.nbe-toc-float > summary:hover,
+.nbe-toc-float[open] > summary {
+  background: var(--nbe-surface-sunken);
+  color: var(--nbe-text);
+}
+.nbe-toc-float .nbe-toc-list {
+  width: 220px;
+  max-width: min(220px, 60vw);
+  max-height: 50vh;
+  overflow: auto;
+  margin: 0 0 6px;
+  padding: 6px 2px;
+  list-style: none;
+  border-radius: var(--nbe-radius, 6px);
+  /* opaque on purpose: it floats over the words, and a panel you read the
+     text through is not a panel */
+  background: var(--nbe-surface);
+  border: 1px solid var(--nbe-border);
+  box-shadow: 0 1px 2px rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-ring)),
+    0 8px 24px rgb(var(--nbe-shadow-rgb) / var(--nbe-a-shadow-far));
 }
 .nbe-toc-float li { margin: 0; }
 .nbe-toc-float a {
@@ -66,11 +99,6 @@ const FLOAT_STYLES = `
   color: var(--nbe-text);
   background: var(--nbe-hover);
   box-shadow: inset 2px 0 0 var(--nbe-accent);
-}
-/* over a narrow pane it would sit on the words: an outline in the way is
-   worse than no outline, and the block is still there for anyone who wants one */
-@media (max-width: 860px) {
-  .nbe-toc-float { display: none; }
 }
 `;
 
@@ -171,8 +199,15 @@ const refreshFeature: EditorFeature = {
  * document: an "is it on screen" test leaves nothing highlighted once the last
  * section is shorter than the viewport.
  *
- * Off by default like every other slot feature — a permanent outline over the
- * text is a preference, not a default. Obsidian exposes it as a setting.
+ * **Closed by default, behind a button.** It used to stand open over the text
+ * permanently, which on a narrow pane meant an outline sitting on the words —
+ * answered until now by hiding it entirely below 860px, so the feature simply
+ * did not exist on half the panes. A `<details>` is the whole mechanism: the
+ * summary *is* the button, the open state *is* the element's, and there is no
+ * state to keep, no listener to write and no `aria-expanded` to get wrong.
+ *
+ * Off by default like every other slot feature — an outline over the text is a
+ * preference, not a default. Obsidian exposes it as a setting.
  *
  * @example
  * ```ts
@@ -188,13 +223,18 @@ export const floatingTocFeature: EditorFeature = {
     // its own sheet rather than the block's, so the feature stands alone in a
     // host that never registers the block. Idempotent, keyed by this name.
     injectBlockStyles('table_of_contents_float', FLOAT_STYLES);
-    const nav = document.createElement('nav');
-    nav.className = 'nbe-toc-float';
-    nav.setAttribute('aria-label', 'Table des matières');
+    const label = 'Table des matières';
+    const panel = document.createElement('details');
+    panel.className = 'nbe-toc-float';
+    const button = document.createElement('summary');
+    button.setAttribute('aria-label', label);
+    // `title`, so a host with no tooltip layer of its own still names it
+    button.title = label;
+    button.append(icon('list', { size: 14 }));
     const list = document.createElement('ul');
     list.className = 'nbe-toc-list';
-    nav.append(list);
-    view.slot('floating').append(nav);
+    panel.append(button, list);
+    view.slot('floating').append(panel);
 
     /**
      * Mark the section being read.
@@ -204,6 +244,12 @@ export const floatingTocFeature: EditorFeature = {
      * scrolls with the document, so its top runs negative and every heading
      * stays "above the fold" forever. The same measurement `reveal` makes, and
      * for the same reason: the host owns the scroller.
+     *
+     * The fold is `REVEAL_MARGIN` and not a number of its own, because
+     * following an entry parks the heading exactly there: a stricter line meant
+     * the heading you had just clicked was four pixels short of counting as
+     * read, so the entry above it lit up instead. Two constants for one
+     * position is always that bug.
      */
     const mark = () => {
       const links = [...list.querySelectorAll<HTMLAnchorElement>('a')];
@@ -216,7 +262,8 @@ export const floatingTocFeature: EditorFeature = {
       let current = links[0]!;
       for (const link of links) {
         const el = view.blockEl(decodeURIComponent(link.hash.slice(1)));
-        if (el && el.getBoundingClientRect().top - top <= 8) current = link;
+        // +1 for the subpixel a fractional `scrollTop` leaves behind
+        if (el && el.getBoundingClientRect().top - top <= REVEAL_MARGIN + 1) current = link;
       }
       for (const link of links) link.classList.toggle('nbe-toc-here', link === current);
     };
@@ -224,8 +271,16 @@ export const floatingTocFeature: EditorFeature = {
     const render = () => {
       fill(view, list, false);
       // an outline of nothing is clutter; a note with no headings gets no panel
-      nav.hidden = !list.childElementCount;
+      panel.hidden = !list.childElementCount;
       mark();
+    };
+
+    /** Light dismiss, the way every other floating panel closes. */
+    const dismiss = (e: Event) => {
+      if (!panel.open) return;
+      if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
+      if (e.type === 'pointerdown' && panel.contains(e.target as Node)) return;
+      panel.open = false;
     };
 
     render();
@@ -246,10 +301,14 @@ export const floatingTocFeature: EditorFeature = {
     });
     // capture, because the scroller is the host's and may be any ancestor
     document.addEventListener('scroll', mark, { capture: true, passive: true });
+    document.addEventListener('pointerdown', dismiss, true);
+    document.addEventListener('keydown', dismiss, true);
     return () => {
       offChange();
       document.removeEventListener('scroll', mark, { capture: true });
-      nav.remove();
+      document.removeEventListener('pointerdown', dismiss, true);
+      document.removeEventListener('keydown', dismiss, true);
+      panel.remove();
     };
   },
 };

@@ -365,7 +365,25 @@ function jsonToBlock(json: BlockJSON, parentId: BlockId): Block {
   };
 }
 
-function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean): void {
+/**
+ * Put blocks where the caret is — the insertion half of paste and drop.
+ *
+ * @remarks
+ * Exported because a host has drops of its own: Obsidian's file explorer hands
+ * over a vault file rather than a `File`, and the block that comes out of it
+ * has to land exactly where a pasted one would. The alternative was a second
+ * insertion path beside this one, which is how "paste replaces the empty
+ * paragraph but drop leaves it behind" happens.
+ *
+ * `inline` asks for the text to be merged into the block under the caret,
+ * which only holds for a single text-bearing block; anything else is inserted
+ * after the caret's block, replacing it when it is an empty paragraph.
+ * A type this schema does not know degrades to a paragraph rather than
+ * vanishing.
+ *
+ * @category Editing
+ */
+export function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean): void {
   const editor = view.editor;
   const sel = editor.selection;
   const known = (t: string) => (editor.schema.has(t) ? t : 'paragraph');
@@ -386,17 +404,31 @@ function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean):
     return;
   }
 
-  // block paste: after the current block (or last selected), replacing an empty paragraph
+  // block paste: after the current block (or the last selected one)
   let anchorId: BlockId | null = null;
+  let selected: BlockId[] = [];
   if (sel?.kind === 'text') anchorId = sel.anchor.blockId;
   else if (sel?.kind === 'block') {
-    const ids = selectedBlocks(editor.doc, sel);
-    anchorId = ids[ids.length - 1] ?? null;
+    selected = selectedBlocks(editor.doc, sel);
+    anchorId = selected[selected.length - 1] ?? null;
   }
   if (!anchorId) return;
   const anchor = getBlock(editor.doc, anchorId);
   const parentId = anchor.parentId ?? editor.doc.rootId;
-  const replaceAnchor = anchor.type === 'paragraph' && textLength(anchor.text) === 0 && !anchor.children.length;
+  /*
+   * What the paste takes the place of.
+   *
+   * A **block selection is a range being replaced**, exactly as typing over
+   * one replaces it — and it did not: the blocks were inserted after the last
+   * selected one and the selection was left standing, so pasting over three
+   * blocks gave six. The empty paragraph under a caret is the same idea a size
+   * smaller: it is a placeholder, not content anyone meant to keep.
+   */
+  const replaced = selected.length
+    ? selected
+    : anchor.type === 'paragraph' && textLength(anchor.text) === 0 && !anchor.children.length
+      ? [anchorId]
+      : [];
 
   const fresh = blocks.map(withFreshIds);
   let lastInline: BlockId | null = null;
@@ -410,14 +442,20 @@ function insertBlocksAt(view: EditorView, blocks: BlockJSON[], inline: boolean):
         (json.children ?? []).forEach((c, i) => insertTree(c, json.id, i));
       };
       for (const json of fresh) insertTree(json, parentId, index++);
-      if (replaceAnchor) tx.op({ type: 'delete_block', id: anchorId! });
+      // after the inserts, so the document is never momentarily empty
+      for (const id of replaced) tx.op({ type: 'delete_block', id });
     },
     { origin: 'input' },
   );
   if (lastInline) {
     const b = editor.doc.blocks.get(lastInline);
     view.focusBlock(lastInline, textLength(b?.text));
+    return;
   }
+  // the old selection named blocks that are gone; leave the caret at the end
+  // of what was pasted, which is where the eye is and where typing continues
+  const landed = selected.length ? editor.doc.blocks.get(fresh[fresh.length - 1]!.id) : null;
+  if (landed) view.focusBlock(landed.id, textLength(landed.text));
 }
 
 /**

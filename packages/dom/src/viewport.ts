@@ -89,8 +89,20 @@ export function reveal(el: HTMLElement, align: RevealAlign = 'nearest'): void {
  */
 export type RevealAlign = 'nearest' | 'start';
 
-/** Breathing room above a block scrolled to the top on purpose. */
-const ANCHOR_MARGIN = 12;
+/**
+ * Breathing room above a block scrolled to the top on purpose.
+ *
+ * @remarks
+ * Exported because anything that asks "which section is being read" has to
+ * agree with it. The floating outline did not: it called a heading read once
+ * its top passed 8px below the fold, and `reveal` parks a followed heading at
+ * 12 — so clicking an entry scrolled to the right place and then highlighted
+ * its neighbour, every time, by four pixels.
+ *
+ * @category Interaction
+ */
+export const REVEAL_MARGIN = 12;
+const ANCHOR_MARGIN = REVEAL_MARGIN;
 
 /**
  * Scrollers the editor moved on purpose, and when.

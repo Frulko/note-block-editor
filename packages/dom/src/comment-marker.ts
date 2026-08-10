@@ -50,6 +50,34 @@ export function commentThreadIds(block: Block | undefined): string[] {
 
 const CLASS = 'nbe-comment-marker';
 
+/**
+ * A `WeakMap` rather than a field on the view, the same shape `openFind` uses:
+ * this is the feature's business, and a view that never attached it has
+ * nothing to answer with.
+ */
+const refreshers = new WeakMap<EditorView, () => void>();
+
+/**
+ * Repaint the markers — for a host whose counts live outside the document.
+ *
+ * @remarks
+ * The marker reads the *document* for how many threads a block carries, which
+ * is why it needs no host API and stays right through an undo. A count that
+ * comes from {@link EditorViewOptions.commentCount} does not: a reply added to
+ * an existing thread changes nothing in the document, so nothing tells the
+ * margin its number went up. The host that owns those messages says so here.
+ *
+ * @returns `false` when {@link commentMarkersFeature} is not attached.
+ *
+ * @category Interaction
+ */
+export function refreshCommentMarkers(view: EditorView): boolean {
+  const refresh = refreshers.get(view);
+  if (!refresh) return false;
+  refresh();
+  return true;
+}
+
 export function attachCommentMarkers(view: EditorView): () => void {
   const editor = view.editor;
   // no host to open a thread is no marker: a badge that does nothing when
@@ -62,7 +90,10 @@ export function attachCommentMarkers(view: EditorView): () => void {
     // decoration must not force the rest of a long document into existence
     const el = view.content.querySelector<HTMLElement>(`.nbe-block[data-block-id="${CSS.escape(id)}"]`);
     if (!el) return;
-    const count = commentThreadIds(editor.doc.blocks.get(id)).length;
+    const threads = commentThreadIds(editor.doc.blocks.get(id));
+    // the host counts when it keeps the messages; the document knows the
+    // threads, and a thread is the least a marker can honestly claim
+    const count = threads.length ? (view.options.commentCount?.(id, threads) ?? threads.length) : 0;
     const existing = el.querySelector<HTMLButtonElement>(`:scope > .${CLASS}`);
     if (!count) {
       existing?.remove();
@@ -90,8 +121,16 @@ export function attachCommentMarkers(view: EditorView): () => void {
     }
     button.title = view.labels.openComments.replace('{n}', String(count));
     button.setAttribute('aria-label', button.title);
-    // a single thread needs no number; a count of one is noise
-    button.querySelector('.nbe-comment-count')!.textContent = count > 1 ? String(count) : '';
+    /*
+     * The number, always — including one.
+     *
+     * It used to be hidden at a count of one, on the reasoning that "1" is
+     * noise beside an icon that already means "there is a discussion here".
+     * In a note it did not read that way: the marker is small, the margin is
+     * far from the text, and a badge that appears only on the second comment
+     * makes the first one look like it was not recorded.
+     */
+    button.querySelector('.nbe-comment-count')!.textContent = String(count);
   };
 
   const applyAll = (): void => {
@@ -125,6 +164,23 @@ export function attachCommentMarkers(view: EditorView): () => void {
   view.content.addEventListener('click', onClick);
 
   applyAll();
+  refreshers.set(view, applyAll);
+
+  /*
+   * And again after every render.
+   *
+   * The opening render is *streamed*: at attach time a long note has a
+   * screenful of blocks in the DOM and the rest still to come, so `applyAll`
+   * above marked only what happened to be there — and nothing marked the rest,
+   * because the markers are otherwise driven by edits. Opening a note with
+   * comments further down showed a clean margin until the reader typed
+   * something, which is exactly how it was reported: "I had to add a comment
+   * for the others to appear."
+   *
+   * `applyAll` rather than the batch, because a re-render of one block
+   * (`ids`) is already covered below, and the whole-surface case hands `null`.
+   */
+  const offRender = view.onRender(() => applyAll());
 
   const unsubscribe = editor.on((change) => {
     const structural = change.ops.some((op) => op.type !== 'insert_text' && op.type !== 'delete_text');
@@ -142,6 +198,8 @@ export function attachCommentMarkers(view: EditorView): () => void {
 
   return () => {
     unsubscribe();
+    offRender();
+    refreshers.delete(view);
     view.content.removeEventListener('click', onClick);
     for (const el of view.content.querySelectorAll(`.${CLASS}`)) el.remove();
   };

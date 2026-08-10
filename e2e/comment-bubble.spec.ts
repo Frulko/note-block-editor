@@ -69,7 +69,7 @@ test.describe('adding a comment', () => {
     // visible without hovering: move the pointer well away first
     await page.mouse.move(2, 2);
     await expect(marker).toHaveCount(1);
-    await expect(marker.locator('.nbe-comment-count')).toHaveText('');
+    await expect(marker.locator('.nbe-comment-count')).toHaveText('1');
     // and only on the block that was commented
     await expect(page.locator('.nbe-editor > .nbe-block').nth(1).locator('.nbe-comment-marker')).toHaveCount(0);
 
@@ -167,10 +167,10 @@ test.describe('the discussion on a block', () => {
     await say(page, 'et la suite');
 
     await expect(page.locator(`${bubble} .nbe-comment-body`)).toHaveText(['première question', 'et la suite']);
-    // one thread, so the marker shows no number
+    // two messages, one thread: the marker counts threads, not messages
     await page.keyboard.press('Escape');
     await page.mouse.move(2, 2);
-    await expect(page.locator('.nbe-comment-marker .nbe-comment-count')).toHaveText('');
+    await expect(page.locator('.nbe-comment-marker .nbe-comment-count')).toHaveText('1');
     expect(editor.errors()).toEqual([]);
   });
 

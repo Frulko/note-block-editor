@@ -408,22 +408,22 @@
   padding: 0 4px;
   border: none;
   border-radius: var(--nbe-radius);
-  background: transparent;
+  /* the note colour, filled rather than outlined: this is the one piece of
+     chrome that is a *fact about the document* rather than an action offered,
+     and a bare icon in the margin read as one more hover affordance */
+  background: rgb(var(--nbe-note-rgb) / 0.14);
   color: rgb(var(--nbe-note-rgb));
   cursor: pointer;
   line-height: 1;
   transition: background var(--nbe-fast) var(--nbe-ease);
 }
 .nbe-comment-marker:hover {
-  background: rgb(var(--nbe-note-rgb) / 0.14);
+  background: rgb(var(--nbe-note-rgb) / 0.26);
 }
 .nbe-comment-count {
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-.nbe-comment-count:empty {
-  display: none;
 }
 .nbe-controls-right.nbe-has-marker .nbe-comment {
   display: none;
