@@ -1,0 +1,317 @@
+---
+import Docs from '../../layouts/Docs.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+/*
+ * The catalogue.
+ *
+ * The home page has a summary — six headings, six bullets each, chosen to make
+ * a case. This is the other thing: everything, grouped by what you came to do,
+ * so that "can it…?" has an answer on one page.
+ *
+ * The icons are inlined rather than imported. `@nbe/dom`'s `icon()` builds an
+ * SVG element with `createElementNS`, which needs a DOM this page does not have
+ * at build time, and pulling a package in for eleven shapes is a dependency for
+ * eleven strings. Same Lucide set, so the page and the editor agree.
+ */
+const ICONS: Record<string, string> = {
+  pilcrow: '<path d="M13 4v16"/><path d="M17 4v16"/><path d="M19 4H9.5a4.5 4.5 0 0 0 0 9H13"/>',
+  list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+  bold: '<path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/>',
+  'grip-vertical':
+    '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>',
+  workflow:
+    '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>',
+  image:
+    '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  database:
+    '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+  'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  'file-text':
+    '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  palette:
+    '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  columns: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>',
+};
+
+interface Group {
+  icon: string;
+  title: string;
+  lede: string;
+  href?: string;
+  linkLabel?: string;
+  items: string[];
+}
+
+const groups: Group[] = [
+  {
+    icon: 'pilcrow',
+    title: 'Écrire',
+    lede: "Ce qui se passe pendant que vous tapez, et qu'on ne remarque que quand c'est raté.",
+    href: `${base}/demo/`,
+    linkLabel: 'Essayer',
+    items: [
+      'Le menu « / » pour poser un bloc, filtrable et navigable au clavier — il s’ouvre sous le caractère tapé, pas au bord du bloc',
+      'L’autoformat Markdown pendant la frappe : <code>#</code>, <code>-</code>, <code>1.</code>, <code>&gt;</code>, <code>- [ ]</code>, <code>```</code>, <code>---</code>, et les spans <code>**gras**</code>, <code>*italique*</code>, <code>`code`</code>, <code>~~barré~~</code>',
+      'Entrée continue une liste, la quitte quand la ligne est vide, et fait une ligne vide <em>au-dessus</em> quand le curseur est au début',
+      'Tab / ⇧Tab imbriquent ; un toggle prend ses enfants dedans plutôt que de se dupliquer',
+      'Le keymap du système à l’intérieur du contenteditable : ^A ^E ^K ^F ^B ^N ^P ^D sur macOS, ⌥⌫ et ⌥⌦ par mot, ⌘⌫ par ligne',
+      '⌥↑ / ⌥↓ déplacent un bloc, ⇧⌥↑ / ⇧⌥↓ le dupliquent, ⌘D duplique, ⌘/Ctrl+⌫ supprime',
+      'Saisie IME sûre, graphèmes entiers (une famille emoji part en une touche), annulation par transaction',
+      '@ pour mentionner une page, quand l’hôte sait en chercher une',
+    ],
+  },
+  {
+    icon: 'list',
+    title: 'Les blocs livrés',
+    lede: 'Ce que le cœur connaît sans qu’aucun greffon soit importé.',
+    href: `${base}/docs/concepts/blocks/`,
+    linkLabel: 'Blocs et schéma',
+    items: [
+      'Paragraphe, titres 1–3, listes à puces et numérotées, cases à cocher, citation, séparateur',
+      'Toggle : un bloc qui contient les autres, replié ou non',
+      'Image avec légende, alignement, largeur et poignées de redimensionnement',
+      'Fichier : n’importe quel fichier déposé devient un bloc, avec son nom et sa taille',
+      'Page et lien vers une page : l’un <em>crée</em> une note, l’autre <em>pointe</em> vers une existante',
+      'Colonnes : 2 à 5, répartition réglable, et le contenu d’une colonne supprimée est déplacé, jamais perdu',
+    ],
+  },
+  {
+    icon: 'workflow',
+    title: 'Les greffons',
+    lede: 'Un bloc = un paquet : son schéma, sa vue, ses projections Markdown et HTML. Ce que vous n’importez pas n’est pas dans votre bundle.',
+    href: `${base}/docs/extending/plugins/`,
+    linkLabel: 'Écrire un bloc',
+    items: [
+      '<strong>Code</strong> — coloration peinte via la CSS Custom Highlight API, jamais injectée dans le texte ; quatre thèmes, numéros de ligne non sélectionnables, légende, Tab qui indente une sélection entière',
+      '<strong>Tableau</strong> — cellules fusionnées, sélection de cellules, redimensionnement des colonnes',
+      '<strong>Callout</strong> — l’encadré, avec son icône et sa couleur',
+      '<strong>Sommaire</strong> — un bloc dont le contenu est le document ; les ancres sont les identifiants de blocs, ceux que l’export HTML émet déjà',
+      '<strong>Mermaid</strong> — dessine un bloc <code>```mermaid</code> ; Aperçu, Code ou les deux, et la bibliothèque n’est téléchargée qu’à la première utilisation',
+      '<strong>Intégration</strong> — une table de fournisseurs (YouTube, Vimeo, Figma, Loom, PDF…), en cadre, en carte ou en HTML tenu dans le bloc',
+      '<strong>Zone de dépôt</strong> — une liste de fichiers, filtrée par type, qui s’écrit en Markdown comme une liste de liens que tout autre outil affiche',
+      '<strong>MDX</strong> — un <code>.mdx</code> s’ouvre et se referme octet pour octet identique. Rien n’est évalué.',
+    ],
+  },
+  {
+    icon: 'bold',
+    title: 'Mise en forme',
+    lede: 'Tout ce qui est appliqué à du texte plutôt qu’à un bloc — et qui survit à l’aller-retour Markdown.',
+    items: [
+      'Gras, italique, souligné, barré, code, exposant, indice, <code>==surlignage==</code>',
+      'Couleur de texte et de fond, dans la palette nommée que le format persiste par nom',
+      'Liens : ⌘K, une carte au survol pour ouvrir, copier, modifier, renommer ou retirer',
+      'Renommer un lien le raccourcit à son hôte et son dernier segment — ou va chercher le titre de la page, quand l’hôte peut faire la requête',
+      'Un lien collé propose Mention, Intégration, Signet ou rien, ancré à la fin du lien',
+      'La barre flottante n’apparaît pas sur un bloc qui contient des caractères plutôt que du balisage — un bloc de code, par exemple',
+    ],
+  },
+  {
+    icon: 'grip-vertical',
+    title: 'Souris, doigt et sélection',
+    lede: 'Un appui a un seul propriétaire : les gestes sont arbitrés par une liste ordonnée, pas par l’ordre où les modules se sont attachés.',
+    items: [
+      'Gouttière au survol : le bouton +, la poignée ⋮⋮ et son menu, la bulle de commentaire à droite',
+      'Glisser un bloc pour le réordonner, avec fantôme et indicateur de dépôt ; plusieurs blocs à la fois',
+      'Lasso sur la marge ou la page vide, y compris depuis un bouton de gouttière : un appui qui glisse est une sélection',
+      'Sélection de texte à travers plusieurs blocs, peinte par la Highlight API là où le navigateur refuse de la tenir',
+      'Un bloc sans texte se sélectionne à l’appui, et Entrée ouvre une ligne en dessous',
+      'Tactile : cibles de 44px, glisser-déposer au doigt, et la page ne défile pas sous le clavier virtuel',
+      '⌥⇧D fige la gouttière et les menus ouverts, pour pouvoir les inspecter',
+    ],
+  },
+  {
+    icon: 'image',
+    title: 'Fichiers et médias',
+    lede: 'Déposer quelque chose ne doit jamais faire quitter la page en cours d’écriture.',
+    items: [
+      'N’importe quel fichier déposé ou collé devient un bloc ; l’hôte décide où les octets sont rangés',
+      'Un PDF s’affiche dans la visionneuse du navigateur, avec le lien de téléchargement en repli',
+      'Une page <code>.html</code> déposée s’exécute dans un bac à sable sans accès à l’hôte — et ne démarre qu’à la demande, ou d’elle-même si on le lui dit',
+      'Largeur et hauteur à la poignée, alignement, et un bouton plein écran qui est celui du navigateur',
+      'Images : légende, alignement, préréglages 50 / 75 / 100 et réglage fin au bord',
+    ],
+  },
+  {
+    icon: 'database',
+    title: 'Bases de données',
+    lede: 'La même collection, vue de quatre façons — et projetée sur le disque en fichiers que d’autres outils lisent.',
+    items: [
+      'Vues table, tableau (kanban), liste et galerie',
+      'Groupement, filtres multiples, tris',
+      'Un langage de formules pur, des relations, des rollups',
+      'Sur le disque : un CSV, un fichier <code>.md</code> par ligne, un fichier <code>.base</code> par vue',
+    ],
+  },
+  {
+    icon: 'message-square',
+    title: 'À plusieurs',
+    lede: 'Un CRDT, et un chemin réseau qui n’exige pas de serveur central.',
+    href: `${base}/collab/`,
+    linkLabel: 'Ouvrir deux fenêtres',
+    items: [
+      'CRDT Loro : fusion du texte caractère par caractère, hors ligne compris',
+      'Curseurs en direct',
+      'Commentaires ancrés au <em>texte</em> et non à un décalage : sur un bloc, sur une phrase surlignée, ou sur un fil existant',
+      'Un marqueur jaune permanent dans la marge, avec le nombre de fils',
+      'Historique du document, avec restauration',
+      'Pair-à-pair WebRTC : le relais négocie puis sort du chemin, et sert de repli — un port, aucun serveur TURN',
+      '<code>nbe serve</code> : un pair permanent sur un NAS, sans base de données',
+    ],
+  },
+  {
+    icon: 'file-text',
+    title: 'Markdown, et rien d’autre sur le disque',
+    lede: 'Supprimez l’éditeur, vos fichiers restent ouvrables ailleurs — et une commande de vérification échoue si ça cesse d’être vrai.',
+    href: `${base}/docs/markdown/`,
+    linkLabel: 'Le format',
+    items: [
+      'Aller-retour octet pour octet : ouvrir une note et la refermer ne laisse aucun diff',
+      'Ce que le Markdown ne sait pas dire est un commentaire HTML à côté de la ligne, que tout autre outil ignore',
+      'Tout ce qui est <em>à propos</em> de la note vit dans son en-tête YAML, et une clé qu’on n’a pas touchée ressort telle quelle',
+      'Wikilinks et <code>![[pièce jointe]]</code> lus et réécrits dans la syntaxe d’origine',
+      'Import Notion, y compris Enhanced Markdown et les CSV de bases de données',
+      'Un vault Markdown qui fait l’aller-retour : exportez-le, éditez-le ailleurs, réimportez-le avec les identifiants intacts',
+    ],
+  },
+  {
+    icon: 'palette',
+    title: 'L’interface, et ce qu’on peut en faire',
+    lede: 'Chaque fonctionnalité s’attache ou non ; ce que vous retirez n’est pas dans votre bundle.',
+    href: `${base}/docs/api/theming/`,
+    linkLabel: 'Thème et CSS',
+    items: [
+      'Thème par canaux CSS : une poignée de variables, tout le reste dérive — clair, sombre, ou celui de l’hôte',
+      'i18n complète : en, fr, es, it, de, chacune un dictionnaire entier plutôt qu’un patch',
+      'Emplacements <code>top</code>, <code>bottom</code> et <code>floating</code> pour un compteur de mots, une couverture, un sommaire flottant',
+      '⌘F cherche dans la page, ⌘P exporte en Markdown, texte, PDF ou HTML — désactivés par défaut là où le navigateur possède déjà ces touches',
+      'Un combobox partagé : le champ garde la frappe, la liste prend ↑↓ et Entrée, avec <code>aria-activedescendant</code>',
+      'Lecture seule, libellés remplaçables, gouttière configurable bouton par bouton',
+    ],
+  },
+  {
+    icon: 'columns',
+    title: 'Où ça tourne',
+    lede: 'Le cœur ne connaît ni le DOM, ni React, ni un serveur — aucune de ces formes n’est le portage d’une autre.',
+    href: `${base}/docs/hosts/`,
+    linkLabel: 'Les cinq',
+    items: [
+      'Une bibliothèque à embarquer, avec les liaisons React, Vue et Svelte',
+      'Carnet, l’application de bureau : une fenêtre Tauri dont le stockage est un dossier lisible',
+      'Un plugin Obsidian : l’édition par blocs sur une note, qui reste du Markdown',
+      'Une application iOS en SwiftUI, seconde implémentation du format en Swift',
+      'Un relais et un pair sans écran, en ligne de commande',
+      'Un rendu HTML statique, sans navigateur ni instance d’éditeur',
+    ],
+  },
+];
+---
+<Docs
+  title="Tout ce qu’il sait faire"
+  description="Le catalogue des fonctionnalités de Carnet, groupées par ce qu’on vient y chercher."
+  wide
+>
+  <p>
+    La page d’accueil en choisit quelques-unes pour faire une démonstration.
+    Celle-ci les liste toutes, groupées par ce qu’on vient y chercher — pour que
+    « est-ce que ça sait&nbsp;…&nbsp;? » ait une réponse sur une seule page.
+  </p>
+
+  <div class="feat-groups">
+    {groups.map((g) => (
+      <section class="feat-group" id={g.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>
+        <header class="feat-head">
+          <span class="feat-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 set:html={ICONS[g.icon]} />
+          </span>
+          <div>
+            <h2>{g.title}</h2>
+            <p class="feat-lede">{g.lede}</p>
+          </div>
+        </header>
+        <ul class="feat-list">
+          {g.items.map((i) => <li set:html={i} />)}
+        </ul>
+        {g.href && <a class="feature-link" href={g.href}>{g.linkLabel} →</a>}
+      </section>
+    ))}
+  </div>
+</Docs>
+
+<style>
+  /* A list, not a card wall: what the editor does is read, not scanned —
+     the same call the home page's feature grid already makes. */
+  .feat-groups {
+    display: grid;
+    gap: 2.4rem;
+    margin-top: 2rem;
+  }
+  .feat-head {
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+  }
+  .feat-head > div {
+    min-width: 0;
+  }
+  .feat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    margin-top: 0.15rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg, 10px);
+    background: var(--bg-raised);
+    color: var(--accent);
+  }
+  .feat-group h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    /* the layout gives h2 a top rule; the icon row is the separator here */
+    border: none;
+    padding: 0;
+  }
+  .feat-lede {
+    margin: 0.25rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.94rem;
+  }
+  .feat-list {
+    margin: 0.9rem 0 0;
+    padding-left: calc(34px + 0.85rem);
+    list-style: none;
+  }
+  .feat-list li {
+    position: relative;
+    margin-bottom: 0.4rem;
+    padding-left: 1rem;
+    color: var(--text-muted);
+    font-size: 0.94rem;
+  }
+  .feat-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.62em;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--border-strong, var(--border));
+  }
+  /* the section's link lines up with its list, not with the page edge */
+  .feat-group .feature-link {
+    margin-left: calc(34px + 0.85rem);
+  }
+  @media (max-width: 640px) {
+    .feat-list,
+    .feat-group .feature-link {
+      padding-left: 0;
+      margin-left: 0;
+    }
+  }
+</style>
