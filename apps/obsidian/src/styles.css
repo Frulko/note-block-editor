@@ -64,12 +64,61 @@
 body[data-nbe-theme] .nbe-portal {
   /* a plugin that repainted the app would be rude, and Obsidian's variables
      are already the user's stated preference */
-  --nbe-surface: var(--background-primary);
-  --nbe-surface-sunken: var(--background-secondary);
+  --nbe-surface: var(--background-primary, light-dark(#fdfcfa, rgb(23, 22, 28)));
+  --nbe-surface-sunken: var(--background-secondary, light-dark(#f5f3ee, rgb(31, 30, 37)));
   /* `--font-text`, not `--font-interface`: this is a note being read and
      written, which is the face the vault chose for exactly that */
-  --nbe-font-sans: var(--font-text);
-  --nbe-font-mono: var(--font-monospace);
+  --nbe-font-sans: var(--font-text, "Inter", ui-sans-serif, system-ui, sans-serif);
+  --nbe-font-mono: var(--font-monospace, ui-monospace, Menlo, monospace);
+
+  /* ---- and the rest of the palette --------------------------------------
+
+     Two surfaces and two faces were the whole bridge, so a community theme —
+     Minimal, Things, Catppuccin — changed the paper Carnet was drawn on and
+     nothing that was drawn: the ink, the rules, the accent and the hover all
+     stayed Carnet's, in a vault that had asked for something else.
+
+     Derived tokens, not the base channels the token layer prefers, and that is
+     forced rather than chosen: the channels are `R G B` triplets consumed as
+     `rgb(var(--nbe-ink) / 0.4)`, and Obsidian's equivalents (`--mono-rgb-100`)
+     are comma-separated, which that syntax cannot take. Its *accent* can be
+     decomposed, because it is published as three HSL parts — so that one keeps
+     its soft and line variants instead of flattening to a solid.
+
+     Every mapping carries Carnet's own value as the `var()` fallback. A missing
+     variable makes a declaration invalid at computed-value time, which does not
+     fall back to the previous rule — it inherits, and a colour inherited from
+     an Obsidian pane is how a note ends up with unreadable chrome and nothing
+     in the console.
+
+     What is deliberately not bridged: the inverse surfaces (a tooltip has to
+     invert against the *page*, which is what makes it legible in both themes),
+     the shadows and radii (shape is Carnet's, not the vault's), and the named
+     block palette, which is persisted by name and must mean the same colour in
+     every host. */
+  --nbe-text: var(--text-normal, rgb(var(--nbe-ink)));
+  --nbe-text-muted: var(--text-muted, rgb(var(--nbe-ink) / var(--nbe-a-muted)));
+  /* Obsidian's ladder has three rungs to Carnet's four, so light and faint
+     land together — the alternative is inventing a shade the theme never
+     stated, which is exactly what this is here to stop doing */
+  --nbe-text-light: var(--text-faint, rgb(var(--nbe-ink) / var(--nbe-a-light)));
+  --nbe-text-faint: var(--text-faint, rgb(var(--nbe-ink) / var(--nbe-a-faint)));
+  --nbe-placeholder: var(--text-faint, rgb(var(--nbe-ink) / var(--nbe-a-placeholder)));
+
+  --nbe-border: var(--background-modifier-border, rgb(var(--nbe-ink) / var(--nbe-a-border)));
+  --nbe-border-strong: var(--background-modifier-border-hover, rgb(var(--nbe-ink) / var(--nbe-a-border-strong)));
+  --nbe-hover: var(--background-modifier-hover, rgb(var(--nbe-ink) / var(--nbe-a-hover)));
+  --nbe-hover-strong: var(--background-modifier-active-hover, rgb(var(--nbe-ink) / var(--nbe-a-hover-strong)));
+
+  --nbe-accent: hsl(var(--accent-h, 227) var(--accent-s, 66%) var(--accent-l, 47%));
+  --nbe-accent-soft: hsl(var(--accent-h, 227) var(--accent-s, 66%) var(--accent-l, 47%) / 0.13);
+  --nbe-accent-line: hsl(var(--accent-h, 227) var(--accent-s, 66%) var(--accent-l, 47%) / 0.45);
+  --nbe-on-accent: var(--text-on-accent, #fff);
+  --nbe-danger: var(--text-error, rgb(var(--nbe-danger-rgb)));
+  --nbe-success: var(--color-green, rgb(var(--nbe-success-rgb)));
+
+  --nbe-code-bg: var(--code-background, rgb(var(--nbe-ink-warm) / var(--nbe-a-code-bg)));
+  --nbe-code-text: var(--code-normal, light-dark(rgb(197, 62, 74), rgb(255, 138, 138)));
 }
 
 .carnet-host .nbe-editor {

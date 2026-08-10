@@ -224,3 +224,39 @@ describe('the Obsidian sheet covers every inverted surface', () => {
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * The vault's theme reaches Carnet, and a vault that does not have a variable
+ * does not take the colour away.
+ *
+ * @remarks
+ * A `var()` with no fallback whose name is undefined makes the declaration
+ * *invalid at computed-value time* — which does not fall back to the previous
+ * rule, it inherits. Inheriting a colour from an Obsidian pane is how a note
+ * ends up with chrome nobody can read and nothing in the console. So the rule
+ * is mechanical: every Obsidian variable the bridge reads names Carnet's own
+ * value as its fallback.
+ */
+describe('the Obsidian theme bridge', () => {
+  const pluginCss = readFileSync(join(__dirname, '..', 'apps', 'obsidian', 'src', 'styles.css'), 'utf8');
+
+  /** The `--nbe-*: …` declarations that map onto an Obsidian variable. */
+  function mappings(): Array<[name: string, value: string]> {
+    return [...pluginCss.matchAll(/^\s*(--nbe-[\w-]+)\s*:\s*([^;]+);/gm)]
+      .map(([, name, value]) => [name!, value!.replace(/\s+/g, ' ').trim()] as [string, string])
+      .filter(([, value]) => /var\(--(?!nbe-)/.test(value));
+  }
+
+  it('maps more than the two surfaces it started with', () => {
+    // a theme that changed the paper and nothing drawn on it was the bug
+    expect(mappings().length).toBeGreaterThan(10);
+  });
+
+  it('gives every Obsidian variable it reads a fallback', () => {
+    const naked = mappings().filter(([, value]) =>
+      // a var() reference to a non-nbe name with no comma inside its parens
+      [...value.matchAll(/var\(\s*--(?!nbe-)[\w-]+\s*\)/g)].length > 0,
+    );
+    expect(naked.map(([name, value]) => `${name}: ${value}`)).toEqual([]);
+  });
+});
