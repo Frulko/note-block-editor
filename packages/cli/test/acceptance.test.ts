@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uuidv7 } from '@nbe/core';
 import { checkReadable, importDirectory, openWorkspace, writeVault } from '../src/index';
 import { fileStorage } from '../src/storage';
@@ -18,6 +18,17 @@ import { fileStorage } from '../src/storage';
  * that. This is it.
  */
 
+/*
+ * These tests spawn the CLI as a *process*, which is the only way to check the
+ * thing they check, and a process is not a function call: a cold Node plus a
+ * TypeScript transpile is most of a second on this machine and more than that
+ * on a loaded CI runner. Three of them in one test went over vitest's 5s
+ * default and turned a green suite red — a timeout that says nothing about the
+ * CLI, only about how busy the machine was. The budget is per test, so a
+ * generous one still fails fast on a genuine hang.
+ */
+vi.setConfig({ testTimeout: 30_000 });
+
 let root: string;
 
 beforeEach(() => {
@@ -27,10 +38,17 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+/**
+ * `tsx` itself, not `pnpm exec tsx`: the wrapper is a whole extra Node process
+ * per invocation, measured at 0.70s against 0.28s, for the sole service of
+ * finding a binary that is always at this path in this repository.
+ */
+const TSX = join(import.meta.dirname, '..', '..', '..', 'node_modules', '.bin', 'tsx');
+
 /** Run the CLI the way a user would, and return its output. */
 function nbe(...args: string[]): { code: number; out: string; err: string } {
   try {
-    const out = execFileSync('pnpm', ['exec', 'tsx', join(import.meta.dirname, '..', 'src', 'bin.ts'), '--root', root, ...args], {
+    const out = execFileSync(TSX, [join(import.meta.dirname, '..', 'src', 'bin.ts'), '--root', root, ...args], {
       encoding: 'utf8',
       stdio: 'pipe',
     });
