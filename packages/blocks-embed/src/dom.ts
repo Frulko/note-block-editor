@@ -44,6 +44,14 @@ function frame(block: Block, mode: EmbedMode): HTMLIFrameElement {
     el.setAttribute('allowfullscreen', '');
     el.src = frameUrl(String(props['src'] ?? '')) ?? '';
   }
+  /*
+   * What the frame is showing, as a key. A re-render of the block builds a new
+   * element and a new frame *reloads* — so sizing an embed used to restart the
+   * video it had just been sized around. `replaceBlockEl` moves this node into
+   * the new element instead, and only when the key matches: a different page
+   * is a different frame, and must load.
+   */
+  el.dataset['nbeLive'] = `embed:${mode}:${el.src || el.srcdoc}`;
   const height = Number(props['height'] ?? 0);
   const provider = providerFor(String(props['src'] ?? ''));
   el.style.height = height

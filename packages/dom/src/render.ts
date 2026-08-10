@@ -227,6 +227,10 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       figure.append(...resizeHandles());
       const img = document.createElement('img');
       img.className = 'nbe-image';
+      // survives a re-render of the block: a fresh <img> flashes while it
+      // decodes, and sizing one is a re-render on every drag (see
+      // `replaceBlockEl`)
+      img.dataset['nbeLive'] = `image:${src}`;
       img.alt = String(block.props['caption'] ?? '');
       const resolved = view.options.resolveAssetUrl?.(src) ?? src;
       if (typeof resolved === 'string') img.src = resolved;
@@ -333,6 +337,9 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     if (isHtml) {
       const frame = document.createElement('iframe');
       frame.className = 'nbe-file-embed';
+      // a re-render must not reload the page inside it: `replaceBlockEl` moves
+      // this node into the new element rather than building a second one
+      frame.dataset['nbeLive'] = `file:${src}`;
       frame.setAttribute('sandbox', 'allow-scripts');
       frame.setAttribute('loading', 'lazy');
       frame.title = name;
@@ -347,6 +354,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     const preview = !isHtml && isPdf ? document.createElement('object') : null;
     if (preview) {
       preview.className = 'nbe-file-preview';
+      preview.dataset['nbeLive'] = `pdf:${src}`; // keeps the reader's page across a re-render
       preview.type = 'application/pdf';
       // the fallback child, shown by the browser when it has no viewer
       const alt = document.createElement('a');

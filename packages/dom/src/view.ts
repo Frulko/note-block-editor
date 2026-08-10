@@ -37,6 +37,71 @@ const FIRST_PAINT = 60;
 const TAIL_BATCH = 400;
 
 /**
+ * Put `node` before `ref` inside `host`, keeping it alive where the browser
+ * can.
+ *
+ * @remarks
+ * `moveBefore` is an *atomic* move: the node never leaves the document, so an
+ * `<iframe>` keeps the page it was showing, a `<video>` keeps playing and
+ * focus stays where it was. `insertBefore` is a remove followed by an insert,
+ * and that reloads every frame it touches — which is what reordering a block
+ * used to do to every embed on the page.
+ *
+ * Chromium 133 and up. Anywhere else this is exactly the behaviour that was
+ * there before, not a new one.
+ */
+function moveInto(host: Element, node: Element, ref: Node | null): void {
+  const move = (host as { moveBefore?: (n: Node, r: Node | null) => void }).moveBefore;
+  if (move && node.isConnected && host.isConnected) {
+    try {
+      move.call(host, node, ref);
+      return;
+    } catch {
+      /* a node it refuses — another document, a ref that is not a child */
+    }
+  }
+  host.insertBefore(node, ref);
+}
+
+/**
+ * Swap a block's element for a freshly rendered one, carrying the live nodes
+ * across.
+ *
+ * @remarks
+ * A rebuild is a new element tree, and a new `<iframe>` in it is a *new frame*:
+ * it reloads, and whatever it was showing — a video part-way through, a form
+ * half filled in — is gone. Sizing an embed is a prop change like any other,
+ * so the drag ended by restarting the video it had just been sized around.
+ *
+ * A node the renderer marked `data-nbe-live` is moved from the old tree into
+ * the new one instead, matched on the key in that attribute — its source, so a
+ * *different* source is correctly a different node and does load. The new
+ * node's attributes are copied onto the survivor, which is where the new
+ * width, height and ratio are, and the new node is dropped. `src` and `srcdoc`
+ * are never copied: they are the key, they cannot differ, and writing one
+ * again is itself a reload.
+ *
+ * The old element stays in the document while this runs, because `moveBefore`
+ * refuses to move a node that would leave it.
+ */
+function replaceBlockEl(old: HTMLElement, next: HTMLElement): void {
+  old.after(next);
+  const alive = new Map<string, HTMLElement>();
+  for (const el of old.querySelectorAll<HTMLElement>('[data-nbe-live]')) alive.set(el.dataset['nbeLive'] ?? '', el);
+  for (const to of alive.size ? next.querySelectorAll<HTMLElement>('[data-nbe-live]') : []) {
+    const from = alive.get(to.dataset['nbeLive'] ?? '');
+    if (!from || !to.parentElement) continue;
+    // `data` is an `<object>`'s source; the same rule and the same reason
+    const isKey = (name: string) => name === 'src' || name === 'srcdoc' || name === 'data';
+    for (const a of [...from.attributes]) if (!to.hasAttribute(a.name) && !isKey(a.name)) from.removeAttribute(a.name);
+    for (const a of to.attributes) if (!isKey(a.name)) from.setAttribute(a.name, a.value);
+    moveInto(to.parentElement, from, to);
+    to.remove();
+  }
+  old.remove();
+}
+
+/**
  * A person, for display beside what they said.
  *
  * @category Configuration
@@ -520,7 +585,7 @@ export class EditorView {
         const repaired = this.withObserverPaused(() => {
           const current = this.blockEl(id);
           if (!current?.isConnected) return false;
-          current.replaceWith(renderBlock(this, id));
+          replaceBlockEl(current, renderBlock(this, id));
           return true;
         });
         if (repaired) this.rendered([id]);
@@ -716,6 +781,96 @@ export class EditorView {
     this.rendered(rest);
   }
 
+  /**
+   * Where a block's children are rendered, when they can be reconciled there.
+   *
+   * @remarks
+   * Read off the DOM rather than assumed: the default renderer puts children
+   * in a `.nbe-children` wrapper, a layout container (a column, a table row)
+   * puts them straight in its own element, and a plugin with its own `render`
+   * puts them wherever it likes. Asking an element that is already on screen
+   * where it lives answers for all three.
+   *
+   * `null` — and so a plain rebuild, which is what always happened — when the
+   * block has no child on screen to ask (a first insert, a collapsed toggle),
+   * or when the host holds anything that is not a block: the reconcile walks
+   * its children in document order, and chrome interleaved among them would be
+   * shuffled to the end.
+   */
+  private childHost(id: BlockId): HTMLElement | null {
+    if (id === this.editor.doc.rootId) return this.content;
+    const el = this.blockEl(id);
+    if (!el) return null;
+    for (const childId of getBlock(this.editor.doc, id).children) {
+      // inside this block, not merely somewhere: a child that is about to be
+      // nested under it is still rendered under its *old* parent, and taking
+      // that parent for this block's host reconciles the wrong list
+      const childEl = this.blockEl(childId);
+      if (!childEl || !el.contains(childEl)) continue;
+      const host = childEl.parentElement!;
+      return [...host.children].every((c) => (c as HTMLElement).dataset?.['blockId']) ? host : null;
+    }
+    return null;
+  }
+
+  /**
+   * Bring a host's child elements in line with the document, keeping the ones
+   * that are already there.
+   *
+   * @remarks
+   * The blink this exists for: **an `<iframe>` reloads the page it is showing
+   * whenever it is re-created _or re-parented_**, and an `<img>` flashes while
+   * it decodes again. Rebuilding a parent to insert one child therefore
+   * restarted every video in it, and since a top-level parent is the root,
+   * pressing Enter restarted every video in the note.
+   *
+   * So elements are matched by block id and *moved* — with `moveBefore` where
+   * the browser has it, which is the only relocation the platform offers that
+   * a frame survives. A block arriving from another parent is looked up across
+   * the whole surface, not just here, so a move between parents transfers the
+   * one element instead of building a second.
+   */
+  private reconcile(
+    host: HTMLElement,
+    ids: readonly BlockId[],
+    wrote: BlockId[],
+    dropped: Array<[HTMLElement, HTMLElement]>,
+  ): void {
+    const have = new Map<BlockId, HTMLElement>();
+    for (const child of host.children) {
+      const id = (child as HTMLElement).dataset?.['blockId'];
+      if (id) have.set(id, child as HTMLElement);
+    }
+    let ref = host.firstElementChild;
+    for (const id of ids) {
+      const cur = have.get(id) ?? this.blockEl(id);
+      have.delete(id);
+      if (cur && cur === ref) {
+        ref = ref.nextElementSibling; // already in place
+        continue;
+      }
+      if (cur) moveInto(host, cur, ref);
+      else host.insertBefore(renderBlock(this, id), ref);
+      wrote.push(id);
+    }
+    for (const el of have.values()) dropped.push([el, host]);
+  }
+
+  /** Re-count a host's numbered list items, which only their siblings know. */
+  private renumber(host: HTMLElement): void {
+    let n = 0;
+    for (const child of host.children) {
+      const id = (child as HTMLElement).dataset?.['blockId'];
+      if (this.editor.doc.blocks.get(id ?? '')?.type !== 'numbered_list_item') {
+        n = 0;
+        continue;
+      }
+      n++;
+      const gutter = child.querySelector(':scope > .nbe-row > .nbe-number');
+      if (gutter) gutter.textContent = `${n}.`;
+    }
+  }
+
   private handleChange(change: Change): void {
     /*
      * Nothing but `reveal` may move the page across an edit.
@@ -750,19 +905,75 @@ export class EditorView {
      * a cell dirties the cell, not the row, so this does not re-render the
      * whole table on every keystroke.
      */
-    const alive = [...change.dirty]
-      .filter((id) => doc.blocks.has(id))
-      .map((id) => {
-        const block = doc.blocks.get(id)!;
-        return block.type === 'table_row' && block.parentId ? block.parentId : id;
-      });
-    const set = new Set(alive);
-    // skip ids whose ancestor is also dirty — the ancestor re-render covers them
-    const roots = [...set].filter((id) => !ancestors(doc, id).some((p) => set.has(p)));
-    // what `onRender` reports: the elements actually replaced, or nothing when
+    const target = (id: BlockId): BlockId => {
+      const block = doc.blocks.get(id);
+      return block?.type === 'table_row' && block.parentId ? block.parentId : id;
+    };
+    /*
+     * Two kinds of dirty, told apart by the ops rather than guessed at.
+     *
+     * A block is dirty because *it* changed — its text, its props, its type —
+     * and then its element has to be built again. Or it is dirty because a
+     * **child list** changed under it, which is the only other thing an op
+     * marks: `insert_block`, `delete_block` and `move_block` all dirty the
+     * parent. That second kind used to be rebuilt like the first, and for a
+     * top-level block the parent *is* the root, so pressing Enter or dragging
+     * a block one place up rebuilt the entire document. See
+     * {@link EditorView.reconcile} for what it costs.
+     */
+    const rebuild = new Set<BlockId>();
+    for (const op of change.ops) {
+      if (op.type === 'insert_block' || op.type === 'delete_block' || op.type === 'move_block') continue;
+      if (doc.blocks.has(op.id)) rebuild.add(target(op.id));
+    }
+    const hosts: BlockId[] = [];
+    for (const id of change.dirty) {
+      if (!doc.blocks.has(id)) continue;
+      // a dirty row is the table's problem either way, child list included:
+      // the column template is computed from the cells and lives on the table
+      if (target(id) !== id) rebuild.add(target(id));
+      else if (!rebuild.has(id)) hosts.push(id);
+    }
+    // what `onRender` reports: the elements actually written, or nothing when
     // a full rebuild already announced itself
     const replaced: BlockId[] = [];
     let full = false;
+    /*
+     * Child lists first: a reconcile is what builds the element an insert
+     * brought in, and rebuilding its parent afterwards would only throw that
+     * element away. Deferred removals, because a block moved from one parent
+     * to another must be *taken* by its new host before its old one drops it —
+     * dropping it first would destroy the node and reload every frame in it.
+     */
+    const dropped: Array<[HTMLElement, HTMLElement]> = [];
+    const reconciled: HTMLElement[] = [];
+    for (const id of hosts) {
+      if (ancestors(doc, id).some((p) => rebuild.has(p))) continue;
+      const host = this.childHost(id);
+      if (!host) {
+        rebuild.add(target(id)); // nowhere to reconcile into: rebuild the block
+        continue;
+      }
+      reconciled.push(host);
+      this.withObserverPaused(() => this.reconcile(host, getBlock(doc, id).children, replaced, dropped));
+    }
+    if (reconciled.length) {
+      this.withObserverPaused(() => {
+        /*
+         * Every host has had its turn, so anything still sitting where it was
+         * left was not claimed by a new parent: it was deleted, or its new
+         * parent is about to be rebuilt and will render its own copy. Either
+         * way it goes now rather than after, so that no id is in the document
+         * twice while the rebuilds below look elements up.
+         */
+        for (const [el, host] of dropped) if (el.parentElement === host) el.remove();
+        // a list's numbers are a property of the *siblings*, so the one thing a
+        // moved element cannot bring with it is its own number
+        for (const host of reconciled) this.renumber(host);
+      });
+    }
+    // skip ids whose ancestor is also dirty — the ancestor re-render covers them
+    const roots = [...rebuild].filter((id) => !ancestors(doc, id).some((p) => rebuild.has(p)));
     for (const id of roots) {
       if (id === doc.rootId) {
         full = true;
@@ -778,7 +989,7 @@ export class EditorView {
         this.withObserverPaused(() => {
           const old = this.blockEl(id);
           if (old?.isConnected) {
-            old.replaceWith(renderBlock(this, id));
+            replaceBlockEl(old, renderBlock(this, id));
             replaced.push(id);
           } else {
             full = true;
