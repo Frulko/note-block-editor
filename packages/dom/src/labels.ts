@@ -99,6 +99,8 @@ export interface EditorLabels {
   editLink: string;
   /** Open the link in a new tab. Link hover card. */
   openLink: string;
+  /** Replace the link's text with a title. Link hover card. */
+  renameLink: string;
 
   // --- slash menu, for the built-in entries ---
   /** Plain paragraph. Slash menu and “Turn into”. */

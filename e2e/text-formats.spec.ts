@@ -144,3 +144,46 @@ test.describe('typing inside an inline code span', () => {
     await expect(page.locator('.nbe-block.nbe-selected')).toHaveCount(1);
   });
 });
+
+/**
+ * A link in a sentence, called something legible.
+ *
+ * A pasted URL comes in as its own text, which for anything with a tracking
+ * query is forty characters of noise inside a paragraph. Shortening needs no
+ * network and is most of the answer; the real title needs one, and a browser
+ * cannot make that request at all — CORS refuses it, whatever the code says —
+ * so `onResolveLink` is the seam and the demo fills it in.
+ */
+test.describe('renaming a link from its hover card', () => {
+  async function aLink(page: import('@playwright/test').Page, editor: import('./fixtures').Editor, href: string) {
+    await editor.setDocument([href]);
+    await editor.selectRange([0, 0], [0, href.length]);
+    await editor.press('ControlOrMeta+k');
+    await page.locator('.nbe-seltoolbar-linkform input').fill(href);
+    await page.locator('.nbe-seltoolbar-linkform input').press('Enter');
+    await page.locator('.nbe-editor a.nbe-m-link').hover();
+    await page.locator('.nbe-linkcard').waitFor();
+  }
+
+  test('the field opens pre-filled with the URL shortened', async ({ page, editor }) => {
+    await aLink(page, editor, 'https://www.example.com/blog/un-article?utm_source=x&utm_campaign=y');
+    await page.locator('.nbe-linkcard-btn[aria-label="Renommer le lien"]').click();
+
+    const field = page.locator('.nbe-linkcard-form input');
+    await expect(field).toHaveValue('example.com/un-article');
+  });
+
+  test('Enter puts that text in the document, still linked', async ({ page, editor }) => {
+    const href = 'https://www.example.com/blog/un-article';
+    await aLink(page, editor, href);
+    await page.locator('.nbe-linkcard-btn[aria-label="Renommer le lien"]').click();
+    await page.locator('.nbe-linkcard-form input').fill('Un article');
+    await page.locator('.nbe-linkcard-form input').press('Enter');
+
+    const link = page.locator('.nbe-editor a.nbe-m-link');
+    await expect(link).toHaveText('Un article');
+    await expect(link).toHaveAttribute('href', href);
+    expect(await editor.texts()).toEqual(['Un article']);
+    expect(editor.errors()).toEqual([]);
+  });
+});

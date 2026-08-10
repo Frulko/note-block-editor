@@ -51,6 +51,7 @@ export const en: EditorLabels = {
   removeLink: 'Remove link',
   editLink: 'Edit link',
   openLink: 'Open link',
+  renameLink: 'Rename the link',
   text: 'Text',
   heading1: 'Heading 1',
   heading2: 'Heading 2',

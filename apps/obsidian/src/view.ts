@@ -7,6 +7,7 @@ import {
   WorkspaceLeaf,
   debounce,
   normalizePath,
+  requestUrl,
   type Modifier,
 } from 'obsidian';
 import {
@@ -35,6 +36,7 @@ import {
 import { Frontmatter, documentToMarkdown, readFrontmatter, slugify } from '@nbe/markdown';
 import { createNoteComments, readComments, restoreAnchors, writeComments } from './comments';
 import { MARKDOWN_PLUGINS, pageOf } from './document';
+import { titleFromHtml } from './link-title';
 import { viewOptions } from './settings';
 import type CarnetPlugin from './main';
 
@@ -104,6 +106,34 @@ function blockFor(file: TFile): BlockJSON {
     return { ...base, type: 'link_to_page', props: { target: file.basename, title: file.basename } };
   if (IMAGE_EXT.test(file.extension)) return { ...base, type: 'image', props: { src: file.path, wiki: true } };
   return { ...base, type: 'file', props: { src: encodeURI(file.path), name: file.name, size: file.stat.size } };
+}
+
+/**
+ * What a URL is called, fetched through the vault.
+ *
+ * @remarks
+ * `requestUrl` rather than `fetch`: it goes through Electron's main process, so
+ * it is not subject to CORS — which is the whole reason this hook belongs to
+ * the host and not to `@nbe/dom`, where no code could make the request at all.
+ *
+ * `null` for anything it could not read as an HTML page — a refusal, a PDF, a
+ * scheme that is not http. The link card reads that as "no title" and keeps the
+ * shortened URL it had already put in the field.
+ */
+async function resolveTitle(url: string): Promise<{ title?: string } | null> {
+  if (!/^https?:/i.test(url)) return null;
+  try {
+    const res = await requestUrl({ url, method: 'GET', throw: false });
+    if (res.status >= 400) return null;
+    const type = String(res.headers?.['content-type'] ?? res.headers?.['Content-Type'] ?? '');
+    // an image or a PDF has no `<title>`, and reading megabytes to find that
+    // out is the one cost worth avoiding here
+    if (type && !/text\/html|application\/xhtml/i.test(type)) return null;
+    const title = titleFromHtml(res.text);
+    return title ? { title } : null;
+  } catch {
+    return null;
+  }
 }
 
 const MOD: Modifier[] = ['Mod'];
@@ -785,6 +815,7 @@ export class CarnetView extends TextFileView {
       // a policy for where those go — so we ask it rather than invent a folder
       onStoreAsset: (blob) => this.storeAttachment(blob),
       resolveAssetUrl: (src) => this.resolveAttachment(src),
+      onResolveLink: (url) => resolveTitle(url),
     });
     /*
      * `requestSave` is Obsidian's debounced writer, and letting it own the

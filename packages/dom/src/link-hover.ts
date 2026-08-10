@@ -1,13 +1,53 @@
-import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
+import { getBlock, rangeHasMark, textCaret, toggleMarkRange } from '@nbe/core';
 import { mountPortal } from './ui/portal';
 import type { EditorView } from './view';
 import { autoUpdate, createActionButton, pushOverlay, type IconName } from './ui';
-import { selectInlineText } from './selection';
+import { inlineTextRange, selectInlineText } from './selection';
 
 /**
- * Link hover card: hovering a link offers open / copy / edit / remove without
- * having to select the text first. The card keeps itself alive while the
- * pointer travels to it, which is the whole difficulty of hover UI.
+ * A URL as short as it can be and still say where it goes.
+ *
+ * @remarks
+ * The host, and the last thing on the path — `example.com/…/article`. Which is
+ * what a reader of a sentence needs from a link: a forty-character tracking
+ * query in the middle of a paragraph is noise, and the href keeps all of it.
+ */
+function shorten(href: string): string {
+  try {
+    const url = new URL(href);
+    const host = url.hostname.replace(/^www\./, '');
+    const last = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() ?? '');
+    return last ? `${host}/${last}` : host;
+  } catch {
+    return href;
+  }
+}
+
+/** Swap a link's text, keeping the link. */
+function rename(
+  view: EditorView,
+  at: { blockId: string; from: number; to: number },
+  href: string,
+  label: string,
+): void {
+  view.editor.dispatch(
+    (tx) => {
+      tx.op({ type: 'delete_text', id: at.blockId, from: at.from, to: at.to });
+      tx.op({
+        type: 'insert_text',
+        id: at.blockId,
+        offset: at.from,
+        runs: [{ text: label, marks: [{ type: 'link', attrs: { href } }] }],
+      });
+    },
+    { origin: 'ui', selection: textCaret(at.blockId, at.from + label.length) },
+  );
+}
+
+/**
+ * Link hover card: hovering a link offers open / copy / edit / rename / remove
+ * without having to select the text first. The card keeps itself alive while
+ * the pointer travels to it, which is the whole difficulty of hover UI.
  */
 export function attachLinkHover(view: EditorView): () => void {
   const editor = view.editor;
@@ -87,6 +127,55 @@ export function attachLinkHover(view: EditorView): () => void {
         card.replaceChildren(form);
         input.focus();
         input.select();
+      }),
+    );
+
+    card.append(
+      button('file-text', view.labels.renameLink, () => {
+        const at = inlineTextRange(view, anchor);
+        if (!at) return;
+        const form = document.createElement('div');
+        form.className = 'nbe-linkcard-form';
+        const input = document.createElement('input');
+        input.className = 'nbe-db-input';
+        /*
+         * Pre-filled with the shortened URL, then overwritten by the real title
+         * if a host can go and get one.
+         *
+         * Not the other way round — a field that is empty until the network
+         * answers is a field you cannot type in yet, and on a host with no
+         * `onResolveLink` it would stay empty forever. Shortening needs nothing
+         * and is already most of what was asked for; the title is the better
+         * answer when it arrives, and it only replaces text nobody has touched.
+         */
+        input.value = shorten(href);
+        input.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Escape') hide();
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          const label = input.value.trim();
+          if (label) rename(view, at, href, label);
+          hide();
+        });
+        form.append(input);
+        card.replaceChildren(form);
+        input.focus();
+        input.select();
+
+        const untouched = input.value;
+        void Promise.resolve(view.options.onResolveLink?.(href))
+          .then((meta) => {
+            const title = meta?.title?.trim();
+            // only if nothing has been typed in the meantime: a resolution that
+            // arrives late must never overwrite what somebody is writing
+            if (!title || !input.isConnected || input.value !== untouched) return;
+            input.value = title;
+            input.select();
+          })
+          .catch(() => {
+            /* no title is a missing title, not a broken card */
+          });
       }),
     );
 

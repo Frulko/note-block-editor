@@ -34,17 +34,26 @@ export function domToModelPoint(node: Node, offset: number): Point | null {
  *
  * @category Interaction
  */
-export function selectInlineText(view: EditorView, el: Element): boolean {
+/** Where an inline element's text sits in its block, in model offsets. */
+export function inlineTextRange(
+  view: EditorView,
+  el: Element,
+): { blockId: string; from: number; to: number } | null {
   const leaf = leafOf(el);
   const blockId = leaf?.dataset['blockId'];
-  if (!leaf || !blockId || !view.editor.doc.blocks.has(blockId)) return false;
+  if (!leaf || !blockId || !view.editor.doc.blocks.has(blockId)) return null;
   const before = document.createRange();
   before.selectNodeContents(leaf);
   before.setEnd(el, 0);
   const from = before.toString().length;
-  const to = from + (el.textContent ?? '').length;
+  return { blockId, from, to: from + (el.textContent ?? '').length };
+}
+
+export function selectInlineText(view: EditorView, el: Element): boolean {
+  const at = inlineTextRange(view, el);
+  if (!at) return false;
   view.editor.setSelection(
-    { kind: 'text', anchor: { blockId, offset: from }, head: { blockId, offset: to } },
+    { kind: 'text', anchor: { blockId: at.blockId, offset: at.from }, head: { blockId: at.blockId, offset: at.to } },
     'keyboard',
   );
   view.syncDomSelection();

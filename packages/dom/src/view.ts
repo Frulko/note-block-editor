@@ -268,6 +268,26 @@ export interface EditorViewOptions {
   onStoreAsset?: (blob: Blob) => Promise<string>;
   /** Resolve a persisted src (asset:… or URL) to something an <img> can load. */
   resolveAssetUrl?: (src: string) => string | Promise<string>;
+  /**
+   * Look up what a URL is called, for the link card's rename field.
+   *
+   * @remarks
+   * The network belongs to the host, and here that is not a preference: a page
+   * on another origin cannot be read from a browser at all — `fetch` is refused
+   * by CORS and there is nothing the editor can do about it. A host that owns
+   * its own request path (Obsidian's `requestUrl`, an Electron main process, a
+   * server) can, so it is the one asked.
+   *
+   * Without it the rename field still opens, pre-filled with the URL shortened
+   * to its host and last segment — a real answer that needs no network, and the
+   * reason the feature is not gated on this hook the way `onComment` gates the
+   * comment button. There is no dead affordance either way.
+   *
+   * @param url - The link's href.
+   * @returns Its title, or null when nothing was found. Never throws at the
+   * call site: a refusal is a missing title, not a broken card.
+   */
+  onResolveLink?: (url: string) => Promise<{ title?: string } | null>;
   /** Collections/views/row-pages live in the host workspace (phase 3, §2.5). */
   database?: import('./database').DatabaseHost;
   /**
