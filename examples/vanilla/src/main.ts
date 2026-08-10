@@ -551,6 +551,10 @@ function openPage(pageId: string): void {
     database: dbHost,
     // comments are on blocks: the affordance is the right-hand gutter
     onComment: (blockId, author, at) => comments.comment(editor!, blockId, author, at),
+    // the store as well as the callback: the badge in the margin counts
+    // messages, and only the store knows how many — the document knows
+    // threads, and two replies in one thread are still one thread
+    commentStore: comments.store,
     commentAuthor: ME,
   });
   detachInspector = attachInspector(editor);

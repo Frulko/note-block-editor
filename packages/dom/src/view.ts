@@ -1,4 +1,4 @@
-import type { BlockId, Change, Editor, Point, Selection } from '@nbe/core';
+import type { BlockId, Change, CommentStore, Editor, Point, Selection } from '@nbe/core';
 import { ancestors, getBlock, selectedBlocks, textCaret } from '@nbe/core';
 import { renderBlock } from './render';
 import { leafOf, modelPointToDom } from './selection';
@@ -238,6 +238,25 @@ export interface EditorViewOptions {
    * @returns How many comments to show. Defaults to `threadIds.length`.
    */
   commentCount?: (blockId: BlockId, threadIds: readonly string[]) => number;
+  /**
+   * The store the host keeps its threads in.
+   *
+   * @remarks
+   * Hand this over and the margin is correct for free: the badge counts
+   * *messages* rather than threads, and it refreshes when a reply lands — which
+   * no edit announces, because a reply adds no mark to the document.
+   *
+   * It exists because the two options above are easy to get right and easy to
+   * forget, and forgetting is silent: three of the four hosts in this
+   * repository wired `onComment`, shipped, and showed "1" beside a panel with
+   * two messages in it. A store has `get` and `onChange` on it already; asking
+   * for the store asks for something the host has, rather than for two callbacks
+   * it has to think about.
+   *
+   * {@link EditorViewOptions.commentCount} still wins when both are given: a
+   * host that counts differently — unresolved only, say — keeps saying so.
+   */
+  commentStore?: CommentStore;
   /**
    * What the two hover gutters contain.
    *

@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DragEvent, ReactNode } from 'react';
 import { useEditor, type Editor, type BlockJSON } from '@nbe/react';
-import { PluginRegistry, docToJSON, memoryComments, type CommentThread, type Run } from '@nbe/core';
+import {
+  PluginRegistry,
+  docToJSON,
+  memoryComments,
+  type CommentStore,
+  type CommentThread,
+  type Run,
+} from '@nbe/core';
 import {
   LOCALE_NAMES,
   TYPEFACES,
@@ -268,11 +275,13 @@ function Pane({
   settings,
   onReady,
   onComment,
+  store,
 }: {
   initial: BlockJSON;
   settings: Settings;
   onReady: (e: Editor) => void;
   onComment: (blockId: string) => void;
+  store: CommentStore;
 }) {
   const { ref } = useEditor({
     initialContent: initial,
@@ -303,7 +312,16 @@ function Pane({
             settings.toolbar === 'sticky' && f.name === 'format-toolbar' ? stickyFormatToolbarFeature : f,
           ),
     // no host, no button: the right gutter is empty rather than decorative
-    ...(settings.comments ? { onComment, commentAuthor: { id: 'visiteur', name: 'Visiteur' } } : {}),
+    /*
+     * The store, not just the callback. The badge in the margin counts
+     * *messages*, and only the store knows how many there are — the document
+     * knows threads, and two replies in one thread are one thread. Handing it
+     * over also refreshes the badge when a reply lands, which no edit
+     * announces.
+     */
+    ...(settings.comments
+      ? { onComment, commentStore: store, commentAuthor: { id: 'visiteur', name: 'Visiteur' } }
+      : {}),
   });
   return <div ref={ref} />;
 }
@@ -592,6 +610,7 @@ export default function PlaygroundDemo() {
           key={gen}
           initial={doc}
           settings={settings}
+          store={comments.current}
           onReady={(e) => { editor.current = e; }}
           onComment={(blockId) => {
             if (!editor.current) return;

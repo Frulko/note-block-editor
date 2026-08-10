@@ -12,7 +12,9 @@ import { expect, test } from '@playwright/test';
  * had arriving over the handshake.
  */
 
-const COLLAB = 'http://localhost:5175/';
+/* `?demo=loopback` because the bare URL now joins a real room off the relay the
+   dev server starts — the two-pane pair this file asserts on is the other mode. */
+const COLLAB = 'http://localhost:5175/?demo=loopback';
 
 test.describe('two peers, one document', () => {
   test('the joining peer receives a document it never had', async ({ page }) => {

@@ -9,11 +9,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@nbe/blocks-callout": "workspace:*",
+    "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-dropzone": "workspace:*",
+    "@nbe/blocks-embed": "workspace:*",
+    "@nbe/blocks-mdx": "workspace:*",
+    "@nbe/blocks-mermaid": "workspace:*",
+    "@nbe/blocks-table": "workspace:*",
+    "@nbe/blocks-toc": "workspace:*",
     "@nbe/collab": "workspace:*",
     "@nbe/core": "workspace:*",
-    "@nbe/dom": "workspace:*"
+    "@nbe/dom": "workspace:*",
+    "mermaid": "^11.16.1"
   },
   "devDependencies": {
+    "@nbe/cli": "workspace:*",
     "vite": "^6.0.0",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0"

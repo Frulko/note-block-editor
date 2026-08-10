@@ -11,7 +11,26 @@ import {
   type BlockId,
   type CommentStore,
 } from '@nbe/core';
-import { EditorView, attachRemoteCarets, icon, peerSelection, type CommentAuthor, type RemoteSelection } from '@nbe/dom';
+import {
+  EditorView,
+  attachRemoteCarets,
+  defaultFeatures,
+  fr,
+  icon,
+  peerSelection,
+  wordCountFeature,
+  type CommentAuthor,
+  type RemoteSelection,
+} from '@nbe/dom';
+import { mermaidStyles } from '@nbe/blocks-mermaid';
+import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
+import { callout } from '@nbe/blocks-callout/dom';
+import { code } from '@nbe/blocks-code/dom';
+import { toc } from '@nbe/blocks-toc/dom';
+import { mdx } from '@nbe/blocks-mdx/dom';
+import { dropZone } from '@nbe/blocks-dropzone/dom';
+import { embed } from '@nbe/blocks-embed/dom';
+import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import {
   LoroBlockStore,
   LoroComments,
@@ -25,6 +44,16 @@ import {
 } from '@nbe/collab';
 import '@nbe/dom/style.css';
 import './demo.css';
+
+// the mermaid feature ships its CSS as a string, like a block plugin's `styles`
+document.head.append(Object.assign(document.createElement('style'), { textContent: mermaidStyles }));
+
+/**
+ * The same block set as the single-player demo — a type that syncs but cannot
+ * be typed would be a strange thing to promise, so the two demos run the same
+ * list. Merging is the plugins' problem too, and this is where it shows.
+ */
+const BLOCKS = [callout, code, toc, mdx, dropZone, embed, ...tableDomBlocks];
 
 /**
  * Two people, one document — the whole of phase 5, visible.
@@ -153,6 +182,11 @@ function pane(
   const view = new EditorView(surface, editor, {
     onComment: commentOn,
     commentAuthor: { id: person.id, name: person.name },
+    labels: fr,
+    blocks: BLOCKS,
+    // mermaid loads itself only if a diagram is on the page; the counter is
+    // cheap and answers the first question anyone asks of a shared document
+    features: [...defaultFeatures, mermaidFeature, wordCountFeature],
   });
   const carets = attachRemoteCarets(view);
 
@@ -285,7 +319,14 @@ function pane(
 
 const app = document.getElementById('app')!;
 const params = new URLSearchParams(location.search);
-const room = params.get('room');
+/*
+ * A room needs a relay, and one only exists while `pnpm dev` is running — so
+ * the default follows the server: a real room in development, where the dev
+ * server starts a relay beside itself and a second tab is a second person; the
+ * two-pane loopback in a build, which is all a static site can host. Force the
+ * pair back on with `?demo=loopback`.
+ */
+const room = params.get('room') ?? (import.meta.env.DEV && params.get('demo') !== 'loopback' ? 'demo' : null);
 
 if (room) roomMode(room);
 else loopbackMode();

@@ -13,11 +13,19 @@ import { icon } from './ui';
  * can see until they happen to hover the right block might as well not be
  * recorded. So a commented block carries a marker in the right margin, always.
  *
- * **No host API for the count.** The editor already knows: a thread anchors
- * itself as a `comment` mark carrying its `threadId` (that is what survives
- * editing, where an offset or a block id would not), so counting the distinct
- * ids on a block's text is counting its threads. A `commentCount` option would
- * have been a second source for something the document already says.
+ * **The document counts threads; a reader counts comments.** A thread anchors
+ * itself as a `comment` mark carrying its `threadId` — that is what survives
+ * editing, where an offset or a block id would not — so the editor can count
+ * threads on its own, and for a while it did only that. It is the wrong number:
+ * three comments made one after another join one thread, and "1" beside a panel
+ * showing two messages is simply false.
+ *
+ * The messages belong to the host, so the host has to say. Two ways, and the
+ * second exists because the first was missed by everyone:
+ * {@link EditorViewOptions.commentCount} for a host that counts its own way,
+ * and {@link EditorViewOptions.commentStore} for the ordinary case — hand over
+ * the store and the count and its refresh both follow, because a reply adds no
+ * mark and so nothing in the document announces it.
  *
  * A feature rather than part of `renderBlock`, because the marker has to
  * survive a re-render of a *different* block — and because a host that does
@@ -78,8 +86,16 @@ export function refreshCommentMarkers(view: EditorView): boolean {
   return true;
 }
 
+/** Messages across these threads, when the host handed over its store. */
+function storeCount(view: EditorView, threadIds: readonly string[]): number | undefined {
+  const store = view.options.commentStore;
+  if (!store) return undefined;
+  return threadIds.reduce((n, id) => n + (store.get(id)?.messages.length ?? 0), 0);
+}
+
 export function attachCommentMarkers(view: EditorView): () => void {
   const editor = view.editor;
+  const fromStore = (threadIds: readonly string[]) => storeCount(view, threadIds);
   // no host to open a thread is no marker: a badge that does nothing when
   // pressed is worse than no badge
   if (!view.options.onComment) return () => {};
@@ -91,9 +107,11 @@ export function attachCommentMarkers(view: EditorView): () => void {
     const el = view.content.querySelector<HTMLElement>(`.nbe-block[data-block-id="${CSS.escape(id)}"]`);
     if (!el) return;
     const threads = commentThreadIds(editor.doc.blocks.get(id));
-    // the host counts when it keeps the messages; the document knows the
-    // threads, and a thread is the least a marker can honestly claim
-    const count = threads.length ? (view.options.commentCount?.(id, threads) ?? threads.length) : 0;
+    /*
+     * The host's own count wins; then the store's, which is the messages; then
+     * the threads, which is all the document can honestly claim on its own.
+     */
+    const count = threads.length ? (view.options.commentCount?.(id, threads) ?? fromStore(threads) ?? threads.length) : 0;
     const existing = el.querySelector<HTMLButtonElement>(`:scope > .${CLASS}`);
     if (!count) {
       existing?.remove();
@@ -182,6 +200,13 @@ export function attachCommentMarkers(view: EditorView): () => void {
    */
   const offRender = view.onRender(() => applyAll());
 
+  /*
+   * A reply changes no block, so nothing above fires. Without this the badge
+   * is right when a thread is created and stale from the second message on —
+   * which is the shape the bug was reported in.
+   */
+  const offStore = view.options.commentStore?.onChange(() => applyAll()) ?? (() => {});
+
   const unsubscribe = editor.on((change) => {
     const structural = change.ops.some((op) => op.type !== 'insert_text' && op.type !== 'delete_text');
     const dirty = [...change.dirty];
@@ -199,6 +224,7 @@ export function attachCommentMarkers(view: EditorView): () => void {
   return () => {
     unsubscribe();
     offRender();
+    offStore();
     refreshers.delete(view);
     view.content.removeEventListener('click', onClick);
     for (const el of view.content.querySelectorAll(`.${CLASS}`)) el.remove();
