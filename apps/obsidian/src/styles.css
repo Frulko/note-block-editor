@@ -89,7 +89,18 @@
 }
 
 /* ==========================================================================
-   The vault's theme wins.
+   The vault's theme, and where Carnet's own overrides it.
+
+   Two layers on purpose, because « suivre le thème du coffre » and « garder
+   l'identité de Carnet » are both right and they are not the same rule:
+
+   1. the paper and the faces, always — a plugin that painted its own page
+      inside somebody's vault would be rude;
+   2. the rest of the palette, unless the reader has said otherwise.
+
+   And a third thing that is neither: what stays Carnet's *whatever* layer 2
+   does, because it is the thing rather than the surface under it. See the note
+   above the code colours at the bottom of this section.
    ========================================================================== */
 
 .carnet-host .nbe-editor,
@@ -106,32 +117,40 @@ body[data-nbe-theme] .nbe-portal {
      written, which is the face the vault chose for exactly that */
   --nbe-font-sans: var(--font-text, "Inter", ui-sans-serif, system-ui, sans-serif);
   --nbe-font-mono: var(--font-monospace, ui-monospace, Menlo, monospace);
+}
 
-  /* ---- and the rest of the palette --------------------------------------
+/* ---- layer 2: the rest of the palette -----------------------------------
 
-     Two surfaces and two faces were the whole bridge, so a community theme —
-     Minimal, Things, Catppuccin — changed the paper Carnet was drawn on and
-     nothing that was drawn: the ink, the rules, the accent and the hover all
-     stayed Carnet's, in a vault that had asked for something else.
+   Two surfaces and two faces were the whole bridge, so a community theme —
+   Minimal, Things, Catppuccin — changed the paper Carnet was drawn on and
+   nothing that was drawn: the ink, the rules, the accent and the hover all
+   stayed Carnet's, in a vault that had asked for something else.
 
-     Derived tokens, not the base channels the token layer prefers, and that is
-     forced rather than chosen: the channels are `R G B` triplets consumed as
-     `rgb(var(--nbe-ink) / 0.4)`, and Obsidian's equivalents (`--mono-rgb-100`)
-     are comma-separated, which that syntax cannot take. Its *accent* can be
-     decomposed, because it is published as three HSL parts — so that one keeps
-     its soft and line variants instead of flattening to a solid.
+   Derived tokens, not the base channels the token layer prefers, and that is
+   forced rather than chosen: the channels are `R G B` triplets consumed as
+   `rgb(var(--nbe-ink) / 0.4)`, and Obsidian's equivalents (`--mono-rgb-100`)
+   are comma-separated, which that syntax cannot take. Its *accent* can be
+   decomposed, because it is published as three HSL parts — so that one keeps
+   its soft and line variants instead of flattening to a solid.
 
-     Every mapping carries Carnet's own value as the `var()` fallback. A missing
-     variable makes a declaration invalid at computed-value time, which does not
-     fall back to the previous rule — it inherits, and a colour inherited from
-     an Obsidian pane is how a note ends up with unreadable chrome and nothing
-     in the console.
+   Every mapping carries Carnet's own value as the `var()` fallback. A missing
+   variable makes a declaration invalid at computed-value time, which does not
+   fall back to the previous rule — it inherits, and a colour inherited from an
+   Obsidian pane is how a note ends up with unreadable chrome and nothing in the
+   console.
 
-     What is deliberately not bridged: the inverse surfaces (a tooltip has to
-     invert against the *page*, which is what makes it legible in both themes),
-     the shadows and radii (shape is Carnet's, not the vault's), and the named
-     block palette, which is persisted by name and must mean the same colour in
-     every host. */
+   `[data-carnet-palette="carnet"]` on <body> turns this layer off and leaves
+   layer 1: the vault's paper and faces, Carnet's ink. That is the setting, and
+   it is a whole layer rather than a list of exceptions because a theme that
+   fights this will fight it in more than one place.
+
+   What is deliberately never bridged, in either layer: the inverse surfaces (a
+   tooltip has to invert against the *page*, which is what makes it legible in
+   both themes), the shadows and radii (shape is Carnet's, not the vault's),
+   the named block palette (persisted by name, so it must mean the same colour
+   in every host), and the code colours below. */
+body:not([data-carnet-palette="carnet"]) .carnet-host .nbe-editor,
+body[data-nbe-theme]:not([data-carnet-palette="carnet"]) .nbe-portal {
   --nbe-text: var(--text-normal, rgb(var(--nbe-ink)));
   --nbe-text-muted: var(--text-muted, rgb(var(--nbe-ink) / var(--nbe-a-muted)));
   /* Obsidian's ladder has three rungs to Carnet's four, so light and faint
@@ -152,10 +171,22 @@ body[data-nbe-theme] .nbe-portal {
   --nbe-on-accent: var(--text-on-accent, #fff);
   --nbe-danger: var(--text-error, rgb(var(--nbe-danger-rgb)));
   --nbe-success: var(--color-green, rgb(var(--nbe-success-rgb)));
-
-  --nbe-code-bg: var(--code-background, rgb(var(--nbe-ink-warm) / var(--nbe-a-code-bg)));
-  --nbe-code-text: var(--code-normal, light-dark(rgb(197, 62, 74), rgb(255, 138, 138)));
 }
+
+/* ---- and what stays Carnet's, whatever the vault says --------------------
+
+   `--nbe-code-bg` and `--nbe-code-text` used to be mapped onto Obsidian's
+   `--code-background` and `--code-normal`, and that was a mapping made by
+   *name* rather than by meaning. Obsidian's pair describe a fenced code block
+   in its Markdown renderer, where the background is nearly the page and the ink
+   is the body ink, because a syntax palette paints over it afterwards. Carnet's
+   pair are the **inline code mark**: a warm tint and red ink, which is the whole
+   of what makes `` `const` `` in the middle of a sentence read as code.
+
+   Taking the vault's values gave inline code the page's own colours — no tint,
+   no ink, indistinguishable from the prose around it. So they are bridged in
+   neither layer. A vault that wants its own can still have them: they are two
+   custom properties, and a CSS snippet is one line each. */
 
 .carnet-host .nbe-editor {
   min-height: 100%;

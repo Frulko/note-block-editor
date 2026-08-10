@@ -240,6 +240,15 @@ export default class CarnetPlugin extends Plugin {
     } else {
       delete document.body.dataset.nbeCodeTheme;
     }
+    /*
+     * The palette layer, which is a whole layer rather than a list of
+     * exceptions: a theme that fights Carnet's mapping will fight it in more
+     * than one place, and picking them off one at a time is a setting per
+     * complaint. Absent means "follow the vault", so the default writes
+     * nothing.
+     */
+    if (this.settings.vaultPalette) delete document.body.dataset.carnetPalette;
+    else document.body.dataset.carnetPalette = 'carnet';
     // same hook again, for the face the prose is set in; `sans` is what the
     // token layer already says, so the default leaves no attribute behind
     if (this.settings.typeface && this.settings.typeface !== 'sans') {

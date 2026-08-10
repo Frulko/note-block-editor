@@ -297,3 +297,53 @@ describe('the typeface choice reaches the stylesheet', () => {
     expect(rules).not.toMatch(/--nbe-font-mono\s*:/);
   });
 });
+
+/**
+ * The two colours the vault does not get to set.
+ *
+ * @remarks
+ * `--nbe-code-bg` and `--nbe-code-text` were once mapped onto Obsidian's
+ * `--code-background` and `--code-normal`, and it looked like an obvious pair
+ * because the names line up. They do not mean the same thing: Obsidian's
+ * describe a *fenced code block* in its renderer — background nearly the page,
+ * ink the body ink, because a syntax palette paints over it afterwards — while
+ * Carnet's are the **inline code mark**, a warm tint and red ink, which is the
+ * whole of what makes `` `const` `` in a sentence read as code.
+ *
+ * Bridging them gave inline code the page's own colours: no tint, no ink,
+ * indistinguishable from the prose. Reported 2026-08-10 as « il faut remettre
+ * le bon style pour l'affichage de code inline ».
+ *
+ * A mapping made by name rather than by meaning is exactly the kind that gets
+ * re-added by someone reading a list of Obsidian variables, so it is checked
+ * rather than remembered.
+ */
+describe('the Obsidian bridge leaves the code colours alone', () => {
+  const pluginCss = readFileSync(join(__dirname, '..', 'apps', 'obsidian', 'src', 'styles.css'), 'utf8');
+
+  it('maps neither --nbe-code-bg nor --nbe-code-text', () => {
+    const mapped = [...pluginCss.matchAll(/^\s*(--nbe-code-(?:bg|text))\s*:\s*([^;]+);/gm)].map(
+      ([, name, value]) => `${name}: ${value!.trim()}`,
+    );
+    expect(mapped).toEqual([]);
+  });
+
+  it('and the token layer still states them, so there is something to keep', () => {
+    const tokens = readFileSync(join(__dirname, '..', 'packages', 'dom', 'src', 'style', 'tokens.css'), 'utf8');
+    expect(tokens).toMatch(/--nbe-code-bg\s*:/);
+    expect(tokens).toMatch(/--nbe-code-text\s*:/);
+  });
+
+  it('the palette layer can be turned off without taking the paper with it', () => {
+    // two layers: the surfaces and the faces are unconditional, the palette is
+    // behind the opt-out — so « garder la palette Carnet » is not « ignorer le
+    // thème du coffre »
+    expect(pluginCss).toMatch(/body:not\(\[data-carnet-palette="carnet"\]\)/);
+    const always = /\.carnet-host \.nbe-editor,[\s\S]*?body\[data-nbe-theme\] \.nbe-portal \{([\s\S]*?)\n\}/.exec(
+      pluginCss,
+    )![1]!;
+    expect(always).toMatch(/--nbe-surface\s*:/);
+    expect(always).toMatch(/--nbe-font-sans\s*:/);
+    expect(always).not.toMatch(/--nbe-accent\s*:/);
+  });
+});

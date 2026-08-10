@@ -46,6 +46,11 @@ export interface CarnetSettings {
    * reader who wants the editor light regardless had no way to say so.
    */
   themeMode: 'vault' | 'light' | 'dark';
+  /**
+   * Take the vault theme's palette — ink, rules, accent, hover — or keep
+   * Carnet's. The paper and the faces follow the vault either way.
+   */
+  vaultPalette: boolean;
   /** Which syntax palette code blocks use. See `CODE_THEMES`. */
   codeTheme: string;
   /** The face the prose is set in. See `TYPEFACES`. */
@@ -72,6 +77,7 @@ export const DEFAULT_SETTINGS: CarnetSettings = {
   readOnly: false,
   defaultEditor: false,
   themeMode: 'vault',
+  vaultPalette: true,
   codeTheme: 'one',
   typeface: 'sans',
   stickyToolbar: false,
@@ -217,6 +223,18 @@ export class CarnetSettingTab extends PluginSettingTab {
             s.themeMode = v as CarnetSettings['themeMode'];
             save();
           }),
+      );
+
+    new Setting(containerEl)
+      .setName('Couleurs du coffre')
+      .setDesc(
+        'Prend l’encre, les filets, l’accent et le survol du thème du coffre. Désactivé, Carnet garde sa propre palette — le papier et les polices suivent le coffre dans les deux cas. Le code en ligne garde toujours sa teinte : celle du coffre le rendrait identique au texte autour.',
+      )
+      .addToggle((t) =>
+        t.setValue(s.vaultPalette).onChange((v) => {
+          s.vaultPalette = v;
+          save();
+        }),
       );
 
     new Setting(containerEl)
