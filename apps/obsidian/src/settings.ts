@@ -103,7 +103,7 @@ const OPTIONAL_FEATURES: ReadonlyArray<{ name: string; label: string; desc: stri
   {
     name: 'floating-toc',
     label: 'Sommaire flottant',
-    desc: 'Les titres de la note, dans un panneau qui suit le défilement et souligne la section en cours de lecture. Masqué sur un volet étroit.',
+    desc: 'Les titres de la note, derrière un bouton en bas à droite : le panneau souligne la section en cours de lecture et suit le défilement.',
     on: false,
   },
 ];

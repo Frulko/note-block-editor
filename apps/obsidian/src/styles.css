@@ -14,6 +14,26 @@
   overflow: auto;
 }
 
+/* ==========================================================================
+   One tooltip per button.
+
+   Every Carnet control carries an `aria-label` (the accessible name) *and*
+   draws its own tooltip after 350ms. Obsidian's tooltip layer hangs off that
+   same attribute on a delay of its own, so a hovered button showed Carnet's
+   label and then, a second later, Obsidian's on top of it — two dark chips
+   saying the same thing. `--no-tooltip` is Obsidian's own opt-out, read off
+   the computed style, and it inherits: one declaration covers the editor and
+   everything portaled out of it, now and later.
+
+   Obsidian's, not Carnet's, because the tooltip is part of the editor and has
+   to look the same in every host — and dropping the `aria-label` instead would
+   take the accessible name with it.
+   ========================================================================== */
+.carnet-host,
+.nbe-portal {
+  --no-tooltip: true;
+}
+
 /* The inline title: the filename, edited in place like Obsidian's own.
    ponytail: the horizontal formula copies .nbe-editor's defaults (24px pad,
    58px gutter, 708px measure); a custom maxWidth/padX vault setting will
@@ -150,6 +170,13 @@ body[data-nbe-theme] .nbe-portal {
 }
 .nbe-controls {
   color: var(--nbe-text-faint);
+}
+/* The one control that is not on a surface of its own: the marker sits in the
+   note's margin, so it inherited the *note's* ink from the rule above and a
+   commented block lost the only thing that said so. (0,2,0), because the
+   flattening rule is (0,1,1). */
+:is(.carnet-host, .nbe-portal) .nbe-comment-marker {
+  color: rgb(var(--nbe-note-rgb));
 }
 /* The inverse surfaces: dark chip, light ink, in either theme. Missing the
    tooltip here is what made every tooltip in the vault a black rectangle with

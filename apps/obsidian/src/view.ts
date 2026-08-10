@@ -6,12 +6,23 @@ import {
   getBlock,
   isCollapsed,
   selectedBlocks,
+  textCaret,
+  textLength,
   uuidv7,
   type BlockId,
   type BlockJSON,
 } from '@nbe/core';
-import { EditorView, caretLine, openExport, openFind } from '@nbe/dom';
-import { blocksToMarkdown } from '@nbe/markdown';
+import {
+  EditorView,
+  caretLine,
+  findHits,
+  insertBlocksAt,
+  openExport,
+  openFind,
+  refreshCommentMarkers,
+  reveal,
+} from '@nbe/dom';
+import { blocksToMarkdown, slugify } from '@nbe/markdown';
 import { createNoteComments, readComments, restoreAnchors, writeComments } from './comments';
 import { MARKDOWN_PLUGINS, pageOf } from './document';
 import { viewOptions } from './settings';
@@ -24,6 +35,66 @@ import type CarnetPlugin from './main';
  */
 
 export const VIEW_TYPE = 'carnet-editor';
+
+/**
+ * A drag that started inside Obsidian, which is not a `DataTransfer`.
+ *
+ * @remarks
+ * Dragging a note out of the file explorer puts an `obsidian://open?…` URL on
+ * the event and the *file itself* on `app.dragManager.draggable` — the second
+ * being what every part of Obsidian reads, including its own editor. It is not
+ * in the published typings, hence the shape declared here.
+ *
+ * ponytail: an undocumented field, read and never written, behind a
+ * `?.` — a version that renames it turns vault drops off and breaks nothing
+ * else. The URL on the event is the fallback if that ever happens.
+ */
+interface VaultDrag {
+  type: string;
+  file?: unknown;
+  files?: unknown[];
+  linktext?: string;
+}
+
+/**
+ * How many times `needle` appears in `text` before `end` — the rank of a
+ * search hit among its twins. Case-insensitive, because `findHits` is.
+ */
+function occurrencesBefore(text: string, needle: string, end: number): number {
+  const haystack = text.slice(0, end).toLowerCase();
+  const lower = needle.toLowerCase();
+  let n = 0;
+  for (let at = haystack.indexOf(lower); at !== -1; at = haystack.indexOf(lower, at + lower.length)) n++;
+  return n;
+}
+
+/** Vault paths that the image block should render rather than the file card. */
+const IMAGE_EXT = /^(png|jpe?g|gif|webp|avif|svg|bmp|ico)$/i;
+
+/**
+ * The block a file dropped from the vault becomes.
+ *
+ * @remarks
+ * A note is a *link*: `link_to_page` is what writes back as `[[Nom]]`, which
+ * is how a vault spells a link to a note, so the drop leaves the file exactly
+ * as Obsidian's own editor would have.
+ *
+ * Anything else is imported where it stands, at the path the vault already
+ * keeps it at — nothing is copied. An image goes in as `![[chemin]]`
+ * (`wiki: true`), Obsidian's own spelling, raw rather than URL-encoded because
+ * that is what a wikilink target is. The file card is a Markdown link instead,
+ * where a space or a parenthesis would end the link early, so that one is
+ * encoded; {@link CarnetView.resolveAttachment} decodes on the way back and
+ * hands the block an `app://` URL — which is what makes a dropped PDF preview
+ * in place rather than sit there as a name.
+ */
+function blockFor(file: TFile): BlockJSON {
+  const base = { id: uuidv7(), version: 1, text: [] };
+  if (file.extension === 'md')
+    return { ...base, type: 'link_to_page', props: { target: file.basename, title: file.basename } };
+  if (IMAGE_EXT.test(file.extension)) return { ...base, type: 'image', props: { src: file.path, wiki: true } };
+  return { ...base, type: 'file', props: { src: encodeURI(file.path), name: file.name, size: file.stat.size } };
+}
 
 export class CarnetView extends TextFileView {
   constructor(
@@ -143,10 +214,83 @@ export class CarnetView extends TextFileView {
     this.build('');
   }
 
+  /**
+   * Where Obsidian asked us to land, until the document is there to land in:
+   * the text to find, and *which* of its occurrences.
+   */
+  private pendingReveal: { needle: string; nth: number } | null = null;
+
+  /**
+   * Obsidian says *where* in the note to go: a search hit, a heading anchor.
+   *
+   * @remarks
+   * This is what makes the search pane work on a Carnet note. A result opens
+   * the file and then hands the view an ephemeral state — `{ match: { content,
+   * matches } }`, the file's text and the offsets of the hit inside it — which
+   * `MarkdownView` turns into a CodeMirror selection. Without this method the
+   * note opened at the top and the reader was left to find their own result,
+   * which for a hit two thousand words down is not opening it at all.
+   *
+   * The offsets are into the *Markdown*, and this editor holds blocks, so they
+   * are not usable as positions. The matched **text** is, and the editor
+   * already has the function that finds text in a document — the one ⌘F uses.
+   * A heading link (`[[Note#Titre]]`) arrives as `subpath` and is the same
+   * question with the `#` taken off.
+   *
+   * **Which** occurrence matters as much as which word. A note with three
+   * `iframe` in it gets three results in the sidebar, and every one of them
+   * used to land on the first — the offsets say which, and counting the same
+   * text before them in the file gives its rank, which is the rank to take in
+   * the document. Not a proof: text that lives in Markdown syntax and not in
+   * the rendered document (a URL, an anchor `%%^id%%`) shifts the count. It is
+   * right for prose, which is what a search result is.
+   *
+   * Deferred until the document is whole: Obsidian sets the state right after
+   * handing over the file, and on a long note the blocks the hit is in have
+   * not been rendered yet.
+   *
+   * ponytail: `line` is not handled — a Markdown line number is not a block,
+   * and nothing in Obsidian sends one at a note this view can open. It would
+   * need the projection to keep a line map.
+   */
+  setEphemeralState(state: unknown): void {
+    const s = (state ?? {}) as { match?: { content?: string; matches?: number[][] }; subpath?: string };
+    const at = s.match?.matches?.[0];
+    const content = s.match?.content ?? '';
+    const needle = at ? content.slice(at[0]!, at[1]!) : (s.subpath ?? '').replace(/^#+/, '').trim();
+    if (!needle) return;
+    this.pendingReveal = { needle, nth: at ? occurrencesBefore(content, needle, at[0]!) : 0 };
+    void this.view?.whenComplete().then(() => this.revealPending());
+  }
+
+  /** Scroll to the text Obsidian asked for, and select it. */
+  private revealPending(): void {
+    const pending = this.pendingReveal;
+    const view = this.view;
+    if (!pending || !view) return;
+    this.pendingReveal = null;
+    const hits = findHits(view, pending.needle);
+    // the note may hold fewer than the file does; the last one beats none
+    const hit = hits[Math.min(pending.nth, hits.length - 1)];
+    if (!hit) return;
+    const el = view.blockEl(hit.blockId);
+    // `start`, not `nearest`: arriving at a search result means arriving at the
+    // passage it is in, the same reason a contents entry scrolls that way
+    if (el) reveal(el, 'start');
+    view.editor.setSelection(
+      { kind: 'text', anchor: { blockId: hit.blockId, offset: hit.from }, head: { blockId: hit.blockId, offset: hit.to } },
+      'api',
+    );
+    view.syncDomSelection();
+  }
+
   async onOpen(): Promise<void> {
     this.mount = this.contentEl.createDiv({ cls: 'carnet-host' });
     this.registerDomEvent(this.mount, 'click', (e) => this.followLink(e));
     this.registerDomEvent(this.mount, 'keydown', (e) => this.onEditorKey(e));
+    this.registerDomEvent(this.mount, 'dragover', (e) => this.onVaultDragOver(e));
+    this.registerDomEvent(this.mount, 'dragleave', () => this.endVaultDrag());
+    this.registerDomEvent(this.mount, 'drop', (e) => this.onVaultDrop(e));
     // an external rename (file explorer, sync) must reach the inline title;
     // Obsidian mutates the TFile in place, so identity survives the rename
     this.registerEvent(
@@ -197,6 +341,67 @@ export class CarnetView extends TextFileView {
     }
   }
 
+  /** The files an in-progress vault drag is carrying, notes and all. */
+  private draggedFiles(): TFile[] {
+    const drag = (this.app as unknown as { dragManager?: { draggable?: VaultDrag } }).dragManager?.draggable;
+    if (!drag) return [];
+    const items = drag.files ?? (drag.file ? [drag.file] : []);
+    const files = items.filter((f): f is TFile => f instanceof TFile);
+    // dragging a *link* (from a note, from the search pane) carries link text
+    // rather than a file; the vault resolves it the way it resolves any link
+    if (!files.length && drag.linktext) {
+      const target = this.app.metadataCache.getFirstLinkpathDest(drag.linktext, this.file?.path ?? '');
+      if (target) files.push(target);
+    }
+    return files;
+  }
+
+  private onVaultDragOver(e: DragEvent): void {
+    // the editor answers an OS file drop itself, and that one is already
+    // cancelled by the time it reaches here
+    if (e.defaultPrevented || !this.draggedFiles().length) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    // the same affordance a dropped OS file gets, so the editor says the drop
+    // will land before it does
+    this.view?.content.classList.add('nbe-filedrag');
+  }
+
+  private endVaultDrag(): void {
+    this.view?.content.classList.remove('nbe-filedrag');
+  }
+
+  /**
+   * A note, an image or a document dragged out of the file explorer.
+   *
+   * @remarks
+   * The gap this closes is that Obsidian's sidebar is the vault's main way of
+   * moving something into a note, and it spoke to the Markdown editor only:
+   * dropping a note here did nothing at all. What lands is decided by
+   * {@link blockFor} — a note becomes a link to it, anything else is embedded
+   * at its vault path.
+   *
+   * The caret goes to the block under the pointer first, because
+   * `insertBlocksAt` inserts *at the caret*: without this the note would take
+   * the drop wherever the caret happened to be left, which for a drag that
+   * started in another pane is nowhere near where it was let go.
+   */
+  private onVaultDrop(e: DragEvent): void {
+    this.endVaultDrag();
+    const files = this.draggedFiles();
+    const view = this.view;
+    const editor = this.editor;
+    if (e.defaultPrevented || !files.length || !view || !editor) return;
+    e.preventDefault();
+    const under = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const anchorId =
+      (under?.closest('.nbe-block') as HTMLElement | null)?.dataset['blockId'] ??
+      getBlock(editor.doc, editor.doc.rootId).children.at(-1);
+    if (!anchorId) return;
+    editor.setSelection(textCaret(anchorId, textLength(getBlock(editor.doc, anchorId).text)), 'api');
+    insertBlocksAt(view, files.map(blockFor), false);
+  }
+
   /**
    * The rename has to survive the element being taken away.
    *
@@ -222,6 +427,8 @@ export class CarnetView extends TextFileView {
     this.view?.destroy();
     this.view = null;
     this.editor = null;
+    for (const url of this.pdfs.values()) void url.then((u) => u.startsWith('blob:') && URL.revokeObjectURL(u));
+    this.pdfs.clear();
   }
 
   private inlineTitleEl: HTMLElement | null = null;
@@ -311,11 +518,25 @@ export class CarnetView extends TextFileView {
     view.focusBlock(block.id, 0);
   }
 
-  /** Rename the file to match the edited title; revert the text on refusal. */
+  /**
+   * Rename the file to match the edited title; revert the text on refusal.
+   *
+   * @remarks
+   * Through `slugify`, because a title is not a filename: « Daily 10/08 » went
+   * to the vault verbatim and the slash was read as a folder that does not
+   * exist, so renaming a note reported `ENOENT … Daily/Daily 10/08.md` — a
+   * filesystem error for something the user did nothing wrong to cause. It is
+   * the same reduction `@nbe/markdown` applies when it writes `[[Titre]]`, and
+   * for the same reason: a vault names a note `<Titre>.md` and links to it by
+   * that name, so what a filename cannot hold, a title cannot keep. The field
+   * is set back to `basename` below either way, so what is on screen is always
+   * what is on disk.
+   */
   private async commitTitle(): Promise<void> {
     const title = this.inlineTitleEl;
     if (!title || !this.file) return;
-    const name = (title.textContent ?? '').trim();
+    const typed = (title.textContent ?? '').trim();
+    const name = typed ? slugify(typed) : '';
     if (!name || name === this.file.basename) {
       title.textContent = this.file.basename;
       return;
@@ -356,6 +577,8 @@ export class CarnetView extends TextFileView {
     this.comments = this.plugin.settings.comments
       ? createNoteComments(note.threads, () => {
           if (!this.loading) this.requestSave();
+          // a reply changes no mark, so the margin's number would stay behind
+          if (this.view) refreshCommentMarkers(this.view);
         })
       : null;
 
@@ -371,6 +594,10 @@ export class CarnetView extends TextFileView {
         ? {
             onComment: (blockId, author, at) => this.comments?.onComment(this.editor!, blockId, author, at),
             commentAuthor: { id: 'obsidian', name: 'Vous' },
+            // messages, not threads: three comments in a row join one thread,
+            // and "1" beside a panel showing three of them is a wrong number
+            commentCount: (_blockId, threadIds) =>
+              threadIds.reduce((n, id) => n + (this.comments?.store.get(id)?.messages.length ?? 0), 0),
           }
         : {}),
       // the `@` picker completes against the vault's notes; the id IS the
@@ -413,7 +640,12 @@ export class CarnetView extends TextFileView {
       this.recount();
     });
     this.loading = false;
-    if (wasAt) void this.view.whenComplete().then(() => (scroller.scrollTop = wasAt));
+    void this.view.whenComplete().then(() => {
+      if (wasAt) scroller.scrollTop = wasAt;
+      // a search result opens the file *then* says where to go, and either
+      // order can win the race — so the landing is tried from both ends
+      this.revealPending();
+    });
   }
 
   /**
@@ -477,10 +709,47 @@ export class CarnetView extends TextFileView {
    * `getFirstLinkpathDest` resolves — and writes it back as `![[x.png]]`, so
    * opening a vault full of them leaves no diff.
    */
-  private resolveAttachment(src: string): string {
+  private resolveAttachment(src: string): string | Promise<string> {
     if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return src; // http(s), data:, already resolved
     const file = this.app.metadataCache.getFirstLinkpathDest(decodeURI(src), this.file?.path ?? '');
-    return file ? this.app.vault.getResourcePath(file) : src;
+    if (!file) return src;
+    return file.extension === 'pdf' ? this.pdfUrl(file) : this.app.vault.getResourcePath(file);
+  }
+
+  /** Blob URLs handed to the PDF viewer, revoked with the view. */
+  private readonly pdfs = new Map<string, Promise<string>>();
+
+  /**
+   * A PDF as bytes, not as an `app://` URL.
+   *
+   * @remarks
+   * **This is a crash, not an optimisation.** Obsidian filters every `app://`
+   * request in its main process and the filter reads `details.frame.origin`
+   * unconditionally — and Chromium's PDF viewer issues its request with no
+   * frame attached, so `frame` is `undefined` and the *main process* throws:
+   * "A JavaScript error occurred in the main process… reading 'origin'". A
+   * modal, on every note holding a PDF, before a byte is rendered. (Dismissing
+   * it lets the load through, which is how it looked like a slow preview.)
+   *
+   * The vault will hand us the bytes without going through the scheme at all,
+   * so it does. Cached per path, because a re-render must not read a 20MB file
+   * again, and revoked in {@link onClose} — an object URL is a leak until it
+   * is.
+   *
+   * ponytail: the whole file, in memory, for as long as the note is open —
+   * which is what Obsidian's own viewer does too. Range requests would need a
+   * viewer of our own.
+   */
+  private pdfUrl(file: TFile): Promise<string> {
+    const known = this.pdfs.get(file.path);
+    if (known) return known;
+    const url = this.app.vault
+      .readBinary(file)
+      .then((bytes) => URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })))
+      // the raw path is what it got before this existed: no preview, no crash
+      .catch(() => this.app.vault.getResourcePath(file));
+    this.pdfs.set(file.path, url);
+    return url;
   }
 
   /** Rebuild with the current settings, keeping the document being edited. */
