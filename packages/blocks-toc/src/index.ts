@@ -150,7 +150,7 @@ export const tocPlugin: BlockPlugin = {
     const items = entries
       .map((e) => `<li class="nbe-toc-l${e.level}"><a href="#${escapeHtml(e.id)}">${escapeHtml(e.text)}</a></li>`)
       .join('');
-    return `<nav class="nbe-t-table_of_contents" data-toc-style="${tocStyle(block.props)}" aria-label="Table des matières"><ul>${items}</ul></nav>`;
+    return `<nav id="${escapeHtml(block.id)}" class="nbe-t-table_of_contents" data-toc-style="${tocStyle(block.props)}" aria-label="Table des matières"><ul>${items}</ul></nav>`;
   },
 };
 

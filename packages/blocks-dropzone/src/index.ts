@@ -191,7 +191,7 @@ export const dropZonePlugin: BlockPlugin = {
     const items = dropFiles(block.props)
       .map((f) => `<li><a href="${escapeHtml(f.src)}">${escapeHtml(f.name)}</a></li>`)
       .join('');
-    return `<ul class="nbe-t-drop_zone" data-drop-kind="${dropKind(block.props)}">${items}</ul>`;
+    return `<ul id="${escapeHtml(block.id)}" class="nbe-t-drop_zone" data-drop-kind="${dropKind(block.props)}">${items}</ul>`;
   },
 };
 

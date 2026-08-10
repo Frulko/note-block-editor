@@ -80,6 +80,9 @@ export const calloutMarkdown: MarkdownProjection = {
  *
  * @category Plugins
  */
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
 export const calloutPlugin: BlockPlugin = {
   apiVersion: PLUGIN_API_VERSION,
   schema: {
@@ -91,7 +94,14 @@ export const calloutPlugin: BlockPlugin = {
   },
   markdown: calloutMarkdown,
   html(block) {
+    // an id is an attribute value, so it is escaped like any other — a block id
+    // is a uuid today and that is not a reason for the projection to assume so
     const icon = String((block.props ?? {})['icon'] ?? '💡');
-    return `<aside class="nbe-t-callout"><span class="nbe-callout-icon">${icon}</span><div>${plainText(block.text)}</div></aside>`;
+    /*
+     * The block id, like every built-in block emits — it is what an anchor
+     * points at, and a plugin returning its own markup was quietly the one
+     * kind of block a link into an export could not reach.
+     */
+    return `<aside id="${escapeHtml(block.id)}" class="nbe-t-callout"><span class="nbe-callout-icon">${icon}</span><div>${plainText(block.text)}</div></aside>`;
   },
 };

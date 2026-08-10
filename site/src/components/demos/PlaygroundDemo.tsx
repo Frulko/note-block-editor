@@ -24,7 +24,7 @@ import {
   stickyFormatToolbarFeature,
   wordCountFeature,
 } from '@nbe/dom';
-import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
+import { Frontmatter, documentToMarkdown, markdownToDocument } from '@nbe/markdown';
 import { CODE_THEMES } from '@nbe/blocks-code';
 import { code } from '@nbe/blocks-code/dom';
 import { callout } from '@nbe/blocks-callout/dom';
@@ -64,18 +64,22 @@ import { mermaidFeature, mermaidStyles } from '@nbe/blocks-mermaid/dom';
  * whole thing additive.
  */
 const MDX_COMPONENTS: MdxComponents = {
-  Counter: ({ props }) => {
+  Counter: ({ props, setProps }) => {
     const el = document.createElement('div');
     el.className = 'mdx-counter';
-    let n = Number(props['start'] ?? 0);
+    const n = Number(props['start'] ?? 0);
     const label = document.createElement('span');
     const paint = () => {
       label.textContent = `${String(props['label'] ?? 'Compteur')} : ${n}`;
     };
-    const step = (by: number) => () => {
-      n += by;
-      paint();
-    };
+    /*
+     * The count goes back into the tag rather than staying in this closure.
+     * `<Counter start={3} />` becomes `<Counter start={5} />`, so the file says
+     * what the counter is on: open the Markdown panel and it is there, reload
+     * that file and the component comes back the way you left it. It is a real
+     * edit, and undo undoes it — because it really is a change to the document.
+     */
+    const step = (by: number) => () => setProps({ start: n + by });
     paint();
     const minus = Object.assign(document.createElement('button'), { type: 'button', textContent: '−' });
     const plus = Object.assign(document.createElement('button'), { type: 'button', textContent: '+' });
@@ -113,6 +117,9 @@ const seed: BlockJSON = {
   id: 'pg-root',
   type: 'page',
   version: 1,
+  // a page has a title, and the title is what puts a `title:` in the header —
+  // the panel would otherwise show an empty one and prove nothing
+  props: { title: 'Bac à sable' },
   children: [
     b('heading', 'Bac à sable', { level: 1 }),
     b('paragraph', [
@@ -452,22 +459,51 @@ export default function PlaygroundDemo() {
     if (f)
       void f
         .text()
-        .then((text) =>
-          mount({ id: 'md-root', type: 'page', version: 1, children: markdownToBlocks(text, { plugins: PLUGINS }) }),
-        );
+        .then((text) => {
+          // and read back the same way: a file dropped here has a header too,
+          // and parsing only the body would strip it on the next export
+          const { frontmatter, blocks } = markdownToDocument(text, { plugins: PLUGINS });
+          const title = frontmatter.get<string>('title');
+          mount({
+            id: 'md-root',
+            type: 'page',
+            version: 1,
+            ...(title ? { props: { title } } : {}),
+            children: blocks,
+          });
+        });
   };
+  /**
+   * The file a host would actually write.
+   *
+   * @remarks
+   * This used to print `blocksToMarkdown(children)` — the prose and nothing
+   * else — so the panel claiming to show "the Markdown" showed a file no host
+   * produces. Everything that is *about* a note lives in its YAML header, and
+   * leaving it out of the demo is leaving out the half that answers "where do
+   * the comments go", which is the question the header exists to answer.
+   *
+   * The header is rebuilt from the live state each time rather than held,
+   * because the threads change without the document changing — a reply is not
+   * an edit.
+   */
+  const markdown = (json: BlockJSON): string => {
+    const frontmatter = new Frontmatter();
+    const title = String(json.props?.['title'] ?? '');
+    if (title) frontmatter.set('title', title);
+    const threads = comments.current.list();
+    // the same section name and shape the Obsidian plugin writes, so what the
+    // demo shows is what a vault would hold
+    frontmatter.setSection('comments', threads.length ? threads : undefined);
+    return documentToMarkdown({ frontmatter, blocks: json.children ?? [] }, { plugins: PLUGINS });
+  };
+
   const show = (kind: 'json' | 'md') => {
     const e = editor.current;
     if (!e) return;
     if (panel?.kind === kind) return setPanel(null);
     const json = docToJSON(e.doc);
-    setPanel({
-      kind,
-      text:
-        kind === 'json'
-          ? JSON.stringify(json, null, 2)
-          : blocksToMarkdown(json.children ?? [], { plugins: PLUGINS }),
-    });
+    setPanel({ kind, text: kind === 'json' ? JSON.stringify(json, null, 2) : markdown(json) });
   };
   const onDrop = (e: DragEvent) => {
     e.preventDefault();

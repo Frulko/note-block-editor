@@ -301,14 +301,14 @@ export const embedPlugin: BlockPlugin = {
     const height = Number(props['height'] ?? 0) || 400;
     if (mode === 'card' || !src) {
       const title = String(props['title'] ?? '') || src;
-      return `<p class="nbe-t-embed" data-embed-mode="card"><a href="${escapeHtml(src)}">${escapeHtml(title)}</a></p>`;
+      return `<p id="${escapeHtml(block.id)}" class="nbe-t-embed" data-embed-mode="card"><a href="${escapeHtml(src)}">${escapeHtml(title)}</a></p>`;
     }
     if (mode === 'srcdoc') {
       const html = String(props['html'] ?? '');
-      return `<iframe class="nbe-t-embed" data-embed-mode="srcdoc" sandbox="allow-scripts" height="${height}" srcdoc="${escapeHtml(html)}"></iframe>`;
+      return `<iframe id="${escapeHtml(block.id)}" class="nbe-t-embed" data-embed-mode="srcdoc" sandbox="allow-scripts" height="${height}" srcdoc="${escapeHtml(html)}"></iframe>`;
     }
     const url = frameUrl(src) ?? src;
-    return `<iframe class="nbe-t-embed" data-embed-mode="iframe" height="${height}" src="${escapeHtml(url)}" loading="lazy" allowfullscreen></iframe>`;
+    return `<iframe id="${escapeHtml(block.id)}" class="nbe-t-embed" data-embed-mode="iframe" height="${height}" src="${escapeHtml(url)}" loading="lazy" allowfullscreen></iframe>`;
   },
 };
 

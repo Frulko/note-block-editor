@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PluginRegistry } from '@nbe/core';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { componentName, mdxBlocks } from '../src/index';
-import { parseProps, readTag } from '../src/components';
+import { parseProps, readTag, writeProps } from '../src/components';
 
 /**
  * The point is not what this renders. It is that an `.mdx` file opens here and
@@ -111,5 +111,60 @@ describe('rendering changes nothing about the file', () => {
     ]) {
       expect(trip(src)).toBe(src);
     }
+  });
+});
+
+/**
+ * State that survives a reload, written where state belongs.
+ *
+ * @remarks
+ * A host's component keeps its count in a closure, so reopening the file put it
+ * back to whatever the tag said. The state *is* a prop — so it goes in the tag,
+ * the file says what the counter is on, and any other MDX tool reads the same
+ * value. The alternatives both cost something this block will not pay: a marker
+ * comment breaks the byte-for-byte promise, and a frontmatter key needs a
+ * stable id the block does not persist.
+ *
+ * The rule that makes it safe is that only the patched keys are rewritten.
+ * `{count + 1}` parses to the *string* `'count + 1'` — never evaluated — so
+ * re-serialising every attribute would emit `="count + 1"` and quietly turn an
+ * expression into a string literal.
+ */
+describe('writing a prop back into the tag', () => {
+  it('changes the one it was given', () => {
+    expect(writeProps('<Counter start={3} />', { start: 5 })).toBe('<Counter start={5} />');
+  });
+
+  it('adds one that was not there', () => {
+    expect(writeProps('<Counter />', { start: 2 })).toBe('<Counter start={2} />');
+    expect(writeProps('<Counter label="Vues" />', { start: 2 })).toBe('<Counter label="Vues" start={2} />');
+  });
+
+  it('removes one when given undefined', () => {
+    expect(writeProps('<Counter start={3} label="Vues" />', { start: undefined })).toBe(
+      '<Counter label="Vues" />',
+    );
+  });
+
+  it('leaves an expression exactly as it was written', () => {
+    // the whole hazard: this must not become `total="count + 1"`
+    const out = writeProps('<Counter start={3} total={count + 1} />', { start: 9 });
+    expect(out).toBe('<Counter start={9} total={count + 1} />');
+  });
+
+  it('keeps the children and the closing tag', () => {
+    const src = '<Callout type="info">\n  du texte\n</Callout>';
+    expect(writeProps(src, { type: 'warning' })).toBe('<Callout type="warning">\n  du texte\n</Callout>');
+  });
+
+  it('writes a string as a quoted attribute, and a value that would need escaping as JSX', () => {
+    expect(writeProps('<X />', { a: 'simple' })).toBe('<X a="simple" />');
+    expect(writeProps('<X />', { a: 'avec "guillemets"' })).toBe('<X a={"avec \\"guillemets\\""} />');
+  });
+
+  it('round-trips what it wrote', () => {
+    const out = writeProps('<Counter start={3} label="Vues" />', { start: 7 });
+    expect(trip(out)).toBe(out);
+    expect(parseProps(readTag(out)!.openingTag)).toEqual({ start: 7, label: 'Vues' });
   });
 });

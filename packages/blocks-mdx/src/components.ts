@@ -33,6 +33,20 @@ export interface MdxComponentContext {
   children: string;
   /** The block's whole source, verbatim — what will be written back out. */
   source: string;
+  /**
+   * Change some of this component's props, in the document.
+   *
+   * @remarks
+   * How a component keeps state across a reload: the state *is* a prop, so it
+   * is written into the tag and the file says what the counter is on. Any other
+   * MDX tool then reads the same value, and reopening the file brings the
+   * component back as it was.
+   *
+   * It is a real edit — undoable, and it marks the document dirty — because it
+   * really does change the file. A component that stores something nobody meant
+   * to keep should not call this.
+   */
+  setProps(patch: Record<string, unknown>): void;
 }
 
 /**
@@ -92,6 +106,86 @@ function matchBrace(text: string, open: number): number {
 const NAME = /[A-Za-z_][\w.:-]*/y;
 const SPACE = /\s/;
 
+/** One attribute, and exactly which bytes of the tag it occupies. */
+interface Attribute {
+  key: string;
+  value: unknown;
+  /** Index of the first character of `key`, within the opening tag. */
+  from: number;
+  /** Index just past the value (or past `key`, when the attribute is bare). */
+  to: number;
+}
+
+/** Where the attributes start: just past `<Name`. */
+const attributesStart = (tag: string): number => /^<[A-Za-z_][\w.]*/.exec(tag)?.[0]?.length ?? 0;
+
+/**
+ * Every attribute in an opening tag, with its span.
+ *
+ * @remarks
+ * The spans are what {@link writeProps} needs: rewriting a tag by
+ * re-serialising the parsed props would be lossy in a way nobody would notice
+ * until their file was wrong. `{count + 1}` parses to the *string*
+ * `'count + 1'` — it is not evaluated, deliberately — and writing that back out
+ * would emit `="count + 1"`, quietly turning an expression into a string
+ * literal. So a rewrite replaces the bytes of the keys it was asked about and
+ * leaves every other attribute exactly as it was written, which is the rule
+ * `Frontmatter` already follows for keys nobody touched.
+ */
+export function scanAttributes(openingTag: string): Attribute[] {
+  const tag = openingTag.trim();
+  const end = Math.max(0, endOfTag(tag) - 1);
+  const out: Attribute[] = [];
+  let i = attributesStart(tag);
+
+  const skipSpace = () => {
+    while (i < end && SPACE.test(tag[i]!)) i++;
+  };
+
+  while (i < end) {
+    skipSpace();
+    if (i >= end || tag[i] === '/') break;
+    NAME.lastIndex = i;
+    const name = NAME.exec(tag);
+    if (!name || name.index !== i) break;
+    const key = name[0];
+    const from = i;
+    i = NAME.lastIndex;
+    const afterKey = i;
+    skipSpace();
+
+    if (tag[i] !== '=') {
+      out.push({ key, value: true, from, to: afterKey }); // bare: JSX's own rule
+      continue;
+    }
+    i++;
+    skipSpace();
+
+    const c = tag[i];
+    let value: unknown;
+    if (c === '"' || c === "'") {
+      const close = tag.indexOf(c, i + 1);
+      value = close === -1 ? '' : tag.slice(i + 1, close);
+      i = close === -1 ? end : close + 1;
+    } else if (c === '{') {
+      const close = matchBrace(tag, i);
+      const raw = tag.slice(i + 1, close).trim();
+      try {
+        value = JSON.parse(raw);
+      } catch {
+        value = raw; // an expression, handed over as text and never run
+      }
+      i = Math.min(close + 1, end);
+    } else {
+      const at = i;
+      while (i < end && !SPACE.test(tag[i]!)) i++;
+      value = tag.slice(at, i);
+    }
+    out.push({ key, value, from, to: i });
+  }
+  return out;
+}
+
 /**
  * The props a tag declares.
  *
@@ -105,54 +199,72 @@ const SPACE = /\s/;
  * A bare attribute is `true`, which is JSX's own rule.
  */
 export function parseProps(openingTag: string): Record<string, unknown> {
-  const tag = openingTag.trim();
-  // past the component name, and short of the closing `>` (and any `/`)
-  const start = /^<[A-Za-z_][\w.]*/.exec(tag)?.[0]?.length ?? 0;
-  const inner = tag.slice(start, Math.max(start, endOfTag(tag) - 1)).replace(/\/\s*$/, '');
-
   const props: Record<string, unknown> = {};
-  let i = 0;
-  const skipSpace = () => {
-    while (i < inner.length && SPACE.test(inner[i]!)) i++;
-  };
+  for (const attribute of scanAttributes(openingTag)) props[attribute.key] = attribute.value;
+  return props;
+}
 
-  while (i < inner.length) {
-    skipSpace();
-    NAME.lastIndex = i;
-    const name = NAME.exec(inner);
-    if (!name) break;
-    const key = name[0];
-    i = NAME.lastIndex;
-    skipSpace();
+/** A value, as JSX spells it. */
+function emit(value: unknown): string {
+  // a plain string is a quoted attribute, unless quoting it would need escaping
+  if (typeof value === 'string' && !value.includes('"')) return `"${value}"`;
+  return `{${JSON.stringify(value)}}`;
+}
 
-    if (inner[i] !== '=') {
-      props[key] = true; // bare attribute: JSX's own rule
-      continue;
-    }
-    i++;
-    skipSpace();
+/**
+ * Rewrite a component's source with new values for some of its props.
+ *
+ * @param source - The block's whole source, opening tag to closing tag.
+ * @param patch - Keys to set. `undefined` removes the attribute.
+ *
+ * @remarks
+ * The state a host's component holds *is* a prop, so this is where it belongs:
+ * written into the tag, the file says what the counter is on, any other MDX
+ * tool reads the same value, and reopening the file brings the component back
+ * as it was. The alternative — a marker comment or a frontmatter key — would
+ * either break the byte-for-byte promise this block exists for, or need a
+ * stable id the block does not persist.
+ *
+ * Only the patched keys are touched. Everything else keeps the exact bytes it
+ * was written with, expressions included.
+ */
+export function writeProps(source: string, patch: Record<string, unknown>): string {
+  const tag = readTag(source);
+  if (!tag) return source;
+  const open = tag.openingTag;
+  const attributes = scanAttributes(open);
+  const selfClosing = /\/\s*>$/.test(open);
 
-    const c = inner[i];
-    if (c === '"' || c === "'") {
-      const close = inner.indexOf(c, i + 1);
-      props[key] = close === -1 ? '' : inner.slice(i + 1, close);
-      i = close === -1 ? inner.length : close + 1;
-    } else if (c === '{') {
-      const close = matchBrace(inner, i);
-      const raw = inner.slice(i + 1, close).trim();
-      try {
-        props[key] = JSON.parse(raw);
-      } catch {
-        props[key] = raw; // an expression, handed over as text and never run
-      }
-      i = close + 1;
-    } else {
-      const from = i;
-      while (i < inner.length && !SPACE.test(inner[i]!)) i++;
-      props[key] = inner.slice(from, i);
+  // right to left, so an earlier span's indices stay valid
+  const edits: Array<{ from: number; to: number; text: string }> = [];
+  const added: string[] = [];
+
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = attributes.find((a) => a.key === key);
+    if (existing) {
+      edits.push({
+        from: existing.from,
+        to: existing.to,
+        text: value === undefined ? '' : `${key}=${emit(value)}`,
+      });
+    } else if (value !== undefined) {
+      added.push(`${key}=${emit(value)}`);
     }
   }
-  return props;
+
+  let head = open;
+  for (const edit of edits.sort((a, b) => b.from - a.from)) {
+    head = head.slice(0, edit.from) + edit.text + head.slice(edit.to);
+  }
+  if (added.length) {
+    // before the `/>` or `>`, which is the only place an attribute may go
+    const close = selfClosing ? head.lastIndexOf('/') : head.lastIndexOf('>');
+    head = `${head.slice(0, close).replace(/\s*$/, '')} ${added.join(' ')}${selfClosing ? ' ' : ''}${head.slice(close)}`;
+  }
+  // collapse the gap a removed attribute leaves, without touching anything else
+  head = head.replace(/\s{2,}(?=[^\s])/g, ' ').replace(/\s+(\/?>)$/, selfClosing ? ' $1' : '$1');
+
+  return selfClosing ? head : `${head}${tag.children}</${tag.name}>`;
 }
 
 /** Split a block's source into its opening tag, its inner text and its name. */

@@ -92,7 +92,7 @@ export const mdxPlugin: BlockPlugin = {
   html(block) {
     // shown, not run — the same promise the editor makes
     const source = String((block.props ?? {})['source'] ?? '');
-    return `<pre class="nbe-t-mdx_component"><code>${escapeHtml(source)}</code></pre>`;
+    return `<pre id="${escapeHtml(block.id)}" class="nbe-t-mdx_component"><code>${escapeHtml(source)}</code></pre>`;
   },
 };
 

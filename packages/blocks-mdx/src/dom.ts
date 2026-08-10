@@ -5,7 +5,7 @@
  * @module @nbe/blocks-mdx/dom
  */
 import { componentName, mdxPlugin } from './index';
-import { parseProps, readTag, type MdxComponents } from './components';
+import { parseProps, readTag, writeProps, type MdxComponents } from './components';
 import type { DomBlockPlugin } from '@nbe/dom';
 
 export interface MdxOptions {
@@ -59,7 +59,20 @@ export function createMdx(options: MdxOptions = {}): DomBlockPlugin {
         const tag = readTag(source);
         const renderer = tag ? components[tag.name] : undefined;
         const rendered = renderer
-          ? renderer({ name: tag!.name, props: parseProps(tag!.openingTag), children: tag!.children, source })
+          ? renderer({
+              name: tag!.name,
+              props: parseProps(tag!.openingTag),
+              children: tag!.children,
+              source,
+              setProps: (patch) => {
+                const next = writeProps(source, patch);
+                if (next === source) return; // nothing to say, so nothing to undo
+                ctx.view.editor.dispatch(
+                  (tx) => tx.op({ type: 'update_block', id: block.id, patch: { props: { source: next } } }),
+                  { origin: 'ui' },
+                );
+              },
+            })
           : null;
 
         if (rendered) {

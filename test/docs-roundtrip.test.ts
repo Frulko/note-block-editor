@@ -104,3 +104,74 @@ describe('the llms.txt index points at pages that exist', () => {
     expect(source.split('\n').length).toBeLessThan(300);
   });
 });
+
+/**
+ * Every block in an HTML export can be linked to.
+ *
+ * @remarks
+ * `blockAttrs` gives every built-in block `id="<blockId>"` — that is what the
+ * table of contents anchors at, and the property the docs state as "les ancres
+ * sont les identifiants de blocs, ceux que l'export HTML émet déjà". A plugin
+ * returns its own markup instead, and all five of them were returning it
+ * without an id: a callout, a code block, an embed, a drop zone or an MDX
+ * component was the one kind of block a link into an export could not reach.
+ *
+ * Checked by rendering rather than by reading the source, because what matters
+ * is the string that comes out.
+ */
+describe('the HTML export gives every block an anchor', () => {
+  it('built-in and plugin blocks alike carry their id', async () => {
+    const { renderToHTML } = await import('../packages/static-renderer/src/index');
+    const { PluginRegistry } = await import('../packages/core/src/index');
+    const { calloutPlugin } = await import('../packages/blocks-callout/src/index');
+    const { mdxPlugin } = await import('../packages/blocks-mdx/src/index');
+    const { embedPlugin } = await import('../packages/blocks-embed/src/index');
+    const { dropZonePlugin } = await import('../packages/blocks-dropzone/src/index');
+    const { tocPlugin } = await import('../packages/blocks-toc/src/index');
+
+    const plugins = new PluginRegistry().registerAll([
+      calloutPlugin,
+      mdxPlugin,
+      embedPlugin,
+      dropZonePlugin,
+      tocPlugin,
+    ]);
+
+    const blocks: BlockJSON[] = [
+      { id: 'b-para', type: 'paragraph', version: 1, text: [{ text: 'du texte' }] },
+      { id: 'b-callout', type: 'callout', version: 1, props: { icon: '💡' }, text: [{ text: 'note' }] },
+      { id: 'b-mdx', type: 'mdx_component', version: 1, props: { source: '<Counter start={6} />' }, text: [] },
+      { id: 'b-embed', type: 'embed', version: 1, props: { src: 'https://example.com', mode: 'card' }, text: [] },
+      { id: 'b-drop', type: 'drop_zone', version: 1, props: { files: [] }, text: [] },
+      { id: 'b-toc', type: 'table_of_contents', version: 1, text: [] },
+    ];
+    const html = renderToHTML({ id: 'root', type: 'page', version: 1, children: blocks }, { plugins });
+
+    for (const block of blocks) {
+      expect(html, `${block.type} should carry its id`).toContain(`id="${block.id}"`);
+    }
+  });
+
+  it('an MDX component exports its source, state included, and runs nothing', async () => {
+    const { renderToHTML } = await import('../packages/static-renderer/src/index');
+    const { PluginRegistry } = await import('../packages/core/src/index');
+    const { mdxPlugin } = await import('../packages/blocks-mdx/src/index');
+    const plugins = new PluginRegistry().registerAll([mdxPlugin]);
+    const html = renderToHTML(
+      {
+        id: 'root',
+        type: 'page',
+        version: 1,
+        children: [
+          { id: 'm', type: 'mdx_component', version: 1, props: { source: '<Counter start={6} />' }, text: [] },
+        ],
+      },
+      { plugins },
+    );
+
+    // the state rides in the tag, so the export carries it — as text, escaped,
+    // which is the same promise the editor makes: shown, never run
+    expect(html).toContain('&lt;Counter start={6} /&gt;');
+    expect(html).not.toContain('<Counter');
+  });
+});
