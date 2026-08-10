@@ -1,0 +1,513 @@
+import { Keymap, Notice, TextFileView, TFile, WorkspaceLeaf, debounce, normalizePath } from 'obsidian';
+import {
+  Editor,
+  docFromJSON,
+  docToJSON,
+  getBlock,
+  isCollapsed,
+  selectedBlocks,
+  uuidv7,
+  type BlockId,
+  type BlockJSON,
+} from '@nbe/core';
+import { EditorView, caretLine, openExport, openFind } from '@nbe/dom';
+import { blocksToMarkdown } from '@nbe/markdown';
+import { createNoteComments, readComments, restoreAnchors, writeComments } from './comments';
+import { MARKDOWN_PLUGINS, pageOf } from './document';
+import { viewOptions } from './settings';
+import type CarnetPlugin from './main';
+
+/**
+ * The editing surface itself: one file, mounted in one pane.
+ *
+ * @module
+ */
+
+export const VIEW_TYPE = 'carnet-editor';
+
+export class CarnetView extends TextFileView {
+  constructor(
+    leaf: WorkspaceLeaf,
+    private readonly plugin: CarnetPlugin,
+  ) {
+    super(leaf);
+  }
+
+  private editor: Editor | null = null;
+  private view: EditorView | null = null;
+  /** The host we mount into, kept apart from Obsidian's own containers. */
+  private mount: HTMLElement | null = null;
+  /**
+   * True while we are loading a file into the editor.
+   *
+   * @remarks
+   * Mounting dispatches through the same path a keystroke does, so without
+   * this the load would mark the file dirty and Obsidian would write it back
+   * immediately — reformatting a note the user only opened. A user who opens a
+   * file and closes it must leave no diff.
+   */
+  private loading = false;
+
+  /**
+   * The open note's comment threads.
+   *
+   * @remarks
+   * Per view, not per plugin: this editor holds one file, and threads that
+   * outlived it would be threads about somebody else's blocks.
+   */
+  private comments: ReturnType<typeof createNoteComments> | null = null;
+
+  /**
+   * Keep Obsidian's *own* status-bar word count honest while typing.
+   *
+   * @remarks
+   * The core « Statistiques » plugin counts from `vault.cachedRead` on
+   * `file-open`, so in a Carnet note it showed the bytes on disk and then
+   * froze until the next save. This plugin used to answer that with a second
+   * status-bar item of its own, which is how a note ended up with two counts
+   * side by side, disagreeing.
+   *
+   * `quick-preview` is the event core already listens to for exactly this —
+   * it is what Obsidian's own editor fires while a note is being typed into,
+   * and its handler recounts whenever the file is the active one. So there is
+   * nothing to render, nothing to localise and nothing to keep in sync: we
+   * hand core the text and it owns the display, in the vault's language.
+   *
+   * ponytail: debounced, because the text costs one full Markdown
+   * serialisation. Half a second reads as live for a word count; raise it if
+   * a very long note ever feels heavy while typing.
+   */
+  private readonly recount = debounce(
+    () => {
+      if (this.file) this.app.workspace.trigger('quick-preview', this.file, this.getViewData());
+    },
+    500,
+    false,
+  );
+
+  getViewType(): string {
+    return VIEW_TYPE;
+  }
+
+  getIcon(): string {
+    return 'notebook-pen';
+  }
+
+  getDisplayText(): string {
+    return this.file?.basename ?? 'Carnet';
+  }
+
+  /** Obsidian asks for the file's content. This is the L1 projection. */
+  getViewData(): string {
+    if (!this.editor) return this.data;
+    /*
+     * `docToJSON`, not a walk of our own. This used to hand-roll the same
+     * recursion — a second implementation of a tested function, which is the
+     * duplication this codebase keeps paying to remove, and which I wrote here
+     * without noticing. It would have drifted the first time `Block` gained a
+     * field.
+     */
+    const page = docToJSON(this.editor.doc) as BlockJSON;
+    const blocks = this.comments ? restoreAnchors(page.children ?? []) : (page.children ?? []);
+    const markdown = blocksToMarkdown(blocks, { plugins: MARKDOWN_PLUGINS });
+    // the threads go back at the end, in Obsidian's own comment syntax, so the
+    // discussion travels with the file and reading mode shows none of it
+    return this.comments ? writeComments(markdown, this.comments.store.list()) : markdown;
+  }
+
+  /**
+   * Obsidian hands over the file's content, on open and on external change.
+   *
+   * @remarks
+   * **Including after our own save**, which is where "I reordered a block and
+   * it scrolled to the top" came from. Every edit calls `requestSave`, the
+   * write raises a vault event, and the view is handed back the bytes it just
+   * produced — a full rebuild, and `this.mount` *is* the scroller, so emptying
+   * it clamps `scrollTop` to 0 and the content coming back does not put it
+   * back. The reader loses their place because they moved a block.
+   *
+   * Comparing is the sane and simple version of not doing that: if the file on
+   * disk is already what this view would write, there is nothing to rebuild.
+   * It costs one serialisation, on an event that only fires when a file
+   * changes — the same work the save that caused it already did.
+   */
+  setViewData(data: string, clear: boolean): void {
+    const same = !clear && !!this.editor && data === this.getViewData();
+    this.data = data;
+    if (same) return;
+    this.build(data);
+  }
+
+  clear(): void {
+    this.data = '';
+    this.build('');
+  }
+
+  async onOpen(): Promise<void> {
+    this.mount = this.contentEl.createDiv({ cls: 'carnet-host' });
+    this.registerDomEvent(this.mount, 'click', (e) => this.followLink(e));
+    this.registerDomEvent(this.mount, 'keydown', (e) => this.onEditorKey(e));
+    // an external rename (file explorer, sync) must reach the inline title;
+    // Obsidian mutates the TFile in place, so identity survives the rename
+    this.registerEvent(
+      this.app.vault.on('rename', (file) => {
+        if (file === this.file && this.inlineTitleEl) this.inlineTitleEl.textContent = this.file.basename;
+      }),
+    );
+  }
+
+  /**
+   * Obsidian-style navigation: a wikilink opens the note, a plain link the
+   * browser, and Cmd/Ctrl+click opens in a new pane ({@link Keymap.isModEvent}).
+   *
+   * @remarks
+   * `openLinkText` is the vault's own resolver — shortest-path matching,
+   * unresolved-link creation, everything — so we hand it the link text and
+   * stay out of the rest. The editor's `onOpenPage` hook is not the right
+   * seam here: it speaks page ids, and a vault has none.
+   */
+  private followLink(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    const open = (linktext: string) => {
+      e.preventDefault();
+      void this.app.workspace.openLinkText(linktext, this.file?.path ?? '', Keymap.isModEvent(e));
+    };
+    const mention = target.closest('.nbe-m-mention') as HTMLElement | null;
+    if (mention) {
+      const linktext = mention.dataset['target'] || mention.dataset['pageId'] || mention.textContent || '';
+      if (linktext) open(linktext);
+      return;
+    }
+    const pageLink = target.closest('.nbe-t-link_to_page') as HTMLElement | null;
+    if (pageLink && this.editor) {
+      const p = getBlock(this.editor.doc, pageLink.dataset['blockId']!).props;
+      const linktext = String(p['target'] || p['title'] || '');
+      if (linktext) open(linktext);
+      return;
+    }
+    const anchor = target.closest('a.nbe-m-link') as HTMLAnchorElement | null;
+    if (anchor) {
+      const href = anchor.getAttribute('href') ?? '';
+      if (!href) return;
+      e.preventDefault();
+      // a scheme means the outside world; anything else is a vault-relative
+      // path, which is Obsidian's to resolve
+      if (/^[a-z][a-z0-9+.-]*:/i.test(href)) window.open(href);
+      else open(decodeURI(href).replace(/\.md$/, ''));
+    }
+  }
+
+  /**
+   * The rename has to survive the element being taken away.
+   *
+   * @remarks
+   * The title committed on `blur`, and removing a focused element from the
+   * document does not fire one — so typing a new name and then switching notes
+   * (⌘O, the file explorer, a link) discarded the rename silently, which is
+   * most of "you cannot always rename from the editor". Obsidian calls this
+   * before it unloads the file, and `this.file` is still the old one here,
+   * which is exactly what {@link commitTitle} needs.
+   *
+   * Before `super`, not after: the base class saves the note's *contents* and
+   * then clears the view, and a save that runs after the rename writes to the
+   * file Obsidian has already moved.
+   */
+  async onUnloadFile(file: TFile): Promise<void> {
+    await this.commitTitle();
+    await super.onUnloadFile(file);
+  }
+
+  async onClose(): Promise<void> {
+    await this.commitTitle();
+    this.view?.destroy();
+    this.view = null;
+    this.editor = null;
+  }
+
+  private inlineTitleEl: HTMLElement | null = null;
+
+  /** The inline title: the filename, edited in place like Obsidian's own. */
+  private buildTitle(host: HTMLElement): void {
+    const title = host.createDiv({ cls: 'carnet-title' });
+    this.inlineTitleEl = title;
+    title.textContent = this.file?.basename ?? '';
+    try {
+      title.contentEditable = 'plaintext-only';
+    } catch {
+      title.contentEditable = 'true';
+    }
+    title.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        title.blur();
+        this.enterNote();
+      } else if (e.key === 'Escape') {
+        title.textContent = this.file?.basename ?? '';
+        title.blur();
+      }
+    });
+    title.addEventListener('blur', () => void this.commitTitle());
+  }
+
+  /** Put the caret at the end of the title, the way ArrowUp should leave it. */
+  private focusTitle(): void {
+    const title = this.inlineTitleEl;
+    if (!title) return;
+    title.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    range.collapse(false);
+    const sel = document.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+
+  /**
+   * ArrowUp off the top of the note lands in the title.
+   *
+   * @remarks
+   * The other half of "the title must always be editable": until now the only
+   * way into it was the mouse, so on a keyboard it was not reachable at all —
+   * and Obsidian's own inline title has been reachable this way since it
+   * shipped. The keymap leaves the key alone when there is no block above, so
+   * this only ever sees the event the editor declined; `caretLine` is the
+   * editor's own answer to "is the caret on the first visual line", which is
+   * the part that a wrapped paragraph makes hard.
+   */
+  private onEditorKey(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowUp' || e.defaultPrevented) return;
+    if (e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+    const view = this.view;
+    const editor = this.editor;
+    if (!view || !editor) return;
+    const sel = editor.selection;
+    if (sel?.kind !== 'text' || !isCollapsed(sel)) return;
+    const doc = editor.doc;
+    if (sel.head.blockId !== getBlock(doc, doc.rootId).children[0]) return;
+    if (!caretLine(view)?.first) return;
+    e.preventDefault();
+    this.focusTitle();
+  }
+
+  /** Enter from the title lands in a fresh first block (Notion), reusing an empty one. */
+  private enterNote(): void {
+    const editor = this.editor;
+    const view = this.view;
+    if (!editor || !view) return;
+    const doc = editor.doc;
+    const firstId = getBlock(doc, doc.rootId).children[0];
+    const first = firstId ? doc.blocks.get(firstId) : undefined;
+    if (first && first.type === 'paragraph' && !(first.text ?? []).length) return view.focusBlock(first.id, 0);
+    const block = {
+      id: uuidv7(),
+      type: 'paragraph',
+      version: 1,
+      props: {},
+      text: [],
+      children: [],
+      parentId: doc.rootId,
+    };
+    editor.dispatch((tx) => tx.op({ type: 'insert_block', block, index: 0 }), { origin: 'input' });
+    view.focusBlock(block.id, 0);
+  }
+
+  /** Rename the file to match the edited title; revert the text on refusal. */
+  private async commitTitle(): Promise<void> {
+    const title = this.inlineTitleEl;
+    if (!title || !this.file) return;
+    const name = (title.textContent ?? '').trim();
+    if (!name || name === this.file.basename) {
+      title.textContent = this.file.basename;
+      return;
+    }
+    const folder = this.file.parent?.path ?? '';
+    try {
+      // fileManager, not vault: this is the rename that updates backlinks
+      await this.app.fileManager.renameFile(this.file, normalizePath(`${folder}/${name}.${this.file.extension}`));
+    } catch (err) {
+      new Notice(err instanceof Error ? err.message : String(err));
+    }
+    title.textContent = this.file.basename;
+  }
+
+  private build(markdown: string): void {
+    if (!this.mount) return;
+    /*
+     * A genuine external change still rebuilds, and the reader still keeps
+     * their place: the mount is the scroller, and emptying it clamps the
+     * position to zero. Restored once the document is whole — a streamed
+     * opening render only has a screenful in it at first, so a position
+     * further down would clamp all over again.
+     */
+    const scroller = this.mount;
+    const wasAt = scroller.scrollTop;
+    this.loading = true;
+    this.view?.destroy();
+    this.mount.empty();
+    this.buildTitle(this.mount);
+
+    const opts = viewOptions(this.plugin.settings);
+    // the title supplies the top spacing; keep the editor close under it
+    if (!this.plugin.settings.padTop.trim()) opts.padding = { ...opts.padding, top: '12px' };
+
+    // the threads come out of the note before it is parsed as blocks; the
+    // anchors stay in the text, where `applyAnchors` turns them into marks
+    const note = this.plugin.settings.comments ? readComments(markdown) : { markdown, threads: [] };
+    this.comments = this.plugin.settings.comments
+      ? createNoteComments(note.threads, () => {
+          if (!this.loading) this.requestSave();
+        })
+      : null;
+
+    // the ids the note actually carries: an anchor naming anything else is a
+    // badge that opens an empty panel, with no thread to delete to be rid of it
+    this.editor = new Editor({
+      doc: docFromJSON(pageOf(note.markdown, new Set(note.threads.map((t) => t.id)))),
+    });
+    this.view = new EditorView(this.mount, this.editor, {
+      ...opts,
+      // comments live in the note itself, so this host can offer them at all
+      ...(this.comments
+        ? {
+            onComment: (blockId, author, at) => this.comments?.onComment(this.editor!, blockId, author, at),
+            commentAuthor: { id: 'obsidian', name: 'Vous' },
+          }
+        : {}),
+      // the `@` picker completes against the vault's notes; the id IS the
+      // link text, because a vault resolves by name, not by uuid
+      onSearchPages: (query) => {
+        const q = query.toLowerCase();
+        return this.app.vault
+          .getMarkdownFiles()
+          .filter((f) => f.basename.toLowerCase().includes(q))
+          .slice(0, 10)
+          .map((f) => ({ pageId: f.basename, title: f.basename }));
+      },
+      /*
+       * The slash menu's « Page » entry, which was inert here: without this
+       * hook the editor does not render it at all, so the one block that
+       * *makes* a note could not be reached from inside a note.
+       *
+       * The note is created for real, beside the one being edited, rather than
+       * left as an unresolved link — "add a page" that adds nothing is a
+       * different feature. The hook is synchronous and `vault.create` is not,
+       * so the name is settled here (which is the part the block stores) and
+       * the file follows. `link_to_page` is written as `[[Nom]]`, which is
+       * already how a vault spells this, so the block round-trips natively.
+       */
+      onCreatePage: () => this.createNote(),
+      // a pasted or dropped image is an attachment, and the vault already has
+      // a policy for where those go — so we ask it rather than invent a folder
+      onStoreAsset: (blob) => this.storeAttachment(blob),
+      resolveAssetUrl: (src) => this.resolveAttachment(src),
+    });
+    /*
+     * `requestSave` is Obsidian's debounced writer, and letting it own the
+     * timing is the point: it already knows about conflicts, external changes
+     * and shutdown, and a second save policy beside it would be a way to lose
+     * an edit rather than a way to be faster.
+     */
+    this.editor.on(() => {
+      if (this.loading) return;
+      this.requestSave();
+      this.recount();
+    });
+    this.loading = false;
+    if (wasAt) void this.view.whenComplete().then(() => (scroller.scrollTop = wasAt));
+  }
+
+  /**
+   * A new, empty note beside this one, named so it collides with nothing.
+   *
+   * @remarks
+   * The name is what the block stores and what the wikilink resolves by, so it
+   * has to be decided *now* — `vault.create` is asynchronous and the editor's
+   * hook is not. The uniqueness check and the create are therefore two steps,
+   * which is a race in theory: two notes made in the same millisecond. The
+   * create is the one that would fail, and it says so rather than overwriting.
+   */
+  private createNote(): { pageId: string; title: string } | null {
+    const folder = this.file?.parent?.path ?? '';
+    const path = (name: string) => normalizePath(`${folder}/${name}.md`);
+    const base = 'Nouvelle note';
+    let name = base;
+    for (let n = 2; this.app.vault.getAbstractFileByPath(path(name)); n++) name = `${base} ${n}`;
+    void this.app.vault
+      .create(path(name), '')
+      .catch((err) => new Notice(err instanceof Error ? err.message : String(err)));
+    return { pageId: name, title: name };
+  }
+
+  /**
+   * Write a pasted/dropped binary into the vault, return the link to persist.
+   *
+   * @remarks
+   * The src that goes in the document is the **vault path**, not an opaque
+   * `asset:` ref, and that is the whole point of this host: the file is the
+   * document (§10 inverted, as the module note explains), so an image has to
+   * be a file Obsidian can see, back up and sync like any other attachment.
+   * `getAvailablePathForAttachment` is the vault's own policy — the user's
+   * attachment folder, the collision suffix — so nothing here decides where
+   * images live.
+   *
+   * URL-encoded because the path is going into `![](…)`, where a `)` or a `#`
+   * in a folder name would end the link early. {@link resolveAttachment}
+   * decodes on the way back, as {@link followLink} already does for links.
+   */
+  private async storeAttachment(blob: Blob): Promise<string> {
+    const ext = blob.type.split('/')[1]?.replace(/\+xml$/, '') || 'png';
+    const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    const name = (blob as File).name || `Pasted image ${stamp}.${ext}`;
+    const path = await this.app.fileManager.getAvailablePathForAttachment(name, this.file?.path);
+    await this.app.vault.createBinary(path, await blob.arrayBuffer());
+    return encodeURI(path);
+  }
+
+  /**
+   * A stored src as something an `<img>` can load.
+   *
+   * @remarks
+   * Also what makes images in *existing* notes appear: `![](attachments/x.png)`
+   * is a vault path, which a browser cannot fetch — it needs `app://`, and only
+   * the vault can produce it. Link resolution is Obsidian's (shortest-path
+   * matching), so a bare filename works the way it does everywhere else.
+   *
+   * `![[x.png]]` reaches here too now: `@nbe/markdown` reads Obsidian's embed
+   * syntax as an image whose `src` is the raw target, which is exactly what
+   * `getFirstLinkpathDest` resolves — and writes it back as `![[x.png]]`, so
+   * opening a vault full of them leaves no diff.
+   */
+  private resolveAttachment(src: string): string {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return src; // http(s), data:, already resolved
+    const file = this.app.metadataCache.getFirstLinkpathDest(decodeURI(src), this.file?.path ?? '');
+    return file ? this.app.vault.getResourcePath(file) : src;
+  }
+
+  /** Rebuild with the current settings, keeping the document being edited. */
+  refresh(): void {
+    this.build(this.getViewData());
+  }
+
+  /** The blocks a command should act on: the caret's, or the selection's. */
+  targets(): BlockId[] {
+    const sel = this.editor?.selection;
+    if (!sel) return [];
+    if (sel.kind === 'block') return selectedBlocks(this.editor!.doc, sel);
+    return sel.kind === 'text' ? [sel.head.blockId] : [];
+  }
+
+  /** The model and its projection, for a host command. */
+  parts(): { editor: Editor; view: EditorView } | null {
+    return this.editor && this.view ? { editor: this.editor, view: this.view } : null;
+  }
+
+  /** Raise the find bar. False when the feature is switched off. */
+  find(): boolean {
+    return !!this.view && openFind(this.view);
+  }
+
+  /** Raise the export menu. False when the feature is switched off. */
+  exportNote(): boolean {
+    return !!this.view && openExport(this.view);
+  }
+}
