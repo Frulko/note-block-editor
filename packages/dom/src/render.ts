@@ -1,6 +1,7 @@
 import type { Block, Run } from '@nbe/core';
 import { getBlock } from '@nbe/core';
 import type { EditorView } from './view';
+import { EMPTY_LINE } from './topology';
 import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
 import { createDropZone, fileToDataUrl, icon } from './ui';
@@ -124,19 +125,55 @@ function renderLeaf(view: EditorView, block: Block): HTMLElement {
     if (block.type !== 'paragraph') leaf.dataset['phAlways'] = '';
   }
   for (const run of block.text ?? []) leaf.append(renderRun(view, run));
-  /*
-   * A newline at the very end of the text generates no line box — CSS says an
-   * empty last line is not rendered, which is the same reason a contenteditable
-   * traditionally needs a trailing `<br>`. Measured: pressing Enter at the end
-   * of a code block left the leaf exactly one line tall and the caret with **no
-   * client rect at all**, so "Enter does nothing" was literally what it looked
-   * like. The zero-width space is a `::after`, not a node: it gives the last
-   * line something to be, and `textContent` — which the reconciler and the
-   * foreign-mutation defence both compare against the model — does not see a
-   * pseudo-element.
-   */
-  if ((block.text ?? []).at(-1)?.text.endsWith('\n')) leaf.dataset['trailingBreak'] = '';
+  markEmptyLines(leaf);
   return leaf;
+}
+
+/**
+ * Give every empty line a character to hold the caret.
+ *
+ * @remarks
+ * A line with nothing on it gets no caret. Measured in Chromium, in the real
+ * editor: a collapsed range at the start of an empty line — trailing *or* in
+ * the middle — reports a zero-height box, whether it was put there by an arrow
+ * key or by us, which means the browser draws no caret at all. So pressing
+ * Enter in a code block opened a line and left the caret nowhere visible: the
+ * block grew, nothing else appeared to happen, and the natural read was
+ * "Enter added a gap instead of a line".
+ *
+ * A `::after` was the first attempt and it fixed the wrong half — generated
+ * content gives the line its height, and no caret can be placed inside it. A
+ * `<br>` does not work either (measured: still no box). The one thing that
+ * does is a real character on the line, so the sentinel is a real text node.
+ *
+ * It carries no model text: {@link leafText} strips it, `domToModelPoint`
+ * discounts it, and `modelPointToDom` deliberately aims at it — the offset it
+ * shares with the end of the line above is the same model offset, and only one
+ * of the two can be drawn.
+ *
+ * ponytail: the browser still counts it as a position, so an arrow key crossing
+ * an empty line stops there once with nothing to show for it. Fixing that means
+ * intercepting arrows over sentinels; an invisible caret was the worse bug.
+ */
+function markEmptyLines(leaf: HTMLElement): void {
+  const walker = document.createTreeWalker(leaf, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n as Text);
+  const last = nodes.at(-1);
+  for (const node of nodes) {
+    const text = node.textContent ?? '';
+    // backwards: splitting a node leaves every earlier offset in it valid
+    for (let i = text.length - 1; i >= 0; i--) {
+      if (text[i] !== '\n') continue;
+      // a line with no character on it: the next one is a break too, or the
+      // text ends here and the last line is the empty one
+      if (text[i + 1] !== '\n' && !(i === text.length - 1 && node === last)) continue;
+      // splitting at the very end would leave an empty node behind; there is
+      // nothing to split there, only somewhere to insert
+      const tail = i + 1 < node.length ? node.splitText(i + 1) : node.nextSibling;
+      node.parentNode?.insertBefore(document.createTextNode(EMPTY_LINE), tail);
+    }
+  }
 }
 
 function listNumber(view: EditorView, block: Block): number {

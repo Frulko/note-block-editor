@@ -25,7 +25,7 @@ import {
 } from '@nbe/core';
 import type { EditorView } from './view';
 import { domToModelPoint, leafOf } from './selection';
-import { inEditableText } from './topology';
+import { inEditableText, leafText } from './topology';
 import { syncCaretFromDom } from './caret';
 import { nextGrapheme, nextWord, prevWord } from '@nbe/core';
 import { dismissedBy, openIconPicker } from './ui';
@@ -207,7 +207,7 @@ export function reconcileLeaf(view: EditorView, leaf: HTMLElement): void {
   const id = leaf.dataset['blockId'];
   if (!id || !editor.doc.blocks.has(id)) return;
   const block = getBlock(editor.doc, id);
-  const domText = leaf.textContent ?? '';
+  const domText = leafText(leaf);
   const modelText = plainText(block.text);
   if (domText === modelText) return;
 

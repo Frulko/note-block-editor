@@ -5,7 +5,7 @@ import { leafOf, modelPointToDom } from './selection';
 import { reconcileLeaf } from './input';
 import { plainText } from '@nbe/core';
 import { domTextSelection } from './caret';
-import { perBlockTopology, type EditableTopology } from './topology';
+import { leafText, perBlockTopology, type EditableTopology } from './topology';
 import { holdScroll, reveal } from './viewport';
 import type { ActiveGesture, GestureRecognizer } from './gestures';
 import type { GutterItem } from './controls';
@@ -575,7 +575,7 @@ export class EditorView {
       const id = leaf.dataset['blockId'];
       if (!id || !doc.blocks.has(id)) continue;
       const modelText = plainText(getBlock(doc, id).text);
-      if ((leaf.textContent ?? '') !== modelText) {
+      if (leafText(leaf) !== modelText) {
         // text changed outside our pipeline (Grammarly accept, autofill…):
         // treat it as user intent and diff it into the model
         reconcileLeaf(this, leaf);

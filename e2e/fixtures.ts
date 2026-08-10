@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test';
+import { EMPTY_LINE } from '../packages/dom/src/topology';
 
 /**
  * A debugging harness first, a test suite second.
@@ -95,7 +96,9 @@ function makeEditor(page: Page, errors: string[]): Editor {
           (b) => [...b.classList].find((c) => c.startsWith('nbe-t-'))?.slice(6) ?? '?',
         ),
       ),
-    texts: () => leaves().allTextContents(),
+    // the empty-line sentinels are DOM, not text: the model never holds one,
+    // so a spec asserting on the text must not see them either
+    texts: async () => (await leaves().allTextContents()).map((t) => t.split(EMPTY_LINE).join('')),
     caret: setCaret,
     caretAt: () =>
       page.evaluate(() => {
@@ -106,7 +109,12 @@ function makeEditor(page: Page, errors: string[]): Editor {
         const leaf = el?.closest('.nbe-leaf');
         if (!leaf) return null;
         const all = [...document.querySelectorAll('.nbe-editor .nbe-leaf')];
-        return { index: all.indexOf(leaf), offset: sel.anchorOffset };
+        // counted from the leaf, not read off the node: a caret on an empty
+        // line sits in a sentinel, whose own offset says nothing about the model
+        const range = document.createRange();
+        range.selectNodeContents(leaf);
+        range.setEnd(node, sel.anchorOffset);
+        return { index: all.indexOf(leaf), offset: range.toString().split('\u200b').join('').length };
       }),
     type: (text) => page.keyboard.type(text),
     press: (keys) => page.keyboard.press(keys),

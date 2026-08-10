@@ -268,6 +268,39 @@ test.describe('the code block, in the frame it is typed in', () => {
     expect((await editor.texts())[0]).toBe('un\n\n');
   });
 
+  /**
+   * The other half of the same bug, and the one the height check could not see.
+   *
+   * The line was being made; the caret had nowhere to be drawn on it. A
+   * collapsed range on a line with no character reports a zero-height box in
+   * Chromium, which is the browser saying it will paint no caret — so Enter
+   * grew the block and nothing else appeared to happen. Read from the outside
+   * it was "Enter adds a gap, press it twice to get a line".
+   */
+  test('and the caret is visible on it, trailing or in the middle', async ({ page, editor }) => {
+    const caretHeight = () =>
+      page.evaluate(() => {
+        const box = document.getSelection()!.getRangeAt(0).getBoundingClientRect();
+        const leaf = document.querySelector('.nbe-t-code .nbe-leaf')!.getBoundingClientRect();
+        return { h: Math.round(box.height), line: Math.round((box.top - leaf.top) / 21) };
+      });
+
+    await makeCode(page, editor);
+    await page.keyboard.type('un');
+    await page.keyboard.press('Enter');
+    // on the second line, and drawable
+    expect(await caretHeight()).toEqual({ h: 16, line: 1 });
+
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('trois');
+    await page.keyboard.press('ArrowUp');
+    expect((await caretHeight()).h).toBeGreaterThan(0);
+
+    // and none of it reached the model
+    expect((await editor.texts())[0]).toBe('un\n\ntrois');
+    expect(editor.errors()).toEqual([]);
+  });
+
   test('the language menu stays glued to its button when the page scrolls', async ({ page, editor }) => {
     // a few blocks above the empty one the ``` shortcut needs, then enough page
     // to scroll: with the code block flush against the top, a scroll pushes it

@@ -1,7 +1,7 @@
 import type { Point } from '@nbe/core';
 import { domSelectionIsRemnant } from './caret';
 import type { EditorView } from './view';
-import { leafOf } from './topology';
+import { EMPTY_LINE, leafOf } from './topology';
 
 export { leafOf } from './topology';
 
@@ -16,8 +16,9 @@ export function domToModelPoint(node: Node, offset: number): Point | null {
   } catch {
     return null;
   }
-  // leaf text content maps 1:1 to model plain text (mark spans add no characters)
-  return { blockId: leaf.dataset['blockId'], offset: range.toString().length };
+  // leaf text maps 1:1 to model plain text — mark spans add no characters, and
+  // the empty-line sentinels are DOM, so they are not counted
+  return { blockId: leaf.dataset['blockId'], offset: range.toString().split(EMPTY_LINE).join('').length };
 }
 
 /**
@@ -54,12 +55,27 @@ export function modelPointToDom(view: EditorView, point: Point): { node: Node; o
   const leaf = view.leafEl(point.blockId);
   if (!leaf) return null;
   const walker = document.createTreeWalker(leaf, NodeFilter.SHOW_TEXT);
+  const nodes: Node[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
   let remaining = point.offset;
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    const len = (node.textContent ?? '').length;
-    if (remaining <= len) return { node, offset: remaining };
-    remaining -= len;
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    const text = node.textContent ?? '';
+    // a sentinel holds no model character: it is a *place*, and the only place
+    // on an empty line the browser will draw a caret at
+    if (text === EMPTY_LINE) {
+      if (remaining === 0) return { node, offset: 0 };
+      continue;
+    }
+    if (remaining <= text.length) {
+      // the end of a line and the start of the empty line under it are the same
+      // model offset; aim at the one that can be seen
+      if (remaining === text.length && nodes[i + 1]?.textContent === EMPTY_LINE) {
+        return { node: nodes[i + 1]!, offset: 0 };
+      }
+      return { node, offset: remaining };
+    }
+    remaining -= text.length;
   }
   return { node: leaf, offset: leaf.childNodes.length };
 }

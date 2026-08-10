@@ -37,6 +37,33 @@ const PLAINTEXT_ONLY_SUPPORTED = (() => {
   return d.contentEditable === 'plaintext-only';
 })();
 
+/**
+ * The character standing in for a line with nothing on it.
+ *
+ * @remarks
+ * A zero-width space, in a real text node, on every empty line — because the
+ * browser draws no caret on a line that holds no character. See `markEmptyLines`
+ * in `render.ts` for the measurement. It is DOM, never model: everything that
+ * reads a leaf back as text goes through {@link leafText}.
+ *
+ * @category Interaction
+ */
+export const EMPTY_LINE = '​';
+
+/**
+ * A leaf's text, as the model spells it — sentinels removed.
+ *
+ * @remarks
+ * The comparison `leaf.textContent === plainText(block.text)` is what tells an
+ * edit the pipeline made from one Grammarly or an autofill made behind it, and
+ * it has to be asked of the same string the model holds.
+ *
+ * @category Interaction
+ */
+export function leafText(leaf: Element): string {
+  return (leaf.textContent ?? '').split(EMPTY_LINE).join('');
+}
+
 function closestLeaf(node: Node | null): HTMLElement | null {
   if (!node) return null;
   const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
