@@ -34,7 +34,6 @@ import {
   caretLine,
   debugFeature,
   defaultFeatures,
-  documentSize,
   exportFeature,
   findFeature,
   labelsFor,
@@ -42,7 +41,6 @@ import {
   openExport,
   openFind,
   wordCountFeature,
-  type DocumentSize,
   type EditorViewOptions,
 } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
@@ -613,12 +611,10 @@ class CarnetView extends TextFileView {
      * an edit rather than a way to be faster.
      */
     this.editor.on(() => {
-      this.plugin.refreshStatus();
       if (this.loading) return;
       this.requestSave();
     });
     this.loading = false;
-    this.plugin.refreshStatus();
     if (wasAt) void this.view.whenComplete().then(() => (scroller.scrollTop = wasAt));
   }
 
@@ -692,11 +688,6 @@ class CarnetView extends TextFileView {
   /** Rebuild with the current settings, keeping the document being edited. */
   refresh(): void {
     this.build(this.getViewData());
-  }
-
-  /** Words, characters and reading time, or `null` before the editor exists. */
-  size(): DocumentSize | null {
-    return this.editor ? documentSize(this.view!) : null;
   }
 
   /** The blocks a command should act on: the caret's, or the selection's. */
@@ -805,22 +796,6 @@ export default class CarnetPlugin extends Plugin {
   settings: CarnetSettings = { ...DEFAULT_SETTINGS };
   /** Files the user explicitly sent back to Obsidian's Markdown editor. */
   private readonly asMarkdown = new Set<string>();
-  /** The status-bar word count. Removed with the plugin by Obsidian itself. */
-  private status: HTMLElement | null = null;
-
-  /** Re-read the active Carnet note's size into the status bar. */
-  refreshStatus(): void {
-    const el = this.status;
-    if (!el) return;
-    const size = this.app.workspace.getActiveViewOfType(CarnetView)?.size();
-    // an empty item still takes its separator in the bar, so hide it outright
-    el.style.display = size ? '' : 'none';
-    if (!size) return;
-    el.textContent = labelsFor(this.settings.locale)
-      .wordCount.replace('{words}', String(size.words))
-      .replace('{characters}', String(size.characters))
-      .replace('{minutes}', String(size.minutes));
-  }
 
   async onload(): Promise<void> {
     this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) ?? {}) };
@@ -835,16 +810,9 @@ export default class CarnetPlugin extends Plugin {
     );
     this.register(() => mermaidCss.remove());
     this.addSettingTab(new CarnetSettingTab(this.app, this));
-    /*
-     * Obsidian's own word count is a *Markdown editor* feature: it reads the
-     * active `MarkdownView`'s CodeMirror instance, and there is no seam for a
-     * `TextFileView` to answer instead — so in a Carnet note the status bar
-     * simply went blank. This is that count, from the same `documentSize` the
-     * in-note counter uses, hidden whenever the active view is somebody else's.
-     */
-    this.status = this.addStatusBarItem();
-    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.refreshStatus()));
-    this.refreshStatus();
+    // ponytail: no status-bar count of our own — Obsidian's core « Statistiques »
+    // already reads the file and shows one, and two counts side by side is the
+    // bug. Bring ours back only if core's ever goes blank in a Carnet note.
     this.syncTheme();
     this.registerEvent(this.app.workspace.on('css-change', () => this.syncTheme()));
 
