@@ -419,8 +419,13 @@ export class CarnetView extends TextFileView {
      * blank pane for good. That is "parfois rien ne s'affiche": it is a race,
      * so it is intermittent, and it is likeliest where the view is created
      * lazily, which is what a phone does with every pane it is not showing.
+     *
+     * The file, not the text: a brand-new note is empty, so testing the *data*
+     * skipped the rebuild every single time — no editor and, above it, no
+     * title, which is why a note called « Untitled » could not be renamed from
+     * here. An empty note is a note.
      */
-    if (this.data) this.build(this.data);
+    if (this.file) this.build(this.data);
   }
 
   /**
@@ -634,14 +639,17 @@ export class CarnetView extends TextFileView {
     title.addEventListener('blur', () => void this.commitTitle());
   }
 
-  /** Put the caret at the end of the title, the way ArrowUp should leave it. */
-  private focusTitle(): void {
+  /**
+   * Put the caret at the end of the title, the way ArrowUp should leave it —
+   * or over the whole of it, so the first keystroke replaces « Untitled ».
+   */
+  private focusTitle(select = false): void {
     const title = this.inlineTitleEl;
     if (!title) return;
     title.focus({ preventScroll: true });
     const range = document.createRange();
     range.selectNodeContents(title);
-    range.collapse(false);
+    if (!select) range.collapse(false);
     const sel = document.getSelection();
     sel?.removeAllRanges();
     sel?.addRange(range);
@@ -840,6 +848,13 @@ export class CarnetView extends TextFileView {
       this.recount();
     });
     this.loading = false;
+    /*
+     * An empty note is a note that was just created, and what it needs is a
+     * name — so the title takes the focus, selected, exactly as Obsidian's own
+     * inline title does on « Nouvelle note ». A note with prose in it is a note
+     * being read: the focus stays where the reader put it.
+     */
+    if (!markdown.trim()) this.focusTitle(true);
     void this.view.whenComplete().then(() => {
       if (wasAt) scroller.scrollTop = wasAt;
       // a search result opens the file *then* says where to go, and either
