@@ -5,6 +5,7 @@ import {
   duplicateBlocks,
   getBlock,
   indent,
+  insertParagraphAfter,
   insertText,
   isCollapsed,
   mergeBackward,
@@ -211,7 +212,15 @@ export function attachKeymap(view: EditorView): () => void {
       case 'Enter': {
         e.preventDefault();
         const head = getBlock(editor.doc, sel.head);
+        /*
+         * Something with text puts the caret at the end of it. Something
+         * without — an image, a file, an embed, a divider — has no caret to put
+         * anywhere, and used to swallow the key: a page whose last block was a
+         * picture had no way to keep writing but the mouse. Enter there means
+         * the same thing it means everywhere, "a new line after this one".
+         */
         if (isInline(head)) view.focusBlock(head.id, textLength(head.text));
+        else view.focusBlock(insertParagraphAfter(editor, head.id), 0);
         return;
       }
       case 'Escape':

@@ -162,4 +162,31 @@ test.describe('dropping a file', () => {
     await expect(page.locator('.nbe-file-poster')).toHaveCount(0);
     expect(editor.errors()).toEqual([]);
   });
+
+  /*
+   * A block with no text has nowhere to put a caret, so pressing it left
+   * nothing behind at all — the keyboard went on acting wherever the caret had
+   * been before, and a note ending in an attachment could only be continued
+   * with the mouse. Selecting the block is what "the caret is on it" means
+   * here, and Enter then means what it means everywhere else.
+   */
+  test('pressing a file selects it, and Enter opens a line under it', async ({ page, editor }) => {
+    await editor.setDocument(['une note']);
+    await drop(page, 'notes.txt', 'text/plain');
+    await expect(page.locator('.nbe-t-file')).toHaveCount(1);
+
+    // beside the download link, not on it: a link is a link, and pressing one
+    // is asking for the file rather than for the block
+    const box = (await page.locator('.nbe-t-file').boundingBox())!;
+    await page.mouse.click(box.x + box.width - 8, box.y + box.height / 2);
+    await expect(page.locator('.nbe-block.nbe-selected')).toHaveCount(1);
+
+    await page.keyboard.press('Enter');
+    await editor.type('après');
+    // the paragraph Enter opened is the one that took the typing, and it is
+    // after the file rather than after the note above it
+    expect(await editor.texts()).toEqual(['une note', 'après']);
+    await expect(page.locator('.nbe-editor > .nbe-block').nth(2)).toHaveText('après');
+    expect(editor.errors()).toEqual([]);
+  });
 });

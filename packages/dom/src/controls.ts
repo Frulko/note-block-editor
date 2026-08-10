@@ -1,22 +1,20 @@
-import type { Block, BlockId } from '@nbe/core';
+import type { BlockId } from '@nbe/core';
 import { toContainerPoint } from './ui/position';
 import { shortcut } from './keymap';
 import { resolveDrop, type DropCandidate, type DropTarget } from './drop';
 import { mountPortal } from './ui/portal';
 import {
   blockCategory,
-  childIndex,
   deleteBlocks,
   duplicateBlocks,
   getBlock,
+  insertParagraphAfter,
   insertText,
   moveBlocks,
   moveBlocksVertical,
   moveIntoColumns,
   selectedBlocks,
-  textCaret,
   turnInto,
-  uuidv7,
 } from '@nbe/core';
 import type { EditorView } from './view';
 import {
@@ -324,20 +322,7 @@ export function attachControls(view: EditorView): () => void {
   // --- plus button: new paragraph below + slash menu ---
   function insertBelow() {
     if (!hoveredId) return;
-    const block = getBlock(editor.doc, hoveredId);
-    const p: Block = {
-      id: uuidv7(),
-      type: 'paragraph',
-      version: 1,
-      props: {},
-      text: [],
-      children: [],
-      parentId: block.parentId,
-    };
-    editor.dispatch(
-      (tx) => tx.op({ type: 'insert_block', block: p, index: childIndex(editor.doc, hoveredId!) + 1 }),
-      { origin: 'ui', selection: textCaret(p.id, 0) },
-    );
+    insertParagraphAfter(editor, hoveredId);
     view.syncDomSelection();
     insertText(editor, '/'); // opens the slash menu
   }
@@ -695,7 +680,41 @@ export function attachControls(view: EditorView): () => void {
         onDrop: () => endDrag(true),
         onCancel: () => endDrag(false),
       });
-      return { mode: 'block', move: mechanics.move, end: mechanics.end };
+      const origin = { x: ctx.event.clientX, y: ctx.event.clientY };
+      let moved = false;
+      return {
+        mode: 'block',
+        move(e) {
+          if (Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > 4) moved = true;
+          mechanics.move(e);
+        },
+        end(committed) {
+          mechanics.end(committed);
+          /*
+           * A press that never became a drag is a click, and clicking a void
+           * block has to leave something behind. It left nothing: there is no
+           * caret to put in a picture, and nothing selected it either — so a
+           * file, an image or an embed could be pressed all day and the
+           * keyboard went on acting wherever the caret had been before.
+           *
+           * Selecting it is what "putting the caret on it" means for a block
+           * with no text; Enter, ⌫ and ⌥↑ then read the way they do everywhere
+           * else. Only when the press landed outside the current selection —
+           * pressing one block of a multi-block selection must not silently
+           * narrow it to that one.
+           *
+           * `moved` is tracked here rather than read off `view.gesture`, which
+           * the router has already cleared by the time it calls this.
+           */
+          if (!committed || moved) return;
+          const sel = editor.selection;
+          if (sel?.kind === 'block' && selectedBlocks(editor.doc, sel).includes(ctx.blockId!)) return;
+          editor.setSelection({ kind: 'block', anchor: ctx.blockId!, head: ctx.blockId! }, 'keyboard');
+          // the keymap listens on the content: a selection the keyboard cannot
+          // reach is a selection that only looks like one
+          if (!view.content.contains(document.activeElement)) view.content.focus({ preventScroll: true });
+        },
+      };
     },
   };
 

@@ -539,6 +539,39 @@ export function toggleChecked(editor: Editor, ids: BlockId[]): boolean {
   return true;
 }
 
+/**
+ * Put an empty paragraph right after a block, and the caret in it.
+ *
+ * @returns The new paragraph's id.
+ *
+ * @remarks
+ * The way out of anything with no text in it. A void block — an image, a file,
+ * an embed, a divider — has no caret to press Enter *in*, so the block
+ * selection is where the key lands, and until this it landed nowhere: Enter on
+ * a selected picture did nothing at all, and a page whose last block was a
+ * picture had no way to keep writing except the mouse.
+ *
+ * The same three lines were written out in four places (the gutter's +, the
+ * divider autoformat, Enter at offset 0). One of them is a command.
+ */
+export function insertParagraphAfter(editor: Editor, id: BlockId): BlockId {
+  const block = getBlock(editor.doc, id);
+  const paragraph: Block = {
+    id: uuidv7(),
+    type: 'paragraph',
+    version: 1,
+    props: {},
+    text: [],
+    children: [],
+    parentId: block.parentId,
+  };
+  editor.dispatch((tx) => tx.op({ type: 'insert_block', block: paragraph, index: childIndex(editor.doc, id) + 1 }), {
+    origin: 'input',
+    selection: textCaret(paragraph.id, 0),
+  });
+  return paragraph.id;
+}
+
 export function duplicateBlocks(editor: Editor, ids: BlockId[]): BlockId[] {
   if (!ids.length) return [];
   const last = ids[ids.length - 1]!;
