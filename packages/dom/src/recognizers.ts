@@ -185,12 +185,29 @@ export const blockClickRecognizer: GestureRecognizer = {
 // ---------------------------------------------------------------- rubber band
 
 /**
+ * The margin chrome a press may start a band on anyway.
+ *
+ * @remarks
+ * These buttons are only under the pointer because the pointer is *near a
+ * block* — nobody moved to them, they arrived. So a press on one that then
+ * drags is not a click that missed: it is a selection starting from the
+ * margin, which is where starting one is most natural. The band takes the
+ * press and gives it back if nothing moves past the slop, so the button keeps
+ * its click.
+ *
+ * The drag handle is excluded on purpose: dragging *it* means moving the
+ * block, and it has its own recognizer at higher precedence anyway.
+ */
+const GUTTER_ACTION = '.nbe-controls .nbe-ctrl-btn:not(.nbe-handle), .nbe-comment-marker';
+
+/**
  * Press on empty editor space and drag: top-level blocks intersecting the
  * band's vertical range become a block selection.
  */
 export const rubberBandRecognizer: GestureRecognizer = {
   name: 'rubber-band',
   match(ctx) {
+    if (ctx.target.closest?.(GUTTER_ACTION)) return true;
     if (ctx.onChrome) return false;
     // from empty editor space, or from an empty leaf — a placeholder paragraph
     // must not trap the gesture, since dragging out of it is how selection
@@ -205,7 +222,10 @@ export const rubberBandRecognizer: GestureRecognizer = {
     const box = document.createElement('div');
     box.className = 'nbe-rubberband';
     let drawing = false;
-    event.preventDefault();
+    const fromGutter = !!ctx.target.closest?.(GUTTER_ACTION);
+    // a gutter button already suppresses the default on `mousedown` to keep the
+    // caret where it is; doing it again here would only cost it its focus
+    if (!fromGutter) event.preventDefault();
 
     return {
       mode: 'block',
@@ -250,8 +270,12 @@ export const rubberBandRecognizer: GestureRecognizer = {
            * `attachOutsidePressDeselect`); inside it, the margins and the page
            * below the last block are editor surface too, and a press there
            * used to leave the selection standing with no way to see why.
+           *
+           * Not from a gutter button: that press is about to become a click on
+           * a button that acts on the selection — clearing it here would be
+           * this recognizer eating the very thing the button was pressed for.
            */
-          if (editor.selection?.kind === 'block') editor.setSelection(null, 'keyboard');
+          if (!fromGutter && editor.selection?.kind === 'block') editor.setSelection(null, 'keyboard');
           return; // a plain click, not a band
         }
         document.getSelection()?.removeAllRanges();

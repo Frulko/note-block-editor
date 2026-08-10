@@ -114,6 +114,45 @@ test.describe('the gutter belongs to the editor', () => {
     await page.waitForTimeout(150);
     expect(await editor.texts()).toEqual(['premier', 'deuxieme']);
   });
+
+  /*
+   * A press that drags is a selection, even when a button was under it.
+   *
+   * The + and the bubble are only under the pointer because the pointer came
+   * near a block — nobody aimed at them. Pressing there and pulling down is
+   * how a selection starts from the margin, and it used to do nothing at all:
+   * the buttons are chrome, chrome was declined by every recognizer, and the
+   * gesture ended as a click on whatever had been pressed.
+   */
+  test('pressing a gutter button and dragging starts a selection', async ({ page, editor }) => {
+    await editor.setDocument(lines(6));
+    const first = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
+    await page.mouse.move(first.x + 60, first.y + first.height / 2);
+    await page.waitForTimeout(150);
+    const plus = (await page.locator('.nbe-plus').boundingBox())!;
+
+    await page.mouse.move(plus.x + plus.width / 2, plus.y + plus.height / 2);
+    await page.mouse.down();
+    const third = (await page.locator('.nbe-editor > .nbe-block').nth(2).boundingBox())!;
+    await page.mouse.move(third.x + 40, third.y + third.height - 2, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.locator('.nbe-block.nbe-selected')).toHaveCount(3);
+    // and the button it started on did not also fire: no paragraph appeared
+    expect((await editor.texts()).length).toBe(6);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('pressing it without moving is still a click', async ({ page, editor }) => {
+    await editor.setDocument(lines(3));
+    const box = (await page.locator('.nbe-editor > .nbe-block').nth(0).boundingBox())!;
+    await page.mouse.move(box.x + 60, box.y + box.height / 2);
+    await page.waitForTimeout(150);
+    await page.locator('.nbe-plus').click();
+    await page.waitForTimeout(150);
+    expect((await editor.texts()).length).toBe(4);
+    expect(editor.errors()).toEqual([]);
+  });
 });
 
 /**
