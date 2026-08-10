@@ -6,8 +6,8 @@
  *
  * @module @nbe/blocks-code/dom
  */
-import { getBlock, plainText, textCaret } from '@nbe/core';
-import { createMenu, createMenuFilter, type DomBlockPlugin, type MenuEntry, type MenuFilter } from '@nbe/dom';
+import { childIndex, getBlock, plainText, textCaret, uuidv7, type Block } from '@nbe/core';
+import { createMenu, createMenuFilter, isMod, type DomBlockPlugin, type MenuEntry, type MenuFilter } from '@nbe/dom';
 import { codePlugin } from './index';
 import { LANGUAGES, languageLabel, loadLanguage } from './highlight';
 import { attachCodeHighlight } from './paint';
@@ -202,22 +202,59 @@ export const code: DomBlockPlugin = {
         return false;
       },
 
-      // Enter inserts a newline instead of splitting: a code block is one
-      // block whatever its line count, which is what makes the fence
-      // projection and the caret arithmetic agree
+      /*
+       * Enter inserts a newline instead of splitting: a code block is one
+       * block whatever its line count, which is what makes the fence
+       * projection and the caret arithmetic agree.
+       *
+       * The new line starts where the old one did. Without that, code written
+       * in here comes back to column zero on every press and the indentation
+       * has to be typed by hand — which is not what "a code block" means
+       * anywhere else, and is most of why writing in one was unpleasant. A
+       * line ending on an opener goes one level deeper, the rule every editor
+       * uses and the only one that needs no language knowledge.
+       *
+       * `⌘⏎` leaves instead. A code block at the end of a document had no
+       * keyboard way out at all: Enter stays inside by design, and ArrowDown
+       * has nowhere to go — so the way to keep writing was the mouse.
+       */
       Enter: ({ view, block, event }) => {
-        if (event.shiftKey || event.metaKey || event.ctrlKey) return false;
+        if (event.shiftKey) return false; // ⇧⏎ is the other spelling of "new line"
         const sel = view.editor.selection;
         if (sel?.kind !== 'text' || sel.head.blockId !== block.id) return false;
-        event.preventDefault();
         const at = Math.min(sel.anchor.offset, sel.head.offset);
         const to = Math.max(sel.anchor.offset, sel.head.offset);
+        const text = plainText(block.text);
+
+        if (isMod(event)) {
+          event.preventDefault();
+          const paragraph: Block = {
+            id: uuidv7(),
+            type: 'paragraph',
+            version: 1,
+            props: {},
+            text: [],
+            children: [],
+            parentId: block.parentId,
+          };
+          view.editor.dispatch(
+            (tx) =>
+              tx.op({ type: 'insert_block', block: paragraph, index: childIndex(view.editor.doc, block.id) + 1 }),
+            { origin: 'input', selection: textCaret(paragraph.id, 0) },
+          );
+          view.syncDomSelection();
+          return true;
+        }
+
+        event.preventDefault();
+        const line = text.slice(text.lastIndexOf('\n', at - 1) + 1, at);
+        const indent = /^[ \t]*/.exec(line)![0] + (/[[({:]\s*$/.test(line) ? INDENT : '');
         view.editor.dispatch(
           (tx) => {
             if (at < to) tx.op({ type: 'delete_text', id: block.id, from: at, to });
-            tx.op({ type: 'insert_text', id: block.id, offset: at, runs: [{ text: '\n' }] });
+            tx.op({ type: 'insert_text', id: block.id, offset: at, runs: [{ text: `\n${indent}` }] });
           },
-          { origin: 'input', selection: textCaret(block.id, at + 1) },
+          { origin: 'input', selection: textCaret(block.id, at + 1 + indent.length) },
         );
         return true;
       },
