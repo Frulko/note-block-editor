@@ -9,6 +9,7 @@ import {
   singleHostTopology,
   wordCountFeature,
   debugFeature,
+  stickyFormatToolbarFeature,
 } from '@nbe/dom';
 import { renderToHTML } from '@nbe/static-renderer';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
@@ -495,7 +496,21 @@ function openPage(pageId: string): void {
      * for the same reason as the find bar: ⌘P is the browser's print dialog,
      * and a page that takes it had better be offering more than a worse one.
      */
-    features: extraFeatures.length ? [...defaultFeatures, ...extraFeatures] : undefined,
+    /*
+     * ?toolbar=sticky pins the format bar above the note — the older WYSIWYG
+     * shape. It *replaces* the floating one rather than joining it: two bars
+     * offering the same seven marks, one hovering over the other, is not a
+     * configuration anyone meant to choose.
+     */
+    features:
+      flags.get('toolbar') === 'sticky'
+        ? [
+            ...defaultFeatures.map((f) => (f.name === 'format-toolbar' ? stickyFormatToolbarFeature : f)),
+            ...extraFeatures,
+          ]
+        : extraFeatures.length
+          ? [...defaultFeatures, ...extraFeatures]
+          : undefined,
     // activation is an import plus an array entry
     // the editor's default is English now; Carnet is French and says so
     labels: fr,

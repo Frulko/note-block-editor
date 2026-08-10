@@ -6,6 +6,7 @@ import {
   exportFeature,
   findFeature,
   labelsFor,
+  stickyFormatToolbarFeature,
   TYPEFACES,
   wordCountFeature,
   type EditorViewOptions,
@@ -49,6 +50,8 @@ export interface CarnetSettings {
   codeTheme: string;
   /** The face the prose is set in. See `TYPEFACES`. */
   typeface: string;
+  /** Pin the format bar above the note instead of floating it over a selection. */
+  stickyToolbar: boolean;
   /** The editor's interface language. `LOCALE_NAMES` lists what ships. */
   locale: string;
   /** Comments, kept in the note itself as Obsidian comment syntax. */
@@ -71,6 +74,7 @@ export const DEFAULT_SETTINGS: CarnetSettings = {
   themeMode: 'vault',
   codeTheme: 'one',
   typeface: 'sans',
+  stickyToolbar: false,
   // the vault is most likely French if this plugin is installed; the editor's
   // own default is English and every other language is one setting away
   locale: 'fr',
@@ -142,7 +146,14 @@ export function viewOptions(s: CarnetSettings): EditorViewOptions {
       mermaidFeature,
       floatingTocFeature,
       debugFeature,
-    ].filter((f) => featureOn(s, f.name));
+    ]
+      .map((f) =>
+        // the *same* bar, pinned rather than floating — swapped in rather than
+        // added, because two bars offering the same seven marks is not a
+        // configuration anyone meant to choose
+        s.stickyToolbar && f.name === 'format-toolbar' ? stickyFormatToolbarFeature : f,
+      )
+      .filter((f) => featureOn(s, f.name === 'sticky-format-toolbar' ? 'format-toolbar' : f.name));
   if (s.maxWidth.trim()) opts.maxWidth = s.maxWidth.trim();
   const padding: { top?: string; bottom?: string; x?: string } = {};
   if (s.padTop.trim()) padding.top = s.padTop.trim();
@@ -219,6 +230,18 @@ export class CarnetSettingTab extends PluginSettingTab {
             s.codeTheme = v;
             save();
           }),
+      );
+
+    new Setting(containerEl)
+      .setName('Barre de mise en forme fixe')
+      .setDesc(
+        'Épingle la barre au-dessus de la note, à la manière des éditeurs WYSIWYG, au lieu de la faire flotter sur la sélection. Sans rien de sélectionné, les boutons de marque sont grisés : ce qu’ils appliqueraient n’existe pas encore.',
+      )
+      .addToggle((t) =>
+        t.setValue(s.stickyToolbar).onChange((v) => {
+          s.stickyToolbar = v;
+          save();
+        }),
       );
 
     new Setting(containerEl)

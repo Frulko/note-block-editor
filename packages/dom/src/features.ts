@@ -78,6 +78,23 @@ export const gutterFeature = feature('gutter', attachControls);
 export const clipboardFeature = feature('clipboard', attachClipboard);
 /** The floating format toolbar shown over a text selection. */
 export const formatToolbarFeature = feature('format-toolbar', attachSelectionToolbar);
+/**
+ * The same toolbar, pinned above the document instead — the older WYSIWYG
+ * shape, always visible.
+ *
+ * @remarks
+ * **Not in {@link defaultFeatures}**, and mutually exclusive with
+ * {@link formatToolbarFeature} in practice: two bars offering the same seven
+ * marks, one of them floating over the other, is not a configuration anyone
+ * meant to choose. Swap it in rather than adding it:
+ *
+ * ```ts
+ * features: defaultFeatures.map((f) => (f.name === 'format-toolbar' ? stickyFormatToolbarFeature : f))
+ * ```
+ */
+export const stickyFormatToolbarFeature = feature('sticky-format-toolbar', (view) =>
+  attachSelectionToolbar(view, { sticky: true }),
+);
 /** The per-block toolbar shown on hover. */
 export const blockToolbarFeature = feature('block-toolbar', attachBlockToolbar);
 /** The hover card on a link, for editing or opening it. */

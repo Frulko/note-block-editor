@@ -51,6 +51,7 @@ export {
   gutterFeature,
   clipboardFeature,
   formatToolbarFeature,
+  stickyFormatToolbarFeature,
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,

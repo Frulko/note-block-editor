@@ -665,6 +665,47 @@
   box-sizing: border-box;
   width: 100%;
 }
+/* --- the toolbar, pinned ------------------------------------------------
+   The older WYSIWYG shape: the same bar, above the document instead of over
+   the selection. It inverts against the page like the floating one — that is
+   what it *is*, and a second visual treatment for the same seven buttons would
+   be two toolbars to keep in step.
+
+   `position: sticky` on the slot rather than on the bar: the slot is the full
+   width of the editor and the bar is centred inside it, so sticking the slot
+   keeps the bar's own layout out of the scrolling question entirely. */
+.nbe-slot-top:has(> .nbe-seltoolbar-sticky) {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  padding: 8px max(var(--nbe-pad-x, 24px), calc((100% - var(--nbe-max-width, 708px)) / 2));
+  background: var(--nbe-surface);
+  border-bottom: 1px solid var(--nbe-border);
+}
+.nbe-seltoolbar-sticky {
+  position: static;
+  /* it is always there, so it must not announce itself on every render */
+  animation: none;
+  max-width: 100%;
+  overflow-x: auto;
+  /* a bar that scrolls sideways still must not scroll the page sideways */
+  scrollbar-width: none;
+}
+.nbe-seltoolbar-sticky::-webkit-scrollbar {
+  display: none;
+}
+/* nothing is selected: the marks have nothing to apply to, and saying so is
+   better than a button that swallows the press */
+.nbe-seltoolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.nbe-seltoolbar-btn:disabled:hover {
+  background: transparent;
+}
+
 .nbe-slot-floating {
   position: sticky;
   bottom: 0;

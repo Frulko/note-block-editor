@@ -30,10 +30,39 @@ import { isMod, shortcut } from "./keymap";
 import { viewOf } from "./block-view";
 
 /**
- * Floating format toolbar on text selection (Medium / Notion). It never takes
- * focus — every control preventDefaults mousedown — so the selection it acts
- * on stays alive while the user clicks it.
+ * The format toolbar, in either of its two placements.
+ *
+ * @remarks
+ * **Floating** is the default: it appears over a text selection (Medium /
+ * Notion) and is gone the rest of the time, which keeps the page a page.
+ *
+ * **Sticky** is the older shape — a bar pinned above the document, always
+ * there, the way every WYSIWYG editor since the nineties has looked. It is the
+ * same bar: the same buttons, the same sub-menus, the same link form and the
+ * same active states. Only three things differ, and they are the three lines
+ * marked `sticky` below — where it mounts, whether it ever hides, and what it
+ * does with a caret that has selected nothing.
+ *
+ * That last one is the interesting one. A floating bar cannot be looked at
+ * without a selection, so the question never came up; a pinned one is looked at
+ * all the time. It could apply the mark to what you type *next*, which is what
+ * TinyMCE does — and that is a pending-format state the model does not have,
+ * so it would be a new concept in `@nbe/core` for one bar. It could apply to
+ * the word under the caret, which is a guess. So it does neither: the mark
+ * buttons go disabled, visibly, and « Transformer en » stays live because a
+ * caret is enough to know which block you mean.
+ *
+ * It never takes focus — every control preventDefaults mousedown — so the
+ * selection it acts on stays alive while the user clicks it.
  */
+
+export interface FormatToolbarOptions {
+  /**
+   * Pin the bar above the document instead of floating it over the selection.
+   * @defaultValue false
+   */
+  sticky?: boolean;
+}
 
 interface FormatButton {
   mark: string;
@@ -53,12 +82,13 @@ const formats = (labels: EditorLabels): FormatButton[] => [
   { mark: 'code', label: '<>', title: `${labels.inlineCode} · ${shortcut('Mod', 'E')}`, className: 'nbe-fmt-code' },
 ];
 
-export function attachSelectionToolbar(view: EditorView): () => void {
+export function attachSelectionToolbar(view: EditorView, options: FormatToolbarOptions = {}): () => void {
+  const sticky = options.sticky === true;
   const labels = view.labels;
   const FORMAT_BUTTONS = formats(labels);
   const editor = view.editor;
   const bar = document.createElement("div");
-  bar.className = "nbe-seltoolbar";
+  bar.className = sticky ? "nbe-seltoolbar nbe-seltoolbar-sticky" : "nbe-seltoolbar";
   bar.dataset["nbeUi"] = "";
   bar.setAttribute("role", "toolbar");
   let visible = false;
@@ -235,9 +265,9 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       "Texte ▾",
       "Transformer en",
       () => {
-        const r = range();
-        if (!r) return;
-        const block = getBlock(editor.doc, r.startBlockId);
+        const id = currentBlockId();
+        if (!id) return;
+        const block = getBlock(editor.doc, id);
         openSubMenu(
           turnBtn!,
           turnIntoTargets(view).map((t) => ({
@@ -316,32 +346,56 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     }
   };
 
+  /** The block « Transformer en » acts on: the range's, or the caret's. */
+  const currentBlockId = (): string | null => {
+    const r = range();
+    if (r) return r.single ? r.startBlockId : null;
+    // sticky: a caret has selected nothing, and is still enough to say which
+    // block you mean — which is what keeps this one button live
+    const sel = editor.selection;
+    return sticky && sel?.kind === 'text' ? sel.head.blockId : null;
+  };
+
   /** Refresh labels and active states in place — never replace nodes. */
   const render = () => {
     const r = range();
-    if (!r) return;
+    // sticky: the bar is looked at whether or not anything is selected, so it
+    // has to have an answer for "nothing is". The mark buttons go disabled
+    // rather than doing nothing when pressed.
+    if (!r && !sticky) return;
     build();
-    const block = getBlock(editor.doc, r.startBlockId);
+    for (const b of formatBtns.values()) b.disabled = !r;
+    if (linkBtn) linkBtn.disabled = !r;
+    if (commentButton) commentButton.disabled = !r;
+    const blockId = currentBlockId();
+    const block = blockId ? getBlock(editor.doc, blockId) : null;
 
-    // turn-into is single-block by nature
-    const showTurn = r.single;
+    /*
+     * Turn-into is single-block by nature, so the floating bar drops it for a
+     * range that spans several. sticky: it stays put and goes disabled instead
+     * — a pinned bar that changes width as the caret moves is a bar that jumps
+     * under the pointer, which the floating one never had to worry about
+     * because it only ever existed with a selection.
+     */
+    const showTurn = sticky || !!block;
     turnBtn!.style.display = showTurn ? "" : "none";
     turnSep!.style.display = showTurn ? "" : "none";
-    if (showTurn) {
-      turnBtn!.textContent = `${turnIntoTargets(view).find((t) => isActiveTarget(t, block))?.label ?? "Texte"} ▾`;
-    }
+    turnBtn!.disabled = !block;
+    turnBtn!.textContent = `${(block && turnIntoTargets(view).find((t) => isActiveTarget(t, block))?.label) ?? "Texte"} ▾`;
 
     for (const fmt of FORMAT_BUTTONS) {
-      formatBtns.get(fmt.mark)?.classList.toggle("nbe-active", rangeHasMark(editor, fmt.mark));
+      formatBtns.get(fmt.mark)?.classList.toggle("nbe-active", !!r && rangeHasMark(editor, fmt.mark));
     }
-    linkBtn!.classList.toggle("nbe-active", rangeHasMark(editor, "link"));
+    linkBtn!.classList.toggle("nbe-active", !!r && rangeHasMark(editor, "link"));
     // a comment anchors in one block; across blocks the button would lie
     if (commentButton) {
-      commentButton.style.display = r.single ? "" : "none";
+      const single = !!r?.single;
+      commentButton.style.display = single || sticky ? "" : "none";
       (commentButton.previousElementSibling as HTMLElement | null)?.style.setProperty(
         "display",
-        r.single ? "" : "none",
+        single || sticky ? "" : "none",
       );
+      commentButton.disabled = !single;
     }
   };
 
@@ -376,6 +430,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
   const show = () => {
     const rect = anchorRect();
     if (!rect) return hide();
+    if (sticky) return;
     if (visible && outOfView(rect)) return hide();
     if (!visible) {
       mountPortal(bar);
@@ -387,13 +442,16 @@ export function attachSelectionToolbar(view: EditorView): () => void {
   };
 
   const hide = () => {
-    if (!visible) return;
+    // sticky: there is nothing to hide from. A bar that vanished when the
+    // selection did would be the floating one with extra steps.
+    if (sticky || !visible) return;
     visible = false;
     bar.remove();
   };
 
   const update = () => {
     if (suppressed) return;
+    if (sticky) return render();
     // never float over a selection still being dragged: the router says when
     // one is in flight, which is what the old mouseup + setTimeout(0) guessed
     if (view.gesture) return hide();
@@ -430,6 +488,19 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       if (btn) openSubMenu(btn, (close) => [linkEntry(r, close)]);
     }
   };
+
+  /*
+   * sticky: mounted once, into the slot above the content. A slot is a sibling
+   * of the content element rather than a child of it, which is what keeps
+   * `renderAll` from wiping the bar on every edit — the same reason the word
+   * counter and the floating outline live there.
+   */
+  if (sticky) {
+    build();
+    view.slot('top').append(bar);
+    visible = true;
+    render();
+  }
 
   const unsubSelection = editor.onSelection(() => update());
   const unsubChange = editor.on(() => update());
