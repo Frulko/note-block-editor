@@ -167,10 +167,27 @@ test.describe('the discussion on a block', () => {
     await say(page, 'et la suite');
 
     await expect(page.locator(`${bubble} .nbe-comment-body`)).toHaveText(['première question', 'et la suite']);
-    // two messages, one thread: the marker counts threads, not messages
     await page.keyboard.press('Escape');
     await page.mouse.move(2, 2);
-    await expect(page.locator('.nbe-comment-marker .nbe-comment-count')).toHaveText('1');
+
+    /*
+     * One thread, and the claim is checked where a thread actually lives: the
+     * `comment` mark on the block's text, one per discussion. This used to read
+     * the margin badge and expect "1", which was the badge counting *threads* —
+     * and that was the bug, not the assertion's fault: a reader counts the
+     * comments they can see, so the badge is two now. Using it as a proxy for
+     * "one thread" was the conflation the count fix removed.
+     */
+    const threads = await page.evaluate(
+      () =>
+        new Set(
+          [...document.querySelectorAll('.nbe-editor .nbe-m-comment')].map((el) =>
+            (el as HTMLElement).dataset['threadId'],
+          ),
+        ).size,
+    );
+    expect(threads).toBe(1);
+    await expect(page.locator('.nbe-comment-marker .nbe-comment-count')).toHaveText('2');
     expect(editor.errors()).toEqual([]);
   });
 
