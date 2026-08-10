@@ -34,7 +34,13 @@ const nav = [
     </header>
     <main><slot /></main>
     <footer class="site-footer">
-      <div class="shell">Éditeur de blocs — schéma intermédiaire, stockage lisible sans l'outil.</div>
+      <div class="shell">
+        Éditeur de blocs — schéma intermédiaire, stockage lisible sans l'outil.
+        <!-- llmstxt.org: the site written for something that reads rather than
+             browses. Linked rather than only served, because a convention
+             nobody can find from the page is a file nobody fetches. -->
+        <a href={`${base}/llms.txt`}>llms.txt</a>
+      </div>
     </footer>
   </body>
 </html>

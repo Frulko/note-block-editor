@@ -54,3 +54,53 @@ describe('our own docs survive the markdown round trip', () => {
     expect(run === -1 ? after.length : run).toBe(9);
   });
 });
+
+/**
+ * `/llms.txt`, and the links in it that can rot.
+ *
+ * @remarks
+ * The file is an index with context (llmstxt.org) rather than a generated API
+ * dump — typedoc already writes the reference from the source and cannot
+ * drift, so this one carries the half typedoc cannot: what the pieces are for,
+ * and which invariants are load-bearing. That half is hand-written, which
+ * makes its links the part that goes stale.
+ *
+ * A dead link in a page a *person* reads is an annoyance; in a file whose whole
+ * purpose is to send a reader somewhere, it is the file failing at its one job.
+ * So every route it names has to exist as a page.
+ */
+describe('the llms.txt index points at pages that exist', () => {
+  const source = readFileSync(join(import.meta.dirname, '..', 'site', 'src', 'pages', 'llms.txt.ts'), 'utf8');
+  const PAGES = join(import.meta.dirname, '..', 'site', 'src', 'pages');
+
+  /** Every `url('/…')` the file builds a link from. */
+  const routes = [...source.matchAll(/\burl\('([^']+)'\)/g)].map((m) => m[1]!);
+
+  const exists = (route: string): boolean => {
+    const clean = route.replace(/^\/|\/$/g, '');
+    const stem = join(PAGES, clean);
+    for (const candidate of [`${stem}.astro`, `${stem}.md`, `${stem}.mdx`, join(stem, 'index.astro')]) {
+      try {
+        readFileSync(candidate);
+        return true;
+      } catch {
+        /* try the next shape */
+      }
+    }
+    return false;
+  };
+
+  it('names some, or the regex has stopped matching', () => {
+    expect(routes.length).toBeGreaterThan(8);
+  });
+
+  it('every one of them is a page in the site', () => {
+    expect(routes.filter((r) => !exists(r))).toEqual([]);
+  });
+
+  it('stays short enough to be re-read — a stale index is worse than none', () => {
+    // the convention is an index, not a dump; past a few hundred lines nobody
+    // re-reads it and it quietly stops describing the thing
+    expect(source.split('\n').length).toBeLessThan(300);
+  });
+});
