@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -157,6 +157,48 @@ describe('source layering', () => {
     for (const file of sourceFiles(name)) {
       expect(importsOf(readFileSync(file, 'utf8'))).not.toContain('@nbe/dom');
     }
+  });
+
+  /**
+   * English is what an editor ships with; every other language is opt-in.
+   *
+   * @remarks
+   * Measured with esbuild on a bundle holding the whole editor: an app that
+   * never mentions a language is 198.9 kB and contains only English, naming
+   * `fr` costs 4.5 kB more, and calling `labelsFor()` costs 17.5 — because
+   * reading a system locale at runtime means the answer is not known at build
+   * time and every pack has to be there.
+   *
+   * The first of those is what stops being true by accident. It holds for one
+   * reason only: nothing on the default path *references* `LOCALES` or a pack,
+   * so a bundler can drop the four unused ones. Wire `labelsFor` into the view
+   * — a reasonable-looking convenience — and all five become reachable, the
+   * editor gets 17.5 kB heavier for every host, and no diff says so. Checking
+   * the reference is cheaper than checking the bundle, and does not put a
+   * bundler in the test dependencies for one assertion.
+   */
+  it('only English is on the default path — the other packs stay droppable', () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles('dom')) {
+      if (file.includes(`${sep}i18n${sep}`)) continue; // the packs' own module
+      /*
+       * Re-exports are struck out first, and that is the whole distinction: a
+       * `export { LOCALES } from './i18n'` names the packs without *using*
+       * them, which is exactly the shape a bundler can drop. An `import` on
+       * this side of the arrow is what makes one part of the default path.
+       */
+      const source = stripComments(readFileSync(file, 'utf8')).replace(/export\s*(\{[^}]*\}|\*)\s*from[^;]+;/g, '');
+      const where = file.split(`${sep}src${sep}`)[1];
+      if (/import\s[^;]*\bfrom\s*['"][^'"]*i18n(?:\/index)?['"]/.test(source)) {
+        offenders.push(`${where} imports from ./i18n`);
+      }
+      if (/\bLOCALES\b/.test(source)) offenders.push(`${where} references LOCALES`);
+    }
+    expect(offenders).toEqual([]);
+
+    // and the default really is English, not merely "not French"
+    const labels = readFileSync(join(packagesDir, 'dom', 'src', 'labels.ts'), 'utf8');
+    expect(labels).toMatch(/export const defaultLabels: EditorLabels = en;/);
   });
 
   it('core touches no DOM globals (server/CLI/native portability)', () => {

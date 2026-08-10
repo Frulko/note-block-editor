@@ -114,6 +114,22 @@ const applyTheme = (): void => {
 applyTheme();
 themeEl.addEventListener('change', applyTheme);
 
+/*
+ * And the face the prose is set in — the same hook, one attribute along.
+ * `sans` is what the token layer already says, so choosing it leaves nothing
+ * behind rather than restating the default.
+ */
+const typefaceEl = document.getElementById('typeface') as HTMLSelectElement;
+typefaceEl.value = localStorage.getItem('nbe-demo-typeface') ?? 'sans';
+const applyTypeface = (): void => {
+  if (typefaceEl.value && typefaceEl.value !== 'sans')
+    document.documentElement.dataset['nbeTypeface'] = typefaceEl.value;
+  else delete document.documentElement.dataset['nbeTypeface'];
+  localStorage.setItem('nbe-demo-typeface', typefaceEl.value);
+};
+applyTypeface();
+typefaceEl.addEventListener('change', applyTypeface);
+
 // top-level await: pages now live in IndexedDB, and the shell has nothing
 // useful to show before they arrive
 const ws: Workspace = await loadWorkspace(seedPage);

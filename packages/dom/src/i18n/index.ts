@@ -14,7 +14,22 @@
  * a missing key a build error rather than a surprise on screen.
  *
  * Nothing here is loaded unless it is imported: five packs are five modules,
- * and a host that names one bundles one.
+ * and a host that names one bundles one. Measured with esbuild rather than
+ * asserted, on a bundle holding the whole editor:
+ *
+ * | What the app does            | Bundle    | Packs in it     |
+ * | ---------------------------- | --------- | --------------- |
+ * | never mentions a language    | 198.9 kB  | English         |
+ * | `labels: fr`                 | 203.4 kB  | English, French |
+ * | `labels: labelsFor(…)`       | 216.4 kB  | **all five**    |
+ *
+ * The third row is the one to know about, and it is not a defect: reading a
+ * system locale at runtime means the answer is not known at build time, so
+ * every pack has to be there. Naming the language costs 4.5 kB; asking to be
+ * told it costs 17.5. `test/packaging.test.ts` holds the first row, which is
+ * the one that stops being true by accident — the day something on the default
+ * path reaches for `LOCALES`, the packs stop being removable and nothing in a
+ * diff would say so.
  *
  * @example
  * ```ts

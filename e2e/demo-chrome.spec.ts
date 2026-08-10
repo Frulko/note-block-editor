@@ -96,3 +96,48 @@ test.describe('the floating menu reads as one', () => {
     expect(hovered).not.toBe(plain);
   });
 });
+
+/**
+ * The face the prose is set in.
+ *
+ * @remarks
+ * Notion's Default / Serif / Mono, on the hook every host-facing appearance
+ * choice here already uses — an attribute, so it needs no option threaded
+ * through three packages and it reaches the chrome portaled out of the editor
+ * too. The half worth pinning is the restraint: a listing in Georgia is a
+ * listing whose columns no longer line up.
+ */
+test.describe('choosing a typeface', () => {
+  const bodyFont = (page: import('@playwright/test').Page, selector: string) =>
+    page.evaluate((s) => getComputedStyle(document.querySelector(s)!).fontFamily, selector);
+
+  test('serif changes the prose', async ({ page, editor }) => {
+    await editor.setDocument(['une note']);
+    const before = await bodyFont(page, '.nbe-editor');
+    await page.locator('#typeface').selectOption('serif');
+    const after = await bodyFont(page, '.nbe-editor');
+
+    expect(after).not.toBe(before);
+    expect(after).toMatch(/Georgia/i);
+  });
+
+  test('and leaves a code block monospaced', async ({ page, editor }) => {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('```\n');
+    await page.locator('.nbe-t-code').waitFor();
+    const before = await bodyFont(page, '.nbe-t-code .nbe-leaf');
+
+    await page.locator('#typeface').selectOption('serif');
+    expect(await bodyFont(page, '.nbe-t-code .nbe-leaf')).toBe(before);
+    expect(before).toMatch(/mono/i);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('sans leaves no attribute behind — the default is the token layer’s', async ({ page, editor }) => {
+    await editor.setDocument(['une note']);
+    await page.locator('#typeface').selectOption('serif');
+    await page.locator('#typeface').selectOption('sans');
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-nbe-typeface'))).toBe(false);
+  });
+});

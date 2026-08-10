@@ -240,6 +240,13 @@ export default class CarnetPlugin extends Plugin {
     } else {
       delete document.body.dataset.nbeCodeTheme;
     }
+    // same hook again, for the face the prose is set in; `sans` is what the
+    // token layer already says, so the default leaves no attribute behind
+    if (this.settings.typeface && this.settings.typeface !== 'sans') {
+      document.body.dataset.nbeTypeface = this.settings.typeface;
+    } else {
+      delete document.body.dataset.nbeTypeface;
+    }
   }
 
   /** Persist the settings and rebuild every open Carnet view with them. */

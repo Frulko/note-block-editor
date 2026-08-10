@@ -28,7 +28,7 @@
     max(var(--nbe-pad-x), var(--nbe-gutter-width), calc((100% - var(--nbe-max-width)) / 2))
     var(--nbe-pad-bottom);
 
-  font-family: var(--nbe-font-sans);
+  font-family: var(--nbe-font-body, var(--nbe-font-sans));
   font-feature-settings: var(--nbe-font-features);
   -webkit-font-smoothing: antialiased;
   color: var(--nbe-text);

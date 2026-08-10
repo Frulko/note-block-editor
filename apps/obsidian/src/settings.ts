@@ -6,6 +6,7 @@ import {
   exportFeature,
   findFeature,
   labelsFor,
+  TYPEFACES,
   wordCountFeature,
   type EditorViewOptions,
 } from '@nbe/dom';
@@ -46,6 +47,8 @@ export interface CarnetSettings {
   themeMode: 'vault' | 'light' | 'dark';
   /** Which syntax palette code blocks use. See `CODE_THEMES`. */
   codeTheme: string;
+  /** The face the prose is set in. See `TYPEFACES`. */
+  typeface: string;
   /** The editor's interface language. `LOCALE_NAMES` lists what ships. */
   locale: string;
   /** Comments, kept in the note itself as Obsidian comment syntax. */
@@ -67,6 +70,7 @@ export const DEFAULT_SETTINGS: CarnetSettings = {
   defaultEditor: false,
   themeMode: 'vault',
   codeTheme: 'one',
+  typeface: 'sans',
   // the vault is most likely French if this plugin is installed; the editor's
   // own default is English and every other language is one setting away
   locale: 'fr',
@@ -213,6 +217,21 @@ export class CarnetSettingTab extends PluginSettingTab {
           .setValue(s.codeTheme)
           .onChange((v) => {
             s.codeTheme = v;
+            save();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('Typographie')
+      .setDesc(
+        'La police du texte de la note. Les blocs de code restent en chasse fixe quoi qu’il arrive : un listing dans une police à chasse variable est un listing dont les colonnes ne s’alignent plus.',
+      )
+      .addDropdown((d) =>
+        d
+          .addOptions(Object.fromEntries(TYPEFACES.map((t) => [t.id, t.label])))
+          .setValue(s.typeface)
+          .onChange((v) => {
+            s.typeface = v;
             save();
           }),
       );

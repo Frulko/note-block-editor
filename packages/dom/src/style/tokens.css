@@ -108,6 +108,12 @@
      every fallback face, so this is free. */
   --nbe-font-features: "cv05" 1, "cv08" 1, "cv11" 1;
 
+  /* Which of the three the prose is set in. A `--nbe-font-*` is *what a face
+     is*; this is *which one the page uses*, and only this one is switched —
+     code stays monospaced whatever the page is set in, because a listing set
+     in Georgia is a listing whose columns no longer line up. */
+  --nbe-font-body: var(--nbe-font-sans);
+
   /* shape */
   --nbe-radius-sm: 3px;
   --nbe-radius: 6px;
@@ -232,6 +238,39 @@
 .nbe-portal[data-nbe-theme="light"],
 [data-nbe-theme="light"] .nbe-portal {
   color-scheme: light;
+}
+
+/* ==========================================================================
+   The face the prose is set in.
+
+   Notion's Default / Serif / Mono, and the same hook every other host-facing
+   choice in this editor uses: an attribute, so it works from the host without
+   an option threaded through three packages, and so it reaches the chrome
+   portaled out of the editor as well as the page.
+
+       document.body.dataset.nbeTypeface = 'serif'
+
+   `TYPEFACES` in `typography.ts` is the list a picker is built from; the stacks
+   stay here, because a font stack spelled anywhere else is what
+   `test/design.test.ts` fails the build over. `sans` needs no rule — it is what
+   `--nbe-font-body` already is, which is what makes the default free.
+   ========================================================================== */
+
+[data-nbe-typeface="serif"] .nbe-editor,
+.nbe-editor[data-nbe-typeface="serif"],
+[data-nbe-typeface="serif"] .nbe-portal,
+.nbe-portal[data-nbe-typeface="serif"] {
+  --nbe-font-body: var(--nbe-font-serif);
+  /* Inter's alternates mean nothing to Georgia, and asking a face for features
+     it does not have is how a renderer ends up synthesising something */
+  --nbe-font-features: normal;
+}
+[data-nbe-typeface="mono"] .nbe-editor,
+.nbe-editor[data-nbe-typeface="mono"],
+[data-nbe-typeface="mono"] .nbe-portal,
+.nbe-portal[data-nbe-typeface="mono"] {
+  --nbe-font-body: var(--nbe-font-mono);
+  --nbe-font-features: normal;
 }
 
 /* ==========================================================================

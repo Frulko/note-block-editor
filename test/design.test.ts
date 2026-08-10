@@ -260,3 +260,40 @@ describe('the Obsidian theme bridge', () => {
     expect(naked.map(([name, value]) => `${name}: ${value}`)).toEqual([]);
   });
 });
+
+/**
+ * A table and its selectors, kept in step.
+ *
+ * @remarks
+ * The token layer already learned this once: a list of values in TypeScript and
+ * the CSS rules that read them drift, and nothing in a diff says so — you find
+ * out when a setting in a dropdown does nothing. `CODE_THEMES` is generated
+ * from its table for that reason. `TYPEFACES` is small enough to be written by
+ * hand, so the check is here instead.
+ */
+describe('the typeface choice reaches the stylesheet', () => {
+  const tokens = readFileSync(join(__dirname, '..', 'packages', 'dom', 'src', 'style', 'tokens.css'), 'utf8');
+  const source = readFileSync(join(__dirname, '..', 'packages', 'dom', 'src', 'typography.ts'), 'utf8');
+  const ids = [...source.matchAll(/id:\s*'([a-z-]+)'/g)].map((m) => m[1]!);
+
+  it('offers the three faces the token layer declares', () => {
+    expect(ids).toEqual(['sans', 'serif', 'mono']);
+  });
+
+  it('every id but the default has a rule', () => {
+    // `sans` is what `--nbe-font-body` already is; a rule restating it would be
+    // the duplication the base block exists to avoid
+    for (const id of ids.filter((i) => i !== 'sans')) {
+      expect(tokens, `[data-nbe-typeface="${id}"] should set --nbe-font-body`).toMatch(
+        new RegExp(`\\[data-nbe-typeface="${id}"\\][\\s\\S]{0,400}--nbe-font-body`),
+      );
+    }
+  });
+
+  it('switches the prose only — a listing stays monospaced', () => {
+    // the whole reason a code block is monospaced is that its columns mean
+    // something, and `--nbe-font-mono` is what it reads
+    const rules = tokens.slice(tokens.indexOf('[data-nbe-typeface='));
+    expect(rules).not.toMatch(/--nbe-font-mono\s*:/);
+  });
+});
