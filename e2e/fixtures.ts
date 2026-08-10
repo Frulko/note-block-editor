@@ -62,8 +62,22 @@ function makeEditor(page: Page, errors: string[]): Editor {
         // is a no-op there, and every edit then lands nowhere.
         (leaf.closest<HTMLElement>('[contenteditable]') ?? leaf).focus();
         const range = document.createRange();
-        const node = leaf.firstChild ?? leaf;
-        range.setStart(node, Math.min(o, node.textContent?.length ?? 0));
+        /*
+         * Walked, not `leaf.firstChild`: a block carrying a mark holds spans,
+         * and a link holds an `<a>`. `setStart(element, 3)` then means "child
+         * node 3" and throws — so a caret could not be put inside formatted
+         * text at all, which is exactly where the interesting bugs are.
+         */
+        const walker = document.createTreeWalker(leaf, NodeFilter.SHOW_TEXT);
+        let node: Node = leaf;
+        let left = o;
+        for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+          node = t;
+          const len = t.textContent?.length ?? 0;
+          if (left <= len) break;
+          left -= len;
+        }
+        range.setStart(node, Math.min(left, node.textContent?.length ?? 0));
         range.collapse(true);
         const sel = document.getSelection()!;
         sel.removeAllRanges();

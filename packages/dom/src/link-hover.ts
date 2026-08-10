@@ -2,7 +2,7 @@ import { getBlock, rangeHasMark, toggleMarkRange } from '@nbe/core';
 import { mountPortal } from './ui/portal';
 import type { EditorView } from './view';
 import { autoUpdate, createActionButton, pushOverlay, type IconName } from './ui';
-import { leafOf } from './selection';
+import { selectInlineText } from './selection';
 
 /**
  * Link hover card: hovering a link offers open / copy / edit / remove without
@@ -30,24 +30,6 @@ export function attachLinkHover(view: EditorView): () => void {
   const scheduleHide = () => {
     clearTimeout(hideTimer);
     hideTimer = window.setTimeout(hide, 250);
-  };
-
-  /** Select the link's text so range commands apply exactly to it. */
-  const selectLink = (anchor: HTMLAnchorElement): boolean => {
-    const leaf = leafOf(anchor);
-    const blockId = leaf?.dataset['blockId'];
-    if (!leaf || !blockId || !editor.doc.blocks.has(blockId)) return false;
-    const before = document.createRange();
-    before.selectNodeContents(leaf);
-    before.setEnd(anchor, 0);
-    const from = before.toString().length;
-    const to = from + (anchor.textContent ?? '').length;
-    editor.setSelection(
-      { kind: 'text', anchor: { blockId, offset: from }, head: { blockId, offset: to } },
-      'keyboard',
-    );
-    view.syncDomSelection();
-    return true;
   };
 
   const button = (name: IconName, title: string, onClick: () => void): HTMLButtonElement =>
@@ -85,7 +67,7 @@ export function attachLinkHover(view: EditorView): () => void {
 
     card.append(
       button('link', 'Modifier le lien', () => {
-        if (!selectLink(anchor)) return;
+        if (!selectInlineText(view, anchor)) return;
         const form = document.createElement('div');
         form.className = 'nbe-linkcard-form';
         const input = document.createElement('input');
@@ -110,7 +92,7 @@ export function attachLinkHover(view: EditorView): () => void {
 
     card.append(
       button('x', 'Retirer le lien', () => {
-        if (!selectLink(anchor)) return;
+        if (!selectInlineText(view, anchor)) return;
         if (rangeHasMark(editor, 'link')) toggleMarkRange(editor, 'link');
         hide();
       }),

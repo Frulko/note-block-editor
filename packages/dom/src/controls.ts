@@ -1,5 +1,6 @@
 import type { Block, BlockId } from '@nbe/core';
 import { toContainerPoint } from './ui/position';
+import { shortcut } from './keymap';
 import { resolveDrop, type DropCandidate, type DropTarget } from './drop';
 import { mountPortal } from './ui/portal';
 import {
@@ -362,7 +363,7 @@ export function attachControls(view: EditorView): () => void {
     const entries: MenuEntry[] = [
       {
         label: labels.duplicate,
-        hint: '⌘D',
+        hint: shortcut('Mod', 'D'),
         onSelect: () => {
           duplicateBlocks(editor, ids);
           view.announce(labels.blockDuplicated);
@@ -370,7 +371,7 @@ export function attachControls(view: EditorView): () => void {
       },
       {
         label: labels.delete,
-        hint: '⌫',
+        hint: shortcut('Backspace'),
         onSelect: () => {
           deleteBlocks(editor, ids);
           view.announce(labels.blockDeleted);
@@ -385,7 +386,7 @@ export function attachControls(view: EditorView): () => void {
       },
       {
         label: labels.moveUp,
-        hint: '⌘⇧↑',
+        hint: shortcut('Mod', 'Shift', 'ArrowUp'),
         onSelect: () => {
           moveBlocksVertical(editor, ids, 'up');
           view.announce(labels.blockMovedUp);
@@ -393,7 +394,7 @@ export function attachControls(view: EditorView): () => void {
       },
       {
         label: labels.moveDown,
-        hint: '⌘⇧↓',
+        hint: shortcut('Mod', 'Shift', 'ArrowDown'),
         onSelect: () => {
           moveBlocksVertical(editor, ids, 'down');
           view.announce(labels.blockMovedDown);

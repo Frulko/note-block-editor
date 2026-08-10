@@ -20,6 +20,36 @@ export function domToModelPoint(node: Node, offset: number): Point | null {
   return { blockId: leaf.dataset['blockId'], offset: range.toString().length };
 }
 
+/**
+ * Select an inline element's own text, so a range command applies to exactly it.
+ *
+ * @remarks
+ * A link is the case: hovering one and pressing "edit", or `⌘K` with the caret
+ * merely *inside* one, both mean the whole link and neither has a selection to
+ * work from. The hover card had this and the keymap did not, which is why `⌘K`
+ * used to need the link selected by hand first.
+ *
+ * @returns false when the element is not inside a live block.
+ *
+ * @category Interaction
+ */
+export function selectInlineText(view: EditorView, el: Element): boolean {
+  const leaf = leafOf(el);
+  const blockId = leaf?.dataset['blockId'];
+  if (!leaf || !blockId || !view.editor.doc.blocks.has(blockId)) return false;
+  const before = document.createRange();
+  before.selectNodeContents(leaf);
+  before.setEnd(el, 0);
+  const from = before.toString().length;
+  const to = from + (el.textContent ?? '').length;
+  view.editor.setSelection(
+    { kind: 'text', anchor: { blockId, offset: from }, head: { blockId, offset: to } },
+    'keyboard',
+  );
+  view.syncDomSelection();
+  return true;
+}
+
 export function modelPointToDom(view: EditorView, point: Point): { node: Node; offset: number } | null {
   const leaf = view.leafEl(point.blockId);
   if (!leaf) return null;

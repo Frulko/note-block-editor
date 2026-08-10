@@ -12,6 +12,7 @@ import {
   type ResolvedRange,
 } from "@nbe/core";
 import type { EditorView } from "./view";
+import { selectInlineText } from './selection';
 import {
   attachTooltip,
   createMenu,
@@ -25,7 +26,7 @@ import { COLORS } from "./colors";
 import type { EditorLabels } from "./labels";
 import { isActiveTarget, turnIntoTargets } from "./block-types";
 import { findScrollParent } from "./ui";
-import { isMod } from "./keymap";
+import { isMod, shortcut } from "./keymap";
 import { viewOf } from "./block-view";
 
 /**
@@ -43,13 +44,13 @@ interface FormatButton {
 
 /** Built per view: labels are per view, shortcuts are not. */
 const formats = (labels: EditorLabels): FormatButton[] => [
-  { mark: 'bold', label: 'B', title: `${labels.bold} · ⌘B`, className: 'nbe-fmt-bold' },
-  { mark: 'italic', label: 'i', title: `${labels.italic} · ⌘I`, className: 'nbe-fmt-italic' },
-  { mark: 'underline', label: 'U', title: `${labels.underline} · ⌘U`, className: 'nbe-fmt-underline' },
-  { mark: 'strike', label: 'S', title: `${labels.strikethrough} · ⌘⇧S`, className: 'nbe-fmt-strike' },
-  { mark: 'superscript', label: 'x²', title: `${labels.superscript} · ⌘.`, className: 'nbe-fmt-superscript' },
-  { mark: 'subscript', label: 'x₂', title: `${labels.subscript} · ⌘,`, className: 'nbe-fmt-subscript' },
-  { mark: 'code', label: '<>', title: `${labels.inlineCode} · ⌘E`, className: 'nbe-fmt-code' },
+  { mark: 'bold', label: 'B', title: `${labels.bold} · ${shortcut('Mod', 'B')}`, className: 'nbe-fmt-bold' },
+  { mark: 'italic', label: 'i', title: `${labels.italic} · ${shortcut('Mod', 'I')}`, className: 'nbe-fmt-italic' },
+  { mark: 'underline', label: 'U', title: `${labels.underline} · ${shortcut('Mod', 'U')}`, className: 'nbe-fmt-underline' },
+  { mark: 'strike', label: 'S', title: `${labels.strikethrough} · ${shortcut('Mod', 'Shift', 'S')}`, className: 'nbe-fmt-strike' },
+  { mark: 'superscript', label: 'x²', title: `${labels.superscript} · ${shortcut('Mod', '.')}`, className: 'nbe-fmt-superscript' },
+  { mark: 'subscript', label: 'x₂', title: `${labels.subscript} · ${shortcut('Mod', ',')}`, className: 'nbe-fmt-subscript' },
+  { mark: 'code', label: '<>', title: `${labels.inlineCode} · ${shortcut('Mod', 'E')}`, className: 'nbe-fmt-code' },
 ];
 
 export function attachSelectionToolbar(view: EditorView): () => void {
@@ -129,7 +130,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     view.syncDomSelection();
   };
 
-  const openSubMenu = (anchor: HTMLElement, entries: MenuEntry[]) => {
+  const openSubMenu = (anchor: HTMLElement, entries: MenuEntry[] | ((close: () => void) => MenuEntry[])) => {
     suppressed = true;
     const menu = createMenu({
       className: "nbe-seltoolbar-menu",
@@ -138,7 +139,9 @@ export function attachSelectionToolbar(view: EditorView): () => void {
         update();
       },
     });
-    menu.update(entries);
+    // a form inside the menu needs to be able to dismiss it — applying a link
+    // and leaving the field sitting open is how you end up with two of them
+    menu.update(typeof entries === "function" ? entries(() => menu.close()) : entries);
     menu.open(() => anchor.getBoundingClientRect(), {
       placement: "bottom-start",
     });
@@ -184,7 +187,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     return entries;
   };
 
-  const linkEntry = (r: ResolvedRange): MenuEntry => {
+  const linkEntry = (r: ResolvedRange, close: () => void): MenuEntry => {
     const wrap = document.createElement("div");
     wrap.className = "nbe-seltoolbar-linkform";
     const input = document.createElement("input");
@@ -205,6 +208,7 @@ export function attachSelectionToolbar(view: EditorView): () => void {
       const href = input.value.trim();
       if (rangeHasMark(editor, "link")) applyMark("link");
       if (href) applyMark("link", { href });
+      close();
     });
     wrap.append(input);
     return { kind: "custom", el: wrap };
@@ -257,10 +261,10 @@ export function attachSelectionToolbar(view: EditorView): () => void {
 
     linkBtn = button(
       "link",
-      "Lien · ⌘K",
+      `${labels.link} · ${shortcut('Mod', 'K')}`,
       () => {
         const r = range();
-        if (r) openSubMenu(linkBtn!, [linkEntry(r)]);
+        if (r) openSubMenu(linkBtn!, (close) => [linkEntry(r, close)]);
       },
       "nbe-seltoolbar-link",
     );
@@ -401,13 +405,29 @@ export function attachSelectionToolbar(view: EditorView): () => void {
     // Escape is not handled here: the keymap escalates a text selection to a
     // block selection, and this bar hides because there is no range left. One
     // link in the chain, not a competing handler.
-    if (isMod(e) && e.key.toLowerCase() === "k" && range()) {
+    if (isMod(e) && e.key.toLowerCase() === "k") {
+      /*
+       * A caret *inside* a link is the common way to reach ⌘K — you notice the
+       * URL is wrong while reading it, and nothing is selected. Selecting the
+       * link first is what the hover card's "edit" already did, so ⌘K does the
+       * same rather than asking the user to select the words by hand.
+       *
+       * With no selection and no link under the caret there is nothing to make
+       * into a link, so the key falls through untouched.
+       */
+      if (!range()) {
+        const node = document.getSelection()?.focusNode;
+        const el = node?.nodeType === 1 ? (node as Element) : node?.parentElement;
+        const anchor = el?.closest("a.nbe-m-link");
+        if (!anchor || !selectInlineText(view, anchor)) return;
+      }
+      const r = range();
+      if (!r) return;
       e.preventDefault();
-      const r = range()!;
       const btn = bar.querySelector(
         ".nbe-seltoolbar-link",
       ) as HTMLElement | null;
-      if (btn) openSubMenu(btn, [linkEntry(r)]);
+      if (btn) openSubMenu(btn, (close) => [linkEntry(r, close)]);
     }
   };
 

@@ -80,6 +80,44 @@ test.describe('the VS Code line bindings move and copy blocks', () => {
 });
 
 /**
+ * The formatting bindings, on the spellings people arrive with.
+ *
+ * @remarks
+ * `⌘⇧X` is Docs' and Discord's strikethrough beside Notion's `⌘⇧S`, and the
+ * shifted marks are reachable from an AZERTY keyboard — where `.` *is*
+ * Shift+`;`, so a binding that demanded an unshifted key could not be pressed
+ * at all on the layout most of this editor's readers type on.
+ */
+test.describe('the formatting marks', () => {
+  test('Cmd+Shift+X strikes through, like Cmd+Shift+S', async ({ page, editor }) => {
+    await editor.setDocument(['bonjour']);
+    await editor.selectRange([0, 0], [0, 7]);
+    await page.keyboard.press('Meta+Shift+x');
+
+    expect(await page.locator('.nbe-editor .nbe-m-strike').count()).toBe(1);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('Cmd+. superscripts even when Shift produced the dot', async ({ page, editor }) => {
+    await editor.setDocument(['bonjour']);
+    await editor.selectRange([0, 0], [0, 7]);
+    /*
+     * Dispatched rather than pressed: Playwright types on a US layout, where
+     * Shift+`.` is `>`. An AZERTY keyboard sends `.` *with* Shift held, which
+     * no layout Playwright can emulate produces — and which is precisely the
+     * combination the old binding refused.
+     */
+    await page.evaluate(() => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(await page.locator('.nbe-editor .nbe-m-superscript').count()).toBe(1);
+  });
+});
+
+/**
  * Word and line deletes are the platform's, and it hands us the exact range it
  * meant. These ran nowhere before: every one was blocked by `beforeinput`'s
  * default arm.

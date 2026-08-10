@@ -47,6 +47,43 @@ export function isMod(e: { metaKey: boolean; ctrlKey: boolean }): boolean {
   return e.metaKey || (e.ctrlKey && !IS_MAC);
 }
 
+/** How each token is spelled, on a Mac and off one. */
+const KEY_GLYPHS: Record<string, [mac: string, other: string]> = {
+  Mod: ['⌘', 'Ctrl'],
+  Shift: ['⇧', 'Shift'],
+  Alt: ['⌥', 'Alt'],
+  // the arrows and the editing keys are drawn, not named: a glyph needs no
+  // translation, and naming them would put key caps in `EditorLabels`
+  Enter: ['↵', '↵'],
+  Backspace: ['⌫', '⌫'],
+  ArrowUp: ['↑', '↑'],
+  ArrowDown: ['↓', '↓'],
+};
+
+/**
+ * A shortcut, spelled the way this platform spells it.
+ *
+ * @remarks
+ * The bindings were already cross-platform — {@link isMod} reads Command on a
+ * Mac and Control everywhere else — and every label that *named* one was not:
+ * the toolbar said `⌘B` and the block menu said `⌘⇧↑` on Windows and Linux
+ * too, where no key on the keyboard carries that glyph. A shortcut nobody can
+ * read is a shortcut nobody presses.
+ *
+ * @example
+ * ```ts
+ * shortcut('Mod', 'B')     // '⌘B' on a Mac, 'Ctrl+B' elsewhere
+ * shortcut('Mod', 'Shift', 'ArrowUp')
+ * ```
+ *
+ * @category Interaction
+ */
+export function shortcut(...keys: string[]): string {
+  const parts = keys.map((k) => KEY_GLYPHS[k]?.[IS_MAC ? 0 : 1] ?? k.toUpperCase());
+  // a Mac stacks the glyphs, every other platform joins them with a plus
+  return parts.join(IS_MAC ? '' : '+');
+}
+
 /**
  * Whether the caret is on the block's first or last *visual* line.
  *
@@ -337,21 +374,27 @@ export function attachKeymap(view: EditorView): () => void {
         view.syncDomSelection();
         return;
       }
-      if (!e.shiftKey && (key === 'b' || key === 'i' || key === 'u' || key === 'e')) {
+      /*
+       * The marks, on the bindings the editors beside this one use. `⇧S` is
+       * Notion's strikethrough and `⇧X` is Docs' and Discord's; both are
+       * muscle memory somewhere, so both work.
+       *
+       * Shift is deliberately not consulted for `.` and `,`. On an AZERTY
+       * keyboard `.` *is* Shift+`;`, so demanding an unshifted key put
+       * superscript out of reach of the layout most of this editor's readers
+       * type on — the binding existed and could not be pressed.
+       */
+      const mark =
+        e.key === '.'
+          ? 'superscript'
+          : e.key === ','
+            ? 'subscript'
+            : e.shiftKey
+              ? { s: 'strike', x: 'strike' }[key]
+              : { b: 'bold', i: 'italic', u: 'underline', e: 'code' }[key];
+      if (mark) {
         e.preventDefault();
-        toggleMarkRange(editor, { b: 'bold', i: 'italic', u: 'underline', e: 'code' }[key]!);
-        return;
-      }
-      if (e.shiftKey && key === 's') {
-        e.preventDefault();
-        toggleMarkRange(editor, 'strike');
-        return;
-      }
-      // ⌘. / ⌘, — the pair every word processor uses for the shifted marks
-      if (!e.shiftKey && (e.key === '.' || e.key === ',')) {
-        e.preventDefault();
-        toggleMarkRange(editor, e.key === '.' ? 'superscript' : 'subscript');
-        return;
+        toggleMarkRange(editor, mark);
       }
       return;
     }

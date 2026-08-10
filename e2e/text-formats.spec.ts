@@ -43,3 +43,48 @@ test.describe('the shifted marks', () => {
     await expect(page.locator('.nbe-fmt-subscript')).toBeVisible();
   });
 });
+
+/**
+ * `⌘K` is the one formatting shortcut with a dialog behind it, and it used to
+ * demand a selection. The way you actually reach it is with the caret sitting
+ * *in* a link you just read the URL of — nothing selected, nothing to select
+ * by hand without losing your place.
+ */
+test.describe('Cmd/Ctrl+K and the link form', () => {
+  const field = (page: import('@playwright/test').Page) => page.locator('.nbe-seltoolbar-linkform input');
+
+  test('a selection opens the form, and Enter applies the href', async ({ page, editor }) => {
+    await editor.setDocument(['bonjour monde']);
+    await editor.selectRange([0, 0], [0, 7]);
+    await editor.press('ControlOrMeta+k');
+
+    await field(page).fill('https://example.com');
+    await field(page).press('Enter');
+
+    await expect(page.locator('.nbe-editor a.nbe-m-link')).toHaveAttribute('href', 'https://example.com');
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('a caret inside the link is enough — it selects it for you', async ({ page, editor }) => {
+    await editor.setDocument(['bonjour monde']);
+    await editor.selectRange([0, 0], [0, 7]);
+    await editor.press('ControlOrMeta+k');
+    await field(page).fill('https://example.com');
+    await field(page).press('Enter');
+
+    await editor.caret(0, 3); // in the middle of the link, nothing selected
+    await editor.press('ControlOrMeta+k');
+
+    await expect(field(page)).toHaveValue('https://example.com');
+    expect(await editor.selectionText()).toBe('bonjour');
+  });
+
+  test('with no selection and no link under the caret it does nothing', async ({ page, editor }) => {
+    await editor.setDocument(['bonjour monde']);
+    await editor.caret(0, 3);
+    await editor.press('ControlOrMeta+k');
+
+    await expect(page.locator('.nbe-seltoolbar-linkform')).toHaveCount(0);
+    expect(editor.errors()).toEqual([]);
+  });
+});
