@@ -1,6 +1,6 @@
 import type { BlockId, Change, CommentStore, Editor, Point, Selection } from '@nbe/core';
 import { ancestors, getBlock, selectedBlocks, textCaret } from '@nbe/core';
-import { renderBlock } from './render';
+import { renderBlock, renderChildren } from './render';
 import { leafOf, modelPointToDom } from './selection';
 import { reconcileLeaf } from './input';
 import { plainText } from '@nbe/core';
@@ -742,7 +742,7 @@ export class EditorView {
     this.tail = null; // a full render supersedes whatever was still streaming
     const root = getBlock(this.editor.doc, this.editor.doc.rootId);
     this.withObserverPaused(() =>
-      this.content.replaceChildren(...root.children.map((id) => renderBlock(this, id))),
+      this.content.replaceChildren(...renderChildren(this, root.children)),
     );
     this.rendered(null);
   }
@@ -786,7 +786,7 @@ export class EditorView {
     if (root.children.length <= FIRST_PAINT) return this.renderAll();
     const ids = [...root.children];
     this.withObserverPaused(() =>
-      this.content.replaceChildren(...ids.slice(0, FIRST_PAINT).map((id) => renderBlock(this, id))),
+      this.content.replaceChildren(...renderChildren(this, ids.slice(0, FIRST_PAINT))),
     );
     this.tail = ids.slice(FIRST_PAINT);
     this.rendered(null);
@@ -800,7 +800,7 @@ export class EditorView {
       // cleared *before* the listeners run, so `whenComplete` can answer from
       // the same state they see
       if (!more) this.tail = null;
-      this.withObserverPaused(() => this.content.append(...batch.map((id) => renderBlock(this, id))));
+      this.withObserverPaused(() => this.content.append(...renderChildren(this, batch)));
       this.rendered(batch);
       if (more) requestAnimationFrame(step);
     };

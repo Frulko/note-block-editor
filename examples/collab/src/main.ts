@@ -1,9 +1,6 @@
 import {
   Editor,
-  newMessage,
-  newThread,
   orphanThreads,
-  plainText,
   documentOrder,
   threadsInDocumentOrder,
   uuidv7,
@@ -18,8 +15,12 @@ import {
   fr,
   icon,
   peerSelection,
+  reveal,
   wordCountFeature,
+  openCommentThread,
   type CommentAuthor,
+  type CommentContext,
+  type RemotePeer,
   type RemoteSelection,
 } from '@nbe/dom';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
@@ -151,36 +152,26 @@ function pane(
   const editor = new Editor({ doc: { blocks: store, rootId } });
 
   /*
-   * A comment is on a block, not on a hand-picked range — that is the product
-   * decision, and it is why this hangs off the gutter rather than off the
-   * selection toolbar. The anchor is still the mark `@nbe/core` documents
-   * (§2.2): it covers the whole block's text, so it survives edits and merges
-   * on its own, and a block emptied of text orphans its thread rather than
-   * leaving it pointing at a position that no longer means anything.
+   * The editor's own bubble, the one the single-player demo and the Obsidian
+   * plugin both use. This pane used to open a `prompt()`, which could take a
+   * first message and nothing after it: no replies, so a *discussion* between
+   * the two people the demo exists to show was the one thing it could not do —
+   * and every message it did take was written by whoever typed it with no way
+   * to see who that was.
+   *
+   * `openCommentThread` handles the anchoring mark, the thread, replies,
+   * resolving and deleting. Each pane passes its own `author`, which is what
+   * puts the right name on each message in a shared store.
    */
-  const commentOn = (blockId: BlockId, author: CommentAuthor | null): void => {
-    const body = prompt('Votre commentaire');
-    if (!body) return;
-    // anonymous is a real mode, so the fallback is a label, not a fake identity
-    const message = author ? newMessage(author.id, body, author.name) : newMessage('anon', body);
-    const thread = newThread(message, blockId);
-    comments.create(thread);
-    const length = plainText(editor.doc.blocks.get(blockId)?.text).length;
-    editor.dispatch((tx) =>
-      tx.op({
-        type: 'format_text',
-        id: blockId,
-        from: 0,
-        to: length,
-        mark: { type: 'comment', attrs: { threadId: thread.id } },
-        add: true,
-      }),
-    );
-    renderComments();
+  const commentOn = (blockId: BlockId, author: CommentAuthor | null, at?: CommentContext): void => {
+    openCommentThread({ editor, store: comments, blockId, author, labels: fr, locale: 'fr', ...at });
   };
 
   const view = new EditorView(surface, editor, {
     onComment: commentOn,
+    // the store as well: the margin badge counts *messages*, and only the store
+    // knows how many — a reply adds no mark for the document to count
+    commentStore: comments,
     commentAuthor: { id: person.id, name: person.name },
     labels: fr,
     blocks: BLOCKS,
@@ -208,16 +199,92 @@ function pane(
     presence.set({ name: person.name, color: person.color, selection: peerSelection(editor) });
   };
 
+  /** Everyone else, in the shape both the carets and the list want. */
+  let present: RemotePeer[] = [];
+
   presence.onChange((peers) => {
-    carets.update(
-      Object.entries(peers).map(([id, state]) => ({
-        id,
-        name: typeof state.name === 'string' ? state.name : other.name,
-        color: typeof state.color === 'string' ? state.color : other.color,
-        selection: (state.selection ?? null) as RemoteSelection | null,
-      })),
-    );
+    present = Object.entries(peers).map(([id, state]) => ({
+      id,
+      name: typeof state.name === 'string' ? state.name : other.name,
+      color: typeof state.color === 'string' ? state.color : other.color,
+      selection: (state.selection ?? null) as RemoteSelection | null,
+    }));
+    carets.update(present);
+    renderPresence();
   });
+
+  // --- who is here, and following one of them -------------------------------
+
+  const peopleList = el('div', 'people');
+
+  /**
+   * The connected peers, each with what you can do about them.
+   *
+   * @remarks
+   * Rebuilt on every presence change, which is every keystroke anyone makes —
+   * so the *open* menu has to survive it. It is keyed by peer id and restored
+   * after the rebuild, or opening it would be a race against the other person
+   * typing.
+   */
+  let openMenuFor: string | null = null;
+
+  const renderPresence = (): void => {
+    peopleList.replaceChildren();
+    if (!present.length) {
+      peopleList.append(el('p', 'people-empty', 'Personne d’autre pour le moment.'));
+      return;
+    }
+
+    for (const peer of present) {
+      const row = el('div', 'person');
+      const chip = el('button', 'person-chip');
+      (chip as HTMLButtonElement).type = 'button';
+      const dot = el('span', 'who-dot');
+      dot.style.background = peer.color ?? 'currentColor';
+      chip.append(dot, el('span', 'person-name', peer.name ?? 'Quelqu’un'));
+      if (carets.following() === peer.id) chip.classList.add('is-followed');
+      chip.addEventListener('click', () => {
+        openMenuFor = openMenuFor === peer.id ? null : peer.id;
+        renderPresence();
+      });
+      row.append(chip);
+
+      if (openMenuFor === peer.id) {
+        const menu = el('div', 'person-menu');
+        const followed = carets.following() === peer.id;
+        /*
+         * The same button, both ways round. A separate "stop following" control
+         * elsewhere would be a second thing to find for a state you can already
+         * see, and the editor can end the follow on its own — a press in the
+         * text does — so the label has to be read from `following()` rather
+         * than from anything this list remembers.
+         */
+        menu.append(
+          button(followed ? 'Ne plus suivre' : 'Suivre le curseur', followed ? 'x' : 'arrow-down', () => {
+            carets.follow(followed ? null : peer.id);
+            openMenuFor = null;
+            renderPresence();
+          }),
+          button('Aller à sa position', 'corner-down-right', () => {
+            // once, without following: "where are they" is a different question
+            // from "take me with them"
+            const at = peer.selection;
+            const id = at ? (at.kind === 'blocks' ? at.ids[0] : (at.headBlockId ?? at.blockId)) : null;
+            const target = id ? view.blockEl(id) : null;
+            if (target) reveal(target, 'start');
+            openMenuFor = null;
+            renderPresence();
+          }),
+        );
+        row.append(menu);
+      }
+      peopleList.append(row);
+    }
+  };
+
+  /* The editor ends a follow by itself when this person starts reading
+     somewhere else, so the list is told rather than asked. */
+  carets.onFollowChange(() => renderPresence());
 
   // --- comments -------------------------------------------------------------
 
@@ -244,11 +311,23 @@ function pane(
         card.append(row);
       }
       const actions = el('div', 'thread-actions');
+      const on = thread.blockId;
       actions.append(
-        button('Répondre', 'message-square', () => {
-          const body = prompt('Votre réponse');
-          if (body) comments.addMessage(thread.id, newMessage(person.id, body, person.name));
-        }),
+        /*
+         * The same bubble the margin opens, on this thread: a second way of
+         * writing a reply is a second place for the author's name to be wrong.
+         *
+         * An orphan has no block left to anchor one to — which is what the note
+         * above the card says — so it has no reply button rather than a button
+         * that cannot open anything. It can still be resolved and read.
+         */
+        ...(on
+          ? [
+              button('Répondre', 'message-square', () =>
+                commentOn(on, { id: person.id, name: person.name }, { threadId: thread.id }),
+              ),
+            ]
+          : []),
         button(thread.resolved ? 'Rouvrir' : 'Résoudre', 'check', () =>
           comments.setResolved(thread.id, !thread.resolved),
         ),
@@ -294,6 +373,8 @@ function pane(
 
   side.append(
     tools,
+    el('h2', undefined, 'Présents'),
+    peopleList,
     el('h2', undefined, 'Commentaires'),
     commentList,
     el('h2', undefined, 'Versions'),
@@ -313,6 +394,7 @@ function pane(
 
   renderComments();
   renderHistory();
+  renderPresence();
 }
 
 // --- wiring -----------------------------------------------------------------

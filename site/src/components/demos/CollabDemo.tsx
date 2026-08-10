@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { Editor, uuidv7, type Block, type BlockId } from '@nbe/core';
-import { EditorView, attachRemoteCarets, peerSelection, type RemoteSelection } from '@nbe/dom';
+import {
+  EditorView,
+  attachRemoteCarets,
+  peerSelection,
+  type FollowControl,
+  type RemoteSelection,
+} from '@nbe/dom';
 import { LoroBlockStore, connect, createPresence, loopback, redrawOnRemote, type Transport } from '@nbe/collab';
 
 /**
  * Two peers, side by side, on a page that has no server.
  *
  * @remarks
- * Deliberately smaller than `examples/collab`: it shows the two things a
- * visitor should believe in five seconds — type here and it appears there with
- * the other person's caret, and cut a peer off, write in both, rejoin, and
- * nothing is lost. Comments and version history are real and live in the full
- * example, which this page links to; putting every panel here would bury the
- * claim it exists to make.
+ * Deliberately smaller than `examples/collab`: it shows the things a visitor
+ * should believe in five seconds — type here and it appears there with the
+ * other person's caret, follow that caret and the pane goes where they go, and
+ * cut a peer off, write in both, rejoin, and nothing is lost. Comments and
+ * version history are real and live in the full example, which this page links
+ * to; putting every panel here would bury the claim it exists to make. Follow
+ * earns its place because it is *about* the other person's caret, which is
+ * already the thing this demo is showing.
  *
  * The panes are genuinely two documents joined by a transport, not one editor
  * rendered twice. The loopback delivers asynchronously, so a broken merge would
@@ -96,6 +104,9 @@ export default function CollabDemo() {
   const right = useRef<HTMLDivElement>(null);
   const gates = useRef<[Gated, Gated] | null>(null);
   const [online, setOnline] = useState<[boolean, boolean]>([true, true]);
+  /** Each pane's caret layer, which is what knows how to follow someone. */
+  const follows = useRef<Array<FollowControl | null>>([null, null]);
+  const [following, setFollowing] = useState<[boolean, boolean]>([false, false]);
 
   useEffect(() => {
     if (!left.current || !right.current) return;
@@ -117,10 +128,30 @@ export default function CollabDemo() {
     const basile = new LoroBlockStore();
     const stops = [connect(alice, transportA), connect(basile, transportB)];
 
-    const mount = (host: HTMLElement, person: Person, store: LoroBlockStore, transport: typeof transportA) => {
+    const mount = (
+      host: HTMLElement,
+      person: Person,
+      store: LoroBlockStore,
+      transport: typeof transportA,
+      index: 0 | 1,
+    ) => {
       const editor = new Editor({ doc: { blocks: store, rootId } });
       const view = new EditorView(host, editor, {});
       const carets = attachRemoteCarets(view);
+      follows.current[index] = carets;
+      /*
+       * The editor ends a follow on its own when this person starts reading
+       * somewhere else — a press in the text says so — so the button is told
+       * rather than asked, and cannot show « Ne plus suivre » for a follow that
+       * has already stopped.
+       */
+      const stopFollow = carets.onFollowChange((id) =>
+        setFollowing((was) => {
+          const next: [boolean, boolean] = [...was];
+          next[index] = id !== null;
+          return next;
+        }),
+      );
       const presence = createPresence(transport, { id: person.id });
 
       const announce = () => {
@@ -153,6 +184,8 @@ export default function CollabDemo() {
       return () => {
         stopSelection();
         stopRedraw();
+        stopFollow();
+        follows.current[index] = null;
         carets.destroy();
         presence.leave();
         view.destroy();
@@ -162,8 +195,8 @@ export default function CollabDemo() {
     // let the handshake settle so Basile has the document before he is shown
     const teardown: Array<() => void> = [];
     const timer = setTimeout(() => {
-      teardown.push(mount(left.current!, PEOPLE[0], alice, transportA));
-      teardown.push(mount(right.current!, PEOPLE[1], basile, transportB));
+      teardown.push(mount(left.current!, PEOPLE[0], alice, transportA, 0));
+      teardown.push(mount(right.current!, PEOPLE[1], basile, transportB, 1));
     }, 60);
 
     return () => {
@@ -172,6 +205,13 @@ export default function CollabDemo() {
       for (const stop of stops) stop();
     };
   }, []);
+
+  /** This pane goes where the other person goes, or stops. */
+  const toggleFollow = (index: 0 | 1) => {
+    const control = follows.current[index];
+    if (!control) return;
+    control.follow(control.following() ? null : PEOPLE[index === 0 ? 1 : 0].id);
+  };
 
   const cut = (index: 0 | 1) => {
     const next = !online[index];
@@ -188,6 +228,18 @@ export default function CollabDemo() {
               {person.name[0]}
             </span>
             <span className="collab-name">{person.name}</span>
+            {/* the same button both ways round: a separate "stop" elsewhere
+                would be a second control to find for a state you can see, and
+                the editor can end the follow by itself */}
+            <button
+              type="button"
+              className="collab-follow"
+              aria-pressed={following[index]}
+              onClick={() => toggleFollow(index as 0 | 1)}
+              title={`Le volet suit le curseur de ${PEOPLE[index === 0 ? 1 : 0].name}. Cliquez dans le texte pour reprendre la main.`}
+            >
+              {following[index] ? 'Ne plus suivre' : `Suivre ${PEOPLE[index === 0 ? 1 : 0].name}`}
+            </button>
             <button
               type="button"
               className="collab-net"

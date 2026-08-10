@@ -64,3 +64,81 @@ test.describe('two peers, one document', () => {
     await expect(page.locator('.nbe-peer-name').first()).toHaveText(/Alice|Basile/);
   });
 });
+
+/**
+ * Talking about the document, and going where someone else is.
+ *
+ * @remarks
+ * The pane used to open a `prompt()` for a comment, which could take a first
+ * message and nothing after it — so a *discussion*, which is the only reason
+ * two people need comments rather than notes, was the one thing this demo could
+ * not show. And every message it did take was anonymous on the screen that did
+ * not write it.
+ *
+ * Following is the other half of "there is somebody else here": a caret tells
+ * you where they are only while you are both looking at the same part of the
+ * document.
+ */
+test.describe('two people talking', () => {
+  test('a comment and its reply carry the right name in both panes', async ({ page }) => {
+    const dialogs: string[] = [];
+    page.on('dialog', (d) => {
+      dialogs.push(d.message());
+      void d.dismiss();
+    });
+    await page.goto(COLLAB);
+    const alice = page.locator('.pane').nth(0);
+    const basile = page.locator('.pane').nth(1);
+    await expect(basile.getByText('Réunion de lancement')).toBeVisible({ timeout: 10_000 });
+
+    await alice.locator('.nbe-editor > .nbe-block').first().hover();
+    await alice.locator('.nbe-controls-right .nbe-comment').click();
+    await page.locator('.nbe-comments .nbe-comment-field').waitFor();
+    await page.keyboard.type('une question d’Alice');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+
+    // Basile answers from his own pane, so the author is his
+    await basile.locator('.threads .panel-btn', { hasText: 'Répondre' }).first().click();
+    await page.locator('.nbe-comments .nbe-comment-field').waitFor();
+    await page.keyboard.type('la réponse de Basile');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+
+    for (const pane of [alice, basile]) {
+      await expect(pane.locator('.threads .message b')).toHaveText(['Alice', 'Basile']);
+    }
+    // and the margin counts the messages, which is what a reader counts
+    await expect(alice.locator('.nbe-comment-count').first()).toHaveText('2');
+    expect(dialogs).toEqual([]); // no prompt(), in either direction
+  });
+
+  test('following a peer takes the pane where they are, and lets go', async ({ page }) => {
+    await page.goto(COLLAB);
+    const alice = page.locator('.pane').nth(0);
+    const basile = page.locator('.pane').nth(1);
+    await expect(basile.getByText('Réunion de lancement')).toBeVisible({ timeout: 10_000 });
+
+    // a document long enough for "off screen" to mean something
+    await basile.locator('.nbe-editor > .nbe-block').last().click();
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.type('ligne');
+      await page.keyboard.press('Enter');
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    await alice.locator('.person-chip').click();
+    await alice.locator('.person-menu .panel-btn', { hasText: 'Suivre le curseur' }).click();
+    await expect(alice.locator('.person-chip.is-followed')).toHaveCount(1);
+    // the viewport actually moved, which is the whole of what following is
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+
+    /*
+     * Reading somewhere else *is* saying you have stopped following, so a press
+     * in the text ends it — there is no third state where the page keeps moving
+     * under someone who has taken the wheel back.
+     */
+    await alice.locator('.nbe-editor .nbe-leaf').first().click();
+    await expect(alice.locator('.person-chip.is-followed')).toHaveCount(0);
+  });
+});

@@ -2,6 +2,7 @@ import { selectedBlocks, type Editor } from '@nbe/core';
 import type { EditorView } from './view';
 import { modelPointToDom } from './selection';
 import { toContainerPoint } from './ui/position';
+import { reveal } from './viewport';
 
 /**
  * Other people's carets and selections.
@@ -137,13 +138,80 @@ function registry(): HighlightRegistry | null {
  * presence.onChange((peers) => carets.update(Object.entries(peers).map(…)))
  * ```
  */
-export function attachRemoteCarets(view: EditorView): {
+/**
+ * Following someone: the viewport goes where they go.
+ *
+ * @remarks
+ * It belongs here rather than in each host for the same reason
+ * {@link peerSelection} does — every host would write it, and every host would
+ * write the same two mistakes. The first is scrolling on every update, which
+ * fights the reader over a document they can already see; `reveal` moves only
+ * when the target is off screen, which is what following actually means. The
+ * second is having no way out: a person who starts reading somewhere else is
+ * *saying* they have stopped following, so a press inside the editor ends it.
+ */
+export interface FollowControl {
+  /** Go with this peer, or stop. Following a peer who is not here is a no-op. */
+  follow(peerId: string | null): void;
+  /** Who is being followed, if anyone. */
+  following(): string | null;
+  /** Told whenever that changes, including when the editor ends it. */
+  onFollowChange(handler: (peerId: string | null) => void): () => void;
+}
+
+export function attachRemoteCarets(view: EditorView): FollowControl & {
   update(peers: readonly RemotePeer[]): void;
   destroy(): void;
 } {
   const highlights = registry();
   const layer = document.createElement('div');
   layer.className = 'nbe-peers';
+
+  let followed: string | null = null;
+  const followHandlers = new Set<(peerId: string | null) => void>();
+
+  const setFollowed = (peerId: string | null): void => {
+    if (followed === peerId) return;
+    followed = peerId;
+    for (const handler of followHandlers) handler(followed);
+  };
+
+  /** The block a peer is in, whichever shape their selection has. */
+  const blockOf = (selection: RemoteSelection): string | null =>
+    selection.kind === 'blocks' ? (selection.ids[0] ?? null) : (selection.headBlockId ?? selection.blockId);
+
+  /**
+   * Put the followed peer on screen.
+   *
+   * @remarks
+   * `nearest`, so a peer already visible moves nothing: following someone
+   * typing in a paragraph you are both looking at must not scroll the page on
+   * every keystroke.
+   */
+  const keepUp = (peers: readonly RemotePeer[]): void => {
+    if (!followed) return;
+    const peer = peers.find((p) => p.id === followed);
+    const id = peer?.selection ? blockOf(peer.selection) : null;
+    const el = id ? view.blockEl(id) : null;
+    if (el) reveal(el);
+  };
+
+  /*
+   * Moving your own cursor *is* saying you have stopped following.
+   *
+   * The first attempt was a `pointerdown` listener on the editing surface, and
+   * `test/restraint.test.ts` refused it: one press has one owner here, the
+   * gesture router, and "just one more listener" is the arbitration bug that
+   * router exists to prevent. Being made to find another way found a better
+   * one — this is the local selection moving, so it covers the arrow keys and
+   * typing as well as a click, which a press listener never would.
+   *
+   * Every origin but `remote` counts: `remote` is somebody else's edit landing,
+   * and being dragged along by it is precisely what following *is*.
+   */
+  const stopOnLocalMove = view.editor.onSelection((_selection, origin) => {
+    if (origin !== 'remote') setFollowed(null);
+  });
 
   /** Which highlight names we own, so we clear ours and nobody else's. */
   let painted: string[] = [];
@@ -253,6 +321,11 @@ export function attachRemoteCarets(view: EditorView): {
       caret.style.top = `${at.y}px`;
       caret.style.height = `${rect.height || 18}px`;
       caret.style.background = colour;
+      // also as `color`, so the followed halo can be drawn from `currentColor`
+      // instead of the stylesheet needing a value only this code knows
+      caret.style.color = colour;
+
+      if (peer.id === followed) caret.classList.add('nbe-peer-followed');
 
       if (peer.name) {
         const label = document.createElement('span');
@@ -263,6 +336,8 @@ export function attachRemoteCarets(view: EditorView): {
       }
       layer.append(caret);
     }
+
+    keepUp(peers);
   };
 
   /*
@@ -275,8 +350,21 @@ export function attachRemoteCarets(view: EditorView): {
 
   return {
     update,
+
+    follow(peerId) {
+      setFollowed(peerId);
+      keepUp(last);
+    },
+    following: () => followed,
+    onFollowChange(handler) {
+      followHandlers.add(handler);
+      return () => followHandlers.delete(handler);
+    },
+
     destroy() {
       stopRedraw();
+      stopOnLocalMove();
+      followHandlers.clear();
       clearHighlights();
       layer.remove();
     },

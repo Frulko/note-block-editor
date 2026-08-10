@@ -62,7 +62,13 @@ export {
 } from './features';
 export type { EditorFeature } from './features';
 export { attachCrossBlockHighlight, canPaintCrossBlock } from './cross-block-highlight';
-export { attachRemoteCarets, peerSelection, type RemotePeer, type RemoteSelection } from './remote-carets';
+export {
+  attachRemoteCarets,
+  peerSelection,
+  type FollowControl,
+  type RemotePeer,
+  type RemoteSelection,
+} from './remote-carets';
 export { attachViewportGuard, reveal, REVEAL_MARGIN } from './viewport';
 export { caretLine, isMod, shortcut } from './keymap';
 export { attachFind, findHits, openFind } from './search';

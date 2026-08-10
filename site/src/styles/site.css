@@ -465,8 +465,29 @@ a.card:hover {
   font-size: 0.85rem;
   font-weight: 550;
 }
-.collab-net {
+/* the same pill as the network toggle, so the two read as one row of controls;
+   `margin-left: auto` moves to this one, which now comes first */
+.collab-follow {
   margin-left: auto;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.collab-follow:hover {
+  border-color: var(--accent);
+}
+.collab-follow[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.collab-net {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;

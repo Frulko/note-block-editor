@@ -585,6 +585,16 @@ textarea.nbe-input {
   animation: nbe-fade-in var(--nbe-fast) var(--nbe-ease);
 }
 
+/* the one being followed: the viewport is going where this caret goes, and a
+   halo is the cheapest way to say which of several people that is. Its own
+   colour, so it reads as *that person* rather than as a state of the editor. */
+.nbe-peer-caret.nbe-peer-followed {
+  width: 3px;
+  /* `currentColor` rather than a token: the caret carries the peer's own colour
+     as `color`, so the halo is *that person* rather than a state of the editor */
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 28%, transparent);
+}
+
 /* whole blocks held by someone else: an outline, because the block may have no
    text to highlight — an image, a divider, an empty paragraph */
 .nbe-peer-block {

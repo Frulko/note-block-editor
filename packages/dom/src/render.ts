@@ -284,6 +284,28 @@ function renderUnknown(view: EditorView, block: Block): HTMLElement {
   return root;
 }
 
+/**
+ * Render the children a document actually has.
+ *
+ * @remarks
+ * A parent's `children` list and the blocks themselves are two pieces of state,
+ * and under a CRDT they converge *independently*: a peer can legitimately
+ * observe a child id whose block has not arrived yet, or one concurrently
+ * deleted by somebody else. `getBlock` throws for it, and the throw escapes the
+ * `map` that was building the whole document — so one dangling id from a remote
+ * edit aborted the entire re-render and left the reader looking at a stale
+ * screen, with `Block not found` in the console and no other sign.
+ *
+ * Skipping it is right rather than merely safe: the document is authoritative
+ * and a projection shows what the document has. The next update carries the
+ * block, or the id, and this renders whatever is true then.
+ */
+export function renderChildren(view: EditorView, ids: readonly string[]): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  for (const id of ids) if (view.editor.doc.blocks.has(id)) out.push(renderBlock(view, id));
+  return out;
+}
+
 export function renderBlock(view: EditorView, id: string): HTMLElement {
   const block = getBlock(view.editor.doc, id);
   if (!view.editor.schema.has(block.type)) return renderUnknown(view, block);
@@ -313,7 +335,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
   if (spec.layout && block.type !== 'page') {
     if (block.type === 'column' && typeof block.props['ratio'] === 'number')
       root.style.flexGrow = String(block.props['ratio']);
-    for (const childId of block.children) root.append(renderBlock(view, childId));
+    root.append(...renderChildren(view, block.children));
     plugin?.decorate?.(renderCtx, block);
     return root;
   }
