@@ -52,6 +52,7 @@ export {
   clipboardFeature,
   formatToolbarFeature,
   stickyFormatToolbarFeature,
+  classicFeatures,
   blockToolbarFeature,
   linkHoverFeature,
   databaseFeature,

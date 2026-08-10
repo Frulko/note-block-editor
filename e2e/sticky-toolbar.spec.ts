@@ -79,3 +79,68 @@ test.describe('the pinned format toolbar', () => {
     await expect(page.locator('.nbe-seltoolbar')).toHaveCount(1);
   });
 });
+
+/**
+ * The classic editor: a page of text with a bar over it.
+ *
+ * @remarks
+ * There is no turning the blocks *off* — the document is blocks, and a mode
+ * that changed that would be a second editor sharing a name. What is turned
+ * off is every affordance that makes them visible, plus the topology: the
+ * whole document becomes one `contenteditable`, which is what a classic editor
+ * *is* and what makes the browser's own selection behave the way someone
+ * coming from one expects.
+ *
+ * So the test is mostly a list of things that must be absent, and one that
+ * must not be: typing, formatting and the Markdown autoformat all still work,
+ * because none of that is block chrome.
+ */
+test.describe('the classic editor', () => {
+  const classic = '/?mode=classic';
+
+  test('has no gutter, no slash menu and no block bar', async ({ page, editor }) => {
+    await page.goto(classic);
+    await editor.setDocument(['bonjour monde', 'seconde ligne']);
+    const box = (await page.locator('.nbe-editor > .nbe-block').first().boundingBox())!;
+    await page.mouse.move(box.x + 60, box.y + box.height / 2);
+    await page.waitForTimeout(200);
+    await expect(page.locator('.nbe-controls')).toHaveCount(0);
+
+    await editor.caret(1, 13);
+    await editor.type('/');
+    await page.waitForTimeout(200);
+    await expect(page.locator('.nbe-menu')).toHaveCount(0);
+    // the slash is text now, not a trigger
+    expect(await editor.texts()).toEqual(['bonjour monde', 'seconde ligne/']);
+  });
+
+  test('is one editing host, not one per block', async ({ page, editor }) => {
+    await page.goto(classic);
+    await editor.setDocument(['bonjour monde', 'seconde ligne']);
+    /*
+     * `plaintext-only`, not `true` — that is the single-host topology's own
+     * choice and the reason it is safe: it stops the browser inserting markup
+     * of its own into a surface the model has to be able to read back.
+     */
+    const hosts = await page.evaluate(() =>
+      [...document.querySelectorAll('.nbe-editor, .nbe-leaf')].filter(
+        (el) => (el.getAttribute('contenteditable') ?? 'false') !== 'false',
+      ).map((el) => el.className),
+    );
+    expect(hosts).toEqual(['nbe-editor']);
+  });
+
+  test('still types, formats and autoformats — none of that is block chrome', async ({ page, editor }) => {
+    await page.goto(classic);
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('## un titre\n');
+    await expect(page.locator('.nbe-editor .nbe-t-heading')).toHaveCount(1);
+
+    await editor.type('gras ici');
+    await editor.selectRange([1, 0], [1, 4]);
+    await page.locator('.nbe-seltoolbar-sticky .nbe-fmt-bold').click();
+    await expect(page.locator('.nbe-editor .nbe-m-bold')).toHaveText('gras');
+    expect(editor.errors()).toEqual([]);
+  });
+});

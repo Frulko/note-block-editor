@@ -161,6 +161,49 @@ export const minimalFeatures: EditorFeature[] = [
 ];
 
 /**
+ * The older kind of editor: a page of text with a toolbar, no block chrome.
+ *
+ * @remarks
+ * There is no such thing as turning the blocks *off* — the document is blocks,
+ * that is the whole architecture, and a "classic mode" that changed the model
+ * would be a second editor sharing a name. What can be turned off is every
+ * affordance that makes the blocks *visible*: the hover gutter and its handle,
+ * the ⋮⋮ menu, the slash menu, the `@` picker, the per-block toolbar, the drag
+ * and the edge handles. What is left is a page you type into, with a bar over
+ * it — which is what anyone asking for a classic editor is asking for.
+ *
+ * Pair it with `topology: singleHostTopology`, and that pairing is the point
+ * rather than a detail: the default puts one editing host per block, which is
+ * correct and invisible until you look at the DOM — under the single-host
+ * topology the whole document is one `contenteditable`, which is what a classic
+ * editor *is*, and what makes a browser's own native selection behave the way
+ * someone coming from one expects.
+ *
+ * What you still get, because none of it is block chrome: every keyboard
+ * shortcut, the Markdown autoformat, the clipboard's three formats, the link
+ * card, IME safety, undo.
+ *
+ * @example
+ * ```ts
+ * import { classicFeatures, singleHostTopology } from '@nbe/dom'
+ * new EditorView(el, editor, { features: classicFeatures, topology: singleHostTopology })
+ * ```
+ *
+ * @category Configuration
+ */
+export const classicFeatures: EditorFeature[] = [
+  inputFeature,
+  keymapFeature,
+  selectionSyncFeature,
+  crossBlockHighlightFeature,
+  viewportGuardFeature,
+  gesturesFeature,
+  clipboardFeature,
+  linkHoverFeature,
+  stickyFormatToolbarFeature,
+];
+
+/**
  * Nothing attached: the document renders and never changes.
  *
  * @remarks

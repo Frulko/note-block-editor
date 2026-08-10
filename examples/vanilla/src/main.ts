@@ -10,6 +10,7 @@ import {
   wordCountFeature,
   debugFeature,
   stickyFormatToolbarFeature,
+  classicFeatures,
 } from '@nbe/dom';
 import { renderToHTML } from '@nbe/static-renderer';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
@@ -479,7 +480,8 @@ function openPage(pageId: string): void {
   view = new EditorView(editorEl, editor, {
     // ?topology=single-host to exercise the alternative editable boundary
     topology:
-      new URLSearchParams(location.search).get('topology') === 'single-host'
+      new URLSearchParams(location.search).get('topology') === 'single-host' ||
+      new URLSearchParams(location.search).get('mode') === 'classic'
         ? singleHostTopology
         : perBlockTopology,
     // ?columns=on to exercise the experimental side-drop that builds columns
@@ -502,8 +504,17 @@ function openPage(pageId: string): void {
      * offering the same seven marks, one hovering over the other, is not a
      * configuration anyone meant to choose.
      */
+    /*
+     * ?mode=classic drops every affordance that makes the blocks visible — the
+     * gutter, the slash menu, the drag, the per-block bar — and leaves a page
+     * you type into with a bar over it. Paired with the single-host topology,
+     * because that is what a classic editor *is*: one contenteditable, and the
+     * browser's own selection behaving the way someone coming from one expects.
+     */
     features:
-      flags.get('toolbar') === 'sticky'
+      flags.get('mode') === 'classic'
+        ? classicFeatures
+        : flags.get('toolbar') === 'sticky'
         ? [
             ...defaultFeatures.map((f) => (f.name === 'format-toolbar' ? stickyFormatToolbarFeature : f)),
             ...extraFeatures,
