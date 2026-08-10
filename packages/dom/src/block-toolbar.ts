@@ -3,7 +3,7 @@ import { getBlock, setColumnCount, setColumnRatios } from '@nbe/core';
 import type { EditorView } from './view';
 import { createActionButton, createMenu, openOverlays, toContainerPoint, type IconName, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
-import { requestFullscreen } from './media-resize';
+import { DEFAULT_ALIGN, requestFullscreen } from './media-resize';
 import type { EditorLabels } from './labels';
 
 /**
@@ -89,7 +89,7 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
   const labels = view.labels;
   const ALIGNMENTS = alignments(labels);
   const src = String(block.props['src'] ?? '');
-  const align = String(block.props['align'] ?? 'left');
+  const align = String(block.props['align'] ?? DEFAULT_ALIGN);
   const width = Number(block.props['width'] ?? 100);
 
   return [

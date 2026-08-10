@@ -59,7 +59,7 @@ pnpm typecheck
 pnpm e2e        # the browser matrix: Chromium, WebKit, and touch viewports
 
 TOPOLOGY=single-host pnpm e2e            # the alternative editable boundary
-pnpm --filter demo-collab dev            # two peers sharing one document
+pnpm --filter demo-collab dev            # relay + demo: each window is another person
 cd native/swift && swift test            # the Swift port
 ```
 

@@ -5,7 +5,7 @@ import { EMPTY_LINE } from './topology';
 import { viewOf, type BlockRenderContext } from './block-view';
 import { renderDatabase } from './database';
 import { createDropZone, fileToDataUrl, icon } from './ui';
-import { resizeHandles } from './media-resize';
+import { DEFAULT_ALIGN, resizeHandles } from './media-resize';
 import { backgroundColor, textColor } from './colors';
 import { format } from './labels';
 
@@ -322,7 +322,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
     root.setAttribute('contenteditable', 'false');
     const src = String(block.props['src'] ?? '');
     if (src) {
-      const align = String(block.props['align'] ?? 'left');
+      const align = String(block.props['align'] ?? DEFAULT_ALIGN);
       const width = Number(block.props['width'] ?? 100);
       root.classList.add(`nbe-align-${align}`);
       const figure = el('figure', 'nbe-figure');

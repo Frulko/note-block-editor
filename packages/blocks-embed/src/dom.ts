@@ -5,7 +5,7 @@
  * @module @nbe/blocks-embed/dom
  */
 import type { Block } from '@nbe/core';
-import { createDropZone, icon, requestFullscreen, resizeHandles, type DomBlockPlugin, type EditorView } from '@nbe/dom';
+import { createDropZone, DEFAULT_ALIGN, icon, requestFullscreen, resizeHandles, type DomBlockPlugin, type EditorView } from '@nbe/dom';
 import { embedMode, embedPlugin, frameUrl, providerFor, PROVIDERS, type EmbedMode } from './index';
 
 /** The default height of a frame with no ratio to go on. */
@@ -127,7 +127,7 @@ export const embed: DomBlockPlugin = {
       ctx.root.dataset['embedMode'] = mode;
       // the same class the image uses, so one stylesheet rule serves both and
       // `media-resize` can ask "is this centred" without knowing the type
-      ctx.root.classList.add(`nbe-align-${String(props['align'] ?? 'left')}`);
+      ctx.root.classList.add(`nbe-align-${String(props['align'] ?? DEFAULT_ALIGN)}`);
 
       if (!src && mode !== 'srcdoc') {
         ctx.root.append(
@@ -191,7 +191,7 @@ export const embed: DomBlockPlugin = {
         ...(['alignLeft', 'alignCenter', 'alignRight'] as const).map((key, i) => ({
           icon: (['pilcrow', 'columns', 'pilcrow'] as const)[i]!,
           title: ctx.view.labels[key],
-          active: String(ctx.block.props?.['align'] ?? 'left') === ['left', 'center', 'right'][i],
+          active: String(ctx.block.props?.['align'] ?? DEFAULT_ALIGN) === ['left', 'center', 'right'][i],
           onClick: () => ctx.setProps({ align: ['left', 'center', 'right'][i] }),
         })),
         /*

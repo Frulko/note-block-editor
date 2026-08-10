@@ -82,7 +82,7 @@ export {
 export type { ExportFormat } from './export';
 export { openPagePicker, openPagePickerOn } from './page-picker';
 export { offerLinkTreatments, loneLink } from './link-paste';
-export { resizeHandles, requestFullscreen } from './media-resize';
+export { resizeHandles, requestFullscreen, DEFAULT_ALIGN } from './media-resize';
 export { TYPEFACES } from './typography';
 export type { Typeface } from './typography';
 export { debugFeature, debugHolding } from './debug';

@@ -27,6 +27,25 @@ import type { GestureRecognizer } from './gestures';
  * @category Interaction
  */
 
+/**
+ * Where a media block sits when nobody has said.
+ *
+ * @remarks
+ * Centred, which is what a figure in a document wants: text runs the width of
+ * the column and a picture usually does not, so left-aligning it puts a ragged
+ * edge down the middle of the page. Left is the right default for *text*, and
+ * an image is not text.
+ *
+ * Exported because it was spelled `?? 'left'` in four places across two
+ * packages — the renderer, the block toolbar, and twice in the embed — which is
+ * four things that have to agree and no reason they would. A block that reads
+ * this and a toolbar that does not is a toolbar showing the wrong button as
+ * active.
+ *
+ * @category Rendering
+ */
+export const DEFAULT_ALIGN = 'center';
+
 /** The narrowest a media block may get, in percent of the text column. */
 const MIN = 10;
 

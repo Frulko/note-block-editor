@@ -62,7 +62,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             <li><code>nbe relay --port 8787</code>, ou <code>nbe serve</code> qui garde aussi les documents</li>
             <li>Le relais ne comprend rien à ce qu'il transporte — il recopie des octets, donc il ne peut pas les corrompre</li>
             <li>Puis il sort du chemin&nbsp;: les pairs passent en WebRTC direct, et le relais reste le repli</li>
-            <li>Sur votre machine&nbsp;: <code>pnpm --filter demo-collab dev</code>, puis la même page avec <code>?room=mon-salon</code> dans plusieurs fenêtres</li>
+            <li>Sur votre machine&nbsp;: <code>pnpm --filter demo-collab dev</code> démarre le relais avec le serveur, et la page ouverte dans plusieurs fenêtres vous donne autant de personnes (<code>?room=mon-salon</code> pour changer de salon)</li>
           </ul>
           <a class="feature-link" href={`${base}/docs/hosts/#p2p`}>Le transport en détail →</a>
         </div>

@@ -76,3 +76,40 @@ test.describe('resizing an image by its edge', () => {
     expect(await width(page, '.nbe-figure')).toBe('10%');
   });
 });
+
+/**
+ * Where a picture sits when nobody has said.
+ *
+ * @remarks
+ * Centred. Text runs the width of the column and a figure usually does not, so
+ * left-aligning one puts a ragged edge down the middle of the page — left is
+ * the right default for *text*, and an image is not text.
+ *
+ * The default lived as `?? 'left'` in four places across two packages, which is
+ * four things that had to agree and no reason they would: a renderer reading
+ * one value and a toolbar reading another is a toolbar showing the wrong button
+ * as active. `DEFAULT_ALIGN` is the one place now, and this checks the two ends
+ * of it — what is drawn, and what the menu says is current.
+ */
+test.describe('a media block with no alignment of its own', () => {
+  test('is centred, in the document and in its toolbar', async ({ page, editor }) => {
+    await anImage(page, editor);
+
+    const block = page.locator('.nbe-t-image');
+    await expect(block).toHaveClass(/nbe-align-center/);
+    // and it really is centred, rather than merely labelled so
+    const gap = await page.evaluate(() => {
+      const fig = document.querySelector('.nbe-figure')!.getBoundingClientRect();
+      const box = document.querySelector('.nbe-t-image')!.getBoundingClientRect();
+      return { left: fig.left - box.left, right: box.right - fig.right };
+    });
+    expect(Math.abs(gap.left - gap.right)).toBeLessThan(2);
+
+    // the toolbar has to agree, or the menu offers "centre" as if it were off
+    await block.hover({ position: { x: 20, y: 1 } });
+    await page.locator('.nbe-blocktoolbar-btn[aria-label^="Aligner"]').click();
+    const current = page.locator('.nbe-blocktoolbar-menu .nbe-menu-item', { hasText: 'Centrer' });
+    await expect(current.locator('.nbe-icon')).toHaveCount(1);
+    expect(editor.errors()).toEqual([]);
+  });
+});
