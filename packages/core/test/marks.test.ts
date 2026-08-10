@@ -73,3 +73,39 @@ describe('what the next typed character inherits', () => {
     expect(marksAt(runs(['texte', 'bold']), 0)).toBeUndefined();
   });
 });
+
+/**
+ * Expansion is a rule about *boundaries*, which is the half that was missing.
+ *
+ * `expand: 'none'` was applied everywhere, interior included — so putting the
+ * caret in the middle of an inline code span and typing produced a code span,
+ * a plain character, and another code span. Reported as « il faut pouvoir
+ * mettre un caret au milieu du texte de code inline et ajouter des caractères
+ * qui doivent être pris en compte ».
+ */
+describe('inside a span, rather than at its edge', () => {
+  it('typing in the middle of inline code stays code', () => {
+    expect(marksAt(runs(['const', 'code']), 3)).toEqual([{ type: 'code' }]);
+  });
+
+  it('typing in the middle of a link stays in the link', () => {
+    expect(marksAt(runs(['site', 'link']), 2)).toEqual([{ type: 'link' }]);
+  });
+
+  it('but the end of the span is still the way out', () => {
+    expect(marksAt(runs(['const', 'code'], [' suite']), 5)).toBeUndefined();
+  });
+
+  it('and the character after has to be the *same* span, not merely the same type', () => {
+    const two: Run[] = [
+      { text: 'un', marks: [{ type: 'link', attrs: { href: 'a' } }] },
+      { text: 'deux', marks: [{ type: 'link', attrs: { href: 'b' } }] },
+    ];
+    // between two adjacent links, typing belongs to neither
+    expect(marksAt(two, 2)).toBeUndefined();
+  });
+
+  it('an emoji on either side is stepped over whole', () => {
+    expect(marksAt(runs(['a👨‍👩‍👧b', 'code']), 3)).toEqual([{ type: 'code' }]);
+  });
+});

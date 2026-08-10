@@ -15,6 +15,7 @@ import {
   previousInlineBlock,
   selectedBlocks,
   singleBlockRange,
+  spanExit,
   splitBlock,
   textCaret,
   textLength,
@@ -143,8 +144,9 @@ export function caretLine(view: EditorView): { first: boolean; last: boolean } |
  *
  *   1. the top overlay          (ui/overlay.ts, capture phase)
  *   2. an active pointer gesture (gestures.ts, capture phase)
- *   3. a block selection → cleared          ┐ here, in the bubble phase, on
- *   4. a text selection  → block selection  ┘ the editor content
+ *   3. a block selection  → cleared         ┐
+ *   4. a caret inside a span → past its end │ here, in the bubble phase, on
+ *   5. a text selection   → block selection ┘ the editor content
  *
  * The first two run in capture precisely so an open menu beats the editor:
  * without that, Escape behind a menu would drop out of text mode instead of
@@ -410,11 +412,20 @@ export function attachKeymap(view: EditorView): () => void {
 
     switch (e.key) {
       case 'Escape': {
+        if (!caret) return;
+        /*
+         * One more link in the chain, before text → block: get out of the span
+         * the caret is inside. Typing at the *end* of inline code or a link has
+         * always left it — that is `expand: 'none'` — but from the middle the
+         * end can be several characters away, and there was nothing that said
+         * "stop being code". Escape is that, and a second press escalates as
+         * before, so nothing is taken away.
+         */
+        const exit = spanExit(getBlock(editor.doc, caret.blockId).text, caret.offset);
+        e.preventDefault();
+        if (exit !== null) view.focusBlock(caret.blockId, exit);
         // text → block selection; a second press then clears it (above)
-        if (caret) {
-          e.preventDefault();
-          editor.setSelection({ kind: 'block', anchor: caret.blockId, head: caret.blockId }, 'keyboard');
-        }
+        else editor.setSelection({ kind: 'block', anchor: caret.blockId, head: caret.blockId }, 'keyboard');
         return;
       }
       case 'Enter': {

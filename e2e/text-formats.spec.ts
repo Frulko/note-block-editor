@@ -88,3 +88,59 @@ test.describe('Cmd/Ctrl+K and the link form', () => {
     expect(editor.errors()).toEqual([]);
   });
 });
+
+/**
+ * Inline code has a middle, and it was not being treated as one.
+ *
+ * `expand: 'none'` is a rule about the *boundary* of a span — text typed after
+ * inline code is not code. It was applied everywhere, interior included, so
+ * putting the caret inside `` `const` `` and typing produced a code span, a
+ * plain character, and another code span. Reported 2026-08-10.
+ */
+test.describe('typing inside an inline code span', () => {
+  /** `abc` as inline code, written by the autoformat rule that makes it. */
+  async function codeSpan(editor: import('./fixtures').Editor) {
+    await editor.setDocument(['']);
+    await editor.caret(0, 0);
+    await editor.type('`abc` fin');
+  }
+
+  test('a character typed in the middle joins the code', async ({ page, editor }) => {
+    await codeSpan(editor);
+    await editor.caret(0, 2); // between b and c
+    await editor.type('X');
+
+    expect(await editor.texts()).toEqual(['abXc fin']);
+    // only the marked runs are spans; the plain tail is a bare text node
+    expect(await marks(page)).toEqual([['nbe-m-code', 'abXc']]);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('the end of the span is still the way out', async ({ page, editor }) => {
+    await codeSpan(editor);
+    await editor.caret(0, 3); // just past the c
+    await editor.type('Z');
+
+    expect(await editor.texts()).toEqual(['abcZ fin']);
+    expect(await marks(page)).toEqual([['nbe-m-code', 'abc']]);
+  });
+
+  test('Escape from the middle puts the caret past the span', async ({ page, editor }) => {
+    await codeSpan(editor);
+    await editor.caret(0, 1);
+    await page.keyboard.press('Escape');
+    await editor.type('Z');
+
+    // out of the code, not out of the text: a second Escape is what leaves
+    expect(await editor.texts()).toEqual(['abcZ fin']);
+    expect(await marks(page)).toEqual([['nbe-m-code', 'abc']]);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('Escape outside one still escalates to a block selection', async ({ page, editor }) => {
+    await editor.setDocument(['bonjour']);
+    await editor.caret(0, 3);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.nbe-block.nbe-selected')).toHaveCount(1);
+  });
+});

@@ -1,6 +1,6 @@
 import type { Mark, Run } from './types';
 import { expandsForward, marksStack } from './marks';
-import { prevGrapheme } from './grapheme';
+import { nextGrapheme, prevGrapheme } from './grapheme';
 
 export function textLength(runs: Run[] | undefined): number {
   if (!runs) return 0;
@@ -82,6 +82,37 @@ export function applyMark(runs: Run[], from: number, to: number, mark: Mark, add
   return normalizeRuns([...sliceRuns(runs, 0, from), ...mid, ...sliceRuns(runs, to, len)]);
 }
 
+/**
+ * Where the caret has to go to get *out* of the span it is inside.
+ *
+ * @returns The offset just past the span, or null when the caret is not inside
+ * one — at an edge included, since an edge is already outside.
+ *
+ * @remarks
+ * Only for the marks that do not expand forward: code, a link, a mention. Once
+ * the interior of such a span continues it (see {@link marksAt}), the end of
+ * the span is the only way out by typing — which is right, and is also a thing
+ * you can be several characters away from. This is what Escape uses to make it
+ * one press.
+ *
+ * @category Rich text
+ */
+export function spanExit(runs: Run[] | undefined, offset: number): number | null {
+  const mark = marksAt(runs, offset)?.find((m) => !expandsForward(m.type));
+  if (!runs || !mark) return null;
+  const key = markKey(mark);
+  let at = 0;
+  let end: number | null = null;
+  for (const run of runs) {
+    const next = at + run.text.length;
+    // the run holding the caret, then every one after it that is the same span
+    if (next > offset && (run.marks ?? []).some((m) => markKey(m) === key)) end = next;
+    else if (end !== null) break;
+    at = next;
+  }
+  return end;
+}
+
 /** True if the entire [from, to) range carries a mark of this type. */
 export function hasMark(runs: Run[], from: number, to: number, type: string): boolean {
   const slice = sliceRuns(runs, from, to);
@@ -98,15 +129,31 @@ export function hasMark(runs: Run[], from: number, to: number, type: string): bo
  * starts mid-surrogate carries no run at all, so typing after an emoji lost
  * whatever formatting it had.
  *
- * And only the marks that *expand forward* (`marks.ts`). Continuing all of
- * them meant typing after a link extended the link and typing after inline
- * code stayed code — §2.2 says exactly the opposite, and had said so since
- * before the behaviour existed.
+ * Then two rules, and the order matters.
+ *
+ * **Inside a span, everything continues.** A mark carried by the character on
+ * *both* sides has no edge here: the caret is in the middle of it, and text
+ * typed there is unambiguously part of it. Expansion is a rule about
+ * boundaries — Peritext's whole subject — and applying it in the interior is
+ * what made putting the caret in the middle of `` `const x` `` and typing
+ * produce a code span, a plain character, and another code span. The same was
+ * true of typing inside a link's text.
+ *
+ * **At an edge, `expand` decides.** Continuing every mark of the preceding
+ * character meant typing after a link extended the link and typing after
+ * inline code stayed code — §2.2 says the opposite, and had said so since
+ * before the behaviour existed. That is still the rule at the end of a span,
+ * which is also how you get *out* of one: keep typing.
  */
 export function marksAt(runs: Run[] | undefined, offset: number): Mark[] | undefined {
   if (!runs || offset === 0) return undefined;
   const text = runs.map((r) => r.text).join('');
-  const slice = sliceRuns(runs, prevGrapheme(text, offset), offset);
-  const carried = (slice[0]?.marks ?? []).filter((mark) => expandsForward(mark.type));
+  const before = sliceRuns(runs, prevGrapheme(text, offset), offset)[0]?.marks ?? [];
+  // the character after, by the same grapheme-safe step, so "is this the
+  // interior of the span" is asked of a whole character rather than half of one
+  const ahead =
+    offset >= text.length ? [] : (sliceRuns(runs, offset, nextGrapheme(text, offset))[0]?.marks ?? []);
+  const inside = new Set(ahead.map(markKey));
+  const carried = before.filter((mark) => inside.has(markKey(mark)) || expandsForward(mark.type));
   return carried.length ? carried : undefined;
 }
