@@ -385,26 +385,84 @@ a.nbe-m-link:hover {
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
 }
-/* an <object> has no intrinsic ratio: without a height it renders 0px tall */
-.nbe-file-preview {
-  display: block;
-  width: 100%;
-  height: 70vh;
-  border: 1px solid var(--nbe-border);
-  border-radius: var(--nbe-radius-sm, 4px);
+/* the box a preview lives in: it owns both dimensions, so one bottom handle
+   resizes the height of the same element the side handles resize the width of */
+.nbe-file-sizer {
+  display: flex;
+  max-width: 100%;
   margin-bottom: 6px;
-  background: var(--nbe-surface-sunken);
 }
-
+/* an <object> has no intrinsic ratio: without a height it renders 0px tall */
+.nbe-file-preview,
 /* a dropped page, running in its own opaque origin */
 .nbe-file-embed {
   display: block;
-  width: 100%;
-  height: 420px;
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--nbe-border);
   border-radius: var(--nbe-radius-sm, 4px);
-  margin-bottom: 6px;
+  background: var(--nbe-surface-sunken);
+}
+.nbe-file-embed {
   background: var(--nbe-surface);
+}
+/* the page held back until it is asked for */
+.nbe-file-poster {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0;
+  border: 1px dashed var(--nbe-border);
+  border-radius: var(--nbe-radius-sm, 4px);
+  background: var(--nbe-surface-sunken);
+  color: var(--nbe-text-light);
+  font: inherit;
+  cursor: pointer;
+}
+.nbe-file-poster:hover {
+  background: var(--nbe-hover);
+}
+.nbe-file-poster-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding-left: 4px; /* a triangle's optical centre is right of its box */
+  border-radius: 999px;
+  background: var(--nbe-surface);
+  box-shadow: var(--nbe-shadow-sm, 0 1px 4px rgb(0 0 0 / 0.2));
+  color: var(--nbe-text);
+}
+.nbe-file-poster-name {
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+/* the lightbox: the browser's own, so the backdrop, Escape and the way back
+   are already written */
+.nbe-file-sizer:fullscreen {
+  /* !important because a dragged size is inline style, and it would otherwise
+     win over the screen */
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  margin: 0;
+  background: #000;
+}
+.nbe-file-sizer:fullscreen > .nbe-media-handle {
+  display: none;
+}
+.nbe-file-sizer:fullscreen > .nbe-file-embed,
+.nbe-file-sizer:fullscreen > .nbe-file-preview {
+  border: 0;
+  border-radius: 0;
 }
 
 /* --- resizing an image or an embed by its edge ---------------------------
@@ -439,6 +497,18 @@ a.nbe-m-link:hover {
 .nbe-media-handle-right {
   right: 4px;
 }
+/* the third one, for surfaces whose height is nobody's to guess: a frame */
+.nbe-media-handle-bottom {
+  top: auto;
+  bottom: 4px;
+  left: 50%;
+  width: 44px;
+  max-width: 60%;
+  height: 6px;
+  max-height: none;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
 .nbe-block:hover > [data-nbe-resizable] > .nbe-media-handle,
 .nbe-block:hover [data-nbe-resizable] > .nbe-media-handle,
 .nbe-media-resizing .nbe-media-handle {
@@ -450,4 +520,8 @@ a.nbe-m-link:hover {
 .nbe-media-resizing * {
   cursor: ew-resize !important;
   user-select: none;
+}
+.nbe-media-resizing-y,
+.nbe-media-resizing-y * {
+  cursor: ns-resize !important;
 }

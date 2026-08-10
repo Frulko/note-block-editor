@@ -5,7 +5,7 @@
  * @module @nbe/blocks-embed/dom
  */
 import type { Block } from '@nbe/core';
-import { createDropZone, icon, resizeHandles, type DomBlockPlugin, type EditorView } from '@nbe/dom';
+import { createDropZone, icon, requestFullscreen, resizeHandles, type DomBlockPlugin, type EditorView } from '@nbe/dom';
 import { embedMode, embedPlugin, frameUrl, providerFor, PROVIDERS, type EmbedMode } from './index';
 
 /** The default height of a frame with no ratio to go on. */
@@ -52,16 +52,24 @@ function frame(block: Block, mode: EmbedMode): HTMLIFrameElement {
    * is a different frame, and must load.
    */
   el.dataset['nbeLive'] = `embed:${mode}:${el.src || el.srcdoc}`;
-  const height = Number(props['height'] ?? 0);
-  const provider = providerFor(String(props['src'] ?? ''));
-  el.style.height = height
-    ? `${height}px`
-    : // a video with a known ratio keeps it; everything else gets a sane box
-      provider?.ratio
-      ? ''
-      : `${HEIGHT}px`;
-  if (!height && provider?.ratio) el.style.aspectRatio = String(provider.ratio);
   return el;
+}
+
+/**
+ * How tall the box around the frame is, as inline style on the sizer.
+ *
+ * @remarks
+ * The height used to sit on the `<iframe>`, which put the two dimensions on
+ * two different elements — and the bottom drag handle resizes the element it
+ * lives in, the sizer. One box, both edges. The frame just fills it.
+ */
+function applyHeight(sizer: HTMLElement, props: Record<string, unknown>): void {
+  const height = Number(props['height'] ?? 0);
+  const ratio = providerFor(String(props['src'] ?? ''))?.ratio;
+  if (height) sizer.style.height = `${height}px`;
+  // a video with a known ratio keeps it; everything else gets a sane box
+  else if (ratio) sizer.style.aspectRatio = String(ratio);
+  else sizer.style.height = `${HEIGHT}px`;
 }
 
 /** A link with its host's name: what a bookmark is, and what a Gist falls back to. */
@@ -145,7 +153,22 @@ export const embed: DomBlockPlugin = {
       sizer.className = 'nbe-embed-sizer';
       sizer.dataset['nbeResizable'] = '';
       sizer.style.width = `${Math.min(100, Math.max(10, Number(props['width'] ?? 100)))}%`;
-      sizer.append(mode === 'card' ? card(view, block) : frame(block, mode), ...resizeHandles());
+      /*
+       * A card is not a surface, it is a line of text with a border.
+       *
+       * It carried the same two edge handles as a frame, which offered a drag
+       * that could only make it worse: the title clips, the host name comes off
+       * the right edge, and the height stays whatever one line is. Nothing to
+       * see bigger, so nothing to size — the handles are gone in `card`, which
+       * is the whole of « désactiver le redimensionnement visuel de lien ».
+       */
+      if (mode === 'card') {
+        sizer.append(card(view, block));
+      } else {
+        applyHeight(sizer, props);
+        sizer.dataset['nbeFullscreen'] = '';
+        sizer.append(frame(block, mode), ...resizeHandles({ vertical: true }));
+      }
       ctx.root.append(sizer);
       return ctx.root;
     },
@@ -153,6 +176,7 @@ export const embed: DomBlockPlugin = {
     toolbar(ctx) {
       const current = embedMode(ctx.block.props);
       const src = String(ctx.block.props?.['src'] ?? '');
+      const labels = ctx.view.labels;
       return [
         ...MODES.filter(
           // "Intégré" is not offered for something that cannot be framed; a
@@ -170,16 +194,31 @@ export const embed: DomBlockPlugin = {
           active: String(ctx.block.props?.['align'] ?? 'left') === ['left', 'center', 'right'][i],
           onClick: () => ctx.setProps({ align: ['left', 'center', 'right'][i] }),
         })),
-        {
-          icon: 'arrow-up-down' as const,
-          title: 'Hauteur',
-          onClick: () => {
-            const current = Number(ctx.block.props?.['height'] ?? 0) || HEIGHT;
-            const next = [240, 400, 600, 800];
-            // a cycle rather than a menu: four values, one button, no popover
-            ctx.setProps({ height: next[(next.indexOf(current) + 1) % next.length] });
-          },
-        },
+        /*
+         * Height and fullscreen are frame questions. A card is one line tall
+         * and goes to the page it points at when you press it — a "make this
+         * fill the screen" button on it would fill the screen with a border.
+         */
+        ...(current === 'card'
+          ? []
+          : [
+              {
+                icon: 'arrow-up-down' as const,
+                title: labels.frameHeight,
+                onClick: () => {
+                  const current = Number(ctx.block.props?.['height'] ?? 0) || HEIGHT;
+                  const next = [240, 400, 600, 800];
+                  // a cycle rather than a menu: four values, one button, no
+                  // popover — and the bottom edge handle for everything between
+                  ctx.setProps({ height: next[(next.indexOf(current) + 1) % next.length] });
+                },
+              },
+              {
+                icon: 'maximize' as const,
+                title: labels.fullscreen,
+                onClick: () => requestFullscreen(ctx.view.blockEl(ctx.block.id)),
+              },
+            ]),
       ];
     },
     toolbarPlacement: 'above',
@@ -213,15 +252,36 @@ export const embed: DomBlockPlugin = {
   /* the align classes move this rather than the block: an auto margin on one
      side, on both, or on neither */
   max-width: 100%;
+  /* the box owns both dimensions, and the frame fills it — which is what lets
+     one bottom handle resize the height of the same element the side handles
+     resize the width of */
+  display: flex;
 }
 .nbe-align-center > .nbe-embed-sizer { margin-inline: auto; }
 .nbe-align-right > .nbe-embed-sizer { margin-inline-start: auto; }
 .nbe-embed-frame {
   display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--nbe-border);
   border-radius: var(--nbe-radius-sm, 4px);
   background: var(--nbe-surface-sunken);
+}
+/* the lightbox: the browser's own, so the backdrop, Escape and the way back
+   are all already written */
+.nbe-embed-sizer:fullscreen {
+  /* !important because the width and the height are inline style — that is
+     where a dragged size lives, and it would otherwise win over the screen */
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  aspect-ratio: auto !important;
+  background: #000;
+}
+.nbe-embed-sizer:fullscreen > .nbe-media-handle { display: none; }
+.nbe-embed-sizer:fullscreen > .nbe-embed-frame {
+  border: 0;
+  border-radius: 0;
 }
 .nbe-embed-card {
   display: flex;

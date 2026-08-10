@@ -75,4 +75,38 @@ test.describe('the embed block', () => {
     await expect(page.locator('.nbe-embed-frame')).toHaveCount(1);
     expect(editor.errors()).toEqual([]);
   });
+
+  /*
+   * A card is one line of text with a border. It carried the same edge handles
+   * as a frame, offering a drag that could only make it worse — the title
+   * clips, the host name comes off the edge, and the height stays one line.
+   */
+  test('a card has nothing to resize, and says so by having no handles', async ({ page, editor }) => {
+    await insert(page, editor, 'Intégration');
+    await paste(page, 'https://gist.github.com/anne/abc123');
+    await expect(page.locator('.nbe-embed-card')).toHaveCount(1);
+    await expect(page.locator('.nbe-t-embed .nbe-media-handle')).toHaveCount(0);
+  });
+
+  test('the bottom edge makes the frame taller, and it survives a re-render', async ({ page, editor }) => {
+    await insert(page, editor, 'HTML (intégré)');
+    const sizer = page.locator('.nbe-embed-sizer');
+    await expect(sizer).toHaveCount(1);
+
+    await page.locator('.nbe-t-embed').hover({ position: { x: 20, y: 1 } });
+    const handle = (await page.locator('.nbe-media-handle-bottom').boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2 + 120, { steps: 8 });
+    await page.mouse.up();
+
+    const taller = await sizer.evaluate((el: HTMLElement) => el.style.height);
+    expect(Number(taller.replace('px', ''))).toBeGreaterThan(480);
+
+    // kept on the block, not on the element: typing elsewhere re-renders it
+    await page.locator('.nbe-editor .nbe-leaf').last().click();
+    await editor.type('après');
+    await expect(sizer).toHaveAttribute('style', new RegExp(`height: ${taller.replace('px', '')}px`));
+    expect(editor.errors()).toEqual([]);
+  });
 });

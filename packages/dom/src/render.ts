@@ -55,6 +55,76 @@ export function sandboxUrl(url: string): Promise<string> {
   return promise;
 }
 
+/** Default box for a dropped page, and for a PDF, in CSS pixels. */
+const HTML_HEIGHT = 420;
+const PDF_HEIGHT = 640;
+
+/**
+ * The box a framed attachment lives in: its width, its height, its handles.
+ *
+ * @remarks
+ * The same three-handle sizer the embed block uses, for the same reason — a
+ * block is the width of the text column by definition, so dragging *it* would
+ * mean nothing, and a frame is the one surface whose height nothing on the
+ * page can infer. Width is a share of the column, height is pixels.
+ */
+function framedSurface(block: Block, child: HTMLElement, fallbackHeight: number): HTMLElement {
+  const sizer = el('div', 'nbe-file-sizer');
+  sizer.dataset['nbeResizable'] = '';
+  sizer.dataset['nbeFullscreen'] = '';
+  sizer.style.width = `${Math.min(100, Math.max(10, Number(block.props['width'] ?? 100)))}%`;
+  sizer.style.height = `${Math.max(80, Number(block.props['height'] ?? 0) || fallbackHeight)}px`;
+  sizer.append(child, ...resizeHandles({ vertical: true }));
+  return sizer;
+}
+
+/**
+ * Which held-back frames have been asked for, by block id.
+ *
+ * @remarks
+ * Pressing play is a decision about *this reading*, not about the note — it
+ * must not write to the document, or opening a page would dirty every file in
+ * it. Module state rather than a dataset flag because a re-render builds a new
+ * element, and rather than a prop because the note is not the place for it.
+ */
+const playing = new Set<string>();
+
+/** Test seam, and what a fresh mount is entitled to assume. */
+export function __resetPlaying(): void {
+  playing.clear();
+}
+
+/**
+ * A page that is not loaded yet, and the button that loads it.
+ *
+ * @remarks
+ * A dropped `.html` is somebody's whole prototype — a canvas, a physics loop,
+ * a WebGL scene — and mounting five of them in a note starts five of those the
+ * moment it opens, before anyone has looked at one. `loading="lazy"` is not an
+ * answer: it defers the fetch until the frame is near the viewport, and then
+ * runs the thing anyway. Holding the frame back entirely is, and it costs one
+ * press. `autoplay: true` in the block's props is the opt-out, per file.
+ */
+function poster(view: EditorView, name: string, id: string, build: () => HTMLElement): HTMLElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'nbe-file-poster';
+  button.setAttribute('contenteditable', 'false');
+  button.dataset['nbeUi'] = '';
+  const badge = el('span', 'nbe-file-poster-play');
+  badge.append(icon('play', { size: 26 }));
+  const caption = el('span', 'nbe-file-poster-name');
+  caption.textContent = name;
+  button.append(badge, caption);
+  button.setAttribute('aria-label', `${view.labels.loadFrame} — ${name}`);
+  button.addEventListener('mousedown', (e) => e.preventDefault());
+  button.addEventListener('click', () => {
+    playing.add(id);
+    button.replaceWith(build());
+  });
+  return button;
+}
+
 /** Bytes, as a person reads them. Base 10, because that is what a file manager shows. */
 function formatBytes(n: number): string {
   if (n < 1000) return `${n} o`;
@@ -372,20 +442,29 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
      * and a different amount of work.
      */
     if (isHtml) {
-      const frame = document.createElement('iframe');
-      frame.className = 'nbe-file-embed';
-      // a re-render must not reload the page inside it: `replaceBlockEl` moves
-      // this node into the new element rather than building a second one
-      frame.dataset['nbeLive'] = `file:${src}`;
-      frame.setAttribute('sandbox', 'allow-scripts');
-      frame.setAttribute('loading', 'lazy');
-      frame.title = name;
-      void Promise.resolve(view.options.resolveAssetUrl?.(src) ?? src)
-        .then(sandboxUrl)
-        .then((url) => {
-          frame.src = url;
-        });
-      root.append(frame);
+      const buildFrame = (): HTMLIFrameElement => {
+        const frame = document.createElement('iframe');
+        frame.className = 'nbe-file-embed';
+        // a re-render must not reload the page inside it: `replaceBlockEl` moves
+        // this node into the new element rather than building a second one
+        frame.dataset['nbeLive'] = `file:${src}`;
+        frame.setAttribute('sandbox', 'allow-scripts');
+        frame.setAttribute('loading', 'lazy');
+        frame.title = name;
+        void Promise.resolve(view.options.resolveAssetUrl?.(src) ?? src)
+          .then(sandboxUrl)
+          .then((url) => {
+            frame.src = url;
+          });
+        return frame;
+      };
+      root.append(
+        framedSurface(
+          block,
+          block.props['autoplay'] === true || playing.has(block.id) ? buildFrame() : poster(view, name, block.id, buildFrame),
+          HTML_HEIGHT,
+        ),
+      );
     }
 
     const preview = !isHtml && isPdf ? document.createElement('object') : null;
@@ -398,7 +477,7 @@ export function renderBlock(view: EditorView, id: string): HTMLElement {
       alt.className = 'nbe-file-link';
       alt.textContent = name;
       preview.append(alt);
-      root.append(preview);
+      root.append(framedSurface(block, preview, PDF_HEIGHT));
       // `<object data>` does not reliably re-fetch when the attribute is set
       // on a live element, so the resolved URL is applied before it is attached
       const attach = (url: string) => {

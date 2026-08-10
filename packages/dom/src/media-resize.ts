@@ -30,9 +30,26 @@ import type { GestureRecognizer } from './gestures';
 /** The narrowest a media block may get, in percent of the text column. */
 const MIN = 10;
 
-/** Build the two handles a resizable surface carries. */
-export function resizeHandles(): HTMLElement[] {
-  return (['left', 'right'] as const).map((side) => {
+/** The shortest a framed surface may get, in CSS pixels. */
+const MIN_HEIGHT = 80;
+
+/**
+ * Build the handles a resizable surface carries.
+ *
+ * @param options - `vertical` adds a third handle on the bottom edge.
+ *
+ * @remarks
+ * An image has one dimension worth dragging: its width, because its height
+ * follows from the picture. A frame has two — nothing inside it tells the page
+ * how tall the thing being framed wants to be — so a frame asks for the bottom
+ * one and gets a height in pixels, where width stays a percentage of the text
+ * column.
+ *
+ * @category Interaction
+ */
+export function resizeHandles(options: { vertical?: boolean } = {}): HTMLElement[] {
+  const sides = options.vertical ? (['left', 'right', 'bottom'] as const) : (['left', 'right'] as const);
+  return sides.map((side) => {
     const handle = document.createElement('span');
     handle.className = `nbe-media-handle nbe-media-handle-${side}`;
     handle.dataset['nbeUi'] = '';
@@ -41,6 +58,30 @@ export function resizeHandles(): HTMLElement[] {
     handle.setAttribute('aria-hidden', 'true');
     return handle;
   });
+}
+
+/**
+ * Fill the screen with one element — the lightbox, spelled the platform's way.
+ *
+ * @param host - The block element; the first `[data-nbe-fullscreen]` inside it
+ * is what goes up, or the element itself when it carries nothing marked.
+ *
+ * @remarks
+ * `requestFullscreen` *is* the feature. The browser paints the backdrop, traps
+ * focus, takes Escape and puts the page back exactly as it was. Hand-building
+ * that picture means a fixed layer, a scroll lock, a focus trap and an Escape
+ * handler kept in step with the overlay stack — four things to get wrong for
+ * the same result.
+ *
+ * A refusal is swallowed: a host that forbids it leaves the frame where it is,
+ * which is a button that did nothing rather than an unhandled rejection in a
+ * vault's console.
+ *
+ * @category Interaction
+ */
+export function requestFullscreen(host: HTMLElement | null | undefined): void {
+  const el = host?.querySelector<HTMLElement>('[data-nbe-fullscreen]') ?? host;
+  void el?.requestFullscreen?.().catch(() => {});
 }
 
 export const mediaResizeFeature: EditorFeature = {
@@ -67,6 +108,45 @@ export const mediaResizeFeature: EditorFeature = {
         if (full <= 0) return null;
 
         ctx.event.preventDefault();
+
+        /*
+         * The bottom edge is the other dimension, and it is a different unit.
+         *
+         * Width is a share of the text column, which is what makes a figure
+         * keep its proportion when the column narrows. Height has nothing to be
+         * a share *of* — a frame is as tall as what is inside it needs, which
+         * the page cannot know — so it is pixels, the same number the preset
+         * cycle in the toolbar writes.
+         */
+        if (handle.dataset['side'] === 'bottom') {
+          const props = getBlock(view.editor.doc, id).props;
+          // no prop yet means the box is coming from a provider ratio or a
+          // default; the measured height is where the drag has to start, or the
+          // first pixel of movement jumps
+          const was = Number(props['height'] ?? 0) || Math.round(target.getBoundingClientRect().height);
+          const wasStyle = target.style.height;
+          const originY = ctx.event.clientY;
+          let height = was;
+          view.content.classList.add('nbe-media-resizing', 'nbe-media-resizing-y');
+
+          return {
+            mode: 'block',
+            move(e) {
+              height = Math.max(MIN_HEIGHT, Math.round(was + (e.clientY - originY)));
+              target.style.height = `${height}px`;
+            },
+            end(committed) {
+              view.content.classList.remove('nbe-media-resizing', 'nbe-media-resizing-y');
+              if (!committed || height === was) {
+                target.style.height = wasStyle;
+                return;
+              }
+              view.editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { height } } }), {
+                origin: 'ui',
+              });
+            },
+          };
+        }
         // a centred surface moves both edges, so it widens twice as fast as the
         // pointer; an aligned one only moves the edge being dragged
         const centred = blockEl!.classList.contains('nbe-align-center');

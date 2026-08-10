@@ -3,6 +3,7 @@ import { getBlock, setColumnCount, setColumnRatios } from '@nbe/core';
 import type { EditorView } from './view';
 import { createActionButton, createMenu, openOverlays, toContainerPoint, type IconName, type MenuEntry } from './ui';
 import { viewOf } from './block-view';
+import { requestFullscreen } from './media-resize';
 import type { EditorLabels } from './labels';
 
 /**
@@ -159,6 +160,56 @@ registerBlockToolbar('image', ({ block, view, setProps }) => {
         a.rel = 'noreferrer';
         a.click();
       },
+    },
+  ];
+});
+
+/* --- built-in: a framed attachment -------------------------------------
+
+   Only a file that shows something has a bar: an attachment with nothing but a
+   download link has no size to argue about. What it can say is how tall the
+   frame is, whether the frame fills the screen, and — for a dropped page —
+   whether it is allowed to start on its own. */
+
+registerBlockToolbar('file', ({ block, view, setProps }) => {
+  const labels = view.labels;
+  const src = String(block.props['src'] ?? '');
+  const mime = String(block.props['mime'] ?? '');
+  const isHtml = mime === 'text/html' || /\.html?(?:[?#]|$)/i.test(src);
+  const isPdf = mime === 'application/pdf' || /\.pdf(?:[?#]|$)/i.test(src);
+  if (!src || (!isHtml && !isPdf)) return [];
+
+  return [
+    ...(isHtml
+      ? [
+          {
+            icon: 'play' as const,
+            title: labels.loadFrame,
+            active: block.props['autoplay'] === true,
+            onClick: () => setProps({ autoplay: block.props['autoplay'] === true ? undefined : true }),
+          },
+        ]
+      : []),
+    {
+      icon: 'arrow-up-down',
+      title: labels.frameHeight,
+      onClick: (ctx, button) => {
+        const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
+        const current = Number(ctx.block.props['height'] ?? 0);
+        menu.update(
+          [320, 480, 640, 900].map((h) => ({
+            label: `${h} px`,
+            hintIcon: current === h ? ('check' as const) : undefined,
+            onSelect: () => setProps({ height: h }),
+          })),
+        );
+        menu.open(() => button.getBoundingClientRect(), { placement: 'bottom-end' });
+      },
+    },
+    {
+      icon: 'maximize',
+      title: labels.fullscreen,
+      onClick: (ctx) => requestFullscreen(ctx.view.blockEl(ctx.block.id)),
     },
   ];
 });

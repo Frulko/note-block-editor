@@ -109,6 +109,11 @@ test.describe('dropping a file', () => {
     await editor.setDocument(['une note']);
     await drop(page, 'proto.html', 'text/html', '<!doctype html><p id="x">bonjour</p>');
 
+    // held back until it is asked for: a dropped page is somebody's whole
+    // prototype, and a note full of them would start all of them on open
+    await expect(page.locator('.nbe-editor iframe.nbe-file-embed')).toHaveCount(0);
+    await page.locator('.nbe-file-poster').click();
+
     const frame = page.locator('.nbe-editor iframe.nbe-file-embed');
     await expect(frame).toHaveCount(1);
     // `allow-scripts` **without** `allow-same-origin`: together they undo the
@@ -138,5 +143,23 @@ test.describe('dropping a file', () => {
       }
     });
     expect(reachable).toBe(false);
+  });
+
+  /*
+   * A dropped page is somebody's whole prototype — a canvas, a physics loop, a
+   * WebGL scene. Five of them in a note started five of those the moment it
+   * opened. `loading="lazy"` does not help: it defers the fetch until the frame
+   * is near the viewport and then runs the thing anyway.
+   */
+  test('a page told to autoplay loads on its own', async ({ page, editor }) => {
+    await editor.setDocument(['une note']);
+    await drop(page, 'proto.html', 'text/html', '<!doctype html><p id="x">bonjour</p>');
+    await expect(page.locator('.nbe-file-poster')).toHaveCount(1);
+
+    await page.locator('.nbe-t-file').hover({ position: { x: 20, y: 1 } });
+    await page.locator('.nbe-blocktoolbar-btn[aria-label="Charger"]').click();
+    await expect(page.locator('iframe.nbe-file-embed')).toHaveCount(1);
+    await expect(page.locator('.nbe-file-poster')).toHaveCount(0);
+    expect(editor.errors()).toEqual([]);
   });
 });

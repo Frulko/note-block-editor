@@ -99,6 +99,9 @@ export const fr: EditorLabels = {
   alignCenter: 'Centrer',
   alignRight: 'Aligner à droite',
   downloadImage: "Télécharger l'image",
+  frameHeight: 'Hauteur',
+  fullscreen: 'Plein écran',
+  loadFrame: 'Charger',
   replaceImage: "Remplacer l'image",
 
   check: 'Cocher',

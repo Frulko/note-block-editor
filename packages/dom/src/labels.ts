@@ -184,6 +184,12 @@ export interface EditorLabels {
   alignRight: string;
   /** Download the image. Block toolbar. */
   downloadImage: string;
+  /** Height of a framed surface. Block toolbar. */
+  frameHeight: string;
+  /** Show the frame filling the screen. Block toolbar. */
+  fullscreen: string;
+  /** Load a page that is held back until asked for. Button over the frame. */
+  loadFrame: string;
   /** Replace the image. Gutter menu. */
   replaceImage: string;
 
