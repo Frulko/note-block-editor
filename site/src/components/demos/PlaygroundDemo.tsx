@@ -4,6 +4,9 @@ import { useEditor, type Editor, type BlockJSON } from '@nbe/react';
 import { PluginRegistry, docToJSON, memoryComments, type CommentThread, type Run } from '@nbe/core';
 import {
   LOCALE_NAMES,
+  TYPEFACES,
+  classicFeatures,
+  debugFeature,
   defaultFeatures,
   exportFeature,
   findFeature,
@@ -11,15 +14,18 @@ import {
   openCommentThread,
   perBlockTopology,
   singleHostTopology,
+  stickyFormatToolbarFeature,
   wordCountFeature,
 } from '@nbe/dom';
 import { blocksToMarkdown, markdownToBlocks } from '@nbe/markdown';
 import { CODE_THEMES } from '@nbe/blocks-code';
 import { code } from '@nbe/blocks-code/dom';
 import { callout } from '@nbe/blocks-callout/dom';
-import { toc } from '@nbe/blocks-toc/dom';
+import { floatingTocFeature, toc } from '@nbe/blocks-toc/dom';
 import { mdx } from '@nbe/blocks-mdx/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
+import { embed } from '@nbe/blocks-embed/dom';
+import { dropZone } from '@nbe/blocks-dropzone/dom';
 import { mermaidFeature, mermaidStyles } from '@nbe/blocks-mermaid/dom';
 
 /**
@@ -36,7 +42,7 @@ import { mermaidFeature, mermaidStyles } from '@nbe/blocks-mermaid/dom';
  * The same list feeds the editor and both markdown directions — a registry the
  * importer does not have is a code fence that comes back as a paragraph.
  */
-const BLOCKS = [code, callout, toc, mdx, ...tableDomBlocks];
+const BLOCKS = [code, callout, toc, mdx, embed, dropZone, ...tableDomBlocks];
 const PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 
 let n = 0;
@@ -75,7 +81,12 @@ const seed: BlockJSON = {
       { text: 'O (⌘. et ⌘,)' },
     ]),
     b('to_do', 'Alt+↑ / Alt+↓ déplacent le bloc, ⌘⌫ le supprime, ⌘⏎ coche', { checked: false }),
-    b('to_do', 'Réglages : recherche ⌘F, export ⌘P, compteur de mots, langue', { checked: false }),
+    b('to_do', [
+      { text: 'Le curseur au milieu d’un ' },
+      { text: 'code en ligne', marks: [{ type: 'code' }] },
+      { text: ' : ce qu’on tape y reste. Échap en sort.' },
+    ], { checked: false }),
+    b('to_do', 'Réglages : typographie, barre fixe, mode classique, ⌘F, ⌘P, langue', { checked: false }),
     b('toggle', 'Un toggle, avec des enfants', { collapsed: false }, [
       b('paragraph', 'Entrée depuis un toggle vide écrit à l’intérieur, pas en dessous.'),
       b('bulleted_list_item', 'Tab / Shift+Tab pour imbriquer'),
@@ -89,6 +100,35 @@ const seed: BlockJSON = {
       language: 'mermaid',
       mermaidMode: 'both',
     }),
+    b('heading', 'MDX', { level: 2 }),
+    b('paragraph', [
+      { text: 'Un ' },
+      { text: '.mdx', marks: [{ type: 'code' }] },
+      { text: ' s’ouvre ici et se referme octet pour octet identique. ' },
+      { text: 'Rien n’est évalué', marks: [{ type: 'bold' }] },
+      { text: ' : une balise de composant est gardée telle quelle au lieu d’être échappée en prose — ce qui, sans ce bloc, suffirait à ce que le fichier cesse d’être du MDX. La majuscule est la règle de JSX : ' },
+      { text: '<div>', marks: [{ type: 'code' }] },
+      { text: ' reste de la prose, ' },
+      { text: '<Callout>', marks: [{ type: 'code' }] },
+      { text: ' devient ce bloc.' },
+    ]),
+    b('mdx_component', '', {
+      source: '<Callout type="info" title="Un composant">\n  Son balisage est conservé mot pour mot.\n</Callout>',
+    }),
+
+    b('heading', 'Intégrations et dépôts', { level: 2 }),
+    b('paragraph', [
+      { text: 'Une intégration a trois modes — cadre, carte, HTML tenu dans le bloc. Tirez son bord pour la largeur, son arête basse pour la hauteur, et ' },
+      { text: 'Plein écran', marks: [{ type: 'code' }] },
+      { text: ' passe par celui du navigateur.' },
+    ]),
+    b('embed', '', {
+      mode: 'srcdoc',
+      html: '<style>body{margin:0;font:14px/1.5 system-ui;display:grid;place-items:center;height:100%;background:#111;color:#eee}</style><p>HTML tenu dans le bloc, en bac à sable.</p>',
+      height: 160,
+    }),
+    b('drop_zone', '', { kind: 'all' }),
+
     b('heading', 'Tableaux', { level: 2 }),
     b('table', '', {}, [
       b('table_row', '', {}, [b('table_cell', 'Bloc'), b('table_cell', 'Markdown')]),
@@ -109,6 +149,16 @@ interface Settings {
   comments: boolean;
   locale: string;
   codeTheme: string;
+  /** The face the prose is set in: an attribute, so it needs no remount. */
+  typeface: string;
+  /** Floating over the selection (default) or pinned above the document. */
+  toolbar: 'floating' | 'sticky';
+  /**
+   * Classic drops every affordance that makes the blocks visible and puts the
+   * whole document in one editing host. It overrides the topology and the
+   * feature checkboxes, which is why it is a mode rather than another switch.
+   */
+  mode: 'blocks' | 'classic';
   topology: 'per-block' | 'single-host';
   off: string[]; // disabled feature names
 }
@@ -123,6 +173,9 @@ const initialSettings: Settings = {
   comments: true,
   locale: 'fr',
   codeTheme: 'one',
+  typeface: 'sans',
+  toolbar: 'floating',
+  mode: 'blocks',
   topology: 'per-block',
   // ⌘F and ⌘P belong to the browser here: on the web they are opt-in, and this
   // page is the web. The checkboxes are two clicks away.
@@ -130,7 +183,15 @@ const initialSettings: Settings = {
 };
 
 /** Everything mountable, defaults first; the plumbing (input, keymap, …) is not listed. */
-const ALL_FEATURES = [...defaultFeatures, findFeature, exportFeature, wordCountFeature, mermaidFeature];
+const ALL_FEATURES = [
+  ...defaultFeatures,
+  findFeature,
+  exportFeature,
+  wordCountFeature,
+  mermaidFeature,
+  floatingTocFeature,
+  debugFeature,
+];
 
 const TOGGLABLE = [
   { name: 'slash-menu', label: 'menu /' },
@@ -143,6 +204,8 @@ const TOGGLABLE = [
   { name: 'export', label: 'export ⌘P' },
   { name: 'word-count', label: 'compteur de mots' },
   { name: 'mermaid', label: 'diagrammes Mermaid' },
+  { name: 'floating-toc', label: 'sommaire flottant' },
+  { name: 'debug-hold', label: 'geler le chrome (⌥⇧D)' },
 ];
 
 /** The mounted editor; remounted (new `key`) whenever doc or settings change. */
@@ -167,8 +230,24 @@ function Pane({
     columns: settings.columns,
     labels: labelsFor(settings.locale),
     blocks: BLOCKS,
-    topology: settings.topology === 'single-host' ? singleHostTopology : perBlockTopology,
-    features: ALL_FEATURES.filter((f) => !settings.off.includes(f.name)),
+    /*
+     * Classic *is* the single-host topology, not merely compatible with it:
+     * one contenteditable for the whole document is what a classic editor is,
+     * and what makes the browser's own selection behave the way someone coming
+     * from one expects.
+     */
+    topology:
+      settings.mode === 'classic' || settings.topology === 'single-host'
+        ? singleHostTopology
+        : perBlockTopology,
+    features:
+      settings.mode === 'classic'
+        ? classicFeatures
+        : ALL_FEATURES.filter((f) => !settings.off.includes(f.name)).map((f) =>
+            // the *same* bar, pinned rather than floating — swapped in, never
+            // added: two bars offering the same seven marks is not a choice
+            settings.toolbar === 'sticky' && f.name === 'format-toolbar' ? stickyFormatToolbarFeature : f,
+          ),
     // no host, no button: the right gutter is empty rather than decorative
     ...(settings.comments ? { onComment, commentAuthor: { id: 'visiteur', name: 'Visiteur' } } : {}),
   });
@@ -248,6 +327,13 @@ export default function PlaygroundDemo() {
     if (settings.codeTheme === 'one') delete document.body.dataset['nbeCodeTheme'];
     else document.body.dataset['nbeCodeTheme'] = settings.codeTheme;
   }, [settings.codeTheme]);
+
+  // and the face the prose is set in — same shape as the code theme: one
+  // attribute, so no remount, so the caret and the undo stack survive it
+  useEffect(() => {
+    if (settings.typeface === 'sans') delete document.body.dataset['nbeTypeface'];
+    else document.body.dataset['nbeTypeface'] = settings.typeface;
+  }, [settings.typeface]);
 
   const openSettings = () => {
     const r = trigger.current?.getBoundingClientRect();
@@ -377,6 +463,17 @@ export default function PlaygroundDemo() {
                     ))}
                   </select>
                 </Row>
+                <Row label="typographie" hint="le code reste en chasse fixe">
+                  {/* an attribute too: the prose changes, a listing does not */}
+                  <select
+                    value={settings.typeface}
+                    onChange={(e) => setSettings((s) => ({ ...s, typeface: e.target.value }))}
+                  >
+                    {TYPEFACES.map((t) => (
+                      <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                  </select>
+                </Row>
                 <Row label="thème du code">
                   {/* an attribute on <body>, so this one does not remount the editor */}
                   <select
@@ -388,22 +485,47 @@ export default function PlaygroundDemo() {
                     ))}
                   </select>
                 </Row>
+                <Row label="barre de mise en forme" hint="flottante ou épinglée">
+                  <select value={settings.toolbar} onChange={(e) => update({ toolbar: e.target.value as Settings['toolbar'] })}>
+                    <option value="floating">sur la sélection</option>
+                    <option value="sticky">fixe, en haut</option>
+                  </select>
+                </Row>
+                <Row label="mode" hint="classique : sans chrome de bloc">
+                  <select value={settings.mode} onChange={(e) => update({ mode: e.target.value as Settings['mode'] })}>
+                    <option value="blocks">blocs</option>
+                    <option value="classic">classique</option>
+                  </select>
+                </Row>
                 <Row label="topologie">
-                  <select value={settings.topology} onChange={(e) => update({ topology: e.target.value as Settings['topology'] })}>
+                  <select
+                    value={settings.topology}
+                    disabled={settings.mode === 'classic'}
+                    onChange={(e) => update({ topology: e.target.value as Settings['topology'] })}
+                  >
                     <option value="per-block">un hôte par bloc (D1)</option>
                     <option value="single-host">hôte unique à la racine</option>
                   </select>
                 </Row>
 
                 <p className="settings-group">Fonctionnalités</p>
-                <div className="settings-features">
-                  {TOGGLABLE.map((f) => (
-                    <label key={f.name}>
-                      <input type="checkbox" checked={!settings.off.includes(f.name)} onChange={(e) => toggleFeature(f.name, e.target.checked)} />
-                      {f.label}
-                    </label>
-                  ))}
-                </div>
+                {settings.mode === 'classic' ? (
+                  /* the mode already answers this question, and a list of
+                     checkboxes that changes nothing is worse than none */
+                  <p className="settings-note">
+                    Le mode classique monte son propre jeu&nbsp;: ni gouttière, ni menu «&nbsp;/&nbsp;»,
+                    ni barre de bloc. Repassez en «&nbsp;blocs&nbsp;» pour les choisir une par une.
+                  </p>
+                ) : (
+                  <div className="settings-features">
+                    {TOGGLABLE.map((f) => (
+                      <label key={f.name}>
+                        <input type="checkbox" checked={!settings.off.includes(f.name)} onChange={(e) => toggleFeature(f.name, e.target.checked)} />
+                        {f.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </span>

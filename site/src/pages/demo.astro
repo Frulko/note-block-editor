@@ -17,21 +17,42 @@ import PlaygroundDemo from '../components/demos/PlaygroundDemo.tsx';
       </p>
       <p>
         Les blocs des paquets optionnels sont montés&nbsp;: code coloré,
-        tableaux, encadrés, sommaire <code>[TOC]</code>, composants MDX, et les
-        diagrammes Mermaid dessinés depuis
+        tableaux, encadrés, sommaire <code>[TOC]</code>, composants MDX,
+        intégrations, zones de dépôt, et les diagrammes Mermaid dessinés depuis
         la clôture <code>```mermaid</code> — un bloc de code, pas un format à
         part. Alt+↑ et Alt+↓ déplacent le bloc, ⌘⌫ le supprime, ⌘⏎ coche une
         case&nbsp;; ⌘. et ⌘, mettent en exposant et en indice.
       </p>
       <p>
+        Deux à regarder de près. Un <strong>composant MDX</strong> est gardé mot
+        pour mot et <em>jamais évalué</em>&nbsp;: sans ce bloc, ses chevrons
+        seraient échappés à l'enregistrement et le fichier cesserait d'être du
+        MDX. Une <strong>intégration</strong> se redimensionne par ses bords —
+        largeur à gauche et à droite, hauteur en bas — et son bouton plein écran
+        est celui du navigateur&nbsp;: c'est lui qui peint le fond, piège le
+        focus et reprend Échap.
+      </p>
+      <p>
         <strong>Réglages</strong> ouvre les vraies options de montage&nbsp;:
         géométrie, lecture seule, topologie de l'élément éditable, colonnes
         expérimentales, langue de l'interface (cinq packs), palette de
-        coloration du code, et chaque fonctionnalité activable une par une — ce
-        que vous décochez n'est pas seulement caché, il n'est pas attaché.
+        coloration du code, <strong>typographie</strong> (le code reste en
+        chasse fixe&nbsp;: un listing dont les colonnes ne s'alignent plus n'est
+        plus un listing), <strong>barre de mise en forme</strong> flottante ou
+        épinglée, et chaque fonctionnalité activable une par une — ce que vous
+        décochez n'est pas seulement caché, il n'est pas attaché.{' '}
         <strong>Recherche&nbsp;⌘F</strong> et <strong>export&nbsp;⌘P</strong> y
         sont décochés d'origine&nbsp;: sur le web ces deux touches sont celles
         du navigateur, et l'éditeur ne les prend que si l'hôte le demande.
+      </p>
+      <p>
+        Le <strong>mode classique</strong> est le dernier réglage, et le plus
+        radical&nbsp;: il retire tout ce qui rend les blocs visibles — la
+        gouttière, le menu «&nbsp;/&nbsp;», la barre de bloc, le glisser-déposer
+        — et met le document entier dans un seul élément éditable. Ce qui reste
+        est une page dans laquelle on tape, avec une barre au-dessus. Les blocs,
+        eux, sont toujours là&nbsp;: le document <em>est</em> des blocs, et
+        l'onglet Markdown le montre inchangé.
       </p>
     </div>
     <div class="demo-frame" style="max-height:none;">

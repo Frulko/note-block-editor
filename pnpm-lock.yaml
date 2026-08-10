@@ -547,6 +547,12 @@ importers:
       '@nbe/blocks-code':
         specifier: workspace:*
         version: link:../packages/blocks-code
+      '@nbe/blocks-dropzone':
+        specifier: workspace:*
+        version: link:../packages/blocks-dropzone
+      '@nbe/blocks-embed':
+        specifier: workspace:*
+        version: link:../packages/blocks-embed
       '@nbe/blocks-mdx':
         specifier: workspace:*
         version: link:../packages/blocks-mdx

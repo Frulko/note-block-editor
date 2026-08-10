@@ -10,18 +10,20 @@
   "dependencies": {
     "@nbe/blocks-callout": "workspace:*",
     "@nbe/blocks-code": "workspace:*",
+    "@nbe/blocks-dropzone": "workspace:*",
+    "@nbe/blocks-embed": "workspace:*",
     "@nbe/blocks-mdx": "workspace:*",
     "@nbe/blocks-mermaid": "workspace:*",
     "@nbe/blocks-table": "workspace:*",
     "@nbe/blocks-toc": "workspace:*",
-    "mermaid": "^11.16.1",
+    "@nbe/collab": "workspace:*",
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
     "@nbe/markdown": "workspace:*",
     "@nbe/react": "workspace:*",
     "@nbe/svelte": "workspace:*",
     "@nbe/vue": "workspace:*",
-    "@nbe/collab": "workspace:*"
+    "mermaid": "^11.16.1"
   },
   "devDependencies": {
     "@astrojs/mdx": "^7.0.5",

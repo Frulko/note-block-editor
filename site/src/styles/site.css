@@ -618,6 +618,13 @@ a.card:hover {
 .settings-group:first-child {
   margin-top: 0.15rem;
 }
+/* what a mode already decided, said instead of shown as dead checkboxes */
+.settings-note {
+  margin: 0.2rem 0.4rem 0.4rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
 .settings-row {
   display: grid;
   grid-template-columns: 8.5rem 1fr auto;
