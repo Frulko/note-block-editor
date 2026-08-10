@@ -6,7 +6,17 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, PluginRegistry, plainText } from '@nbe/core';
 import { blockActionEntries, defaultLabels, type EditorView } from '@nbe/dom';
-import { cellAt, insertTable, tableRows, rowCells } from '../src/model';
+import {
+  cellAt,
+  cellSpans,
+  clearCells,
+  deleteColumns,
+  deleteRows,
+  insertTable,
+  mergeCells,
+  rowCells,
+  tableRows,
+} from '../src/model';
 import { tableDomBlocks } from '../src/dom';
 
 function setup() {
@@ -129,5 +139,85 @@ describe('table block actions', () => {
       close: () => {},
     });
     expect(labels(list).some((l) => /ligne|colonne/i.test(l))).toBe(false);
+  });
+});
+
+/**
+ * Taking rows, columns and contents away.
+ *
+ * @remarks
+ * The single-index versions existed and are what the ⋮⋮ menu uses, on the
+ * caret's row. Once a rectangle is selected the thing you mean is the
+ * rectangle, and a loop over the single versions gets it wrong twice: one undo
+ * per row for one gesture, and — worse — `rowSpan`/`colSpan` are *values*, so
+ * two patches on a cell straddling the range each say "one less" and the second
+ * silently wins.
+ */
+describe('deleting a range', () => {
+  const texts = (editor: Editor, tableId: string) =>
+    tableRows(editor.doc, tableId).map((row) => rowCells(editor.doc, row.id).map((c) => plainText(c.text)));
+
+  it('takes every row in the range, in one undo', () => {
+    const { editor, tableId } = setup();
+    deleteRows(editor, tableId, 0, 2);
+    expect(texts(editor, tableId)).toEqual([['20', '21', '22']]);
+
+    // one gesture, one undo — not two
+    editor.undo();
+    expect(texts(editor, tableId)).toEqual([
+      ['00', '01', '02'],
+      ['10', '11', '12'],
+      ['20', '21', '22'],
+    ]);
+  });
+
+  it('takes every column in the range, in one undo', () => {
+    const { editor, tableId } = setup();
+    deleteColumns(editor, tableId, 0, 2);
+    expect(texts(editor, tableId)).toEqual([['02'], ['12'], ['22']]);
+    editor.undo();
+    expect(texts(editor, tableId)[0]).toEqual(['00', '01', '02']);
+  });
+
+  it('shrinks a merged cell by how many of its rows the range took', () => {
+    const { editor, tableId } = setup();
+    // one cell covering rows 0–2 of the first column
+    mergeCells(editor, tableId, { row: 0, column: 0 }, { row: 2, column: 0 });
+    expect(cellSpans(cellAt(editor.doc, tableId, 0, 0)!).rowSpan).toBe(3);
+
+    // deleting rows 1 and 2 leaves it covering one row, so it carries no span
+    deleteRows(editor, tableId, 1, 2);
+    const survivor = cellAt(editor.doc, tableId, 0, 0)!;
+    expect(cellSpans(survivor).rowSpan).toBe(1);
+    expect(tableRows(editor.doc, tableId)).toHaveLength(1);
+  });
+
+  it('shrinks a merged cell by how many of its columns the range took', () => {
+    const { editor, tableId } = setup();
+    mergeCells(editor, tableId, { row: 0, column: 0 }, { row: 0, column: 2 });
+    expect(cellSpans(cellAt(editor.doc, tableId, 0, 0)!).colSpan).toBe(3);
+
+    deleteColumns(editor, tableId, 1, 2);
+    expect(cellSpans(cellAt(editor.doc, tableId, 0, 0)!).colSpan).toBe(1);
+  });
+
+  it('drops the table when the range is every column', () => {
+    const { editor, tableId } = setup();
+    deleteColumns(editor, tableId, 0, 3);
+    expect(editor.doc.blocks.has(tableId)).toBe(false);
+  });
+
+  it('clearing cells empties them and keeps the shape', () => {
+    const { editor, tableId } = setup();
+    const ids = [cellAt(editor.doc, tableId, 0, 0)!.id, cellAt(editor.doc, tableId, 1, 1)!.id];
+    clearCells(editor, ids);
+
+    expect(texts(editor, tableId)).toEqual([
+      ['', '01', '02'],
+      ['10', '', '12'],
+      ['20', '21', '22'],
+    ]);
+    // the grid is intact: a table with a hole in it is not a table
+    expect(tableRows(editor.doc, tableId)).toHaveLength(3);
   });
 });

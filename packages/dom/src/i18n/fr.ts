@@ -118,6 +118,10 @@ export const fr: EditorLabels = {
   fullWidth: 'Pleine largeur',
   mergeCells: 'Fusionner les cellules',
   unmergeCells: 'Séparer les cellules',
+  deleteRowsN: 'Supprimer {n} lignes',
+  deleteColumnsN: 'Supprimer {n} colonnes',
+  clearCells: 'Vider les cellules',
+  deleteTable: 'Supprimer le tableau',
   rowN: 'Ligne {n}',
   columnN: 'Colonne {n}',
 

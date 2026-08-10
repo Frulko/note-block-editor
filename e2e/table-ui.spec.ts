@@ -138,3 +138,74 @@ test.describe('cell selection', () => {
     expect(editor.errors()).toEqual([]);
   });
 });
+
+/**
+ * Taking things out of a table.
+ *
+ * @remarks
+ * The ⋮⋮ menu has always had "delete the row" and "delete the column", acting
+ * on the *caret's* — one row, one column. Once a rectangle is selected, the
+ * thing you mean is the rectangle, so the three ways of taking something away
+ * live on the bar that appears over it.
+ *
+ * Clearing keeps the shape on purpose: a grid with a hole in it is not a grid,
+ * so "delete these cells" means their contents, as in every spreadsheet.
+ */
+test.describe('removing rows, columns and contents', () => {
+  /** Drag-select from one cell to another, which is what raises the bar. */
+  async function selectCells(page: import('@playwright/test').Page, from: number, to: number) {
+    const cells = page.locator('.nbe-t-table_cell');
+    const a = (await cells.nth(from).boundingBox())!;
+    const b = (await cells.nth(to).boundingBox())!;
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await page.locator('.nbe-cellbar').waitFor();
+  }
+
+  test('the bar over a selection deletes its rows', async ({ page, editor }) => {
+    await makeTable(page, editor);
+    const rows = () => page.locator('.nbe-t-table_row').count();
+    expect(await rows()).toBe(3);
+
+    await selectCells(page, 0, 4); // the first two rows
+    await page.locator('.nbe-cellbar button[aria-label*="Supprimer"]').click();
+    await page.locator('.nbe-blocktoolbar-menu .nbe-menu-item', { hasText: 'lignes' }).click();
+    await expect.poll(rows).toBe(1);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('and its columns', async ({ page, editor }) => {
+    await makeTable(page, editor);
+    const columns = async () =>
+      page.locator('.nbe-t-table_row').first().locator('.nbe-t-table_cell').count();
+    expect(await columns()).toBe(3);
+
+    await selectCells(page, 0, 1); // two cells across the first row
+    await page.locator('.nbe-cellbar button[aria-label*="Supprimer"]').click();
+    await page.locator('.nbe-blocktoolbar-menu .nbe-menu-item', { hasText: 'colonnes' }).click();
+    await expect.poll(columns).toBe(1);
+    expect(editor.errors()).toEqual([]);
+  });
+
+  test('clearing empties the cells and keeps the grid', async ({ page, editor }) => {
+    await makeTable(page, editor);
+    const cells = page.locator('.nbe-t-table_cell');
+    await cells.first().click();
+    await page.keyboard.type('gardé');
+    await cells.nth(1).click();
+    await page.keyboard.type('effacé');
+
+    await selectCells(page, 1, 2);
+    await page.locator('.nbe-cellbar button[aria-label*="Supprimer"]').click();
+    await page.locator('.nbe-blocktoolbar-menu .nbe-menu-item', { hasText: 'Vider' }).click();
+
+    await expect(cells.nth(1)).toHaveText('');
+    await expect(cells.first()).toHaveText('gardé');
+    // the shape is intact — this is not a hole in the grid
+    expect(await page.locator('.nbe-t-table_row').count()).toBe(3);
+    expect(await cells.count()).toBe(9);
+    expect(editor.errors()).toEqual([]);
+  });
+});

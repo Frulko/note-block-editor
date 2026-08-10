@@ -1,5 +1,5 @@
 import type { Block, BlockId, Doc, Editor, Tx } from '@nbe/core';
-import { getBlock, plainText, textCaret, uuidv7 } from '@nbe/core';
+import { getBlock, plainText, textCaret, textLength, uuidv7 } from '@nbe/core';
 
 /**
  * The table's model half: geometry, commands, invariants. No DOM, no
@@ -285,49 +285,118 @@ export function insertColumn(editor: Editor, tableId: BlockId, at: number): void
   );
 }
 
-export function deleteRow(editor: Editor, tableId: BlockId, at: number): void {
+/**
+ * Remove `count` rows starting at `at`.
+ *
+ * @remarks
+ * A range rather than a loop over the single-row version, and for two reasons
+ * that both bite. One transaction means one undo: deleting the three rows you
+ * selected and pressing undo four times is not a thing anyone expects. And a
+ * cell reaching in from above loses *one row per deleted row it covers* —
+ * `rowSpan` is a value, not a counter, so two separate patches would overwrite
+ * each other and the second would undo the first.
+ */
+export function deleteRows(editor: Editor, tableId: BlockId, at: number, count = 1): void {
   const doc = editor.doc;
   const rows = tableRows(doc, tableId);
-  const row = rows[at];
-  if (!row) return;
+  const doomed = rows.slice(at, at + count);
+  if (!doomed.length) return;
+  const last = at + doomed.length; // exclusive
   const grid = tableGrid(doc, tableId);
   const anchorOf = anchors(grid);
-  // a cell reaching into this row from above only loses one of its rows
-  const shrink = new Set<BlockId>();
-  for (const id of grid[at] ?? []) if (id && (anchorOf.get(id)?.row ?? at) < at) shrink.add(id);
+
+  /*
+   * Cells that start above the range and reach into it: each keeps existing and
+   * loses however many of its rows fall inside. Counted once, over the whole
+   * range, which is the part a loop gets wrong.
+   */
+  const lost = new Map<BlockId, number>();
+  const countedRow = new Set<string>();
+  for (let line = at; line < last; line++) {
+    for (const id of grid[line] ?? []) {
+      if (!id || (anchorOf.get(id)?.row ?? line) >= at) continue;
+      /*
+       * Once per *row*, keyed by the row and not by the line: a cell that also
+       * spans columns appears in the same line several times, and counting
+       * those would take rows off it that the range never held.
+       */
+      const key = `${id}:${line}`;
+      if (countedRow.has(key)) continue;
+      countedRow.add(key);
+      lost.set(id, (lost.get(id) ?? 0) + 1);
+    }
+  }
+
   // the last row would leave an empty table; normalization then dissolves it
   editor.dispatch(
     (tx) => {
-      for (const cell of rowCells(doc, row.id)) tx.op({ type: 'delete_block', id: cell.id });
-      tx.op({ type: 'delete_block', id: row.id });
-      for (const id of shrink) {
+      for (const row of doomed) {
+        for (const cell of rowCells(doc, row.id)) tx.op({ type: 'delete_block', id: cell.id });
+        tx.op({ type: 'delete_block', id: row.id });
+      }
+      for (const [id, rows] of lost) {
         const { rowSpan } = cellSpans(getBlock(doc, id));
-        tx.op({ type: 'update_block', id, patch: { props: { rowSpan: rowSpan > 2 ? rowSpan - 1 : undefined } } });
+        const next = rowSpan - rows;
+        tx.op({ type: 'update_block', id, patch: { props: { rowSpan: next > 1 ? next : undefined } } });
       }
     },
     { origin: 'input' },
   );
 }
 
-export function deleteColumn(editor: Editor, tableId: BlockId, at: number): void {
+/** One row, which is the range of one. */
+export function deleteRow(editor: Editor, tableId: BlockId, at: number): void {
+  deleteRows(editor, tableId, at, 1);
+}
+
+/**
+ * Remove `count` columns starting at `at`.
+ *
+ * @remarks
+ * Same two reasons as {@link deleteRows}: one undo for one gesture, and
+ * `colSpan` is a value rather than a counter — a merged cell straddling two
+ * deleted columns must lose two, and two independent patches would each say
+ * "one less" with the second winning.
+ */
+export function deleteColumns(editor: Editor, tableId: BlockId, at: number, count = 1): void {
   const doc = editor.doc;
-  if (columnCount(doc, tableId) <= 1) {
-    // removing the only column empties every row: drop the table instead
+  const total = columnCount(doc, tableId);
+  const last = Math.min(total, at + Math.max(1, count)); // exclusive
+  if (at >= total) return;
+  if (last - at >= total) {
+    // removing every column empties every row: drop the table instead
     deleteTable(editor, tableId);
     return;
   }
   const grid = tableGrid(doc, tableId);
-  const done = new Set<BlockId>();
+
+  /** How many of the doomed columns each cell occupies. */
+  const covered = new Map<BlockId, number>();
+  const countedColumn = new Set<string>();
+  for (const line of grid) {
+    for (let column = at; column < last; column++) {
+      const id = line[column];
+      if (!id) continue;
+      /*
+       * Once per *column*, keyed by the column and not by the line: a cell that
+       * spans rows appears at the same column on several lines, and a cell that
+       * spans columns appears at several columns on one line. Only the second
+       * is a column it actually loses.
+       */
+      const key = `${id}:${column}`;
+      if (countedColumn.has(key)) continue;
+      countedColumn.add(key);
+      covered.set(id, (covered.get(id) ?? 0) + 1);
+    }
+  }
+
   editor.dispatch(
     (tx) => {
-      for (const line of grid) {
-        const id = line[at];
-        if (!id || done.has(id)) continue;
-        done.add(id);
-        // a merged cell narrows by one column; a plain one goes
+      for (const [id, columns] of covered) {
         const { colSpan } = cellSpans(getBlock(doc, id));
-        if (colSpan > 1)
-          tx.op({ type: 'update_block', id, patch: { props: { colSpan: colSpan > 2 ? colSpan - 1 : undefined } } });
+        const next = colSpan - columns;
+        // a merged cell narrows; one that has nothing left goes
+        if (next > 0) tx.op({ type: 'update_block', id, patch: { props: { colSpan: next > 1 ? next : undefined } } });
         else tx.op({ type: 'delete_block', id });
       }
       const widths = getBlock(doc, tableId).props['columnWidths'];
@@ -335,9 +404,37 @@ export function deleteColumn(editor: Editor, tableId: BlockId, at: number): void
         tx.op({
           type: 'update_block',
           id: tableId,
-          patch: { props: { columnWidths: widths.filter((_, i) => i !== at) } },
+          patch: { props: { columnWidths: widths.filter((_, i) => i < at || i >= last) } },
         });
       }
+    },
+    { origin: 'input' },
+  );
+}
+
+/** One column, which is the range of one. */
+export function deleteColumn(editor: Editor, tableId: BlockId, at: number): void {
+  deleteColumns(editor, tableId, at, 1);
+}
+
+/**
+ * Empty the given cells, keeping the shape of the table.
+ *
+ * @remarks
+ * "Delete these cells" cannot mean *remove* them: a grid with a hole in it is
+ * not a grid, and every spreadsheet answers this the same way — the cells stay
+ * and their contents go. Removing a column or a row is the other thing, and it
+ * has its own command.
+ */
+export function clearCells(editor: Editor, cellIds: readonly BlockId[]): void {
+  const doc = editor.doc;
+  const withText = cellIds
+    .map((id) => doc.blocks.get(id))
+    .filter((cell): cell is Block => !!cell && textLength(cell.text) > 0);
+  if (!withText.length) return;
+  editor.dispatch(
+    (tx) => {
+      for (const cell of withText) tx.op({ type: 'delete_text', id: cell.id, from: 0, to: textLength(cell.text) });
     },
     { origin: 'input' },
   );

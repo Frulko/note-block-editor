@@ -1,6 +1,25 @@
 import type { BlockId } from '@nbe/core';
-import { createActionButton, toContainerPoint, type EditorView, type GestureRecognizer } from '@nbe/dom';
-import { cellAt, cellPosition, cellRect, cellSpans, mergeCells, tableGrid, unmergeCell } from './model';
+import {
+  createActionButton,
+  createMenu,
+  format,
+  toContainerPoint,
+  type EditorView,
+  type GestureRecognizer,
+} from '@nbe/dom';
+import {
+  cellAt,
+  cellPosition,
+  cellRect,
+  cellSpans,
+  clearCells,
+  deleteColumns,
+  deleteRows,
+  mergeCells,
+  tableGrid,
+  unmergeCell,
+  type CellRect,
+} from './model';
 
 /**
  * Cell selection, spreadsheet style: press in a cell, drag across others, and
@@ -52,7 +71,7 @@ export function attachTableSelect(view: EditorView): () => void {
   };
 
   /** Every cell the current rectangle covers, whole cells only. */
-  const selected = (): { ids: BlockId[]; merged: boolean } | null => {
+  const selected = (): { ids: BlockId[]; merged: boolean; rect: CellRect } | null => {
     if (!tableId || !from || !to || !editor.doc.blocks.has(tableId)) return null;
     const rect = cellRect(editor.doc, tableId, from, to);
     const grid = tableGrid(editor.doc, tableId);
@@ -68,7 +87,7 @@ export function attachTableSelect(view: EditorView): () => void {
       const { colSpan, rowSpan } = cellSpans(cell);
       return colSpan > 1 || rowSpan > 1;
     });
-    return { ids: [...ids], merged };
+    return { ids: [...ids], merged, rect };
   };
 
   const paint = () => {
@@ -113,6 +132,61 @@ export function attachTableSelect(view: EditorView): () => void {
           if (table) for (const id of ids) if (editor.doc.blocks.has(id)) unmergeCell(editor, table, id);
         }),
       );
+
+    /*
+     * Taking something away, here rather than only in the ⋮⋮ menu: the menu's
+     * versions act on the *caret's* row, which is one row, and by the time you
+     * have selected a rectangle the thing you mean is the rectangle.
+     *
+     * One button opening a menu, not three buttons. Three were tried first and
+     * two of them were the same trash icon side by side — "delete rows" and
+     * "delete columns" are impossible to tell apart as pictures, and a bar you
+     * have to hover to read is a bar that costs more than it saves. A menu also
+     * says *how many*, which is the part worth being sure about before pressing.
+     *
+     * Clearing keeps the shape: a grid with a hole in it is not a grid, so
+     * "delete these cells" means their contents, as in every spreadsheet, and
+     * removing a row or a column is the other thing.
+     */
+    const rect = current.rect;
+    const ids = current.ids;
+    const remove = createActionButton({
+      title: view.labels.delete,
+      icon: 'trash',
+      iconSize: 15,
+      className: 'nbe-blocktoolbar-btn',
+      preserveSelection: true,
+      popover: true,
+      onClick: () => {
+        const table = tableId;
+        const menu = createMenu({ className: 'nbe-blocktoolbar-menu' });
+        menu.update([
+          {
+            label: format(view.labels.deleteRowsN, { n: rect.rows }),
+            onSelect: () => {
+              clear();
+              if (table) deleteRows(editor, table, rect.row, rect.rows);
+            },
+          },
+          {
+            label: format(view.labels.deleteColumnsN, { n: rect.columns }),
+            onSelect: () => {
+              clear();
+              if (table) deleteColumns(editor, table, rect.column, rect.columns);
+            },
+          },
+          {
+            label: view.labels.clearCells,
+            onSelect: () => {
+              clearCells(editor, ids);
+              clear();
+            },
+          },
+        ]);
+        menu.open(() => remove.getBoundingClientRect(), { placement: 'bottom-start' });
+      },
+    });
+    bar.append(remove);
 
     view.content.append(bar);
     const left = Math.min(...boxes.map((b) => b.left));

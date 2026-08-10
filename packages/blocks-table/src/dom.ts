@@ -18,6 +18,7 @@ import {
   cellSpans,
   columnCount,
   deleteColumn,
+  deleteTable,
   deleteRow,
   insertColumn,
   insertRow,
@@ -174,6 +175,12 @@ export const table: DomBlockPlugin = {
           hintIcon: ctx.block.props['headerRow'] !== false ? 'check' : undefined,
           onSelect: () => ctx.setProps({ headerRow: ctx.block.props['headerRow'] === false }),
         },
+        /*
+         * `deleteTable` has been in the model since tables shipped and nothing
+         * offered it: the generic block menu deletes a *block*, and a table is
+         * a subtree — rows and cells that would be left parentless.
+         */
+        { label: labels.deleteTable, icon: 'trash', onSelect: () => deleteTable(editor, ctx.block.id) },
       ];
     },
 

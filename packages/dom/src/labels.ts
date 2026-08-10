@@ -222,6 +222,14 @@ export interface EditorLabels {
   mergeCells: string;
   /** Split a merged cell back into its slots. Cell selection bar. */
   unmergeCells: string;
+  /** Delete every row the cell selection covers. Takes `{n}`. */
+  deleteRowsN: string;
+  /** Delete every column the cell selection covers. Takes `{n}`. */
+  deleteColumnsN: string;
+  /** Empty the selected cells, keeping the shape of the table. */
+  clearCells: string;
+  /** Remove the whole table, gutter menu. */
+  deleteTable: string;
   /** Section heading naming the caret's row, e.g. "Row 2". Takes `{n}`. */
   rowN: string;
   /** Section heading naming the caret's column. Takes `{n}`. */
