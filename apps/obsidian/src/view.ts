@@ -1,4 +1,14 @@
-import { Keymap, Notice, TextFileView, TFile, WorkspaceLeaf, debounce, normalizePath } from 'obsidian';
+import {
+  Keymap,
+  Notice,
+  Scope,
+  TextFileView,
+  TFile,
+  WorkspaceLeaf,
+  debounce,
+  normalizePath,
+  type Modifier,
+} from 'obsidian';
 import {
   Editor,
   docFromJSON,
@@ -95,6 +105,38 @@ function blockFor(file: TFile): BlockJSON {
   if (IMAGE_EXT.test(file.extension)) return { ...base, type: 'image', props: { src: file.path, wiki: true } };
   return { ...base, type: 'file', props: { src: encodeURI(file.path), name: file.name, size: file.stat.size } };
 }
+
+const MOD: Modifier[] = ['Mod'];
+const MOD_SHIFT: Modifier[] = ['Mod', 'Shift'];
+
+/**
+ * The keys the editor owns, taken back from Obsidian's hotkey table.
+ *
+ * @remarks
+ * Obsidian listens for `keydown` on `window` in the **capture** phase, and any
+ * key its table binds is executed there and then `stopPropagation`'d — so the
+ * editor's own listener, further down the tree, never saw it. That is the
+ * whole of "⌘B, ⌘I, ⌘K et ⌘E ne font rien ici": they were being spent on
+ * `editor:toggle-bold` and friends, which want a Markdown view and quietly do
+ * nothing without one. The key was gone and nothing had happened.
+ *
+ * A view scope is the seam for exactly that — Obsidian asks
+ * `activeLeaf.view.scope` before its own table — and a handler that returns
+ * anything other than `false` means *handled, and no `preventDefault`*: the
+ * app stops looking, the event keeps travelling, and the editor gets its key.
+ * The parent is `app.scope`, so everything not listed here (⌘O, ⌘P, ⌘S, ⌘W,
+ * ⌘T, ⌘F…) is still Obsidian's, including this plugin's own commands.
+ *
+ * ⌘C/⌘V/⌘X and ⌘Z are listed although core binds none of them: a vault where
+ * the user has bound one is a vault where copy stops working, and that is not
+ * a bug anyone would think to look for here.
+ *
+ * ponytail: ⌘, stays Obsidian's settings — subscript is on the selection
+ * toolbar, and a Mac app that swallows ⌘, is a broken Mac app.
+ */
+const OWNED_KEYS = 'a b c d e i k u v x y z . Enter Backspace Delete'.split(' ');
+/** The same, with Shift: strikethrough, plain paste, redo, moving a block. */
+const OWNED_SHIFT_KEYS = 's x v z ArrowUp ArrowDown'.split(' ');
 
 export class CarnetView extends TextFileView {
   constructor(
@@ -319,6 +361,12 @@ export class CarnetView extends TextFileView {
   }
 
   async onOpen(): Promise<void> {
+    // see OWNED_KEYS: the editor's shortcuts, reclaimed from the app's table
+    const scope = new Scope(this.app.scope);
+    for (const key of OWNED_KEYS) scope.register(MOD, key, () => true);
+    for (const key of OWNED_SHIFT_KEYS) scope.register(MOD_SHIFT, key, () => true);
+    this.scope = scope;
+
     this.mount = this.contentEl.createDiv({ cls: 'carnet-host' });
     this.registerDomEvent(this.mount, 'click', (e) => this.followLink(e));
     this.registerDomEvent(this.mount, 'keydown', (e) => this.onEditorKey(e));
@@ -373,6 +421,61 @@ export class CarnetView extends TextFileView {
       if (/^[a-z][a-z0-9+.-]*:/i.test(href)) window.open(href);
       else open(decodeURI(href).replace(/\.md$/, ''));
     }
+  }
+
+  /*
+   * The clipboard, for the events that never reached the editor.
+   *
+   * @remarks
+   * Obsidian listens for `copy`, `cut` and `paste` on `window` and hands each
+   * one to `activeLeaf.view.handle*` — unless it has already been claimed, or
+   * the focused element is "a text field", which it decides with
+   * `contentEditable === 'true'`. Every leaf here is
+   * `contenteditable="plaintext-only"`, so that test says no and this view is
+   * the one asked to deal with it.
+   *
+   * Which is the seam that was missing. The editor's own listeners sit on its
+   * content element, so they only see a clipboard event dispatched *inside* it
+   * — and the whole point of the cross-block topology is that a selection is
+   * not always in a focused leaf: a range painted across blocks, a block
+   * selection, a click that landed on the gutter all leave the focus outside
+   * `.nbe-leaf`, so the event fires at `<body>` and goes straight past the
+   * editor to the window. Nothing was broken; the event simply flew over.
+   *
+   * Forwarding re-dispatches it where those listeners are, carrying the same
+   * `DataTransfer` — so a copy still serialises from the model and a paste
+   * still reads the flavours the editor knows. Obsidian only calls this when
+   * `defaultPrevented` is false, which is exactly when the editor has *not*
+   * already handled it, so nothing can be copied or pasted twice.
+   *
+   * ponytail: `handleCopy`/`handleCut`/`handlePaste` are not in the published
+   * typings — the same undocumented-but-load-bearing seam as `dragManager`
+   * above. A version that renames them leaves the clipboard where it is today
+   * and breaks nothing else.
+   */
+  private forwardClipboard(e: ClipboardEvent): void {
+    const content = this.view?.content;
+    if (!content || e.defaultPrevented || content.contains(e.target as Node)) return;
+    const forwarded = new ClipboardEvent(e.type, {
+      clipboardData: e.clipboardData,
+      bubbles: true,
+      cancelable: true,
+    });
+    // `dispatchEvent` is false when something called `preventDefault`: the
+    // editor took it, so the original must be cancelled too
+    if (!content.dispatchEvent(forwarded)) e.preventDefault();
+  }
+
+  handleCopy(e: ClipboardEvent): void {
+    this.forwardClipboard(e);
+  }
+
+  handleCut(e: ClipboardEvent): void {
+    this.forwardClipboard(e);
+  }
+
+  handlePaste(e: ClipboardEvent): void {
+    this.forwardClipboard(e);
   }
 
   /** The files an in-progress vault drag is carrying, notes and all. */
