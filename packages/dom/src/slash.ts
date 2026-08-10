@@ -11,6 +11,8 @@ interface SlashItem {
   label: string;
   keywords: string[];
   icon: string;
+  /** Right-aligned tag, for entries whose label alone does not place them. */
+  hint?: string;
   action:
     | { kind: 'block'; type: string; props?: Record<string, unknown> }
     // a plugin that inserts something other than one block: a subtree, or a
@@ -111,6 +113,7 @@ export function slashItems(view: EditorView): SlashItem[] {
         label: entry.label,
         keywords: entry.keywords,
         icon: entry.icon,
+        ...(entry.hint ? { hint: entry.hint } : {}),
         action: entry.insert
           ? { kind: 'custom', insert: entry.insert }
           : { kind: 'block', type: plugin.schema.type, props: entry.props },
@@ -156,7 +159,12 @@ export function attachSlashMenu(view: EditorView): () => void {
   });
 
   const toEntries = (items: SlashItem[]): MenuEntry[] =>
-    items.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => select(item) }));
+    items.map((item) => ({
+      label: item.label,
+      icon: item.icon,
+      ...(item.hint ? { hint: item.hint } : {}),
+      onSelect: () => select(item),
+    }));
 
   const openAt = (id: BlockId, offset: number) => {
     if (!view.leafEl(id)) return;

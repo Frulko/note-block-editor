@@ -22,7 +22,7 @@ import { CODE_THEMES } from '@nbe/blocks-code';
 import { code } from '@nbe/blocks-code/dom';
 import { callout } from '@nbe/blocks-callout/dom';
 import { floatingTocFeature, toc } from '@nbe/blocks-toc/dom';
-import { mdx } from '@nbe/blocks-mdx/dom';
+import { createMdx, type MdxComponents } from '@nbe/blocks-mdx/dom';
 import { tableDomBlocks } from '@nbe/blocks-table/dom';
 import { embed } from '@nbe/blocks-embed/dom';
 import { dropZone } from '@nbe/blocks-dropzone/dom';
@@ -42,7 +42,54 @@ import { mermaidFeature, mermaidStyles } from '@nbe/blocks-mermaid/dom';
  * The same list feeds the editor and both markdown directions — a registry the
  * importer does not have is a code fence that comes back as a paragraph.
  */
-const BLOCKS = [code, callout, toc, mdx, embed, dropZone, ...tableDomBlocks];
+/**
+ * What the host says a component *is*.
+ *
+ * @remarks
+ * The block evaluates nothing — never has, and that is the decision, not an
+ * omission: running JSX means a component runtime and arbitrary code out of a
+ * file somebody handed you. So the file supplies the data (`<Counter start={3}
+ * />` is a name and a number) and this supplies the behaviour, which is code
+ * written here and already trusted. The counter below really counts, and not
+ * one character of the document was executed to make it.
+ *
+ * A tag with no entry here still renders as its source, which is what makes the
+ * whole thing additive.
+ */
+const MDX_COMPONENTS: MdxComponents = {
+  Counter: ({ props }) => {
+    const el = document.createElement('div');
+    el.className = 'mdx-counter';
+    let n = Number(props['start'] ?? 0);
+    const label = document.createElement('span');
+    const paint = () => {
+      label.textContent = `${String(props['label'] ?? 'Compteur')} : ${n}`;
+    };
+    const step = (by: number) => () => {
+      n += by;
+      paint();
+    };
+    paint();
+    const minus = Object.assign(document.createElement('button'), { type: 'button', textContent: '−' });
+    const plus = Object.assign(document.createElement('button'), { type: 'button', textContent: '+' });
+    minus.addEventListener('click', step(-1));
+    plus.addEventListener('click', step(1));
+    el.append(minus, label, plus);
+    return el;
+  },
+  Callout: ({ props, children }) => {
+    const el = document.createElement('div');
+    el.className = 'mdx-callout';
+    const title = document.createElement('b');
+    title.textContent = String(props['title'] ?? props['type'] ?? 'Note');
+    const body = document.createElement('p');
+    body.textContent = children.trim();
+    el.append(title, body);
+    return el;
+  },
+};
+
+const BLOCKS = [code, callout, toc, createMdx({ components: MDX_COMPONENTS }), embed, dropZone, ...tableDomBlocks];
 const PLUGINS = new PluginRegistry().registerAll(BLOCKS);
 
 let n = 0;
@@ -102,19 +149,26 @@ const seed: BlockJSON = {
     }),
     b('heading', 'MDX', { level: 2 }),
     b('paragraph', [
-      { text: 'Un ' },
+      { text: 'Le bloc ' },
+      { text: 'n’exécute rien', marks: [{ type: 'bold' }] },
+      { text: ' — évaluer du JSX demanderait un runtime et du code arbitraire venu d’un fichier qu’on vous a donné. Le fichier fournit donc les ' },
+      { text: 'données', marks: [{ type: 'italic' }] },
+      { text: ' (un nom, des attributs) et l’hôte fournit le ' },
+      { text: 'code', marks: [{ type: 'italic' }] },
+      { text: ', qu’il a écrit lui-même. Ce compteur compte pour de vrai — cliquez — et rien du document n’a été exécuté :' },
+    ]),
+    b('mdx_component', '', { source: '<Counter start={3} label="Vues" />' }),
+    b('paragraph', [
+      { text: 'Un nom que l’hôte ne connaît pas retombe sur sa source, gardée mot pour mot : c’est ce qui fait qu’un ' },
       { text: '.mdx', marks: [{ type: 'code' }] },
-      { text: ' s’ouvre ici et se referme octet pour octet identique. ' },
-      { text: 'Rien n’est évalué', marks: [{ type: 'bold' }] },
-      { text: ' : une balise de composant est gardée telle quelle au lieu d’être échappée en prose — ce qui, sans ce bloc, suffirait à ce que le fichier cesse d’être du MDX. La majuscule est la règle de JSX : ' },
+      { text: ' se referme octet pour octet identique. La majuscule est la règle de JSX — ' },
       { text: '<div>', marks: [{ type: 'code' }] },
-      { text: ' reste de la prose, ' },
-      { text: '<Callout>', marks: [{ type: 'code' }] },
-      { text: ' devient ce bloc.' },
+      { text: ' reste de la prose. L’onglet Markdown montre les deux blocs inchangés.' },
     ]),
     b('mdx_component', '', {
       source: '<Callout type="info" title="Un composant">\n  Son balisage est conservé mot pour mot.\n</Callout>',
     }),
+    b('mdx_component', '', { source: '<Inconnu prop="x" />' }),
 
     b('heading', 'Intégrations et dépôts', { level: 2 }),
     b('paragraph', [

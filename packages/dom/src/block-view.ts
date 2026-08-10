@@ -70,6 +70,15 @@ export interface SlashEntry {
   /** Props the created block starts with, merged over the schema defaults. */
   props?: Record<string, unknown>;
   /**
+   * A short right-aligned tag in the menu row — `mdx`, `beta`, a format name.
+   *
+   * @remarks
+   * For an entry whose *label* does not place it. « Composant » says nothing
+   * about which world it belongs to; « Composant · mdx » does, and it does it
+   * without lengthening the label, which is what a reader scans.
+   */
+  hint?: string;
+  /**
    * Insert something other than a single block of this type — a table is a
    * subtree, a database needs a host record. Return the id to focus, or null
    * to decline (a host that provides no page store, say).
