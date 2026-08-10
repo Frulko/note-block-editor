@@ -73,6 +73,8 @@ export interface EditorLabels {
   findNone: string;
   /** The counter under the document. `{words}`, `{characters}`, `{minutes}`. */
   wordCount: string;
+  /** The badge shown while `⌥⇧D` pins the chrome. */
+  debugHold: string;
 
   // --- format toolbar ---
   /** Bold. Format toolbar, and the ⌘B tooltip. */

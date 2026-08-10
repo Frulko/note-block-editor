@@ -158,7 +158,8 @@ body[data-nbe-theme] .nbe-portal {
    nothing in the console, just an unreadable label. `test/design.test.ts`
    now fails the build if a third inverse surface appears without a line here. */
 .nbe-seltoolbar,
-.nbe-tooltip {
+.nbe-tooltip,
+.nbe-debug-badge {
   color: var(--nbe-inverse-text);
 }
 

@@ -40,6 +40,7 @@ export const fr: EditorLabels = {
   findClose: 'Fermer la recherche',
   findNone: 'Aucun résultat',
   wordCount: '{words} mots · {characters} caractères · ~{minutes} min de lecture',
+  debugHold: 'Chrome figé — ⌥⇧D ou Échap',
 
   bold: 'Gras',
   italic: 'Italique',

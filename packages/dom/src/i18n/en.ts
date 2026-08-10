@@ -39,6 +39,7 @@ export const en: EditorLabels = {
   findClose: 'Close search',
   findNone: 'No matches',
   wordCount: '{words} words · {characters} characters · ~{minutes} min read',
+  debugHold: 'Chrome held — ⌥⇧D or Esc',
   bold: 'Bold',
   italic: 'Italic',
   underline: 'Underline',

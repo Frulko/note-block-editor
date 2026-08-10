@@ -39,6 +39,7 @@ export const es: EditorLabels = {
   findClose: 'Cerrar la búsqueda',
   findNone: 'Sin resultados',
   wordCount: '{words} palabras · {characters} caracteres · ~{minutes} min de lectura',
+  debugHold: 'Interfaz fijada — ⌥⇧D o Esc',
   bold: 'Negrita',
   italic: 'Cursiva',
   underline: 'Subrayado',

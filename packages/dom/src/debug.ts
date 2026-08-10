@@ -1,4 +1,5 @@
 import type { EditorFeature } from './features';
+import { mountPortal } from './ui/portal';
 
 /**
  * Freeze the chrome so it can be looked at.
@@ -45,8 +46,9 @@ export const debugFeature: EditorFeature = {
       badge = document.createElement('div');
       badge.className = 'nbe-debug-badge';
       badge.dataset['nbeUi'] = '';
-      badge.textContent = 'Chrome figé — ⌥⇧D ou Échap';
-      document.body.append(badge);
+      badge.textContent = view.labels.debugHold;
+      // through the portal helper, or the badge paints untokenised on <body>
+      mountPortal(badge);
     };
 
     const set = (on: boolean) => {
@@ -70,7 +72,6 @@ export const debugFeature: EditorFeature = {
     // capture, and on the document: the point is to work while a menu has
     // taken the keyboard, which is exactly when there is something to look at
     document.addEventListener('keydown', onKeyDown, true);
-    void view;
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
       set(false);
