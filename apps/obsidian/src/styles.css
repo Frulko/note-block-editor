@@ -88,6 +88,56 @@
   }
 }
 
+/* « Commencer avec un modèle » — the row under the title of a note that was
+   just created and is still empty. Same horizontal formula as the title above,
+   so the buttons line up with the first word of the note.
+
+   Every selector here is (0,2,0) or more, on purpose: the « Undoing app.css »
+   section at the bottom of this file flattens `button` inside `.carnet-host`
+   at (0,1,1), `color: inherit` included, and a (0,1,0) class would lose to it
+   and leave these unstyled. `appearance: none` for the same reason — that
+   section hands bare buttons back to the platform, which on macOS would draw
+   a native bezel around each of these. */
+.carnet-templates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px max(24px, 58px, calc((100% - 708px) / 2)) 0;
+  background: var(--background-primary);
+}
+.carnet-templates .carnet-templates-label {
+  margin-right: 2px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+.carnet-templates .carnet-template {
+  appearance: none;
+  padding: 3px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.carnet-templates .carnet-template:hover {
+  border-color: var(--background-modifier-border-hover);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+/* the way out, drawn as the way out */
+.carnet-templates .carnet-template-blank {
+  border-style: dashed;
+}
+@media (max-width: 600px) {
+  .carnet-templates {
+    padding: 10px 32px 0;
+  }
+}
+
 /* ==========================================================================
    The vault's theme, and where Carnet's own overrides it.
 

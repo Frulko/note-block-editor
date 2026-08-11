@@ -38,6 +38,7 @@ import { createNoteComments, readComments, restoreAnchors, writeComments } from 
 import { MARKDOWN_PLUGINS, pageOf } from './document';
 import { titleFromHtml } from './link-title';
 import { viewOptions } from './settings';
+import { renderTemplateChoice } from './templates';
 import type CarnetPlugin from './main';
 
 /**
@@ -266,12 +267,12 @@ export class CarnetView extends TextFileView {
    * what Obsidian's own front-matter-title plugins read. The tab, the inline
    * title and this view all show it.
    */
-  private displayTitle(): string {
+  private displayTitle(file: TFile | null = this.file): string {
     // a number too: `title: 2026` is a title someone typed, and YAML reads it
     // as a number whatever they meant by it
     const title = this.frontmatter.get('title');
     const text = typeof title === 'string' || typeof title === 'number' ? String(title).trim() : '';
-    return text || this.file?.basename || '';
+    return text || file?.basename || '';
   }
 
   /** Obsidian asks for the file's content. This is the L1 projection. */
@@ -407,7 +408,8 @@ export class CarnetView extends TextFileView {
     // Obsidian mutates the TFile in place, so identity survives the rename
     this.registerEvent(
       this.app.vault.on('rename', (file) => {
-        if (file === this.file && this.inlineTitleEl) this.inlineTitleEl.textContent = this.displayTitle();
+        if (file === this.titleFile && this.inlineTitleEl)
+          this.inlineTitleEl.textContent = this.displayTitle(this.titleFile);
       }),
     );
 
@@ -593,8 +595,9 @@ export class CarnetView extends TextFileView {
    * document does not fire one — so typing a new name and then switching notes
    * (⌘O, the file explorer, a link) discarded the rename silently, which is
    * most of "you cannot always rename from the editor". Obsidian calls this
-   * before it unloads the file, and `this.file` is still the old one here,
-   * which is exactly what {@link commitTitle} needs.
+   * before it unloads the file — but *after* it has already assigned the new
+   * one to `this.file`, which is why {@link commitTitle} renames
+   * {@link titleFile} and not the view's current file.
    *
    * Before `super`, not after: the base class saves the note's *contents* and
    * then clears the view, and a save that runs after the rename writes to the
@@ -616,10 +619,25 @@ export class CarnetView extends TextFileView {
 
   private inlineTitleEl: HTMLElement | null = null;
 
+  /**
+   * The file the inline title on screen belongs to.
+   *
+   * @remarks
+   * **Not `this.file`.** Obsidian assigns the new file *before* it unloads the
+   * old one, so by the time `onUnloadFile` — or a `blur` raised by the same
+   * click — reaches {@link commitTitle}, `this.file` is already the note being
+   * opened. The rename then landed on the wrong note, and when the name it was
+   * being given was taken (by the note the title actually belonged to) it
+   * failed with « Destination already exists ». The element and the file it was
+   * built from travel together instead.
+   */
+  private titleFile: TFile | null = null;
+
   /** The inline title: the filename, edited in place like Obsidian's own. */
   private buildTitle(host: HTMLElement): void {
     const title = host.createDiv({ cls: 'carnet-title' });
     this.inlineTitleEl = title;
+    this.titleFile = this.file;
     title.textContent = this.displayTitle();
     try {
       title.contentEditable = 'plaintext-only';
@@ -725,27 +743,28 @@ export class CarnetView extends TextFileView {
    */
   private async commitTitle(): Promise<void> {
     const title = this.inlineTitleEl;
-    if (!title || !this.file) return;
+    const file = this.titleFile;
+    if (!title || !file) return;
     const typed = (title.textContent ?? '').trim();
     const name = typed ? slugify(typed) : '';
-    if (!name || typed === this.displayTitle()) {
-      title.textContent = this.displayTitle();
+    if (!name || typed === this.displayTitle(file)) {
+      title.textContent = this.displayTitle(file);
       return;
     }
     if (this.frontmatter.get('title') !== (name === typed ? undefined : typed)) {
       this.frontmatter.set('title', name === typed ? undefined : typed);
       this.requestSave();
     }
-    if (name !== this.file.basename) {
-      const folder = this.file.parent?.path ?? '';
+    if (name !== file.basename) {
+      const folder = file.parent?.path ?? '';
       try {
         // fileManager, not vault: this is the rename that updates backlinks
-        await this.app.fileManager.renameFile(this.file, normalizePath(`${folder}/${name}.${this.file.extension}`));
+        await this.app.fileManager.renameFile(file, normalizePath(`${folder}/${name}.${file.extension}`));
       } catch (err) {
         new Notice(err instanceof Error ? err.message : String(err));
       }
     }
-    title.textContent = this.displayTitle();
+    title.textContent = this.displayTitle(file);
   }
 
   private build(markdown: string): void {
@@ -762,6 +781,8 @@ export class CarnetView extends TextFileView {
     this.loading = true;
     this.view?.destroy();
     this.mount.empty();
+    // emptied with the mount, so the field must not outlive the element
+    this.templateRow = null;
     this.buildTitle(this.mount);
 
     const opts = viewOptions(this.plugin.settings);
@@ -844,23 +865,72 @@ export class CarnetView extends TextFileView {
      */
     this.editor.on(() => {
       if (this.loading) return;
+      // someone who started writing has answered the question
+      this.templateRow?.remove();
+      this.templateRow = null;
       this.requestSave();
       this.recount();
     });
     this.loading = false;
     /*
-     * An empty note is a note that was just created, and what it needs is a
-     * name — so the title takes the focus, selected, exactly as Obsidian's own
-     * inline title does on « Nouvelle note ». A note with prose in it is a note
-     * being read: the focus stays where the reader put it.
+     * A note *just created* needs a name, so the title takes the focus,
+     * selected, exactly as Obsidian's own inline title does on « Nouvelle
+     * note ». Opening a note — any note — is reading, and reading must not
+     * steal the caret: an empty note alone was the wrong test, because a vault
+     * is full of empty notes and every one of them grabbed the focus and
+     * offered its name up for overwriting on a plain click in the sidebar.
+     *
+     * ponytail: "just created" is the file's age, because Obsidian gives a
+     * view no other way to know — the same note opened again a minute later is
+     * simply a note. Two seconds covers create-then-open on a slow vault; a
+     * miss costs the nicety and nothing else.
      */
-    if (!markdown.trim()) this.focusTitle(true);
+    if (this.file && !markdown.trim() && Date.now() - this.file.stat.ctime < 2000) {
+      this.focusTitle(true);
+      /*
+       * …and the same moment is the only one where offering a template makes
+       * sense: a note with anything in it is a note being edited, and pushing
+       * a row of buttons under its title would be an interruption. The caret
+       * stays in the title throughout — `renderTemplateChoice` explains why
+       * that rules out a menu.
+       */
+      this.templateRow = renderTemplateChoice(
+        this.inlineTitleEl,
+        this.plugin,
+        this.file.parent?.path ?? '',
+        (text) => this.applyTemplate(text),
+      );
+    }
     void this.view.whenComplete().then(() => {
       if (wasAt) scroller.scrollTop = wasAt;
       // a search result opens the file *then* says where to go, and either
       // order can win the race — so the landing is tried from both ends
       this.revealPending();
     });
+  }
+
+  /** « Commencer avec un modèle », while the new note is still empty. */
+  private templateRow: HTMLElement | null = null;
+
+  /**
+   * Start this note from a template.
+   *
+   * @remarks
+   * A full rebuild rather than an insertion, because the template is a whole
+   * file — its header as well as its blocks — and the note it is landing in is
+   * empty, so there is nothing to merge and nothing to lose. `requestSave` is
+   * explicit here for the one reason it usually is not: {@link build} loads
+   * with `loading` set, which is exactly what stops a mount from marking the
+   * file dirty, so the write has to be asked for on the other side of it.
+   *
+   * The title is focused again for the same reason it was a moment ago — the
+   * note still has no name, and now it has everything else.
+   */
+  private applyTemplate(markdown: string): void {
+    this.data = markdown;
+    this.build(markdown);
+    this.requestSave();
+    this.focusTitle(true);
   }
 
   /**

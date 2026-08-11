@@ -15,6 +15,7 @@ import { CODE_THEMES } from '@nbe/blocks-code';
 import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { floatingTocFeature } from '@nbe/blocks-toc/dom';
 import { BLOCKS } from './document';
+import { TemplateManager } from './templates';
 import type CarnetPlugin from './main';
 
 /**
@@ -63,6 +64,14 @@ export interface CarnetSettings {
   locale: string;
   /** Comments, kept in the note itself as Obsidian comment syntax. */
   comments: boolean;
+  /** The folder whose notes serve as templates. Empty turns the feature off. */
+  templateFolder: string;
+  /**
+   * Folder path → the templates a new note there is offered, inherited by its
+   * subfolders. `''` is the vault root, so "proposed everywhere" is an entry
+   * like any other. Set from the folder's own right-click menu, not from here.
+   */
+  templates: Record<string, string[]>;
   /** One CSS custom property per line: `--nbe-accent-rgb: 220 38 38`. */
   theme: string;
   /** Chrome features toggled off, by feature name; absent means on. */
@@ -88,6 +97,8 @@ export const DEFAULT_SETTINGS: CarnetSettings = {
   // own default is English and every other language is one setting away
   locale: 'fr',
   comments: true,
+  templateFolder: 'Modèles',
+  templates: {},
   theme: '',
   features: {},
 };
@@ -199,6 +210,24 @@ export class CarnetSettingTab extends PluginSettingTab {
       .addToggle((t) =>
         t.setValue(s.comments).onChange((v) => {
           s.comments = v;
+          save();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName('Dossier des modèles')
+      .setDesc(
+        'Le dossier dont les notes servent de modèles — un modèle est une note comme une autre. Un clic droit sur un dossier du coffre, « Modèles de Carnet… », choisit lesquels y sont proposés, et dans ses sous-dossiers ; le bouton ci-contre fait la même chose pour tout le coffre. Vide : la fonction est désactivée.',
+      )
+      .addExtraButton((b) =>
+        b
+          .setIcon('layout-template')
+          .setTooltip('Modèles proposés dans tout le coffre')
+          .onClick(() => new TemplateManager(this.plugin, '').open()),
+      )
+      .addText((t) =>
+        t.setPlaceholder('Modèles').setValue(s.templateFolder).onChange((v) => {
+          s.templateFolder = v;
           save();
         }),
       );

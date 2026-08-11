@@ -1,7 +1,8 @@
-import { Plugin, TFile, WorkspaceLeaf, type ViewState } from 'obsidian';
+import { Plugin, TFile, TFolder, WorkspaceLeaf, type ViewState } from 'obsidian';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
 import { HOST_COMMANDS } from './commands';
 import { CarnetSettingTab, DEFAULT_SETTINGS, type CarnetSettings } from './settings';
+import { TemplateManager } from './templates';
 import { CarnetView, VIEW_TYPE } from './view';
 
 /**
@@ -138,10 +139,7 @@ export default class CarnetPlugin extends Plugin {
         const leaf = this.app.workspace.getMostRecentLeaf();
         const file = this.app.workspace.getActiveFile();
         if (!leaf || !file || file.extension !== 'md') return false;
-        if (!checking) {
-          this.asMarkdown.delete(file.path);
-          void leaf.setViewState({ type: VIEW_TYPE, state: { file: file.path } });
-        }
+        if (!checking) this.openInCarnet(file, leaf);
         return true;
       },
     });
@@ -175,25 +173,33 @@ export default class CarnetPlugin extends Plugin {
     noteCommand('export', 'Exporter la note', 'p', (view) => view.exportNote());
 
     /*
-     * Right-click a note in the explorer, or its tab, and open it here.
+     * Right-click a note in the explorer, or its tab, and open it here — and
+     * right-click a *folder* to say what a new note in it may start from.
      *
-     * The command palette already had this, and a command is not where anyone
-     * looks: the file explorer is. `file-menu` is the same event Obsidian's
-     * own "Open in new tab" hangs off, so the entry sits with the others
-     * rather than beside them.
+     * The command palette already had the first, and a command is not where
+     * anyone looks: the file explorer is. `file-menu` is the same event
+     * Obsidian's own "Open in new tab" hangs off, so the entries sit with the
+     * others rather than beside them — and it fires for a folder as readily as
+     * for a file, which is what makes the templates reachable from the one
+     * place their scope is visible.
      */
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file, _source, leaf) => {
+        if (file instanceof TFolder) {
+          menu.addItem((item) =>
+            item
+              .setTitle('Modèles de Carnet…')
+              .setIcon('layout-template')
+              .onClick(() => new TemplateManager(this, file.path).open()),
+          );
+          return;
+        }
         if (!(file instanceof TFile) || file.extension !== 'md') return;
         menu.addItem((item) =>
           item
             .setTitle('Ouvrir dans Carnet')
             .setIcon('notebook-pen')
-            .onClick(() => {
-              this.asMarkdown.delete(file.path);
-              const target = leaf ?? this.app.workspace.getLeaf(false);
-              void target.setViewState({ type: VIEW_TYPE, state: { file: file.path } });
-            }),
+            .onClick(() => this.openInCarnet(file, leaf)),
         );
       }),
     );
@@ -216,6 +222,23 @@ export default class CarnetPlugin extends Plugin {
 
   onunload(): void {
     delete document.body.dataset.nbeTheme;
+  }
+
+  /**
+   * Open a note here, cancelling any « revenir au Markdown » it was carrying.
+   *
+   * @remarks
+   * Forgetting the file in {@link asMarkdown} is the part that is easy to
+   * leave out and impossible to notice until someone hits it: without it, a
+   * note sent back to Obsidian's editor once refuses to reopen here for the
+   * rest of the session, and the entry the user just clicked appears to do
+   * nothing at all. Three callers now — the command, the file menu, and a
+   * template being opened to be written.
+   */
+  openInCarnet(file: TFile, leaf?: WorkspaceLeaf): void {
+    this.asMarkdown.delete(file.path);
+    const target = leaf ?? this.app.workspace.getLeaf(false);
+    void target.setViewState({ type: VIEW_TYPE, state: { file: file.path } });
   }
 
   /**

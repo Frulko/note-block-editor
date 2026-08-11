@@ -40,6 +40,30 @@ Carnet is opt-in per note, from the command palette.
 Saving is Obsidian's own debounced writer, so external changes, conflicts and
 shutdown behave exactly as they do everywhere else in the app.
 
+## Modèles
+
+A folder can say what a new note in it may start from. Right-click it in the
+file explorer — **Modèles de Carnet…** — and switch on the ones it offers;
+subfolders inherit, nearest first, and the vault root is a folder like any
+other, so "offered everywhere" needs no separate setting.
+
+A template is a note. It lives in the template folder (« Modèles » by default,
+in the settings tab), it is written in Carnet like anything else, and the file
+explorer renames and deletes it. **Nouveau modèle** in that dialog creates one
+and opens it; there is no template designer, because designing a template is
+writing a note and this plugin already is the editor for that.
+
+The offer appears in the note, not before it: a note that was just created and
+is still empty shows **Commencer avec un modèle** under its title, beside
+**Page vide**. Its caret stays in the title throughout, so naming the note and
+picking a template are the same uninterrupted moment. Nothing is written to a
+file behind your back, and a note you start typing into has answered the
+question.
+
+The template's own `title` and comment threads are left behind — the new note
+has a name of its own, and a discussion belongs to the blocks it was left on.
+Every other property is copied.
+
 ## Known limits
 
 - **Block ids are per session.** Markdown has nowhere to keep them and this
