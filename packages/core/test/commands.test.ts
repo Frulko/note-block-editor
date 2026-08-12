@@ -9,6 +9,8 @@ import {
   indent,
   matchAutoformat,
   matchInlineFormat,
+  matchTextReplacement,
+  applyTextReplacement,
   mergeBackward,
   mergeForward,
   outdent,
@@ -240,6 +242,26 @@ describe('autoformat', () => {
     expect(a.type).toBe('bulleted_list_item');
     expect(plainText(a.text)).toBe('');
     expect(editor.selection).toEqual(textCaret('a', 0));
+  });
+});
+
+describe('typographic replacement', () => {
+  it('matches the longest pair ending at the caret', () => {
+    expect(matchTextReplacement('on continue ->')?.text).toBe('→');
+    expect(matchTextReplacement('a -->')?.text).toBe('⟶'); // not '-' + '→'
+    expect(matchTextReplacement('x != y')).toBeNull(); // the pair must end at the caret
+  });
+
+  it('applies: swaps the pair, keeps its marks, undo restores the literal', () => {
+    const editor = new Editor();
+    seed(editor, 'a', 'go ->');
+    editor.dispatch((tx) => tx.op({ type: 'format_text', id: 'a', from: 0, to: 5, mark: { type: 'bold' }, add: true }), { addToHistory: false });
+    editor.setSelection(textCaret('a', 5));
+    applyTextReplacement(editor, 'a', matchTextReplacement('go ->')!);
+    expect(getBlock(editor.doc, 'a').text).toEqual([{ text: 'go →', marks: [{ type: 'bold' }] }]);
+    expect(editor.selection).toEqual(textCaret('a', 4));
+    editor.undo();
+    expect(plainText(getBlock(editor.doc, 'a').text)).toBe('go ->');
   });
 });
 

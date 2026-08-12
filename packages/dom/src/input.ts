@@ -11,6 +11,8 @@ import {
   marksAt,
   matchAutoformat,
   matchInlineFormat,
+  applyTextReplacement,
+  matchTextReplacement,
   mergeBackward,
   mergeForward,
   deleteTextSelection,
@@ -114,6 +116,14 @@ function autoformatAt(view: EditorView, id: BlockId, caret: number): void {
     }
   }
   if (editor.schema.get(after.type).literal) return; // the block holds literal text
+  // an arrow typed inside `code` is an arrow someone meant literally
+  if (!marksAt(after.text, caret)?.some((m) => m.type === 'code')) {
+    const swap = matchTextReplacement(before);
+    if (swap) {
+      applyTextReplacement(editor, id, swap);
+      return;
+    }
+  }
   const inline = matchInlineFormat(before);
   if (inline) {
     applyInlineFormat(editor, id, inline);
@@ -371,6 +381,8 @@ export function attachInput(view: EditorView): () => void {
       const current = String(getBlock(editor.doc, id).props['icon'] ?? '');
       openIconPicker(() => calloutIcon.getBoundingClientRect(), {
         current,
+        emojis: view.options.emojis,
+        labels: view.labels,
         storeImage: view.options.onStoreAsset,
         onPick: (icon) =>
           editor.dispatch((tx) => tx.op({ type: 'update_block', id, patch: { props: { icon } } }), { origin: 'ui' }),

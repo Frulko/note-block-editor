@@ -2,7 +2,7 @@ import type { Block, BlockId, BlockSelection, Run, Selection } from './types';
 import { prevGrapheme, snapGrapheme } from './grapheme';
 import { isCollapsed, textCaret } from './types';
 import { ancestors, childIndex, getBlock, previousInlineBlock, visibleBlocks, type Doc } from './doc';
-import { plainText, sliceRuns, textLength } from './richtext';
+import { marksAt, plainText, sliceRuns, textLength } from './richtext';
 import { hasMark } from './richtext';
 import { uuidv7 } from './id';
 import type { Editor, Tx } from './editor';
@@ -969,6 +969,70 @@ export function applyInlineFormat(editor: Editor, id: BlockId, m: InlineFormatMa
       tx.op({ type: 'format_text', id, from: m.from, to: end, mark: m.mark, add: true });
     },
     { origin: 'input', selection: textCaret(id, end) },
+  );
+}
+
+// --- typographic replacement: `->` becomes `→` as the last character lands ---
+
+/**
+ * The pairs, longest first — `endsWith` takes the first hit, so `-->` has to be
+ * tried before `->` or the arrow eats the second dash.
+ *
+ * @remarks
+ * Notion's set, minus the ones no keystroke can reach: `<-` fires the moment
+ * the `-` lands, so `<->` and `<=>` would never be typed in full, and `--`
+ * would swallow the first half of `-->`. An em dash is `⌥⇧-` on every platform
+ * and this table is not the place to fight the keyboard for it.
+ *
+ * @category Editing
+ */
+export const TEXT_REPLACEMENTS: readonly (readonly [string, string])[] = [
+  ['-->', '⟶'],
+  ['(tm)', '™'],
+  ['->', '→'],
+  ['<-', '←'],
+  ['=>', '⇒'],
+  ['!=', '≠'],
+  ['>=', '≥'],
+  ['<=', '≤'],
+  ['+-', '±'],
+  ['...', '…'],
+  ['(c)', '©'],
+  ['(r)', '®'],
+];
+
+export interface TextReplacementMatch {
+  /** Offset where the typed sequence starts. */
+  from: number;
+  /** The caret, just past it. */
+  to: number;
+  /** What replaces it. */
+  text: string;
+}
+
+/** The replacement ending exactly at the caret, or null. */
+export function matchTextReplacement(textBeforeCaret: string): TextReplacementMatch | null {
+  for (const [seq, char] of TEXT_REPLACEMENTS) {
+    if (textBeforeCaret.endsWith(seq)) {
+      return { from: textBeforeCaret.length - seq.length, to: textBeforeCaret.length, text: char };
+    }
+  }
+  return null;
+}
+
+/**
+ * Swap the sequence for its character, keeping the marks it was typed under so
+ * an arrow inside a bold run stays bold. One dispatch, so one `⌘Z` puts the
+ * literal text back.
+ */
+export function applyTextReplacement(editor: Editor, id: BlockId, m: TextReplacementMatch): void {
+  const marks = marksAt(getBlock(editor.doc, id).text, m.to);
+  editor.dispatch(
+    (tx) => {
+      tx.op({ type: 'delete_text', id, from: m.from, to: m.to });
+      tx.op({ type: 'insert_text', id, offset: m.from, runs: [{ text: m.text, marks }] });
+    },
+    { origin: 'input', selection: textCaret(id, m.from + m.text.length) },
   );
 }
 
