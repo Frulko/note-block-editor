@@ -15,6 +15,7 @@ import { CODE_THEMES } from '@nbe/blocks-code';
 import { mermaidFeature } from '@nbe/blocks-mermaid/dom';
 import { floatingTocFeature } from '@nbe/blocks-toc/dom';
 import { BLOCKS } from './document';
+import { emojisFor } from './emoji';
 import { TemplateManager } from './templates';
 import type CarnetPlugin from './main';
 
@@ -64,6 +65,14 @@ export interface CarnetSettings {
   locale: string;
   /** Comments, kept in the note itself as Obsidian comment syntax. */
   comments: boolean;
+  /**
+   * How tall a note's cover image is drawn. Any CSS length; empty = 300px.
+   *
+   * A setting rather than a constant because a cover is a band of page taken
+   * away from the prose, and how much of it one is willing to give is a taste
+   * — a 200px strip and a 400px photograph are different documents.
+   */
+  coverHeight: string;
   /** The folder whose notes serve as templates. Empty turns the feature off. */
   templateFolder: string;
   /**
@@ -97,6 +106,7 @@ export const DEFAULT_SETTINGS: CarnetSettings = {
   // own default is English and every other language is one setting away
   locale: 'fr',
   comments: true,
+  coverHeight: '300px',
   templateFolder: 'Modèles',
   templates: {},
   theme: '',
@@ -151,6 +161,13 @@ export function viewOptions(s: CarnetSettings): EditorViewOptions {
     readOnly: s.readOnly,
     // the table is a plugin: without it a note's `| a | b |` stays a paragraph
     blocks: BLOCKS,
+    /*
+     * Every emoji, in the vault's own language, not the editor's curated two
+     * dozen in English. « L'éditeur ne connaît que quarante émojis » is the
+     * kind of limit that reads as a bug — a library keeps the short list, an
+     * application picks. See `./emoji` for what it weighs.
+     */
+    emojis: emojisFor(s.locale),
   };
   // readOnly's default is "no features at all"; only pick features when editing
   /*
@@ -210,6 +227,18 @@ export class CarnetSettingTab extends PluginSettingTab {
       .addToggle((t) =>
         t.setValue(s.comments).onChange((v) => {
           s.comments = v;
+          save();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName('Hauteur de la couverture')
+      .setDesc(
+        'La hauteur de l’image de couverture d’une note. Toute valeur CSS ; vide = 300px. La couverture et l’icône se choisissent depuis l’en-tête de la note et sont écrites dans son frontmatter (cover: et icon:) — l’icône apparaît aussi devant la note dans l’explorateur.',
+      )
+      .addText((t) =>
+        t.setPlaceholder('300px').setValue(s.coverHeight).onChange((v) => {
+          s.coverHeight = v;
           save();
         }),
       );

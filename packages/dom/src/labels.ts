@@ -285,6 +285,26 @@ export interface EditorLabels {
   /** Block-menu entry on a paragraph whose whole text is one link. */
   convertToEmbed: string;
 
+  // --- the icon picker ---
+  /** Tab holding the emoji grid. */
+  iconEmojiTab: string;
+  /** Tab holding the upload / URL field. */
+  iconImageTab: string;
+  /** Placeholder of the emoji search field. */
+  iconSearch: string;
+  /** Shown when a query matches nothing, even loosely. */
+  iconNoResult: string;
+  /** Takes the icon off whatever carries one. */
+  iconRemove: string;
+  /** Button of the upload zone under the image tab. */
+  iconChooseImage: string;
+  /** Placeholder of the URL field beside it. */
+  iconPasteUrl: string;
+  /** Under the image tab, when the host stores what is uploaded. */
+  iconImageStored: string;
+  /** Under the image tab, when it has nowhere to store it but the document. */
+  iconImageInline: string;
+
   // --- database chrome ---
   /** Shown when a database block points at a collection the host cannot find. */
   dbUnavailable: string;

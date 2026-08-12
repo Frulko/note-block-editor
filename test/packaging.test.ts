@@ -201,6 +201,26 @@ describe('source layering', () => {
     expect(labels).toMatch(/export const defaultLabels: EditorLabels = en;/);
   });
 
+  /**
+   * The emoji catalogues are a host's choice, never the editor's.
+   *
+   * @remarks
+   * The same rule as the language packs above, for a hundred times the weight:
+   * `@nbe/emoji` is five generated modules of ~110 kB, one per language, and
+   * the editor ships a curated two dozen instead. One `import` from `src/`
+   * would put a catalogue in every bundle that holds the editor — and it is
+   * exactly the import that looks harmless, because it makes the picker better
+   * for free. It does not: `emojis` is an option, and the host names it.
+   */
+  it('the emoji catalogues stay a host\'s choice — the editor imports none', () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles('dom')) {
+      const source = stripComments(readFileSync(file, 'utf8'));
+      if (/from\s*['"]@nbe\/emoji/.test(source)) offenders.push(file.split(`${sep}src${sep}`)[1]!);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it('core touches no DOM globals (server/CLI/native portability)', () => {
     // comments stripped for the same reason as the import check: prose ends a
     // sentence with "the document." and that is not a DOM global

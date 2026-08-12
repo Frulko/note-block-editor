@@ -60,6 +60,8 @@ export const callout: DomBlockPlugin = {
             ctx.close();
             openIconPicker(() => ctx.anchor.getBoundingClientRect(), {
               current: String(ctx.block.props['icon'] ?? ''),
+              emojis: ctx.view.options.emojis,
+              labels: ctx.view.labels,
               storeImage: ctx.view.options.onStoreAsset,
               // an explicit icon choice drops the preset label but keeps its tint
               onPick: (icon) => ctx.setProps({ icon, variant: undefined }),

@@ -17,6 +17,7 @@
     "@nbe/blocks-toc": "workspace:*",
     "@nbe/core": "workspace:*",
     "@nbe/dom": "workspace:*",
+    "@nbe/emoji": "workspace:*",
     "@nbe/markdown": "workspace:*",
     "mermaid": "^11.16.1"
   },

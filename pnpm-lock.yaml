@@ -17,6 +17,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.4
         version: 19.2.4(@types/react@19.2.18)
+      emojibase-data:
+        specifier: ^17.0.0
+        version: 17.0.0(emojibase@17.0.0)
       happy-dom:
         specifier: ^20.11.1
         version: 20.11.1
@@ -141,6 +144,9 @@ importers:
       '@nbe/dom':
         specifier: workspace:*
         version: link:../../packages/dom
+      '@nbe/emoji':
+        specifier: workspace:*
+        version: link:../../packages/emoji
       '@nbe/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
@@ -507,6 +513,8 @@ importers:
       '@nbe/markdown':
         specifier: workspace:*
         version: link:../markdown
+
+  packages/emoji: {}
 
   packages/markdown:
     dependencies:
@@ -2811,6 +2819,15 @@ packages:
 
   electron-to-chromium@1.5.402:
     resolution: {integrity: sha512-/oOpMaPT6Yg+6/1XQhyIPlzgj7Ye9zf+nNM2Uh6OcE2G2oNptWazFa+qB2Pdqqbsc9KnIDzgAntoYN0dbwOXwA==}
+
+  emojibase-data@17.0.0:
+    resolution: {integrity: sha512-Yvgb5AWoHViHV/gq1qr5ZAarcBip+B27/ZLRsUJkbgAEaLlZ/fof9g882LTpmEpyhBNEC0m2SEmItljHsTygjA==}
+    peerDependencies:
+      emojibase: '*'
+
+  emojibase@17.0.0:
+    resolution: {integrity: sha512-bXdpf4HPY3p41zK5swVKZdC/VynsMZ4LoLxdYDE+GucqkFwzcM1GVc4ODfYAlwoKaf2U2oNNUoOO78N96ovpBA==}
+    engines: {node: '>=18.12.0'}
 
   end-of-stream@1.4.5:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
@@ -6522,6 +6539,12 @@ snapshots:
   dset@3.1.4: {}
 
   electron-to-chromium@1.5.402: {}
+
+  emojibase-data@17.0.0(emojibase@17.0.0):
+    dependencies:
+      emojibase: 17.0.0
+
+  emojibase@17.0.0: {}
 
   end-of-stream@1.4.5:
     dependencies:

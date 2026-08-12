@@ -1,0 +1,44 @@
+{
+  "name": "@nbe/emoji",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./en": {
+      "types": "./src/en.ts",
+      "default": "./src/en.ts"
+    },
+    "./fr": {
+      "types": "./src/fr.ts",
+      "default": "./src/fr.ts"
+    },
+    "./es": {
+      "types": "./src/es.ts",
+      "default": "./src/es.ts"
+    },
+    "./it": {
+      "types": "./src/it.ts",
+      "default": "./src/it.ts"
+    },
+    "./de": {
+      "types": "./src/de.ts",
+      "default": "./src/de.ts"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Frulko/carnet.git",
+    "directory": "packages/emoji"
+  },
+  "homepage": "https://github.com/Frulko/carnet#readme",
+  "bugs": {
+    "url": "https://github.com/Frulko/carnet/issues"
+  },
+  "author": "Guillaume Dumoulin",
+  "description": "Le catalogue d'émojis, un module par langue, généré depuis CLDR."
+}

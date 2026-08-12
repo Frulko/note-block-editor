@@ -10,6 +10,7 @@ import { holdScroll, reveal } from './viewport';
 import type { ActiveGesture, GestureRecognizer } from './gestures';
 import type { GutterItem } from './controls';
 
+import type { EmojiGroup } from './ui/icon-picker';
 import { defaultRecognizers } from './recognizers';
 import { defaultFeatures, type EditorFeature } from './features';
 import { resolveLabels, type EditorLabels } from './labels';
@@ -287,6 +288,21 @@ export interface EditorViewOptions {
   onStoreAsset?: (blob: Blob) => Promise<string>;
   /** Resolve a persisted src (asset:… or URL) to something an <img> can load. */
   resolveAssetUrl?: (src: string) => string | Promise<string>;
+  /**
+   * The emoji the icon picker offers — a callout's, a host's own.
+   *
+   * @remarks
+   * The editor bundles a curated couple of dozen, which is what an editor
+   * should weigh. Every emoji there is — 1914 of them, named in French and in
+   * English by CLDR — is `EMOJI_CATALOG`, two hundred kilobytes that only a
+   * host asking for them carries:
+   *
+   * ```ts
+   * import { EMOJI_CATALOG } from '@nbe/dom'
+   * new EditorView(el, editor, { emojis: EMOJI_CATALOG })
+   * ```
+   */
+  emojis?: readonly EmojiGroup[];
   /**
    * Look up what a URL is called, for the link card's rename field.
    *

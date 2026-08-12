@@ -22,4 +22,5 @@ export type { ActionButtonOptions } from './action-button';
 export { icon, ICON_NAMES } from './icons';
 export type { IconName, IconOptions } from './icons';
 export { openIconPicker } from './icon-picker';
-export type { IconPickerOptions, IconPickerController } from './icon-picker';
+export type { IconPickerOptions, IconPickerController, EmojiEntry, EmojiGroup } from './icon-picker';
+

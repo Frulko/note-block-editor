@@ -3,6 +3,7 @@
   "entryPoints": [
     "packages/core/src/index.ts",
     "packages/dom/src/index.ts",
+    "packages/emoji/src/index.ts",
     "packages/markdown/src/index.ts",
     "packages/static-renderer/src/index.ts",
     "packages/workspace/src/index.ts",

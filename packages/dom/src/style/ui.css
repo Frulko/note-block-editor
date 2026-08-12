@@ -104,13 +104,25 @@
   grid-template-columns: repeat(8, 1fr);
   gap: 2px;
 }
+/* A square cell with the glyph centred in it, rather than a box the text
+   height happens to make. An emoji is a font glyph and its metrics are its
+   own: 🎴 and 🀄 are taller than 😀, a ZWJ sequence taller again, so a cell
+   sized by its content gave rows of different heights, glyphs sitting low in
+   their own hover rectangle, and a grid that looked ragged the moment the
+   catalogue held more than smileys. `aspect-ratio` on a `1fr` column is the
+   whole fix: every cell is the same square whatever is in it. */
 .nbe-iconpicker-emoji {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  font-size: 19px;
   line-height: 1;
   border: none;
   background: transparent;
   border-radius: 4px;
-  padding: 4px 0;
+  padding: 0;
+  overflow: hidden;
   cursor: pointer;
   transition: background var(--nbe-fast) var(--nbe-ease);
 }
