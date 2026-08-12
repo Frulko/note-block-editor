@@ -124,7 +124,9 @@ describe('the interface draws its icons', () => {
    * @remarks
    * It offers them to the *user*, for their own page and callout icons. That is
    * content, not chrome, and removing it would take a feature away rather than
-   * improve a design.
+   * improve a design. The generated catalogues live in `@nbe/emoji`, which
+   * this rule does not scan and does not need to: they are data, and they are
+   * not in this package.
    */
   const CONTENT_NOT_CHROME = /ui[/\\]icon-picker\.ts$/;
 
@@ -295,6 +297,44 @@ describe('the typeface choice reaches the stylesheet', () => {
     // something, and `--nbe-font-mono` is what it reads
     const rules = tokens.slice(tokens.indexOf('[data-nbe-typeface='));
     expect(rules).not.toMatch(/--nbe-font-mono\s*:/);
+  });
+});
+
+/**
+ * The title and the first line of the note start at the same x.
+ *
+ * @remarks
+ * The header and the template row are the editor's *siblings* in the Obsidian
+ * view, so they cannot inherit `--nbe-pad-x` from it: they restate its
+ * horizontal formula by hand. A copy is a thing that drifts, and this one has
+ * already drifted once — a title indented past its own text.
+ *
+ * So the numbers are checked rather than remembered. Change a breakpoint in
+ * reset.css and this fails until the plugin sheet follows.
+ */
+describe('the Obsidian header follows the editor page geometry', () => {
+  const reset = readFileSync(join(STYLE_DIR, 'reset.css'), 'utf8');
+  const pluginCss = readFileSync(join(__dirname, '..', 'apps', 'obsidian', 'src', 'styles.css'), 'utf8');
+
+  /** The value a media block gives a custom property, if it sets one. */
+  const inQuery = (css: string, query: string, prop: string): string | undefined =>
+    new RegExp(`@media ${query}[\\s\\S]{0,400}?${prop}:\\s*([^;]+);`).exec(css)?.[1]?.trim();
+
+  it('reserves no gutter column where nothing can hover', () => {
+    // the whole of the margin reclaimed on a phone: 58px × 2 of paper held for
+    // a button a finger cannot summon
+    expect(inQuery(reset, '\\(pointer: coarse\\)', '--nbe-gutter-width')).toBe('0px');
+  });
+
+  it('states the same left edge for the header as for the body', () => {
+    const base = /--nbe-pad-x:\s*([^;]+);/.exec(reset)![1]!.trim();
+    const narrow = inQuery(reset, '\\(max-width: 600px\\)', '--nbe-pad-x');
+    const touch = inQuery(pluginCss, '\\(pointer: coarse\\)', 'padding-inline');
+    const touchNarrow = inQuery(pluginCss, '\\(pointer: coarse\\) and \\(max-width: 600px\\)', 'padding-inline');
+    expect(touch, 'the plugin sheet should restate the touch formula').toContain(base);
+    expect(touchNarrow).toBe(narrow);
+    // and it must not keep the gutter term the editor just dropped
+    expect(touch).not.toMatch(/58px/);
   });
 });
 

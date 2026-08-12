@@ -53,4 +53,7 @@ export class Notice {
 
 export const normalizePath = (path: string): string => path;
 
+/** Called straight through: a test that needs a timer is testing the timer. */
+export const debounce = <T>(fn: T): T => fn;
+
 export type App = unknown;

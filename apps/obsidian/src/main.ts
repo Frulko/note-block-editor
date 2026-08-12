@@ -1,6 +1,7 @@
 import { Plugin, TFile, TFolder, WorkspaceLeaf, type ViewState } from 'obsidian';
 import { mermaidStyles } from '@nbe/blocks-mermaid';
 import { HOST_COMMANDS } from './commands';
+import { paintExplorerIcons } from './icons';
 import { CarnetSettingTab, DEFAULT_SETTINGS, type CarnetSettings } from './settings';
 import { TemplateManager } from './templates';
 import { CarnetView, VIEW_TYPE } from './view';
@@ -75,6 +76,8 @@ export default class CarnetPlugin extends Plugin {
     // view keeps it live while typing — see `CarnetView.recount`
     this.syncTheme();
     this.registerEvent(this.app.workspace.on('css-change', () => this.syncTheme()));
+    // the note's `icon:`, drawn beside its name in the file explorer
+    paintExplorerIcons(this);
 
     /*
      * « Éditeur par défaut » : Obsidian refuses a second view for `.md`, so

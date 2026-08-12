@@ -30,12 +30,14 @@ import {
   insertBlocksAt,
   openExport,
   openFind,
+  openIconPicker,
   refreshCommentMarkers,
   reveal,
 } from '@nbe/dom';
 import { Frontmatter, documentToMarkdown, readFrontmatter, slugify } from '@nbe/markdown';
 import { createNoteComments, readComments, restoreAnchors, writeComments } from './comments';
 import { MARKDOWN_PLUGINS, pageOf } from './document';
+import { decodePath, iconEl, iconSrc } from './icons';
 import { titleFromHtml } from './link-title';
 import { viewOptions } from './settings';
 import { renderTemplateChoice } from './templates';
@@ -633,12 +635,28 @@ export class CarnetView extends TextFileView {
    */
   private titleFile: TFile | null = null;
 
-  /** The inline title: the filename, edited in place like Obsidian's own. */
-  private buildTitle(host: HTMLElement): void {
-    const title = host.createDiv({ cls: 'carnet-title' });
+  /**
+   * The note's header: its cover, its icon and its title.
+   *
+   * @remarks
+   * Built once per file and then *patched*: the cover, the icon and the « add »
+   * row each own a slot that {@link renderHeader} rewrites, and the title
+   * element is never one of them. Picking an icon must not replace the element
+   * the caret is sitting in — a rename half typed would go with it.
+   */
+  private buildHeader(host: HTMLElement): void {
+    const header = host.createDiv({ cls: 'carnet-header' });
+    const cover = header.createDiv({ cls: 'carnet-coverslot' });
+    const headline = header.createDiv({ cls: 'carnet-headline' });
+    const actions = headline.createDiv({ cls: 'carnet-headeractions' });
+    const row = headline.createDiv({ cls: 'carnet-titlerow' });
+    const icon = row.createDiv({ cls: 'carnet-iconslot' });
+    const title = row.createDiv({ cls: 'carnet-title' });
+    this.headerSlots = { cover, icon, actions };
     this.inlineTitleEl = title;
     this.titleFile = this.file;
     title.textContent = this.displayTitle();
+    this.renderHeader();
     try {
       title.contentEditable = 'plaintext-only';
     } catch {
@@ -655,6 +673,130 @@ export class CarnetView extends TextFileView {
       }
     });
     title.addEventListener('blur', () => void this.commitTitle());
+  }
+
+  /** The parts of the header a picker rewrites, kept apart from the title. */
+  private headerSlots: { cover: HTMLElement; icon: HTMLElement; actions: HTMLElement } | null = null;
+
+  /**
+   * What the header carries for `icon` or `cover`.
+   *
+   * @remarks
+   * A plain string: an emoji, a vault path, a URL. The wikilink spelling is
+   * accepted on the way in because a header is a place people type in — and
+   * `cover: "[[photo.png]]"` is how the rest of the vault writes a picture —
+   * but it is not what we write, see {@link setHeaderValue}.
+   */
+  private headerValue(key: 'icon' | 'cover'): string {
+    const raw = this.frontmatter.get(key);
+    const text = typeof raw === 'string' ? raw.trim() : '';
+    return text.replace(/^!?\[\[(.*)\]\]$/, '$1').trim();
+  }
+
+  /**
+   * Set the icon or the cover, and show it now.
+   *
+   * @remarks
+   * A plain path rather than `[[…]]`: it is what the picker hands us, what
+   * `getFirstLinkpathDest` resolves, and what stays readable in a header.
+   *
+   * ponytail: a plain path is not a link, so moving the picture in the file
+   * explorer will not update it — Obsidian only rewrites what it recognises as
+   * a link. Write the wikilink form here if that ever costs someone a cover.
+   */
+  private setHeaderValue(key: 'icon' | 'cover', value: string | undefined): void {
+    this.frontmatter.set(key, value);
+    this.requestSave();
+    this.renderHeader();
+  }
+
+  /** Paint the cover, the icon and whichever of the two is still missing. */
+  private renderHeader(): void {
+    const slots = this.headerSlots;
+    if (!slots) return;
+    const path = this.file?.path ?? '';
+    const icon = this.headerValue('icon');
+    const cover = this.headerValue('cover');
+
+    slots.icon.empty();
+    if (icon) {
+      const button = slots.icon.createEl('button', {
+        cls: 'carnet-icon',
+        attr: { type: 'button', 'aria-label': 'Changer l’icône' },
+      });
+      button.append(iconEl(this.app, icon, 'carnet-iconimg', path));
+      button.addEventListener('click', () => this.pickIcon(button));
+    }
+
+    slots.cover.empty();
+    if (cover) {
+      const box = slots.cover.createDiv({ cls: 'carnet-cover' });
+      // the vault's setting, in CSS units, because a cover is a band of page
+      // and 300px is only the height that band happens to start at
+      box.style.height = this.plugin.settings.coverHeight.trim() || '300px';
+      box.createEl('img', { attr: { src: iconSrc(this.app, cover, path), alt: '' } });
+      const bar = box.createDiv({ cls: 'carnet-coveractions' });
+      const change = bar.createEl('button', {
+        cls: 'carnet-headeraction',
+        text: 'Changer la couverture',
+        attr: { type: 'button' },
+      });
+      change.addEventListener('click', () => this.pickCover(change));
+      const drop = bar.createEl('button', {
+        cls: 'carnet-headeraction',
+        text: 'Retirer',
+        attr: { type: 'button' },
+      });
+      drop.addEventListener('click', () => this.setHeaderValue('cover', undefined));
+    }
+
+    /*
+     * Add what is missing, remove what is there — and never « Ajouter une
+     * icône » beside an icon, which is a button for something that already
+     * happened. Changing is the icon itself, and the cover's own bar.
+     */
+    slots.actions.empty();
+    const action = (label: string, run: (anchor: HTMLElement) => void) => {
+      const button = slots.actions.createEl('button', {
+        cls: 'carnet-headeraction',
+        text: label,
+        attr: { type: 'button' },
+      });
+      button.addEventListener('click', () => run(button));
+    };
+    if (icon) action('Retirer l’icône', () => this.setHeaderValue('icon', undefined));
+    else action('Ajouter une icône', (a) => this.pickIcon(a));
+    if (!cover) action('Ajouter une couverture', (a) => this.pickCover(a));
+  }
+
+  /** Emoji or image, the same picker the callout block uses. */
+  private pickIcon(anchor: HTMLElement): void {
+    const current = this.headerValue('icon');
+    openIconPicker(() => anchor.getBoundingClientRect(), {
+      // this picker is opened by the host, not by the editor, so nothing hands
+      // it the catalogue or the dictionary — they are taken from the editor
+      // beside it, which is where the vault's language already landed
+      emojis: this.view?.options.emojis,
+      labels: this.view?.labels,
+      onPick: (icon) => this.setHeaderValue('icon', icon),
+      // decoded on the way in: the header is read by people, and
+      // `Pi%C3%A8ces%20jointes/x.png` is a path nobody typed
+      storeImage: (file) => this.storeAttachment(file).then(decodePath),
+      ...(current ? { current, onRemove: () => this.setHeaderValue('icon', undefined) } : {}),
+    });
+  }
+
+  /** The same picker, without the emoji half: a cover is a picture. */
+  private pickCover(anchor: HTMLElement): void {
+    const current = this.headerValue('cover');
+    openIconPicker(() => anchor.getBoundingClientRect(), {
+      imageOnly: true,
+      removeLabel: 'Retirer la couverture',
+      labels: this.view?.labels,
+      onPick: (src) => this.setHeaderValue('cover', src),
+      storeImage: (file) => this.storeAttachment(file).then(decodePath),
+      ...(current ? { current, onRemove: () => this.setHeaderValue('cover', undefined) } : {}),
+    });
   }
 
   /**
@@ -783,7 +925,6 @@ export class CarnetView extends TextFileView {
     this.mount.empty();
     // emptied with the mount, so the field must not outlive the element
     this.templateRow = null;
-    this.buildTitle(this.mount);
 
     const opts = viewOptions(this.plugin.settings);
     // the title supplies the top spacing; keep the editor close under it
@@ -797,6 +938,13 @@ export class CarnetView extends TextFileView {
      */
     const file = readFrontmatter(markdown);
     this.frontmatter = file.frontmatter;
+    /*
+     * The header is built *after* it, not before: the title, the icon and the
+     * cover all come out of those keys, and building first meant drawing the
+     * previous note's — a `title:` from the note you just left, on the note you
+     * just opened, until something else redrew it.
+     */
+    this.buildHeader(this.mount);
     // the threads come out of the note before it is parsed as blocks; the
     // anchors stay in the text, where `applyAnchors` turns them into marks
     const note = this.plugin.settings.comments

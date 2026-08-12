@@ -21,6 +21,15 @@
    default is `min-height: auto`, which refuses to shrink below the content —
    an `overflow: auto` box that is never smaller than what is in it has nothing
    to scroll, which is exactly "le scroll est cassé".
+
+   And `height: 100%` was then left in beside it, which is the leftover this
+   paragraph had already argued against: `flex: 1 1 auto` with `min-height: 0`
+   *is* "fill the column", stated in the layout the column actually uses. The
+   percentage is a second, competing answer that measures the whole container
+   rather than the room left in it — so when Obsidian mobile puts its keyboard
+   toolbar in the same column, the host claims the full height, is clipped by
+   the `overflow: hidden` above, and what it is showing goes with it. Suspect
+   in « clavier ouvert, tout disparaît », and redundant either way.
    ========================================================================== */
 .workspace-leaf-content[data-type='carnet-editor'] .view-content {
   display: flex;
@@ -31,7 +40,6 @@
 .carnet-host {
   flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
   overflow-y: auto;
   /* a phone must not hand the overscroll to the pane behind it */
   overscroll-behavior: contain;
@@ -57,35 +65,183 @@
   --no-tooltip: true;
 }
 
-/* The inline title: the filename, edited in place like Obsidian's own.
+/* ==========================================================================
+   The note's header: cover, icon, title.
+
    The horizontal formula copies .nbe-editor's, through the same custom
-   properties — so a narrow pane, a phone or a vault setting moves the title
+   properties — so a narrow pane, a phone or a vault setting moves the header
    and the body together instead of leaving the title indented past the text.
+   The cover is the one thing outside it: a band of page is a band of the whole
+   page, and inset it would read as a picture block rather than as a cover.
+
    ponytail: a custom maxWidth/padX vault setting still only reaches the body,
    because the editor sets those on its own element — wire them through here if
-   that bites. */
-.carnet-title {
+   that bites.
+   ========================================================================== */
+.carnet-headline {
   padding: 40px max(24px, 58px, calc((100% - 708px) / 2)) 0;
   background: var(--background-primary);
+}
+/* a cover already gives the eye somewhere to land: the 40px above the title is
+   there to open the page, and after a photograph it only pushes it down */
+.carnet-coverslot:not(:empty) + .carnet-headline {
+  padding-top: 16px;
+}
+
+.carnet-cover {
+  position: relative;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+.carnet-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* the band is a crop of the picture, never a squash of it */
+  object-fit: cover;
+  object-position: center;
+}
+
+.carnet-titlerow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* a gap applies between an empty box and its neighbour just the same, and that
+   is what pushed the title 12px past the text under it whenever a note had no
+   icon — the alignment the padding above went to the trouble of computing */
+.carnet-iconslot:empty {
+  display: none;
+}
+.carnet-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-text);
-  font-size: var(--inline-title-size, 1.875em);
+  /* 40px, above the editor's own 30px « Titre 1 » (.nbe-h1, 1.875em of a 16px
+     editor) — the note's name is the document's heading and everything in the
+     body is a level under it. Not `--inline-title-size`: that is the vault
+     theme's number for *its* editor, and here it landed under the first
+     heading of the note, which read as a mistake because it was one. */
+  font-size: 40px;
   font-weight: var(--inline-title-weight, 700);
-  line-height: 1.3;
+  /* a display size set at body tracking looks loose; -0.02em is the usual
+     optical correction, and it is what Notion and Obsidian both apply */
+  letter-spacing: -0.02em;
+  line-height: 1.25;
   color: var(--text-normal);
   outline: none;
   word-break: break-word;
   cursor: text;
   user-select: text;
 }
+/* an untitled note says so, rather than showing a blank line the reader has to
+   guess is clickable */
+.carnet-title:empty::before {
+  content: 'Sans titre';
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.carnet-icon {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-s, 4px);
+  background: none;
+  box-shadow: none;
+  font-size: 40px;
+  line-height: 1;
+  cursor: pointer;
+}
+.carnet-icon:hover {
+  background: var(--background-modifier-hover);
+}
+.carnet-icon img.carnet-iconimg {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-s, 4px);
+}
+
+/* « Ajouter une icône », « Ajouter une couverture » — Notion's affordance, and
+   its manners: the row keeps its height at rest so nothing jumps, and only the
+   ink appears on hover. `focus-within` is not a nicety either — a row that only
+   exists under a pointer is a row a keyboard cannot reach. */
+.carnet-headeractions {
+  display: flex;
+  gap: 4px;
+  height: 24px;
+  margin-bottom: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.carnet-header:hover .carnet-headeractions,
+.carnet-headeractions:focus-within {
+  opacity: 1;
+}
+.carnet-headeraction {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-s, 4px);
+  background: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.carnet-headeraction:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+/* the cover carries its own, over the picture rather than above it */
+.carnet-coveractions {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  border-radius: var(--radius-s, 4px);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.carnet-cover:hover .carnet-coveractions,
+.carnet-coveractions:focus-within {
+  opacity: 1;
+}
+.carnet-coveractions .carnet-headeraction {
+  color: var(--text-muted);
+}
+
 /* The same numbers the editor uses at this width (reset.css). Restated rather
    than read from `--nbe-pad-x`, because the editor declares those on its own
    element and the title is its sibling — an inherited value would lose to the
    declaration. Two numbers, and a title indented past its own text is the
    thing this prevents. */
 @media (max-width: 600px) {
-  .carnet-title {
+  .carnet-headline {
     padding: 20px 32px 0;
   }
+}
+
+/* The same icon, in the file explorer — see src/icons.ts. `1em` so it follows
+   whatever size the vault's theme sets its file names in. */
+.carnet-nav-icon {
+  flex: 0 0 auto;
+  margin-right: 5px;
+  font-size: 1em;
+  line-height: 1;
+}
+img.carnet-nav-icon {
+  width: 1em;
+  height: 1em;
+  object-fit: cover;
+  border-radius: 3px;
+  vertical-align: -0.15em;
 }
 
 /* « Commencer avec un modèle » — the row under the title of a note that was
@@ -396,4 +552,40 @@ body[data-nbe-theme]:not([data-carnet-palette="carnet"]) .nbe-portal {
   color: var(--nbe-text);
   padding: 3px 10px;
   cursor: pointer;
+}
+
+/* ==========================================================================
+   Obsidian mobile.
+
+   Two things the vault's own sheets do not do for us.
+
+   The header and the template row restate the editor's horizontal formula by
+   hand — they are the editor's *siblings*, so they cannot inherit
+   `--nbe-pad-x` from it — and that copy has to follow reset.css when it moves.
+   It just did: on a touch screen the editor stops reserving the 58px gutter
+   column, because nothing hovers there. Restating it here as `padding-inline`
+   only, after the rules above, so the vertical padding each of them chose
+   stays theirs. `test/design.test.ts` fails if the two drift apart again.
+
+   And the fields: Obsidian's own `input` rules are (0,2,0) above the editor's,
+   so the 16px minimum that stops iOS zooming the page on focus has to be
+   restated at that weight or app.css's 13px wins and the note comes back
+   scaled up.
+   ========================================================================== */
+@media (pointer: coarse) {
+  .carnet-headline,
+  .carnet-templates {
+    padding-inline: max(24px, calc((100% - 708px) / 2));
+  }
+
+  :is(.carnet-host, .nbe-portal) :is(.nbe-input, .nbe-db-input, .nbe-iconpicker-search),
+  .compose-field {
+    font-size: 16px;
+  }
+}
+@media (pointer: coarse) and (max-width: 600px) {
+  .carnet-headline,
+  .carnet-templates {
+    padding-inline: 16px;
+  }
 }
