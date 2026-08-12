@@ -12,6 +12,46 @@ export interface PositionOptions {
   offset?: number;
   /** Minimum distance from viewport edges (px). */
   padding?: number;
+  /**
+   * Present as a bottom sheet when the pointer is a finger.
+   *
+   * @remarks
+   * A menu anchored to a caret is a good shape for a mouse and a bad one for a
+   * phone: it lands under the thumb that is already covering it, it is 240px
+   * wide on a 390px screen, and its rows are 26px tall. The same list as a
+   * sheet — full width, above the keyboard, thumb-sized rows — is the same
+   * control, presented for the hand using it.
+   *
+   * Ignored where the pointer is fine, so nothing changes on a desktop.
+   */
+  sheet?: boolean;
+}
+
+/** True where the pointer is a finger: no hover, coarse targets. */
+export function isTouchPointer(): boolean {
+  return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+}
+
+/**
+ * The part of the page a person can actually see, in client coordinates.
+ *
+ * @remarks
+ * `window.innerHeight` is the *layout* viewport, and a software keyboard does
+ * not resize it: everything placed against it is placed against a bottom edge
+ * that is behind the keyboard. That is the whole of « le menu passe sous le
+ * clavier » — the slash menu opened, was clamped to a screen bottom nobody can
+ * see, and half of it was covered by the thing that had just been used to open
+ * it.
+ *
+ * `visualViewport` is the one that shrinks, and it also carries the offset a
+ * pinch-zoom leaves behind, so the answer stays right when the page is scaled.
+ *
+ * @category Interaction
+ */
+export function visibleViewport(): { top: number; left: number; width: number; height: number } {
+  const vv = window.visualViewport;
+  if (!vv) return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
+  return { top: vv.offsetTop, left: vv.offsetLeft, width: vv.width, height: vv.height };
 }
 
 export interface AnchorRect {
@@ -76,16 +116,42 @@ export function computePosition(
   return { top, left, placement: `${finalSide}-start` as Placement };
 }
 
-/** Apply computePosition to a floating element already attached to <body>. */
+/** Gap kept between a sheet and the edges of what can be seen. */
+const SHEET_PAD = 8;
+
+/**
+ * Apply computePosition to a floating element already attached to <body>.
+ *
+ * @remarks
+ * Everything here happens in the *visible* viewport rather than the layout one
+ * — see {@link visibleViewport} — and the element is placed in page
+ * coordinates, so the scroll offsets go back on at the end.
+ */
 export function positionFloating(el: HTMLElement, anchor: AnchorRect, opts?: PositionOptions): void {
+  const view = visibleViewport();
+  if (opts?.sheet && isTouchPointer()) {
+    el.dataset['placement'] = 'sheet';
+    el.style.left = `${view.left + SHEET_PAD + window.scrollX}px`;
+    el.style.width = `${view.width - SHEET_PAD * 2}px`;
+    // capped here rather than in CSS: `dvh` follows the browser's own bars and
+    // knows nothing about a keyboard, which is the edge that matters
+    el.style.maxHeight = `${Math.round(view.height * 0.45)}px`;
+    // read *after* the width lands: a list that rewraps is a different height
+    el.style.top = `${view.top + view.height - el.offsetHeight - SHEET_PAD + window.scrollY}px`;
+    return;
+  }
+  // the same element may have been a sheet on a previous open (a hybrid laptop
+  // switching pointer, a rotated tablet): hand the geometry back to the sheet
+  el.style.width = '';
+  el.style.maxHeight = '';
   const pos = computePosition(
-    anchor,
+    { top: anchor.top - view.top, bottom: anchor.bottom - view.top, left: anchor.left - view.left, right: anchor.right - view.left },
     { width: el.offsetWidth, height: el.offsetHeight },
-    { width: window.innerWidth, height: window.innerHeight },
+    { width: view.width, height: view.height },
     opts,
   );
-  el.style.top = `${pos.top + window.scrollY}px`;
-  el.style.left = `${pos.left + window.scrollX}px`;
+  el.style.top = `${pos.top + view.top + window.scrollY}px`;
+  el.style.left = `${pos.left + view.left + window.scrollX}px`;
   el.dataset['placement'] = pos.placement;
 }
 
@@ -127,10 +193,18 @@ export function autoUpdate(
 
   window.addEventListener('resize', update);
   document.addEventListener('scroll', update, { capture: true, passive: true });
+  // the keyboard coming up resizes neither the window nor a scroller: it is a
+  // visual-viewport event and nothing else, so a menu placed above it has to
+  // hear this one or it stays where the keyboard now is
+  const vv = window.visualViewport;
+  vv?.addEventListener('resize', update);
+  vv?.addEventListener('scroll', update);
   return () => {
     resizeObserver?.disconnect();
     window.removeEventListener('resize', update);
     document.removeEventListener('scroll', update, { capture: true });
+    vv?.removeEventListener('resize', update);
+    vv?.removeEventListener('scroll', update);
   };
 }
 

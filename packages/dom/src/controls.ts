@@ -1,5 +1,5 @@
 import type { BlockId } from '@nbe/core';
-import { toContainerPoint } from './ui/position';
+import { isTouchPointer, toContainerPoint, visibleViewport } from './ui/position';
 import { shortcut } from './keymap';
 import { resolveDrop, type DropCandidate, type DropTarget } from './drop';
 import { mountPortal } from './ui/portal';
@@ -222,6 +222,40 @@ export function attachControls(view: EditorView): () => void {
    * of the editor whenever the host was narrower than the gutter is wide, and
    * it followed only the window's scroll — not the editor's own.
    */
+  /**
+   * On a phone the gutter is a bar above the keyboard, not a margin.
+   *
+   * @remarks
+   * The margin it used to live in was 58px of paper reserved for a button that
+   * only appears while a pointer hovers a block, and a finger never hovers. So
+   * the column went (reset.css), and the gutter was left clamping to the
+   * editor's edge — drawn *on top of the first words of the line being
+   * edited*, which is « ça se superpose au texte et donc inutilisable ».
+   *
+   * A margin is not the only place a block's actions can live. Here they are a
+   * bar pinned to the bottom of what can actually be seen — above the keyboard,
+   * over the note's own tail rather than over its text — and they act on the
+   * block holding the caret, which is the block a phone user means. Same
+   * buttons, same menu, same drag: only the placement rule changes.
+   *
+   * ponytail: the right-hand gutter (the comment button) is dropped on touch
+   * rather than folded into the bar, because it would be the third button in a
+   * row that has to stay glanceable. A commented block still shows its marker,
+   * and the panel still opens from it.
+   */
+  const asBar = (): boolean => isTouchPointer();
+
+  const placeBar = (): void => {
+    const view0 = visibleViewport();
+    controls.classList.add('nbe-controls-bar');
+    gutterBox ??= { width: controls.offsetWidth, height: controls.offsetHeight };
+    // fixed positioning: client coordinates, and the bottom edge is the one the
+    // keyboard leaves, never `window.innerHeight`
+    controls.style.left = `${view0.left + 8}px`;
+    controls.style.top = `${view0.top + view0.height - gutterBox.height - 8}px`;
+    rightControls.classList.add(OFF);
+  };
+
   const showControlsFor = (blockEl: HTMLElement) => {
     hoveredId = blockEl.dataset['blockId']!;
     /*
@@ -240,6 +274,9 @@ export function attachControls(view: EditorView): () => void {
      */
     if (controls.parentElement !== view.content) view.content.append(controls);
     controls.classList.remove(OFF);
+    // the bar does not follow the block, so it costs no measurement — which
+    // matters here: on touch this runs on every caret move, keystrokes included
+    if (asBar()) return placeBar();
     // one read each, and one for the container: every one of them flushes
     // style and layout, and this runs under the pointer and under scroll
     const rect = blockEl.getBoundingClientRect();
@@ -380,6 +417,41 @@ export function attachControls(view: EditorView): () => void {
     scrollFrame = requestAnimationFrame(answerScroll);
   };
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+
+  /*
+   * On touch the bar follows the caret, not the pointer.
+   *
+   * A tap does synthesise one `mousemove`, which is what used to open the
+   * gutter on a phone at all — and it is the wrong signal: it fires before the
+   * caret has moved, never fires again, and says nothing when the block being
+   * edited changes because Enter made a new one. The caret is the block a
+   * finger means, so that is what the bar is asked about.
+   *
+   * Cheap on purpose: `selectionchange` is every keystroke, and the answer is
+   * dropped in one comparison when the block has not changed. The bar's own
+   * position never depends on the block (see `placeBar`).
+   *
+   * It shows and never hides, deliberately. Every selection that is not a text
+   * caret — a block selection, the moment a menu takes the focus, the empty
+   * one WebKit reports mid-tap — would otherwise read as "nothing is being
+   * edited" and take the bar away *while it is being used*: tapping the handle
+   * cleared the target and the block menu opened on nothing, which is what the
+   * first run of this measured.
+   */
+  const onCaretMove = (): void => {
+    if (!asBar()) return;
+    const sel = editor.selection;
+    const id = sel?.kind === 'text' ? sel.head.blockId : null;
+    if (!id || id === hoveredId) return;
+    const el = view.blockEl(id);
+    if (el) showControlsFor(el);
+  };
+  const onViewportChange = (): void => {
+    if (asBar() && hoveredId) placeBar();
+  };
+  document.addEventListener('selectionchange', onCaretMove);
+  window.visualViewport?.addEventListener('resize', onViewportChange);
+  window.visualViewport?.addEventListener('scroll', onViewportChange);
 
   // --- plus button: new paragraph below + slash menu ---
   function insertBelow() {
@@ -803,6 +875,9 @@ export function attachControls(view: EditorView): () => void {
 
   return () => {
     document.removeEventListener('scroll', onScroll, { capture: true });
+    document.removeEventListener('selectionchange', onCaretMove);
+    window.visualViewport?.removeEventListener('resize', onViewportChange);
+    window.visualViewport?.removeEventListener('scroll', onViewportChange);
     cancelAnimationFrame(scrollFrame);
     hover.destroy();
     menu.close();

@@ -55,6 +55,40 @@ export function dismissedBy(trigger: Node): boolean {
   return trigger === lastDismiss.target || trigger.contains(lastDismiss.target);
 }
 
+/**
+ * Swallow the click the browser synthesises after the gesture in progress.
+ *
+ * @remarks
+ * A touch fires `pointerup` and *then*, a moment later, a `click` at the same
+ * point. Anything that acts on `pointerup` and puts something on screen there
+ * gets that click delivered into whatever it just opened: the block menu opens
+ * as a sheet under the thumb that opened it, and the ghost click chooses a row
+ * of it. Measured, not theorised — the tap logged `click` on `.nbe-menu-item`
+ * with the menu already mounted.
+ *
+ * A one-shot capture listener is that intent expressed as state: it fires for
+ * exactly the next click and then removes itself, so no duration is guessed.
+ * Arm it from a `pointerup`/`pointerdown` handler — never from inside a click
+ * handler, where the click it would eat is the *user's next one*.
+ *
+ * @category UI
+ */
+export function suppressNextClick(): void {
+  const swallow = (e: Event) => {
+    e.stopPropagation();
+    e.preventDefault();
+    document.removeEventListener('click', swallow, true);
+  };
+  document.addEventListener('click', swallow, true);
+  // if no click follows (the gesture ended off-window), drop the listener on
+  // the next press rather than leaving it armed for a real click
+  const disarm = () => {
+    document.removeEventListener('click', swallow, true);
+    document.removeEventListener('pointerdown', disarm, true);
+  };
+  document.addEventListener('pointerdown', disarm, true);
+}
+
 /** Everything currently open, deepest last. Exposed for the Escape chain. */
 export function openOverlays(): readonly OverlayEntry[] {
   return stack;

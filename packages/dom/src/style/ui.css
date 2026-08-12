@@ -190,6 +190,50 @@
   }
 }
 
+/* --- the same menu, as a sheet --------------------------------------------
+   `ui/position.ts` gives a menu this placement when the pointer is a finger:
+   full width, above the keyboard, its own width and height written inline. The
+   three declarations that would otherwise fight those numbers are the ones
+   that make it a floating box on a desktop, so they are given back here.
+
+   The rest is what a list is when it is operated by a thumb: rows tall enough
+   to hit, and a scroll that stays in the sheet. `overscroll-behavior: contain`
+   is not cosmetic — without it, scrolling past the end of a long block menu
+   chains to the note underneath, and on iOS the page moving under a focused
+   field is what dismisses the keyboard, which is « si on scroll ça ferme le
+   clavier ». */
+.nbe-menu[data-placement='sheet'] {
+  /* still absolute, still in page coordinates: `autoUpdate` follows every
+     scroll and every viewport change, and a second positioning scheme for one
+     placement is a second set of bugs */
+  min-width: 0;
+  max-width: none;
+  border-radius: var(--nbe-radius-lg);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  animation: nbe-sheet-in var(--nbe-normal) var(--nbe-ease);
+}
+.nbe-menu[data-placement='sheet'] .nbe-menu-item {
+  padding: 10px 10px;
+  font-size: 15px;
+}
+.nbe-menu[data-placement='sheet'] .nbe-swatch {
+  width: 34px;
+  height: 34px;
+}
+/* it arrives from the edge it is pinned to, which is the bottom one */
+@keyframes nbe-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* A popover should look placed, not faded in — so it scales from the edge it
    is anchored to. Without an origin it grows from its own middle, which reads
    as the panel arriving from nowhere rather than out of the control. */

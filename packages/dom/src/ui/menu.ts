@@ -266,12 +266,20 @@ export function createMenu(opts: MenuOptions = {}): MenuController {
     openFlag = true;
     active = 0;
     anchorGetter = getAnchor;
-    positionOptions = position;
+    /*
+     * A menu is a sheet on a touch screen unless the caller says otherwise.
+     *
+     * Opt-out rather than opt-in, because every menu in the editor has the same
+     * problem on a phone and a list of the ones that remembered to ask would
+     * just be a list of the ones somebody got to. `sheet` is ignored where the
+     * pointer is fine, so this costs a desktop nothing.
+     */
+    positionOptions = { sheet: true, ...position };
     mountPortal(el);
     render();
     // autoUpdate re-positions on content size changes too, so a menu that
     // filters down to one item stays glued to its anchor instead of floating
-    stopAuto = autoUpdate(el, getAnchor, position);
+    stopAuto = autoUpdate(el, getAnchor, positionOptions);
     // the overlay stack owns dismissal, so a menu nested in a popover closes
     // alone instead of taking its parent down with it
     stopDismiss = pushOverlay({ el, close, exempt: opts.isOutsideExempt });

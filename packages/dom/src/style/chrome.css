@@ -164,6 +164,29 @@
   display: none;
 }
 
+/* --- the same gutter, as a bar above the keyboard -------------------------
+   Touch only, and placed by `controls.ts` against the *visible* viewport. It
+   is drawn as a chip rather than as two bare icons: floating over the note
+   instead of sitting in a margin, it has to say where it ends, and the margin
+   version could rely on the paper around it to do that. Buttons at 34px, which
+   is what a thumb needs before the 44px hit area (below) has to rescue it. */
+.nbe-controls-bar {
+  position: fixed;
+  z-index: 120;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--nbe-radius-lg);
+  background: var(--nbe-surface);
+  box-shadow: var(--nbe-shadow);
+  /* the note scrolls under it; the bar itself is not a scroll surface */
+  touch-action: none;
+}
+.nbe-controls-bar .nbe-ctrl-btn {
+  width: 34px;
+  height: 34px;
+  color: var(--nbe-text-muted);
+}
+
 /* --- drag ghost + drop guide --- */
 
 .nbe-ghost {

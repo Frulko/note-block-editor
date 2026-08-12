@@ -1,5 +1,6 @@
 import type { BlockId } from '@nbe/core';
 import type { EditorView } from './view';
+import { suppressNextClick } from './ui/overlay';
 
 /**
  * One press, one owner.
@@ -71,30 +72,17 @@ const DRAG_SLOP = 4;
 const INTERACTIVE_CHROME =
   '.nbe-checkbox, .nbe-toggle-arrow, .nbe-callout-icon, .nbe-t-link_to_page, .nbe-t-image, [data-nbe-ui], a, button, input, textarea, select';
 
-/**
- * Swallow the click the browser synthesises after a gesture that moved.
+/*
+ * The click a moved gesture leaves behind is swallowed by
+ * {@link suppressNextClick}, which used to live here.
  *
  * This is what `justRubberBanded()`'s 300 ms window existed for: a drag that
  * ended over empty space must not also register as "click below the last block
- * to append a paragraph". A one-shot capture listener is the same intent
- * expressed as state — it fires for exactly the next click and then removes
- * itself, so no duration has to be guessed.
+ * to append a paragraph". A touch tap has the same problem for a different
+ * reason — see the note on the function itself — so the one implementation now
+ * sits in `ui/overlay.ts`, beside the other answers to "what does a press
+ * dismiss".
  */
-function suppressNextClick(): void {
-  const swallow = (e: Event) => {
-    e.stopPropagation();
-    e.preventDefault();
-    document.removeEventListener('click', swallow, true);
-  };
-  document.addEventListener('click', swallow, true);
-  // if no click follows (drag ended off-window), drop the listener on the next
-  // press rather than leaving it armed for the next real click
-  const disarm = () => {
-    document.removeEventListener('click', swallow, true);
-    document.removeEventListener('pointerdown', disarm, true);
-  };
-  document.addEventListener('pointerdown', disarm, true);
-}
 
 export function attachGestureRouter(view: EditorView): () => void {
   let session: GestureSession | null = null;

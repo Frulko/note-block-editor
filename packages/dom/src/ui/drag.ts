@@ -1,3 +1,5 @@
+import { suppressNextClick } from './overlay';
+
 export interface DraggableOptions {
   /**
    * Decide at press time whether this press may become a drag. Returning
@@ -142,6 +144,17 @@ export function draggable(handle: HTMLElement, opts: DraggableOptions): () => vo
         throw err;
       }
     } else {
+      /*
+       * A tap acts here, on `pointerup` — before the browser synthesises the
+       * click that follows a touch. Whatever the tap opens is therefore on
+       * screen when that click lands, and on a phone it opens *under the
+       * finger*: tapping the block handle opened the menu as a sheet and the
+       * ghost click chose a row of it before it had been read.
+       *
+       * Only for a finger: a mouse's click is the user's, and every tap
+       * handler in the editor is reached by one or the other, never both.
+       */
+      if (e.pointerType !== 'mouse') suppressNextClick();
       opts.onTap?.(e);
     }
   };

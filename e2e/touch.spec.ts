@@ -42,7 +42,8 @@ test.describe('the editor fits a phone', () => {
   test('the text column takes the width too, not just the page', async ({ page }) => {
     await open(page);
     const block = (await page.locator('.nbe-editor > .nbe-block').first().boundingBox())!;
-    expect(block.width).toBeGreaterThan(320);
+    // 358 of 390: the gutter column is not reserved where nothing can hover
+    expect(block.width).toBeGreaterThan(350);
   });
 
   test('the panels are drawers, closed until asked for', async ({ page }) => {
@@ -113,17 +114,55 @@ test.describe('a finger can move a block', () => {
     expect(await texts()).not.toEqual(before);
   });
 
-  test('the handle can be hit outside its 26px box', async ({ page }) => {
+  /*
+   * Reported from a phone, with a screenshot: the gutter drawn straight over
+   * « une autre tâche ». Reclaiming the margin left it clamping to the
+   * editor's edge, which is the first words of the line being edited. On touch
+   * it is a bar above the keyboard now, and the thing it must never do is
+   * cover the block it acts on.
+   */
+  test('the block actions sit clear of the text, not on top of it', async ({ page }) => {
+    await open(page);
+    const box = (await page.locator('.nbe-editor > .nbe-block').nth(2).boundingBox())!;
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(300);
+
+    const bar = (await page.locator('.nbe-controls:not(.nbe-controls-right)').boundingBox())!;
+    expect(bar.y, 'the bar is below the block it acts on').toBeGreaterThan(box.y + box.height);
+    expect(bar.y + bar.height, 'and inside the screen').toBeLessThanOrEqual(845);
+  });
+
+  test('and its menu arrives as a sheet, not as a 240px box under the thumb', async ({ page }) => {
+    await open(page);
+    const box = (await page.locator('.nbe-editor > .nbe-block').nth(2).boundingBox())!;
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(300);
+    await page.touchscreen.tap(...(await centre(page, '.nbe-handle')));
+    await page.waitForTimeout(300);
+
+    const menu = page.locator('.nbe-menu').first();
+    await expect(menu).toHaveAttribute('data-placement', 'sheet');
+    const sheet = (await menu.boundingBox())!;
+    expect(sheet.width, 'full width, less its margins').toBeGreaterThan(350);
+    expect(sheet.y + sheet.height, 'and never below the fold').toBeLessThanOrEqual(845);
+  });
+
+  test('the handle can be hit outside its own box', async ({ page }) => {
     await open(page);
     const box = (await page.locator('.nbe-editor > .nbe-block').nth(2).boundingBox())!;
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(300);
     const handle = (await page.locator('.nbe-handle').boundingBox())!;
 
-    // 8px below the button's own box: inside the 44px target, outside the button
+    /*
+     * Below the button's own box and still on the button: the `::after` under
+     * `(pointer: coarse)` grows every gutter target to 44px without moving
+     * anything. 3px, because in the bar the button is drawn at 34 rather than
+     * 26 — the margin the hit area adds is what shrank, not the target.
+     */
     const hit = await page.evaluate(
       ([x, y]) => document.elementFromPoint(x, y)?.closest('.nbe-controls button') !== null,
-      [handle.x + handle.width / 2, handle.y + handle.height + 6],
+      [handle.x + handle.width / 2, handle.y + handle.height + 3],
     );
     expect(hit).toBe(true);
   });
@@ -146,6 +185,33 @@ test.describe('the keyboard does not hide what you type', () => {
       return fired && !!window.visualViewport;
     });
     expect(listening).toBe(true);
+  });
+
+  /*
+   * Reported from a phone: « quand j'édite, clavier ouvert, tout disparaît »,
+   * and it comes back on its own when the keyboard closes. A host that reacts
+   * to the keyboard by resizing the app above it — which is what Obsidian
+   * mobile does — is the case a viewport resize can actually reproduce here:
+   * the window loses half its height while a leaf has the caret, and the note
+   * has to still be on screen afterwards.
+   */
+  test('the note is still there once the window shrinks to make room for it', async ({ page }) => {
+    await open(page);
+    const leaf = page.locator('.nbe-editor .nbe-leaf').nth(1);
+    await leaf.tap();
+    await page.waitForTimeout(200);
+    const text = (await leaf.textContent()) ?? '';
+    expect(text.length).toBeGreaterThan(0);
+
+    await page.setViewportSize({ width: 390, height: 420 });
+    await page.waitForTimeout(400);
+
+    await expect(leaf).toBeVisible();
+    expect(await leaf.textContent()).toBe(text);
+    const box = (await leaf.boundingBox())!;
+    expect(box.height, 'the leaf still has a box').toBeGreaterThan(0);
+    expect(box.y, 'and it is inside the shortened window').toBeLessThan(420);
+    expect(box.y + box.height).toBeGreaterThan(0);
   });
 });
 

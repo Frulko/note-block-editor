@@ -2,7 +2,13 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) mean anything;
+         without it the page stops at the notch instead of running under it -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- the status bar takes the page's colour, per scheme, or the phone draws
+         a white band above a dark note -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#17161c" media="(prefers-color-scheme: dark)" />
     <title>nbe — demo</title>
   </head>
   <body>

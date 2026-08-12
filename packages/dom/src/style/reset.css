@@ -40,21 +40,59 @@
   cursor: text;
 }
 
-/* On a narrow screen — a phone, or a side pane — the two 58px gutter columns
-   are a third of the width, and they are reserved for a 26px button that is
-   only there while the pointer is near a block. At 390px that left 274px of
-   text. Giving most of it back is the whole of "revoir le responsive".
+/* Two different reasons the margins shrink, and they are deliberately not the
+   same rule — one is about the window, the other about the hand.
 
-   ponytail: the gutter clamps to the editor's edge (`Math.max(0, at.x)` in
-   controls.ts) and so overlays about 26px of the first line while it is
-   showing — the degradation `padding.x: 0` already documents, and what a phone
-   editor does. Drop a button from the narrow gutter if that turns out to
-   matter more than the width does. */
+   A narrow *window* — a phone, a side pane — gets less paper: 24px each side
+   of a 390px screen is a sixth of the line, and the reader came for the text.
+
+   A *touch* screen gets no gutter column at all. Those 58px are reserved for a
+   26px button that only exists while a pointer is near a block, and a finger
+   never hovers: it was a permanent margin paid for chrome the device cannot
+   summon. At 390px the two columns left 274px of text; without them, 358.
+   This is the whole of « les marges trop importantes ».
+
+   ponytail: the gutter still opens on the mousemove a tap synthesises, and
+   with nothing reserved it clamps to the editor's edge (`Math.max(0, at.x)` in
+   controls.ts) and overlays the start of the line while it is showing — the
+   degradation `padding.x: 0` already documents. That is the trade: a permanent
+   margin for an occasional overlap. A bottom action bar is the upgrade if the
+   overlap turns out to matter more than the width does. */
 @media (max-width: 600px) {
   .nbe-editor {
     --nbe-pad-top: 24px;
-    --nbe-pad-x: 32px;
+    --nbe-pad-x: 16px;
     --nbe-gutter-width: 32px;
+  }
+}
+@media (pointer: coarse) {
+  .nbe-editor {
+    --nbe-gutter-width: 0px;
+  }
+}
+
+/* --- what a finger changes -----------------------------------------------
+   Three of the mobile checklist's items, and each is a defect you only see on
+   the device: WebKit paints a grey rectangle over anything tapped, on top of
+   the press states the editor draws itself; a long press meant for a menu
+   selects the button's label instead; and a field under 16px makes iOS zoom
+   the page on focus and never zoom back — the note is left scaled up with the
+   toolbar off screen. The rest of that list is either already here
+   (`touch-action` on the drag surfaces, chrome.css) or the host's to state
+   (`overscroll-behavior`, `theme-color`, `viewport-fit`), not the editor's. */
+
+.nbe-editor,
+.nbe-portal {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:is(.nbe-editor, .nbe-portal) button {
+  user-select: none;
+}
+
+@media (pointer: coarse) {
+  :is(.nbe-editor, .nbe-portal) :is(input, textarea) {
+    font-size: 16px;
   }
 }
 
